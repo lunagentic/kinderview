@@ -5,41 +5,135 @@
 프로젝트의 업무와 담당을 명확히 정의하고, 내부 업무와 외주 작업의 진행·이슈를 추적하여
 전체 업무 흐름을 한눈에 보여주는 **프로젝트·업무 관리 도구**.
 
-## 이 저장소
+## 실행
 
-KinderFlow MVP의 기획 산출물을 관리한다. 원본 기획서를 기준으로
-데이터 모델 · 화면 정의 · 연동 스펙 · Phase 백로그로 전개했다.
+Node.js 22.5 이상만 있으면 된다. **설치할 패키지가 없다** — 서버는 Node 기본 모듈,
+데이터베이스는 내장 `node:sqlite`, 화면은 빌드 없는 순수 ES 모듈로 되어 있다.
 
-## 문서 인덱스
+```bash
+npm run seed     # 예시 데이터 생성 (처음 한 번)
+npm start        # http://localhost:4173
+```
+
+| 명령 | 하는 일 |
+|---|---|
+| `npm start` | 서버 실행 (기본 포트 4173, `PORT` 로 변경) |
+| `npm run dev` | 파일 변경 시 자동 재시작 |
+| `npm run seed` | 비어 있을 때만 예시 데이터 생성 |
+| `npm run reset` | 데이터를 모두 지우고 예시 데이터 재생성 |
+| `npm run job:daily` | 마감·지연·외주 납품 배치 알림 |
+| `npm run job:weekly` | Weekly Report 생성 + Slack 공유 |
+| `npm run sync:slack` | Slack 구성원 동기화 |
+
+데이터는 `data/kinderflow.db` (SQLite) 한 파일에 들어간다. 이 파일을 지우면 초기화된다.
+
+### 실제 팀 데이터로 시작하기
+
+예시 데이터의 구성원 이름은 기획서와 같은 익명 표기(김OO)다. 실제로 쓰려면:
+
+```bash
+npm run reset          # 예시 데이터 제거
+# .env 대신 환경변수로 토큰을 넣고
+SLACK_BOT_TOKEN=xoxb-... npm run sync:slack   # 실제 Slack 멤버 가져오기
+SLACK_BOT_TOKEN=xoxb-... npm start
+```
+
+그다음 화면에서 프로젝트를 만들고 업무를 등록하면 된다.
+
+## 환경변수
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `PORT` | `4173` | 서버 포트 |
+| `KINDERFLOW_DB` | `data/kinderflow.db` | SQLite 파일 경로 |
+| `KINDERFLOW_TZ_OFFSET` | `540` | 기준 시간대(분). 기본 KST(+9). 지연 판정의 "오늘"을 정한다 |
+| `SLACK_BOT_TOKEN` | 없음 | 없으면 알림을 **발송하지 않고 알림함에만 기록**한다 |
+| `SLACK_DEFAULT_CHANNEL` | 없음 | 프로젝트 채널이 없을 때 쓰는 기본 채널 |
+
+Slack 앱에 필요한 scope: `users:read`, `users:read.email`, `chat:write`, `im:write`.
+
+토큰이 없어도 앱은 완전히 동작한다. 어떤 알림이 언제 누구에게 나가는지는
+**알림함** 화면에서 그대로 확인할 수 있고, 토큰을 넣으면 같은 규칙으로 실제 발송된다.
+
+### 배치 스케줄 (운영 시)
+
+```cron
+0 0 * * 1-5   cd /path/to/kinderview && npm run job:daily    # 09:00 KST 평일
+0 8 * * 5     cd /path/to/kinderview && npm run job:weekly   # 17:00 KST 금요일
+0 23 * * *    cd /path/to/kinderview && npm run sync:slack   # 08:00 KST
+```
+
+## 화면
+
+| 화면 | 하는 일 |
+|---|---|
+| **Overview** | 요약 6종, 프로젝트별·업무 영역별·담당자별 진행, 외주 진행 현황. 모든 숫자에서 해당 업무 목록으로 내려간다 |
+| **Tasks** | 업무 등록·조회·상태 변경. 기본 진입은 `내 담당 업무`. 외주는 별도 메뉴가 아니라 영역 필터 |
+| **Issues** | 블로커 등록과 해결 추적. 업무 상태와 분리해서 관리한다 |
+| **Weekly** | 9개 섹션 주간 리포트 자동 생성, 스냅샷 저장, Slack 공유, 마크다운 복사 |
+| **알림함** | Slack으로 나가는(나갈) 알림 기록 |
+
+로그인 대신 우측 상단에서 **현재 사용자**를 고르는 구조다. 소규모 내부 팀 전제이며,
+실제 배포 시 Slack OAuth 로 교체한다.
+
+## 설계에서 지키는 것
+
+기획서의 원칙이 선언에 그치지 않도록 코드/스키마에서 강제한 지점들이다.
+
+| 원칙 | 강제 지점 |
+|---|---|
+| 담당을 정의한다 | `task.owner_slack_user_id` **NOT NULL** — 담당자 없는 업무는 저장되지 않는다 |
+| 프로젝트와 연결 | `task.project_id` **NOT NULL** |
+| 담당자는 1명 | 단일 값. 협업자 테이블에 담당자를 넣으면 트리거가 막는다 |
+| 외주도 같은 구조 | 외주는 업무 영역 값(`OUT`). 상세만 `outsourcing` 1:1 확장, **내부 담당자 = `task.owner`** |
+| 상태 체계 분리 | `CHECK` 제약으로 일반 4단계 / 외주 6단계를 서로 섞을 수 없다 |
+| 업무 상태 ≠ 이슈 상태 | 서로 자동 전이시키지 않는다. 이슈는 업무에 플래그로만 나타난다 |
+| 지연은 상태가 아니다 | 저장하지 않고 조회 시 계산한다 (`status ≠ DONE AND due_date < 오늘`) |
+| 자동 집계 | 진행률은 저장하지 않는다. 단순 완료율이 아닌 **상태 가중 평균** |
+| 보고 작업 없는 리포트 | Weekly 전용 입력 필드 0개. `task_event` 이력으로 "이번 주 변화"를 만든다 |
+
+## 구조
+
+```
+server/
+  index.js      HTTP 서버 · 라우팅 · 정적 파일
+  schema.sql    SQLite 스키마 (제약으로 원칙을 강제)
+  domain.js     업무 영역 · 상태값 · 진행률 가중치
+  repo.js       질의와 집계 (진행률·지연·이슈 플래그 계산)
+  weekly.js     Weekly Report 생성과 스냅샷
+  notify.js     알림 규칙 (트리거 · 대상 · 묶음 · 중복 방지)
+  slack.js      Slack API 어댑터
+  jobs.js       배치 진입점
+  seed.js       예시 데이터
+public/
+  index.html · app.css
+  js/           라우터 · 폼 · 화면 (빌드 없는 ES 모듈)
+docs/           기획 산출물 (아래)
+db/schema.sql   PostgreSQL 참조 DDL — 운영 DB 전환 시 기준
+```
+
+## 기획 문서
 
 | # | 문서 | 내용 |
 |---|------|------|
-| 00 | [원본 기획서](docs/00-original-plan.md) | 최초 작성된 MVP 기획서 원문 (변경 금지, 기준 문서) |
+| 00 | [원본 기획서](docs/00-original-plan.md) | 최초 MVP 기획서 원문 (변경 금지, 기준 문서) |
 | 01 | [서비스 개요 및 원칙](docs/01-service-overview.md) | 목적, 핵심 원칙, 범위/비범위 |
-| 02 | [정보 구조 (IA)](docs/02-information-architecture.md) | 관리 구조, 메뉴, 업무 영역 분류 |
-| 03 | [데이터 모델](docs/03-data-model.md) | 엔터티, 필드, 상태값, ERD, 파생 규칙 |
-| 04 | [업무(Task) 스펙](docs/04-task-spec.md) | 업무 입력, 상태 전이, 외주 작업 |
+| 02 | [정보 구조 (IA)](docs/02-information-architecture.md) | 관리 구조, 메뉴, 업무 영역 |
+| 03 | [데이터 모델](docs/03-data-model.md) | 엔터티, 상태값, 파생 규칙, 진행률 산식 |
+| 04 | [업무 스펙](docs/04-task-spec.md) | 입력, 상태 전이, 외주 작업 |
 | 05 | [담당 정의 스펙](docs/05-ownership-spec.md) | 담당자/협업자, Slack 멤버 연동 |
 | 06 | [화면 정의](docs/06-screens.md) | Overview / Tasks / Issues / Weekly |
-| 07 | [이슈(Issue) 스펙](docs/07-issue-spec.md) | 이슈 등록, 상태, 업무 연결 |
-| 08 | [Weekly Report 스펙](docs/08-weekly-report-spec.md) | 자동 집계 항목과 산식 |
-| 09 | [Slack 연동 스펙](docs/09-slack-integration.md) | 구성원 동기화, 알림 트리거·템플릿 |
-| 10 | [로드맵 및 백로그](docs/10-roadmap-backlog.md) | Phase 1~4, 유저스토리와 수용 기준 |
-| 11 | [용어 사전](docs/11-glossary.md) | 용어·enum 표기 통일 |
+| 07 | [이슈 스펙](docs/07-issue-spec.md) | 이슈 등록, 상태, 업무 연결 |
+| 08 | [Weekly Report 스펙](docs/08-weekly-report-spec.md) | 9개 섹션과 집계 산식 |
+| 09 | [Slack 연동 스펙](docs/09-slack-integration.md) | 알림 12종 트리거·대상·시점 |
+| 10 | [로드맵 및 백로그](docs/10-roadmap-backlog.md) | Phase 1~4, 결정 필요 사항 |
+| 11 | [용어 사전](docs/11-glossary.md) | 표기·enum 통일 |
 
-- [db/schema.sql](db/schema.sql) — 데이터 모델 기반 DDL 초안 (PostgreSQL)
+## 현재 구현 범위
 
-## 핵심 구조
+- **Phase 1 (업무)** — 완료. 프로젝트·업무·영역·담당·협업자·외주·상태·지연 자동 표시
+- **Phase 2 (현황 및 이슈)** — 완료. Overview 전 항목, Issues 등록·해결
+- **Phase 3 (리포트 및 Slack)** — 완료. Weekly Report 9개 섹션, 알림 12종, 배치, Slack 공유
+- **Phase 4 (Google)** — 미구현
 
-```
-프로젝트 → 업무 → 담당 정의 → 진행 상태 → 이슈 → 주간 리포트
-```
-
-기본 관리 단위는 **업무(Task)** 이며, 개별 업무를 관리하면 프로젝트별 ·
-업무 영역별 · 담당자별 현황이 자동으로 집계된다.
-
-## 문서 작성 규칙
-
-- `docs/00-original-plan.md`는 기준 문서로 수정하지 않는다. 기획 변경은 각 스펙 문서에 반영하고 변경 이력을 남긴다.
-- 상태값·업무 영역 등 enum 표기는 [용어 사전](docs/11-glossary.md)을 따른다.
-- 스펙에 결정되지 않은 항목은 `TBD:` 로 표기하고 결정 필요 사항 목록에 남긴다.
+미구현/대체 항목: Slack OAuth 로그인(현재는 사용자 선택), 권한 관리, Google Calendar·Tasks 연동.

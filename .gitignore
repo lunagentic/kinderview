@@ -2,3 +2,6 @@
 node_modules/
 .env
 .env.local
+
+# 로컬 데이터베이스 (각자 로컬에서 생성)
+data/

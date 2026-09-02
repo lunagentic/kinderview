@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KinderFlow</title>
+<meta name="description" content="프로젝트의 업무와 담당을 명확히 정의하고 진행·이슈를 추적하는 업무 관리 도구">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗂️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/overview">
+      <span class="brand-mark">KinderFlow</span>
+      <span class="brand-sub">업무의 담당을 명확히</span>
+    </a>
+    <nav class="gnb" id="gnb">
+      <a href="#/overview" data-nav="overview">Overview</a>
+      <a href="#/tasks" data-nav="tasks">Tasks</a>
+      <a href="#/issues" data-nav="issues">Issues</a>
+      <a href="#/weekly" data-nav="weekly">Weekly</a>
+      <a href="#/notifications" data-nav="notifications">알림함</a>
+    </nav>
+    <div class="topbar-right">
+      <button class="btn btn-primary" id="btn-new-task">+ 업무 등록</button>
+      <label class="me-picker">
+        <span class="me-label">현재 사용자</span>
+        <select id="me-select" aria-label="현재 사용자"></select>
+      </label>
+    </div>
+  </header>
+
+  <main id="view" class="view" aria-live="polite"></main>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
