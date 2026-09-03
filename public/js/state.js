@@ -1,7 +1,11 @@
 import { api } from './api.js';
 
+// 브라우저 저장소는 접근 자체가 막히는 환경이 있으므로 항상 감싼다
+const readStored = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+const writeStored = (key, value) => { try { localStorage.setItem(key, value); } catch { /* 저장 불가 시 메모리만 */ } };
+
 export const state = {
-  me: localStorage.getItem('kf.me') || null,
+  me: readStored('kf.me') || null,
   members: [],
   projects: [],
   vendors: [],
@@ -25,7 +29,7 @@ export async function loadBootstrap() {
 
 export function setMe(id) {
   state.me = id;
-  localStorage.setItem('kf.me', id);
+  writeStored('kf.me', id);
 }
 
 export const memberOf = (id) => state.members.find((m) => m.slack_user_id === id) || null;

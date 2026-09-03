@@ -5,7 +5,19 @@
 프로젝트의 업무와 담당을 명확히 정의하고, 내부 업무와 외주 작업의 진행·이슈를 추적하여
 전체 업무 흐름을 한눈에 보여주는 **프로젝트·업무 관리 도구**.
 
-## 실행
+## 바로 써보기 (설치 없이)
+
+서버 없이 브라우저에서 그대로 도는 데모 빌드가 있다. `demo/kinderflow-demo.html` 파일 하나를
+브라우저로 열면 된다. 데이터는 그 브라우저의 localStorage 에만 저장된다.
+
+```bash
+node tools/build-demo.mjs   # 소스 변경 후 데모 다시 빌드
+```
+
+데모는 화면 코드(`public/js/**`)를 그대로 쓰고 api 계층만 `demo/store.js` 로 바꿔 끼운다.
+집계·진행률·Weekly Report·알림 규칙은 서버와 같은 로직을 브라우저에서 재현한다.
+
+## 실행 (서버판)
 
 Node.js 22.5 이상만 있으면 된다. **설치할 패키지가 없다** — 서버는 Node 기본 모듈,
 데이터베이스는 내장 `node:sqlite`, 화면은 빌드 없는 순수 ES 모듈로 되어 있다.
@@ -97,6 +109,7 @@ Slack 앱에 필요한 scope: `users:read`, `users:read.email`, `chat:write`, `i
 ```
 server/
   index.js      HTTP 서버 · 라우팅 · 정적 파일
+  seed-data.js  예시 데이터 (서버 시드와 데모 빌드가 공유)
   schema.sql    SQLite 스키마 (제약으로 원칙을 강제)
   domain.js     업무 영역 · 상태값 · 진행률 가중치
   repo.js       질의와 집계 (진행률·지연·이슈 플래그 계산)
@@ -108,6 +121,10 @@ server/
 public/
   index.html · app.css
   js/           라우터 · 폼 · 화면 (빌드 없는 ES 모듈)
+demo/
+  store.js              브라우저용 저장소 (서버와 같은 규칙을 in-memory 로 재현)
+  kinderflow-demo.html  빌드 결과 — 파일 하나로 도는 데모
+tools/build-demo.mjs    데모 빌드 스크립트
 docs/           기획 산출물 (아래)
 db/schema.sql   PostgreSQL 참조 DDL — 운영 DB 전환 시 기준
 ```
