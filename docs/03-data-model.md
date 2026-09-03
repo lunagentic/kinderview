@@ -149,7 +149,7 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 | `id` | uuid | ✔ | PK |
 | `project_id` | uuid FK | ✔ | 소속 프로젝트 |
 | `title` | text | ✔ | 업무명 |
-| `area` | enum | ✔ | 업무 영역 (`BIZ`/`PLAN`/`DEV`/`MKT`/`OPS`/`OUT`/`ETC`) |
+| `area` | enum | ✔ | 업무 영역 (`PLAN`/`DEV`/`CONTENT`/`BIZ`/`OPS`/`OUT`/`ETC`) |
 | `owner_slack_user_id` | text FK | ✔ | **담당자. 단일 값** |
 | `status` | enum | ✔ | 업무 상태. 기본 `TODO`(외주는 `REQUEST_PLANNED`) |
 | `priority` | enum | | `HIGH` 높음 / `NORMAL` 보통 / `LOW` 낮음. 기본 `NORMAL` |

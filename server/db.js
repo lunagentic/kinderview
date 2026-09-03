@@ -10,7 +10,12 @@ const dbPath = process.env.KINDERFLOW_DB || join(dataDir, 'kinderflow.db');
 mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(dbPath);
-db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
+
+const schemaSql = readFileSync(join(here, 'schema.sql'), 'utf8');
+db.exec(schemaSql);
+
+/** 마이그레이션으로 테이블을 다시 만든 뒤 인덱스를 복구한다 (모두 IF NOT EXISTS). */
+export const applySchema = () => db.exec(schemaSql);
 
 export const dbFile = dbPath;
 

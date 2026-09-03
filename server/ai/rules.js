@@ -217,12 +217,12 @@ export function draftDigest({ snapshot, risks, periodStart, periodEnd }) {
 
 // ── ③ 빠른 입력 (규칙 파서) ────────────────────────────
 const AREA_KEYWORDS = {
-  OUT: ['외주', '납품', '검수', '업체', '외부'],
+  OUT: ['외주', '납품', '업체', '외부 작업자'],
   DEV: ['개발', 'api', '배포', '서버', '버그', 'qa', '인프라', '프론트', '백엔드'],
-  PLAN: ['기획', '정책', '요구사항', 'ux', 'ui', '와이어', '설계'],
-  MKT: ['마케팅', '홍보', '캠페인', 'sns', '제안', '콘텐츠 마케팅'],
-  OPS: ['운영', '대응', '모니터링', '문의', '등록'],
-  BIZ: ['사업', '계약', '예산', '보고', '사업계획', '의사결정'],
+  PLAN: ['기획', '정책', '요구사항', 'ux', 'ui', '와이어', '설계', '서비스 기획'],
+  CONTENT: ['콘텐츠', '활동지', '교안', '워크북', '영상', '카드뉴스', '스티커', '자료 제작', '번역', '디자인'],
+  BIZ: ['사업', '계약', '예산', '보고', '전략', '제안', '투자', '의사결정'],
+  OPS: ['운영', '대응', '모니터링', '문의', '등록', '고객'],
 };
 
 const WEEKDAYS = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 7 };
@@ -324,8 +324,9 @@ export function parseCapture(text, ctx) {
       .replace(/까지/, ' ');
   }
 
-  // 업무 영역 — 키워드 적중 수가 많은 쪽, 같으면 문장에서 먼저 나온 쪽
-  let best = null;
+  // 업무 영역 — '외주'가 명시되면 그것을 따르고, 아니면 키워드 적중 수로 고른다.
+  // (외주는 업체·납품일 같은 전용 항목을 여는 영역이라 놓치면 손해가 크다)
+  let best = lower.includes('외주') ? { code: 'OUT', score: 99, first: lower.indexOf('외주') } : null;
   for (const [code, words] of Object.entries(AREA_KEYWORDS)) {
     const hits = words.map((w) => lower.indexOf(w)).filter((i) => i >= 0);
     if (!hits.length) continue;

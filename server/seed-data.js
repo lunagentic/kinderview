@@ -30,7 +30,7 @@ export const TASKS = [
   ['KV', '데이터 마이그레이션 검증',      'DEV',  'U02PARK', 'TODO',            -2,  'HIGH',   []],  // 지연
   ['KV', '고객 문의 대응 프로세스',       'OPS',  'U04CHOI', 'DONE',            -4,  'LOW',    []],
 
-  ['CP', '9월 콘텐츠 라인업 기획',        'PLAN', 'U05JUNG', 'REVIEW',          +2,  'HIGH',   ['U03LEE']],
+  ['CP', '9월 콘텐츠 라인업 기획',        'CONTENT', 'U05JUNG', 'REVIEW',          +2,  'HIGH',   ['U03LEE']],
   ['CP', '활동지 디자인 제작',            'OUT',  'U01KIM',  'OUT_IN_PROGRESS', +12, 'NORMAL', [],
     { vendor: 'OO 디자인', worker: '홍길동', requested: -6, delivery: +12, review: 'NOT_STARTED',
       scope: '9월 활동지 12종 디자인 및 인쇄용 파일 납품' }],
@@ -44,16 +44,16 @@ export const TASKS = [
     { vendor: '한빛 콘텐츠', worker: '박인쇄', requested: -3, delivery: +2, review: 'NOT_STARTED',
       scope: '교사 워크북 500부 인쇄 및 배송' }],
   ['CP', '콘텐츠 등록 및 검수',           'OPS',  'U04CHOI', 'TODO',            +14, 'NORMAL', ['U05JUNG']],
-  ['CP', '8월 콘텐츠 성과 정리',          'MKT',  'U03LEE',  'DONE',            -2,  'NORMAL', []],
-  ['CP', '스티커 리소스 1차 검수',        'OPS',  'U06HAN',  'IN_PROGRESS',     -5,  'NORMAL', []], // 비활성 담당 + 지연
+  ['CP', '8월 콘텐츠 성과 정리',          'CONTENT',  'U03LEE',  'DONE',            -2,  'NORMAL', []],
+  ['CP', '스티커 리소스 1차 검수',        'CONTENT',  'U06HAN',  'IN_PROGRESS',     -5,  'NORMAL', []], // 비활성 담당 + 지연
 
   ['GP', '해외 파일럿 기관 리스트업',     'BIZ',  'U03LEE',  'IN_PROGRESS',     +7,  'NORMAL', []],
-  ['GP', '영문 제안자료 제작',            'MKT',  'U03LEE',  'REVIEW',          +1,  'HIGH',   ['U05JUNG']],
+  ['GP', '영문 제안자료 제작',            'BIZ',  'U03LEE',  'REVIEW',          +1,  'HIGH',   ['U05JUNG']],
   ['GP', '다국어 지원 기술 검토',         'DEV',  'U02PARK', 'TODO',            +11, 'LOW',    []],
   ['GP', '파일럿 운영 매뉴얼 초안',       'OPS',  'U04CHOI', 'TODO',            -1,  'NORMAL', []], // 지연
 
   ['BD', '3분기 사업계획 보고',           'BIZ',  'U03LEE',  'DONE',            -5,  'HIGH',   []],
-  ['BD', '투자사 미팅 자료 업데이트',     'MKT',  'U03LEE',  'IN_PROGRESS',     +2,  'HIGH',   ['U01KIM']],
+  ['BD', '투자사 미팅 자료 업데이트',     'BIZ',  'U03LEE',  'IN_PROGRESS',     +2,  'HIGH',   ['U01KIM']],
   ['BD', '외주 계약서 검토',              'BIZ',  'U01KIM',  'TODO',            +8,  'LOW',    []],
 ];
 

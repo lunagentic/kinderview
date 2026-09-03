@@ -6,6 +6,9 @@
 
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
 import { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS } from './seed-data.js';
+import { runMigrations } from './migrate.js';
+
+if (runMigrations().length) (await import('./db.js')).applySchema();
 
 const RESET = process.argv.includes('--reset');
 const T = today();

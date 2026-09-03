@@ -420,14 +420,17 @@ details.more[open] > summary{color:var(--ink)}
 
 // 도메인 상수 — 표기는 docs/11-glossary.md 를 따른다.
 
+// 업무 영역 — 팀의 직능 구분을 그대로 쓴다.
+// 외주 작업은 "무슨 일이냐"가 아니라 "누가 하느냐"지만,
+// 기획서(§4)의 결정대로 별도 메뉴가 아닌 영역 값으로 유지한다.
 const AREAS = [
-  { code: 'BIZ',  label: '사업관리', full: '프로젝트·사업관리' },
-  { code: 'PLAN', label: '기획',     full: '기획' },
-  { code: 'DEV',  label: '개발',     full: '개발' },
-  { code: 'MKT',  label: '마케팅',   full: '마케팅' },
-  { code: 'OPS',  label: '운영',     full: '운영' },
-  { code: 'OUT',  label: '외주',     full: '외주 작업' },
-  { code: 'ETC',  label: '기타',     full: '기타' },
+  { code: 'PLAN',    label: '서비스기획', full: '서비스기획' },
+  { code: 'DEV',     label: '개발',       full: '개발' },
+  { code: 'CONTENT', label: '콘텐츠',     full: '콘텐츠' },
+  { code: 'BIZ',     label: '사업전략',   full: '사업전략' },
+  { code: 'OPS',     label: '운영',       full: '운영' },
+  { code: 'OUT',     label: '외주',       full: '외주 작업' },
+  { code: 'ETC',     label: '기타',       full: '기타' },
 ];
 
 // 일반 업무 4단계
@@ -538,7 +541,7 @@ const TASKS = [
   ['KV', '데이터 마이그레이션 검증',      'DEV',  'U02PARK', 'TODO',            -2,  'HIGH',   []],  // 지연
   ['KV', '고객 문의 대응 프로세스',       'OPS',  'U04CHOI', 'DONE',            -4,  'LOW',    []],
 
-  ['CP', '9월 콘텐츠 라인업 기획',        'PLAN', 'U05JUNG', 'REVIEW',          +2,  'HIGH',   ['U03LEE']],
+  ['CP', '9월 콘텐츠 라인업 기획',        'CONTENT', 'U05JUNG', 'REVIEW',          +2,  'HIGH',   ['U03LEE']],
   ['CP', '활동지 디자인 제작',            'OUT',  'U01KIM',  'OUT_IN_PROGRESS', +12, 'NORMAL', [],
     { vendor: 'OO 디자인', worker: '홍길동', requested: -6, delivery: +12, review: 'NOT_STARTED',
       scope: '9월 활동지 12종 디자인 및 인쇄용 파일 납품' }],
@@ -552,16 +555,16 @@ const TASKS = [
     { vendor: '한빛 콘텐츠', worker: '박인쇄', requested: -3, delivery: +2, review: 'NOT_STARTED',
       scope: '교사 워크북 500부 인쇄 및 배송' }],
   ['CP', '콘텐츠 등록 및 검수',           'OPS',  'U04CHOI', 'TODO',            +14, 'NORMAL', ['U05JUNG']],
-  ['CP', '8월 콘텐츠 성과 정리',          'MKT',  'U03LEE',  'DONE',            -2,  'NORMAL', []],
-  ['CP', '스티커 리소스 1차 검수',        'OPS',  'U06HAN',  'IN_PROGRESS',     -5,  'NORMAL', []], // 비활성 담당 + 지연
+  ['CP', '8월 콘텐츠 성과 정리',          'CONTENT',  'U03LEE',  'DONE',            -2,  'NORMAL', []],
+  ['CP', '스티커 리소스 1차 검수',        'CONTENT',  'U06HAN',  'IN_PROGRESS',     -5,  'NORMAL', []], // 비활성 담당 + 지연
 
   ['GP', '해외 파일럿 기관 리스트업',     'BIZ',  'U03LEE',  'IN_PROGRESS',     +7,  'NORMAL', []],
-  ['GP', '영문 제안자료 제작',            'MKT',  'U03LEE',  'REVIEW',          +1,  'HIGH',   ['U05JUNG']],
+  ['GP', '영문 제안자료 제작',            'BIZ',  'U03LEE',  'REVIEW',          +1,  'HIGH',   ['U05JUNG']],
   ['GP', '다국어 지원 기술 검토',         'DEV',  'U02PARK', 'TODO',            +11, 'LOW',    []],
   ['GP', '파일럿 운영 매뉴얼 초안',       'OPS',  'U04CHOI', 'TODO',            -1,  'NORMAL', []], // 지연
 
   ['BD', '3분기 사업계획 보고',           'BIZ',  'U03LEE',  'DONE',            -5,  'HIGH',   []],
-  ['BD', '투자사 미팅 자료 업데이트',     'MKT',  'U03LEE',  'IN_PROGRESS',     +2,  'HIGH',   ['U01KIM']],
+  ['BD', '투자사 미팅 자료 업데이트',     'BIZ',  'U03LEE',  'IN_PROGRESS',     +2,  'HIGH',   ['U01KIM']],
   ['BD', '외주 계약서 검토',              'BIZ',  'U01KIM',  'TODO',            +8,  'LOW',    []],
 ];
 
@@ -816,12 +819,12 @@ function draftDigest({ snapshot, risks, periodStart, periodEnd }) {
 
 // ── ③ 빠른 입력 (규칙 파서) ────────────────────────────
 const AREA_KEYWORDS = {
-  OUT: ['외주', '납품', '검수', '업체', '외부'],
+  OUT: ['외주', '납품', '업체', '외부 작업자'],
   DEV: ['개발', 'api', '배포', '서버', '버그', 'qa', '인프라', '프론트', '백엔드'],
-  PLAN: ['기획', '정책', '요구사항', 'ux', 'ui', '와이어', '설계'],
-  MKT: ['마케팅', '홍보', '캠페인', 'sns', '제안', '콘텐츠 마케팅'],
-  OPS: ['운영', '대응', '모니터링', '문의', '등록'],
-  BIZ: ['사업', '계약', '예산', '보고', '사업계획', '의사결정'],
+  PLAN: ['기획', '정책', '요구사항', 'ux', 'ui', '와이어', '설계', '서비스 기획'],
+  CONTENT: ['콘텐츠', '활동지', '교안', '워크북', '영상', '카드뉴스', '스티커', '자료 제작', '번역', '디자인'],
+  BIZ: ['사업', '계약', '예산', '보고', '전략', '제안', '투자', '의사결정'],
+  OPS: ['운영', '대응', '모니터링', '문의', '등록', '고객'],
 };
 
 const WEEKDAYS = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 7 };
@@ -923,8 +926,9 @@ function parseCapture(text, ctx) {
       .replace(/까지/, ' ');
   }
 
-  // 업무 영역 — 키워드 적중 수가 많은 쪽, 같으면 문장에서 먼저 나온 쪽
-  let best = null;
+  // 업무 영역 — '외주'가 명시되면 그것을 따르고, 아니면 키워드 적중 수로 고른다.
+  // (외주는 업체·납품일 같은 전용 항목을 여는 영역이라 놓치면 손해가 크다)
+  let best = lower.includes('외주') ? { code: 'OUT', score: 99, first: lower.indexOf('외주') } : null;
   for (const [code, words] of Object.entries(AREA_KEYWORDS)) {
     const hits = words.map((w) => lower.indexOf(w)).filter((i) => i >= 0);
     if (!hits.length) continue;
@@ -971,7 +975,8 @@ function parseCapture(text, ctx) {
 //
 // 데이터는 localStorage 에 저장된다. 서버도 DB도 없다.
 
-const LS_KEY = 'kf.demo.v2';
+// 업무 영역 개편(v3)으로 이전 데이터의 area 값이 더는 유효하지 않다 — 키를 올려 새로 만든다
+const LS_KEY = 'kf.demo.v3';
 
 // ── 날짜 ────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');

@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS task (
   id                  TEXT PRIMARY KEY,
   project_id          TEXT NOT NULL REFERENCES project(id),
   title               TEXT NOT NULL,
-  area                TEXT NOT NULL CHECK (area IN ('BIZ','PLAN','DEV','MKT','OPS','OUT','ETC')),
+  area                TEXT NOT NULL CHECK (area IN ('PLAN','DEV','CONTENT','BIZ','OPS','OUT','ETC')),
   owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
   status              TEXT NOT NULL,
   priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),

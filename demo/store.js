@@ -4,7 +4,8 @@
 //
 // 데이터는 localStorage 에 저장된다. 서버도 DB도 없다.
 
-const LS_KEY = 'kf.demo.v2';
+// 업무 영역 개편(v3)으로 이전 데이터의 area 값이 더는 유효하지 않다 — 키를 올려 새로 만든다
+const LS_KEY = 'kf.demo.v3';
 
 // ── 날짜 ────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');

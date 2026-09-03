@@ -1,13 +1,16 @@
 // 도메인 상수 — 표기는 docs/11-glossary.md 를 따른다.
 
+// 업무 영역 — 팀의 직능 구분을 그대로 쓴다.
+// 외주 작업은 "무슨 일이냐"가 아니라 "누가 하느냐"지만,
+// 기획서(§4)의 결정대로 별도 메뉴가 아닌 영역 값으로 유지한다.
 export const AREAS = [
-  { code: 'BIZ',  label: '사업관리', full: '프로젝트·사업관리' },
-  { code: 'PLAN', label: '기획',     full: '기획' },
-  { code: 'DEV',  label: '개발',     full: '개발' },
-  { code: 'MKT',  label: '마케팅',   full: '마케팅' },
-  { code: 'OPS',  label: '운영',     full: '운영' },
-  { code: 'OUT',  label: '외주',     full: '외주 작업' },
-  { code: 'ETC',  label: '기타',     full: '기타' },
+  { code: 'PLAN',    label: '서비스기획', full: '서비스기획' },
+  { code: 'DEV',     label: '개발',       full: '개발' },
+  { code: 'CONTENT', label: '콘텐츠',     full: '콘텐츠' },
+  { code: 'BIZ',     label: '사업전략',   full: '사업전략' },
+  { code: 'OPS',     label: '운영',       full: '운영' },
+  { code: 'OUT',     label: '외주',       full: '외주 작업' },
+  { code: 'ETC',     label: '기타',       full: '기타' },
 ];
 
 // 일반 업무 4단계

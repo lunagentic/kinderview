@@ -101,7 +101,7 @@ const CAPTURE_TOOL = {
       project_id: { type: ['string', 'null'], description: '주어진 목록의 프로젝트 id 만 사용.' },
       area: {
         type: ['string', 'null'],
-        enum: ['BIZ', 'PLAN', 'DEV', 'MKT', 'OPS', 'OUT', 'ETC', null],
+        enum: ['PLAN', 'DEV', 'CONTENT', 'BIZ', 'OPS', 'OUT', 'ETC', null],
         description: '업무 영역 코드.',
       },
       owner_slack_user_id: { type: ['string', 'null'], description: '주어진 목록의 구성원 id 만 사용.' },

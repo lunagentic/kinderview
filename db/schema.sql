@@ -8,7 +8,7 @@
 
 CREATE TYPE project_status AS ENUM ('PLANNED', 'ACTIVE', 'ON_HOLD', 'DONE');
 
-CREATE TYPE task_area AS ENUM ('BIZ', 'PLAN', 'DEV', 'MKT', 'OPS', 'OUT', 'ETC');
+CREATE TYPE task_area AS ENUM ('PLAN', 'DEV', 'CONTENT', 'BIZ', 'OPS', 'OUT', 'ETC');
 
 CREATE TYPE task_status AS ENUM (
   -- 일반 업무

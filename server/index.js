@@ -3,7 +3,8 @@ import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dbFile, today } from './db.js';
+import { dbFile, today, applySchema } from './db.js';
+import { runMigrations } from './migrate.js';
 import { members, projects, vendors, tasks, issues, overview, HttpError } from './repo.js';
 import * as weekly from './weekly.js';
 import * as notify from './notify.js';
@@ -292,6 +293,8 @@ const server = createServer(async (req, res) => {
     return json(res, status, { error: err.message || '서버 오류' });
   }
 });
+
+if (runMigrations().length) applySchema();
 
 server.listen(PORT, () => {
   console.log(`KinderFlow  http://localhost:${PORT}`);
