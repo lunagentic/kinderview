@@ -366,6 +366,12 @@ export const tasks = {
     run('UPDATE task SET deleted_at = :at WHERE id = :id', { at: nowISO(), id });
   },
 
+  /** 위험 감지용 — 삭제되지 않은 업무의 전체 이력 */
+  allEvents() {
+    return all(`SELECT e.* FROM task_event e
+                JOIN task t ON t.id = e.task_id AND t.deleted_at IS NULL`);
+  },
+
   events(id) {
     return all(
       `SELECT e.*, m.display_name AS actor_name

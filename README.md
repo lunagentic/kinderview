@@ -27,6 +27,13 @@ npm run seed     # 예시 데이터 생성 (처음 한 번)
 npm start        # http://localhost:4173
 ```
 
+AI 기능에 Claude 를 쓰려면 (선택):
+
+```bash
+npm i @anthropic-ai/sdk                      # optionalDependencies — 없어도 앱은 동작한다
+ANTHROPIC_API_KEY=sk-ant-... npm start
+```
+
 | 명령 | 하는 일 |
 |---|---|
 | `npm start` | 서버 실행 (기본 포트 4173, `PORT` 로 변경) |
@@ -61,6 +68,8 @@ SLACK_BOT_TOKEN=xoxb-... npm start
 | `KINDERFLOW_TZ_OFFSET` | `540` | 기준 시간대(분). 기본 KST(+9). 지연 판정의 "오늘"을 정한다 |
 | `SLACK_BOT_TOKEN` | 없음 | 없으면 알림을 **발송하지 않고 알림함에만 기록**한다 |
 | `SLACK_DEFAULT_CHANNEL` | 없음 | 프로젝트 채널이 없을 때 쓰는 기본 채널 |
+| `ANTHROPIC_API_KEY` | 없음 | 있으면 주간 요약문·빠른 입력에 Claude 를 쓴다. 없으면 규칙으로 동작 |
+| `KINDERFLOW_AI_TIMEOUT_MS` | `15000` | LLM 호출 타임아웃. 초과하면 규칙 결과를 쓴다 |
 
 Slack 앱에 필요한 scope: `users:read`, `users:read.email`, `chat:write`, `im:write`.
 
@@ -84,6 +93,20 @@ Slack 앱에 필요한 scope: `users:read`, `users:read.email`, `chat:write`, `i
 | **Issues** | 블로커 등록과 해결 추적. 업무 상태와 분리해서 관리한다 |
 | **Weekly** | 9개 섹션 주간 리포트 자동 생성, 스냅샷 저장, Slack 공유, 마크다운 복사 |
 | **알림함** | Slack으로 나가는(나갈) 알림 기록 |
+
+### AI 기능 3종
+
+| 기능 | 위치 | 하는 일 | LLM |
+|---|---|---|---|
+| **위험 신호** | Overview 상단 | 마감 반복 연기·정체·검토 병목·납품 위험·부하 집중 등 10가지 패턴을 데이터에서 찾아낸다 | **불필요** |
+| **주간 요약문** | Weekly | 리포트 숫자를 공유용 문장으로 만든다 | 선택 |
+| **빠른 입력** | 업무 등록 모달 | 한 줄 문장을 업무 필드로 바꿔 채운다 (저장은 사람이 누른다) | 선택 |
+
+`ANTHROPIC_API_KEY` 가 없어도 셋 다 동작한다. 위험 신호는 아예 LLM을 쓰지 않고,
+나머지 둘은 규칙으로 돌다가 키가 있으면 같은 자리에서 LLM이 더 잘 처리한다.
+결과에는 항상 `규칙` / `AI` 배지가 붙어 무엇이 만든 값인지 화면에서 구분된다.
+
+**AI가 하지 않는 것** — 업무 상태 변경, 담당자 지정, 자동 저장. 담당은 사람이 정의한다(원칙 1).
 
 로그인 대신 우측 상단에서 **현재 사용자**를 고르는 구조다. 소규모 내부 팀 전제이며,
 실제 배포 시 Slack OAuth 로 교체한다.
@@ -118,6 +141,10 @@ server/
   slack.js      Slack API 어댑터
   jobs.js       배치 진입점
   seed.js       예시 데이터
+  ai/
+    rules.js    규칙 엔진 — 위험 감지 · 요약 초안 · 문장 파싱 (LLM 불필요)
+    provider.js Anthropic 어댑터 (선택적 의존성, 실패 시 규칙으로 복귀)
+    index.js    규칙 → LLM 순서로 처리
 public/
   index.html · app.css
   js/           라우터 · 폼 · 화면 (빌드 없는 ES 모듈)
@@ -145,12 +172,14 @@ db/schema.sql   PostgreSQL 참조 DDL — 운영 DB 전환 시 기준
 | 09 | [Slack 연동 스펙](docs/09-slack-integration.md) | 알림 12종 트리거·대상·시점 |
 | 10 | [로드맵 및 백로그](docs/10-roadmap-backlog.md) | Phase 1~4, 결정 필요 사항 |
 | 11 | [용어 사전](docs/11-glossary.md) | 표기·enum 통일 |
+| 12 | [AI 기능 스펙](docs/12-ai-spec.md) | 위험 신호 · 주간 요약문 · 빠른 입력 |
 
 ## 현재 구현 범위
 
 - **Phase 1 (업무)** — 완료. 프로젝트·업무·영역·담당·협업자·외주·상태·지연 자동 표시
 - **Phase 2 (현황 및 이슈)** — 완료. Overview 전 항목, Issues 등록·해결
 - **Phase 3 (리포트 및 Slack)** — 완료. Weekly Report 9개 섹션, 알림 12종, 배치, Slack 공유
+- **AI 3종** — 완료. 위험 신호(규칙), 주간 요약문·빠른 입력(규칙 + 선택적 LLM)
 - **Phase 4 (Google)** — 미구현
 
 미구현/대체 항목: Slack OAuth 로그인(현재는 사용자 선택), 권한 관리, Google Calendar·Tasks 연동.

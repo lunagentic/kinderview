@@ -316,6 +316,61 @@ details.more[open] > summary{color:var(--ink)}
   td.hide-sm,th.hide-sm{display:none}
 }
 
+/* ── AI: 위험 신호 ──────────────────────────── */
+.risks{display:flex;flex-direction:column;gap:10px}
+.risk{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--s-wait);
+  border-radius:var(--radius);padding:14px 16px}
+.risk.high{border-left-color:var(--s-delay)}
+.risk.medium{border-left-color:var(--s-issue)}
+.risk .head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.risk .head h3{font-size:.95rem;font-weight:700}
+.risk .sev{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid currentColor;border-radius:2px;padding:0 5px;color:var(--s-wait)}
+.risk.high .sev{color:var(--s-delay)} .risk.medium .sev{color:var(--s-issue)}
+.risk .cnt{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-left:auto}
+.risk .detail{font-size:.84rem;color:var(--ink-2);margin-top:5px}
+.risk ul{list-style:none;margin:11px 0 0;padding:0;display:flex;flex-direction:column;gap:1px;
+  background:var(--line-soft);border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden}
+.risk li{background:var(--surface)}
+.risk li button,.risk li .static{display:flex;gap:10px;align-items:baseline;width:100%;text-align:left;
+  border:none;background:none;padding:8px 12px;font-size:.85rem;cursor:pointer}
+.risk li .static{cursor:default}
+.risk li button:hover{background:var(--surface-2)}
+.risk li .lbl{font-weight:500}
+.risk li .sub{color:var(--muted);font-size:.79rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.risk li .note{margin-left:auto;font-family:var(--mono);font-size:.75rem;color:var(--muted);white-space:nowrap}
+.risk.high li .note{color:var(--s-delay)}
+.risks-ok{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--s-done);
+  border-radius:var(--radius);padding:15px 17px;font-size:.88rem;color:var(--ink-2)}
+.risks-ok b{color:var(--s-done)}
+.src-tag{font-family:var(--mono);font-size:.68rem;letter-spacing:.05em;color:var(--muted);
+  border:1px solid var(--line);border-radius:2px;padding:1px 6px}
+.src-tag.llm{color:var(--s-prog);border-color:currentColor}
+
+/* ── AI: 주간 요약문 ────────────────────────── */
+.digest{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);
+  padding:17px 19px;margin-bottom:22px}
+.digest .dhead{display:flex;align-items:center;gap:9px;margin-bottom:10px;flex-wrap:wrap}
+.digest .dhead h3{font-size:.95rem;font-weight:700}
+.digest .dhead .btn{margin-left:auto}
+.digest p.sum{font-size:.92rem;line-height:1.75;color:var(--ink)}
+.digest .dlist{margin:13px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+.digest .dlist li{font-size:.86rem;color:var(--ink-2);padding-left:14px;position:relative}
+.digest .dlist li::before{content:"·";position:absolute;left:3px;color:var(--muted)}
+.digest .dsub{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;
+  font-family:var(--mono);margin-top:14px}
+
+/* ── AI: 빠른 입력 ──────────────────────────── */
+.capture{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);
+  padding:13px 15px;margin-bottom:18px}
+.capture .crow{display:flex;gap:8px;align-items:center}
+.capture input{flex:1;background:var(--surface)}
+.capture .chint{font-size:.76rem;color:var(--muted);margin-top:7px}
+.capture .cres{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.capture .cres .tok{font-size:.76rem;background:var(--surface);border:1px solid var(--line);
+  border-radius:999px;padding:2px 9px;color:var(--ink-2)}
+.capture .cres .tok b{color:var(--ink)}
+
 
 /* 데모 안내 (빌드에서만 추가) */
 .demo-note{max-width:1320px;margin:16px auto 0;padding:11px 16px;display:flex;gap:10px;
@@ -493,6 +548,9 @@ const TASKS = [
   ['CP', '영상 콘텐츠 자막 번역',         'OUT',  'U03LEE',  'OUT_REVISION',    +3,  'NORMAL', [],
     { vendor: '더원 번역', worker: '이번역', requested: -14, delivery: +3, review: 'REJECTED',
       scope: '교사 교육 영상 8편 영문 자막' }],
+  ['CP', '교사 워크북 인쇄',              'OUT',  'U03LEE',  'REQUESTED',       +2,  'HIGH',   [],
+    { vendor: '한빛 콘텐츠', worker: '박인쇄', requested: -3, delivery: +2, review: 'NOT_STARTED',
+      scope: '교사 워크북 500부 인쇄 및 배송' }],
   ['CP', '콘텐츠 등록 및 검수',           'OPS',  'U04CHOI', 'TODO',            +14, 'NORMAL', ['U05JUNG']],
   ['CP', '8월 콘텐츠 성과 정리',          'MKT',  'U03LEE',  'DONE',            -2,  'NORMAL', []],
   ['CP', '스티커 리소스 1차 검수',        'OPS',  'U06HAN',  'IN_PROGRESS',     -5,  'NORMAL', []], // 비활성 담당 + 지연
@@ -516,7 +574,7 @@ const ISSUES = [
     'U05JUNG', 'HIGH', 'CHECKING', +1, '콘텐츠 등록 일정 3일 지연 예상'],
   ['CP', '영상 콘텐츠 자막 번역', '자막 번역 용어 불일치',
     '서비스 고유 용어(관찰·평가, 놀이기록)가 영상마다 다르게 번역되어 있다. 용어집 전달 후 재작업 요청.',
-    'U03LEE', 'NORMAL', 'CHECKING', +4, '검수 1회 추가 필요'],
+    'U03LEE', 'NORMAL', 'CHECKING', -2, '검수 1회 추가 필요'],
   ['GP', null, '해외 결제 수단 정책 미확정',
     '파일럿 기관 과금 방식이 정해지지 않아 제안자료의 가격 페이지를 채울 수 없다.',
     'U03LEE', 'NORMAL', 'OPEN', +6, '제안자료 완성 지연'],
@@ -527,7 +585,383 @@ const ISSUES = [
 
 
 
-const SEED = { MEMBERS, PROJECTS, TASKS, ISSUES };
+
+const EXTRA_EVENTS = [
+  ['관찰 기록 API 개발', 'DUE_CHANGED', -7, -2, 12],
+  ['관찰 기록 API 개발', 'DUE_CHANGED', -2, +4, 5],
+  ['영문 제안자료 제작', 'STATUS_CHANGED', 'TODO', 'REVIEW', 6],
+];
+
+
+const SEED = { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS };
+
+/* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */
+
+// 규칙 엔진 — LLM 없이 동작하는 AI 기능의 본체.
+// 순수 함수만 둔다. 서버(server/ai/index.js)와 브라우저 데모(tools/build-demo.mjs)가 함께 쓴다.
+//
+// 설계: docs/12-ai-spec.md
+
+// ── 공용 ────────────────────────────────────────────────
+const dayDiff = (from, to) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+
+const daysSince = (isoTimestamp, today) =>
+  isoTimestamp ? dayDiff(isoTimestamp.slice(0, 10), today) : null;
+
+const SEVERITY_RANK = { high: 0, medium: 1, low: 2 };
+
+const risk = (code, severity, title, detail, items) => ({
+  code, severity, title, detail, items, count: items.length,
+});
+
+// ── ① 위험 신호 ────────────────────────────────────────
+/**
+ * 규칙 기반 위험 감지. 같은 입력이면 같은 결과가 나오고, 모든 항목이 근거를 갖는다.
+ * @param {{tasks:Array, issues:Array, events:Array, members:Array, projects:Array, today:string}} ctx
+ */
+function detectRisks(ctx) {
+  const { tasks, issues, events, members, projects, today } = ctx;
+  const open = tasks.filter((t) => t.status !== 'DONE');
+  const out = [];
+
+  const link = (t) => ({ id: t.id, kind: 'task', label: t.title, sub: `${t.project_name} · ${t.owner_name}` });
+  const issueLink = (i) => ({ id: i.id, kind: 'issue', label: i.title, sub: `${i.project_name} · ${i.owner_name}` });
+
+  // 마감이 반복해서 밀리는 업무 — 진짜 막힌 곳은 대체로 여기다
+  const postponeCount = new Map();
+  for (const e of events) {
+    if (e.event_type !== 'DUE_CHANGED') continue;
+    postponeCount.set(e.task_id, (postponeCount.get(e.task_id) ?? 0) + 1);
+  }
+  const repeated = open
+    .filter((t) => (postponeCount.get(t.id) ?? 0) >= 2)
+    .map((t) => ({ ...link(t), note: `마감 ${postponeCount.get(t.id)}회 변경` }));
+  if (repeated.length) {
+    out.push(risk('REPEATED_POSTPONE', 'high', '마감이 반복해서 밀리고 있습니다',
+      '마감일을 두 번 이상 옮긴 업무입니다. 일정 문제가 아니라 범위나 의존성 문제일 수 있습니다.', repeated));
+  }
+
+  // 진행중인데 오래 멈춰 있는 업무
+  const lastChange = new Map();
+  for (const e of events) {
+    if (e.event_type !== 'STATUS_CHANGED' && e.event_type !== 'CREATED') continue;
+    const prev = lastChange.get(e.task_id);
+    if (!prev || e.occurred_at > prev) lastChange.set(e.task_id, e.occurred_at);
+  }
+  const stalled = open
+    .filter((t) => t.stage === 'PROGRESS')
+    .map((t) => ({ t, days: daysSince(lastChange.get(t.id) ?? t.updated_at, today) }))
+    .filter(({ days }) => days !== null && days >= 7)
+    .sort((a, b) => b.days - a.days)
+    .map(({ t, days }) => ({ ...link(t), note: `${days}일째 상태 변화 없음` }));
+  if (stalled.length) {
+    out.push(risk('STALLED', 'medium', '진행중인데 일주일 넘게 움직이지 않습니다',
+      '상태가 오래 그대로인 업무입니다. 실제로 멈췄거나, 진행됐는데 기록되지 않은 것입니다.', stalled));
+  }
+
+  // 검토·검수 단계에서 막힌 업무 — 병목은 대개 여기 쌓인다
+  const bottleneck = open
+    .filter((t) => t.stage === 'REVIEW')
+    .map((t) => ({ t, days: daysSince(lastChange.get(t.id) ?? t.updated_at, today) }))
+    .filter(({ days }) => days !== null && days >= 5)
+    .sort((a, b) => b.days - a.days)
+    .map(({ t, days }) => ({ ...link(t), note: `검토 ${days}일째` }));
+  if (bottleneck.length) {
+    out.push(risk('REVIEW_BOTTLENECK', 'medium', '검토 단계에서 대기가 길어집니다',
+      '검토·검수로 넘어간 뒤 처리되지 않은 업무입니다. 검토자를 확인해 주세요.', bottleneck));
+  }
+
+  // 납품일이 다가오는데 아직 착수 전인 외주
+  const atRisk = open
+    .filter((t) => t.area === 'OUT' && t.delivery_due_date
+      && ['REQUEST_PLANNED', 'REQUESTED'].includes(t.status)
+      && dayDiff(today, t.delivery_due_date) <= 3)
+    .map((t) => ({
+      ...link(t),
+      note: `납품 ${dayDiff(today, t.delivery_due_date) < 0 ? `${Math.abs(dayDiff(today, t.delivery_due_date))}일 초과` : `D-${dayDiff(today, t.delivery_due_date)}`} · 아직 ${t.status === 'REQUESTED' ? '요청 완료' : '요청 예정'}`,
+    }));
+  if (atRisk.length) {
+    out.push(risk('DELIVERY_AT_RISK', 'high', '납품일이 코앞인데 작업이 시작되지 않았습니다',
+      '외주 상태가 아직 작업중으로 넘어가지 않았습니다. 업체 진행 상황을 확인해 주세요.', atRisk));
+  }
+
+  // 반려했는데 수정으로 넘어가지 않은 외주
+  const rejected = open
+    .filter((t) => t.review_status === 'REJECTED' && t.status !== 'OUT_REVISION')
+    .map((t) => ({ ...link(t), note: `검수 반려 · 상태는 ${t.status === 'OUT_REVIEW' ? '검수' : '그대로'}` }));
+  if (rejected.length) {
+    out.push(risk('REJECTED_IDLE', 'high', '반려한 외주가 수정으로 넘어가지 않았습니다',
+      '검수를 반려했지만 업무 상태가 수정으로 바뀌지 않았습니다. 재작업이 요청되지 않았을 수 있습니다.', rejected));
+  }
+
+  // 한 사람에게 마감이 몰린 주
+  const weekEnd = new Date(Date.parse(`${today}T00:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10);
+  const loadByOwner = new Map();
+  for (const t of open) {
+    if (t.due_date < today || t.due_date > weekEnd) continue;
+    if (!loadByOwner.has(t.owner_slack_user_id)) loadByOwner.set(t.owner_slack_user_id, []);
+    loadByOwner.get(t.owner_slack_user_id).push(t);
+  }
+  const overload = [...loadByOwner.entries()]
+    .filter(([, rows]) => rows.length >= 4)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([owner, rows]) => ({
+      id: owner, kind: 'owner', label: rows[0].owner_name,
+      sub: rows.map((t) => t.title).slice(0, 3).join(' · ') + (rows.length > 3 ? ` 외 ${rows.length - 3}건` : ''),
+      note: `7일 내 마감 ${rows.length}건`,
+    }));
+  if (overload.length) {
+    out.push(risk('OWNER_OVERLOAD', 'medium', '한 담당자에게 마감이 몰려 있습니다',
+      '일주일 안에 마감이 네 건 이상인 담당자입니다. 일정 재배치를 검토해 주세요.', overload));
+  }
+
+  // 해결 목표일을 넘긴 이슈
+  const openIssues = issues.filter((i) => i.status !== 'RESOLVED');
+  const overdue = openIssues
+    .filter((i) => i.target_resolve_date && i.target_resolve_date < today)
+    .map((i) => ({ ...issueLink(i), note: `목표일 ${Math.abs(dayDiff(today, i.target_resolve_date))}일 초과` }));
+  if (overdue.length) {
+    out.push(risk('ISSUE_OVERDUE', 'high', '해결 목표일이 지난 이슈가 있습니다',
+      '목표일을 넘긴 미해결 이슈입니다. 목표일을 다시 잡거나 에스컬레이션이 필요합니다.', overdue));
+  }
+
+  // 오래 열려 있는 중요 이슈
+  const staleIssues = openIssues
+    .filter((i) => i.severity === 'HIGH' && (daysSince(i.created_at, today) ?? 0) >= 7)
+    .map((i) => ({ ...issueLink(i), note: `${daysSince(i.created_at, today)}일째 ${i.status === 'OPEN' ? 'Open' : '확인중'}` }));
+  if (staleIssues.length) {
+    out.push(risk('ISSUE_STALE', 'medium', '중요 이슈가 오래 열려 있습니다',
+      '중요도 높음으로 등록된 뒤 일주일 넘게 해결되지 않은 이슈입니다.', staleIssues));
+  }
+
+  // 비활성 담당자에게 남은 업무
+  const inactive = new Set(members.filter((m) => !m.is_active).map((m) => m.slack_user_id));
+  const handover = open
+    .filter((t) => inactive.has(t.owner_slack_user_id))
+    .map((t) => ({ ...link(t), note: '담당자 비활성' }));
+  if (handover.length) {
+    out.push(risk('HANDOVER', 'high', '비활성 구성원이 담당인 업무가 남아 있습니다',
+      '담당자가 비활성 처리된 미완료 업무입니다. 인수인계가 필요합니다.', handover));
+  }
+
+  // 지연 비중이 높은 프로젝트
+  const slipping = [];
+  for (const p of projects) {
+    const rows = open.filter((t) => t.project_id === p.id);
+    const late = rows.filter((t) => t.is_delayed);
+    if (rows.length >= 2 && late.length >= 2 && late.length / rows.length >= 0.3) {
+      slipping.push({
+        id: p.id, kind: 'project', label: p.name,
+        sub: `미완료 ${rows.length}건 중 지연 ${late.length}건`,
+        note: `${Math.round((late.length / rows.length) * 100)}% 지연`,
+      });
+    }
+  }
+  if (slipping.length) {
+    out.push(risk('PROJECT_SLIPPING', 'medium', '지연 비중이 높은 프로젝트가 있습니다',
+      '미완료 업무의 30% 이상이 마감을 넘긴 프로젝트입니다. 일정 전체를 다시 볼 시점입니다.', slipping));
+  }
+
+  return out.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.count - a.count);
+}
+
+// ── ② 주간 요약문 (규칙 초안) ──────────────────────────
+/** LLM 없이 만드는 요약문. 숫자는 LLM 판본과 동일하고 문장만 덜 자연스럽다. */
+function draftDigest({ snapshot, risks, periodStart, periodEnd }) {
+  const s = snapshot;
+  const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+
+  const moved = s.projects.filter((p) => p.delta !== null && p.delta !== 0)
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  const summary = [
+    `${md(periodStart)}~${md(periodEnd)} 주간 ${s.summary.completed_this_week}건을 완료했고 ${s.summary.in_progress}건이 진행 중입니다.`,
+    s.summary.review ? `검토 대기는 ${s.summary.review}건입니다.` : '',
+    s.summary.delayed
+      ? `마감을 넘긴 업무가 ${s.summary.delayed}건 있습니다.`
+      : '마감을 넘긴 업무는 없습니다.',
+    moved.length
+      ? `진행률 변화가 큰 곳은 ${moved.slice(0, 2).map((p) => `${p.name} ${p.delta > 0 ? '+' : ''}${p.delta}%p`).join(', ')}입니다.`
+      : '',
+    s.outsourcing.delivery_delayed
+      ? `외주 납품 지연이 ${s.outsourcing.delivery_delayed}건입니다.`
+      : '',
+  ].filter(Boolean).join(' ');
+
+  const highlights = [];
+  for (const r of risks.slice(0, 3)) {
+    highlights.push(`${r.title} (${r.count}건) — ${r.items.slice(0, 2).map((i) => i.label).join(', ')}`);
+  }
+  if (!highlights.length && s.completed.rows.length) {
+    highlights.push(`이번 주 완료: ${s.completed.rows.slice(0, 3).map((t) => t.title).join(', ')}`);
+  }
+  if (s.issues.open_count) {
+    highlights.push(`미해결 이슈 ${s.issues.open_count}건 (이번 주 신규 ${s.issues.new_this_week}건 · 해결 ${s.issues.resolved_this_week}건)`);
+  }
+
+  const focus = [];
+  if (s.next_week.due.length) {
+    focus.push(`다음 주 마감 ${s.next_week.due.length}건 — ${s.next_week.due.slice(0, 3).map((t) => t.title).join(', ')}`);
+  }
+  if (s.next_week.delivery.length) {
+    focus.push(`외주 납품 예정 ${s.next_week.delivery.length}건`);
+  }
+  if (s.summary.delayed) {
+    focus.push('지연 업무의 마감일 재설정 또는 범위 조정');
+  }
+
+  return { summary, highlights: highlights.slice(0, 3), focus: focus.slice(0, 2), source: 'rules' };
+}
+
+// ── ③ 빠른 입력 (규칙 파서) ────────────────────────────
+const AREA_KEYWORDS = {
+  OUT: ['외주', '납품', '검수', '업체', '외부'],
+  DEV: ['개발', 'api', '배포', '서버', '버그', 'qa', '인프라', '프론트', '백엔드'],
+  PLAN: ['기획', '정책', '요구사항', 'ux', 'ui', '와이어', '설계'],
+  MKT: ['마케팅', '홍보', '캠페인', 'sns', '제안', '콘텐츠 마케팅'],
+  OPS: ['운영', '대응', '모니터링', '문의', '등록'],
+  BIZ: ['사업', '계약', '예산', '보고', '사업계획', '의사결정'],
+};
+
+const WEEKDAYS = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 7 };
+
+const shift = (base, days) =>
+  new Date(Date.parse(`${base}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
+/** 한국어 한 줄에서 날짜를 뽑는다. 못 찾으면 null — 억지로 추측하지 않는다. */
+function parseDate(text, today) {
+  const isoWeekday = ((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7) + 1; // 월=1
+
+  let m = text.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+
+  m = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if (m) return `${today.slice(0, 4)}-${String(m[1]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`;
+
+  m = text.match(/(?:^|\s)(\d{1,2})[/](\d{1,2})(?=\s|까지|$)/);
+  if (m) return `${today.slice(0, 4)}-${String(m[1]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`;
+
+  m = text.match(/(다음\s*주|담주|이번\s*주|차주)\s*([월화수목금토일])(?:요일)?/);
+  if (m) {
+    const target = WEEKDAYS[m[2]];
+    const base = /이번/.test(m[1]) ? 0 : 7;
+    return shift(today, base + (target - isoWeekday));
+  }
+  m = text.match(/(\d+)\s*(?:일|영업일)\s*(?:뒤|후|내)/);
+  if (m) return shift(today, Number(m[1]));
+  if (/모레|내일모레/.test(text)) return shift(today, 2);
+  if (/내일/.test(text)) return shift(today, 1);
+  if (/오늘|금일/.test(text)) return today;
+  if (/이번\s*주\s*(?:말|안|까지)/.test(text)) return shift(today, 5 - isoWeekday);
+  if (/다음\s*주|담주|차주/.test(text)) return shift(today, 7 + (5 - isoWeekday));
+
+  m = text.match(/(?:^|\s)([월화수목금])요일/);
+  if (m) {
+    const target = WEEKDAYS[m[1]];
+    return shift(today, target >= isoWeekday ? target - isoWeekday : 7 + target - isoWeekday);
+  }
+  return null;
+}
+
+/**
+ * 한 줄 문장 → 업무 필드. 인식하지 못한 필드는 비워 둔다.
+ * @param {string} text
+ * @param {{members:Array, projects:Array, today:string}} ctx
+ */
+function parseCapture(text, ctx) {
+  const { members, projects, today } = ctx;
+  const raw = String(text || '').trim();
+  if (!raw) return { source: 'rules', fields: {}, matched: [] };
+
+  const lower = raw.toLowerCase();
+  const matched = [];
+  const fields = {};
+  let rest = raw;
+  const strip = (needle) => { rest = rest.replace(needle, ' '); };
+
+  // 담당자 — 이름 또는 Slack 핸들
+  for (const m of members) {
+    if (!m.is_active) continue;
+    const handle = m.email ? m.email.split('@')[0] : null;
+    const hit = [m.display_name, m.real_name, handle && `@${handle}`, handle]
+      .filter(Boolean).find((token) => raw.includes(token) || (token.length > 2 && lower.includes(token.toLowerCase())));
+    if (hit) {
+      fields.owner_slack_user_id = m.slack_user_id;
+      matched.push({ field: '담당자', value: m.display_name });
+      strip(hit);
+      break;
+    }
+  }
+
+  // 프로젝트 — 이름 또는 약칭
+  for (const p of projects) {
+    if (p.is_archived) continue;
+    const hit = [p.name, p.code].filter(Boolean)
+      .find((token) => token.length >= 2 && lower.includes(token.toLowerCase()));
+    if (hit) {
+      fields.project_id = p.id;
+      matched.push({ field: '프로젝트', value: p.name });
+      strip(new RegExp(hit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+      break;
+    }
+  }
+
+  // 마감일
+  const due = parseDate(raw, today);
+  if (due) {
+    fields.due_date = due;
+    matched.push({ field: '마감일', value: due });
+    rest = rest
+      .replace(/\d{4}[-./]\d{1,2}[-./]\d{1,2}/, ' ')
+      .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일/, ' ')
+      .replace(/(?:^|\s)\d{1,2}[/]\d{1,2}/, ' ')
+      .replace(/(다음\s*주|담주|이번\s*주|차주)\s*(?:[월화수목금토일](?:요일)?)?/, ' ')
+      .replace(/\d+\s*(?:일|영업일)\s*(?:뒤|후|내)/, ' ')
+      .replace(/오늘|금일|내일모레|모레|내일/, ' ')
+      .replace(/[월화수목금]요일/, ' ')
+      .replace(/까지/, ' ');
+  }
+
+  // 업무 영역 — 키워드 적중 수가 많은 쪽, 같으면 문장에서 먼저 나온 쪽
+  let best = null;
+  for (const [code, words] of Object.entries(AREA_KEYWORDS)) {
+    const hits = words.map((w) => lower.indexOf(w)).filter((i) => i >= 0);
+    if (!hits.length) continue;
+    const candidate = { code, score: hits.length, first: Math.min(...hits) };
+    if (!best || candidate.score > best.score
+        || (candidate.score === best.score && candidate.first < best.first)) best = candidate;
+  }
+  if (best) {
+    fields.area = best.code;
+    matched.push({ field: '업무 영역', value: best.code });
+    // 영역 키워드는 업무명에서 빼지 않는다.
+    // "운영 정책 문서 정리"에서 '운영'을 빼면 제목이 더 나빠진다 —
+    // 사용자가 쓴 문장을 그대로 두고, 영역은 배지로 따로 보여주는 편이 낫다.
+  }
+
+  // 우선순위
+  if (/긴급|급함|중요|asap|최우선/i.test(raw)) {
+    fields.priority = 'HIGH';
+    matched.push({ field: '우선순위', value: '높음' });
+    rest = rest.replace(/긴급|급함|중요|asap|최우선/gi, ' ');
+  }
+
+  // 남은 문장을 업무명으로
+  const title = rest
+    .replace(/@\S+/g, ' ')
+    .replace(/[,·]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .replace(/^(까지|에|의|는|은|를|을)\s*/, '');
+  if (title.length >= 2) {
+    fields.title = title;
+    matched.push({ field: '업무명', value: title });
+  }
+
+  return { source: 'rules', fields, matched };
+}
+
 
 /* ── 브라우저 저장소 (demo/store.js) ────────────────── */
 
@@ -620,7 +1054,9 @@ function buildSeed() {
     }
     events.push({ id: uid(), task_id: id, event_type: 'CREATED', from_value: null, to_value: status,
       actor_slack_user_id: 'U01KIM', occurred_at: created });
-    if (status !== 'TODO' && status !== 'REQUEST_PLANNED') {
+    const hasExplicitStatusEvent = (SEED.EXTRA_EVENTS ?? [])
+      .some(([t, type]) => t === title && type === 'STATUS_CHANGED');
+    if (!hasExplicitStatusEvent && status !== 'TODO' && status !== 'REQUEST_PLANNED') {
       events.push({
         id: uid(), task_id: id, event_type: 'STATUS_CHANGED',
         from_value: area === 'OUT' ? 'REQUEST_PLANNED' : 'TODO', to_value: status,
@@ -628,6 +1064,14 @@ function buildSeed() {
         occurred_at: status === 'DONE' ? at(due, '08') : at(d(Math.min(dueOffset - 3, 0)), '05'),
       });
     }
+  }
+
+  for (const [title, type, from, to, daysAgo] of (SEED.EXTRA_EVENTS ?? [])) {
+    const taskId = taskIdByTitle[title];
+    if (!taskId) continue;
+    const val = (v) => (typeof v === 'number' ? d(v) : v);
+    events.push({ id: uid(), task_id: taskId, event_type: type, from_value: val(from),
+      to_value: val(to), actor_slack_user_id: 'U01KIM', occurred_at: at(d(-daysAgo), '04') });
   }
 
   const issues = SEED.ISSUES.map(([pk, taskTitle, title, content, owner, severity, status, targetOffset, impact]) => ({
@@ -1442,6 +1886,40 @@ function handle(method, path, body) {
   if (p === '/api/weekly/generate' && method === 'POST') return weeklyGenerate(body.week, me);
   if (seg[1] === 'weekly' && seg[3] === 'share' && method === 'POST') return weeklyShare(seg[2]);
 
+  // ── AI ── 데모에는 LLM 키가 없으므로 언제나 규칙 결과다 (docs/12-ai-spec.md)
+  const aiCtx = () => ({
+    tasks: listTasks({ includeDone: true }),
+    issues: listIssues({ includeResolved: true }),
+    events: DB.events,
+    members: DB.members,
+    projects: DB.projects.filter((x) => !x.is_archived),
+    today: today(),
+  });
+  if (p === '/api/ai/status' && method === 'GET') {
+    return { enabled: false, model: 'claude-opus-5', reason: '브라우저 데모에서는 LLM 을 호출하지 않습니다' };
+  }
+  if (p === '/api/ai/risks' && method === 'GET') {
+    return { source: 'rules', rows: detectRisks(aiCtx()) };
+  }
+  if (p === '/api/ai/digest' && method === 'POST') {
+    const report = weeklyForWeek(body.week || today());
+    return {
+      ...draftDigest({
+        snapshot: report.snapshot,
+        risks: detectRisks(aiCtx()),
+        periodStart: report.period_start,
+        periodEnd: report.period_end,
+      }),
+      period_start: report.period_start,
+      period_end: report.period_end,
+    };
+  }
+  if (p === '/api/ai/capture' && method === 'POST') {
+    if (!body.text?.trim()) throw new DemoError('문장을 입력해 주세요.');
+    const c = aiCtx();
+    return parseCapture(body.text, { members: c.members, projects: c.projects, today: c.today });
+  }
+
   if (p === '/api/notifications' && method === 'GET') {
     return { slack_configured: false, rows: DB.notifications.slice(0, 200) };
   }
@@ -1721,6 +2199,7 @@ function memberPicker(root, { multi = false, value = [], exclude = [], onChange 
   return {
     get value() { return multi ? selected : selected[0] ?? null; },
     setExclude(list) { exclude = list; },
+    set(id) { selected = multi ? [...new Set([...selected, id])] : [id]; renderSelected(); },
   };
 }
 
@@ -1741,6 +2220,15 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
   const area0 = task?.area ?? defaults.area ?? 'PLAN';
 
   const body = `
+    ${editing ? '' : `
+    <div class="capture">
+      <div class="crow">
+        <input type="text" id="capture-input" placeholder="예: 9/15까지 김OO 활동지 디자인 외주 검수, 콘텐츠 패키지">
+        <button type="button" class="btn" data-capture>채우기</button>
+      </div>
+      <div class="chint">한 줄로 쓰면 아래 항목을 채워 줍니다. 채운 값은 그대로 고칠 수 있고, 저장은 직접 누릅니다.</div>
+      <div class="cres" hidden></div>
+    </div>`}
     <form id="task-form">
       <div class="form-grid">
         <label class="field span2">
@@ -1848,12 +2336,16 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
       const dueInput = form.querySelector('[name=due_date]');
       const deliveryInput = form.querySelector('[name=delivery_due_date]');
 
+      // collabPicker 는 ownerPicker 의 onChange 안에서 참조된다.
+      // memberPicker 는 생성 시점에 onChange 를 한 번 호출하므로 let 으로 먼저 선언해 둔다
+      // (const 로 두면 초기화 전 접근이 되어 폼 배선 전체가 죽는다).
+      let collabPicker;
       const ownerPicker = memberPicker(form.querySelector('[data-owner-slot] .member-pick'), {
         multi: false,
         value: task?.owner_slack_user_id ? [task.owner_slack_user_id] : (defaults.owner ? [defaults.owner] : []),
         onChange: (owner) => collabPicker?.setExclude(owner ? [owner] : []),
       });
-      const collabPicker = memberPicker(form.querySelector('[data-collab-slot] .member-pick'), {
+      collabPicker = memberPicker(form.querySelector('[data-collab-slot] .member-pick'), {
         multi: true,
         value: (task?.collaborators ?? []).map((c) => c.slack_user_id),
         exclude: task?.owner_slack_user_id ? [task.owner_slack_user_id] : [],
@@ -1873,6 +2365,40 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
       // 납품 예정일을 넣으면 마감일 기본값으로 채운다
       deliveryInput.addEventListener('change', () => {
         if (deliveryInput.value && !dueInput.value) dueInput.value = deliveryInput.value;
+      });
+
+      // 빠른 입력 — 폼을 채워 줄 뿐, 저장하지 않는다
+      const captureBtn = root.querySelector('[data-capture]');
+      const captureInput = root.querySelector('#capture-input');
+      const captureRes = root.querySelector('.capture .cres');
+      const runCapture = async () => {
+        const text = captureInput.value.trim();
+        if (!text) return;
+        captureBtn.disabled = true;
+        captureBtn.textContent = '읽는 중…';
+        try {
+          const r = await api.post('/api/ai/capture', { text });
+          const f = r.fields;
+          if (f.title) form.querySelector('[name=title]').value = f.title;
+          if (f.project_id) form.querySelector('[name=project_id]').value = f.project_id;
+          if (f.area) { areaSel.value = f.area; syncArea(); }
+          if (f.due_date) dueInput.value = f.due_date;
+          if (f.priority) form.querySelector('[name=priority]').value = f.priority;
+          if (f.owner_slack_user_id) ownerPicker.set(f.owner_slack_user_id);
+          captureRes.hidden = false;
+          captureRes.innerHTML = r.matched.length
+            ? r.matched.map((m) => `<span class="tok">${esc(m.field)} <b>${esc(String(m.value))}</b></span>`).join('')
+              + `<span class="tok">${r.source === 'llm' ? 'AI 해석' : '규칙 해석'}</span>`
+            : '<span class="tok">인식된 항목이 없습니다. 아래에서 직접 입력해 주세요.</span>';
+        } catch (err) {
+          toast(err.message, true);
+        }
+        captureBtn.disabled = false;
+        captureBtn.textContent = '채우기';
+      };
+      captureBtn?.addEventListener('click', runCapture);
+      captureInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); runCapture(); }
       });
 
       root.querySelector('[data-save]').addEventListener('click', async () => {
@@ -2089,14 +2615,75 @@ function projectForm({ project = null, onSaved }) {
 
 
 
+const SEV_LABEL = { high: '높음', medium: '보통', low: '낮음' };
+
+/** 위험 신호 섹션 마크업. 근거가 되는 업무·이슈로 바로 이동할 수 있어야 한다. */
+function riskSection(rows, { source = 'rules' } = {}) {
+  const head = `
+    <div class="section-head">
+      <h2>위험 신호</h2>
+      <span class="meta">
+        <span class="src-tag ${source === 'llm' ? 'llm' : ''}">${source === 'llm' ? 'AI' : '규칙'}</span>
+        데이터에서 자동으로 찾아냅니다
+      </span>
+    </div>`;
+
+  if (!rows.length) {
+    return `<section class="section">${head}
+      <div class="risks-ok"><b>지금 눈에 띄는 위험 신호가 없습니다.</b>
+        마감이 반복해서 밀리거나, 진행이 멈추거나, 납품이 임박한 업무가 생기면 여기에 표시됩니다.</div>
+    </section>`;
+  }
+
+  return `<section class="section">${head}
+    <div class="risks">
+      ${rows.map((r) => `
+        <article class="risk ${esc(r.severity)}">
+          <div class="head">
+            <span class="sev">${esc(SEV_LABEL[r.severity] ?? r.severity)}</span>
+            <h3>${esc(r.title)}</h3>
+            <span class="cnt">${r.count}건</span>
+          </div>
+          <p class="detail">${esc(r.detail)}</p>
+          <ul>
+            ${r.items.slice(0, 5).map((i) => {
+              const inner = `
+                <span class="lbl">${esc(i.label)}</span>
+                <span class="sub">${esc(i.sub ?? '')}</span>
+                <span class="note">${esc(i.note ?? '')}</span>`;
+              const target = i.kind === 'task' ? `#/tasks/${i.id}`
+                : i.kind === 'issue' ? `#/issues/${i.id}`
+                : i.kind === 'owner' ? `#/tasks?owner=${encodeURIComponent(i.id)}&done=1`
+                : i.kind === 'project' ? `#/tasks?project=${encodeURIComponent(i.id)}&done=1`
+                : null;
+              return `<li>${target
+                ? `<button type="button" data-jump="${esc(target)}">${inner}</button>`
+                : `<span class="static">${inner}</span>`}</li>`;
+            }).join('')}
+            ${r.items.length > 5
+              ? `<li><span class="static"><span class="sub">외 ${r.items.length - 5}건</span></span></li>` : ''}
+          </ul>
+        </article>`).join('')}
+    </div>
+  </section>`;
+}
+
+
+
+
+
 
 
 
 async function renderOverview(root) {
   root.innerHTML = loading();
   let ov;
+  let risks = { rows: [], source: 'rules' };
   try {
-    ov = await api.get('/api/overview');
+    [ov, risks] = await Promise.all([
+      api.get('/api/overview'),
+      api.get('/api/ai/risks').catch(() => ({ rows: [], source: 'rules' })),
+    ]);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
@@ -2147,11 +2734,7 @@ async function renderOverview(root) {
       ${stat('issues', '이슈', ov.summary.issues, 'warn')}
     </div>
 
-    ${ov.handover.length ? `
-      <div class="notice" style="margin-top:18px">
-        <b>인수인계 필요</b> — 비활성 구성원이 담당인 미완료 업무가 있습니다:
-        ${esc(ov.handover.map((h) => `${h.display_name} ${h.open}건`).join(' · '))}
-      </div>` : ''}
+    ${riskSection(risks.rows, { source: risks.source })}
 
     <div class="grid-2 section">
       <section>
@@ -2820,6 +3403,15 @@ async function renderWeekly(root, query) {
       </div>
     </div>
 
+    <div class="digest" id="digest">
+      <div class="dhead">
+        <h3>요약문</h3>
+        <span class="hint">숫자를 팀에 공유할 문장으로 만듭니다</span>
+        <button class="btn" data-digest>요약문 생성</button>
+      </div>
+      <p class="sum" style="color:var(--muted)">아직 생성하지 않았습니다.</p>
+    </div>
+
     <div class="report">
       <h2>KinderFlow Weekly Report</h2>
       <div class="sub" style="color:var(--muted);font-size:.84rem">
@@ -2943,6 +3535,21 @@ async function renderWeekly(root, query) {
       } catch (err) { toast(err.message, true); }
       return;
     }
+    if (e.target.closest('[data-digest]')) {
+      const box = root.querySelector('#digest');
+      const btn = box.querySelector('[data-digest]');
+      btn.disabled = true;
+      btn.textContent = '생성 중…';
+      try {
+        const d = await api.post('/api/ai/digest', { week: report.period_start });
+        box.innerHTML = renderDigest(d);
+      } catch (err) {
+        toast(err.message, true);
+        btn.disabled = false;
+        btn.textContent = '요약문 생성';
+      }
+      return;
+    }
     if (e.target.closest('[data-copy]')) {
       const text = toMarkdown(report);
       try {
@@ -2953,6 +3560,20 @@ async function renderWeekly(root, query) {
       }
     }
   });
+}
+
+function renderDigest(d) {
+  return `
+    <div class="dhead">
+      <h3>요약문</h3>
+      <span class="src-tag ${d.source === 'llm' ? 'llm' : ''}">${d.source === 'llm' ? 'AI 작성' : '규칙 작성'}</span>
+      <button class="btn" data-digest>다시 생성</button>
+    </div>
+    <p class="sum">${esc(d.summary)}</p>
+    ${d.highlights?.length ? `<div class="dsub">주목할 점</div>
+      <ul class="dlist">${d.highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}
+    ${d.focus?.length ? `<div class="dsub">다음 주 초점</div>
+      <ul class="dlist">${d.focus.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}`;
 }
 
 function shiftWeek(iso, days) {

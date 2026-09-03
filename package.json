@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "프로젝트의 업무와 담당을 명확히 정의하고 진행·이슈를 추적하는 업무 관리 도구",
-  "engines": { "node": ">=22.5.0" },
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "start": "node --no-warnings server/index.js",
     "dev": "node --no-warnings --watch server/index.js",
@@ -13,5 +15,8 @@
     "sync:slack": "node --no-warnings server/jobs.js sync-members",
     "job:daily": "node --no-warnings server/jobs.js daily",
     "job:weekly": "node --no-warnings server/jobs.js weekly"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.70.0"
   }
 }

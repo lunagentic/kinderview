@@ -2,12 +2,17 @@ import { api } from '../api.js';
 import { state } from '../state.js';
 import { esc, avatar, progressBar, pctText, loading, errorBox, empty, shortDate, go } from '../ui.js';
 import { projectForm } from '../forms.js';
+import { riskSection } from './risks.js';
 
 export async function renderOverview(root) {
   root.innerHTML = loading();
   let ov;
+  let risks = { rows: [], source: 'rules' };
   try {
-    ov = await api.get('/api/overview');
+    [ov, risks] = await Promise.all([
+      api.get('/api/overview'),
+      api.get('/api/ai/risks').catch(() => ({ rows: [], source: 'rules' })),
+    ]);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
@@ -58,11 +63,7 @@ export async function renderOverview(root) {
       ${stat('issues', '이슈', ov.summary.issues, 'warn')}
     </div>
 
-    ${ov.handover.length ? `
-      <div class="notice" style="margin-top:18px">
-        <b>인수인계 필요</b> — 비활성 구성원이 담당인 미완료 업무가 있습니다:
-        ${esc(ov.handover.map((h) => `${h.display_name} ${h.open}건`).join(' · '))}
-      </div>` : ''}
+    ${riskSection(risks.rows, { source: risks.source })}
 
     <div class="grid-2 section">
       <section>

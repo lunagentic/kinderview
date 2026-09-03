@@ -8,6 +8,7 @@ import { members, projects, vendors, tasks, issues, overview, HttpError } from '
 import * as weekly from './weekly.js';
 import * as notify from './notify.js';
 import * as slack from './slack.js';
+import * as ai from './ai/index.js';
 import {
   AREAS, NORMAL_STATUSES, OUT_STATUSES, REVIEW_STATUSES, ISSUE_STATUSES,
   PRIORITIES, PROJECT_STATUSES, PROGRESS_WEIGHT,
@@ -200,6 +201,40 @@ route('POST', '/api/slack/sync', async () => {
   }
   const list = await slack.fetchMembers();
   return members.syncAll(list);
+});
+
+// ── AI ──────────────────────────────────────────────────
+// 규칙 기반이 기본이고 LLM 은 선택이다 (docs/12-ai-spec.md).
+
+const aiContext = () => ({
+  tasks: tasks.list({ includeDone: true }),
+  issues: issues.list({ includeResolved: true }),
+  events: tasks.allEvents(),
+  members: members.list({ includeInactive: true }),
+  projects: projects.list(),
+  today: today(),
+});
+
+route('GET', '/api/ai/status', async () => ai.status());
+
+route('GET', '/api/ai/risks', () => ai.risks(aiContext()));
+
+route('POST', '/api/ai/digest', async (ctx) => {
+  const report = weekly.forWeek(ctx.body.week || today());
+  const { rows } = ai.risks(aiContext());
+  const result = await ai.digest({
+    snapshot: report.snapshot,
+    riskRows: rows,
+    periodStart: report.period_start,
+    periodEnd: report.period_end,
+  });
+  return { ...result, period_start: report.period_start, period_end: report.period_end };
+});
+
+route('POST', '/api/ai/capture', async (ctx) => {
+  if (!ctx.body.text?.trim()) throw new HttpError(400, '문장을 입력해 주세요.');
+  const c = aiContext();
+  return ai.capture(ctx.body.text, { members: c.members, projects: c.projects, today: c.today });
 });
 
 // ── 정적 파일 ───────────────────────────────────────────

@@ -64,6 +64,7 @@ function memberPicker(root, { multi = false, value = [], exclude = [], onChange 
   return {
     get value() { return multi ? selected : selected[0] ?? null; },
     setExclude(list) { exclude = list; },
+    set(id) { selected = multi ? [...new Set([...selected, id])] : [id]; renderSelected(); },
   };
 }
 
@@ -84,6 +85,15 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
   const area0 = task?.area ?? defaults.area ?? 'PLAN';
 
   const body = `
+    ${editing ? '' : `
+    <div class="capture">
+      <div class="crow">
+        <input type="text" id="capture-input" placeholder="예: 9/15까지 김OO 활동지 디자인 외주 검수, 콘텐츠 패키지">
+        <button type="button" class="btn" data-capture>채우기</button>
+      </div>
+      <div class="chint">한 줄로 쓰면 아래 항목을 채워 줍니다. 채운 값은 그대로 고칠 수 있고, 저장은 직접 누릅니다.</div>
+      <div class="cres" hidden></div>
+    </div>`}
     <form id="task-form">
       <div class="form-grid">
         <label class="field span2">
@@ -191,12 +201,16 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       const dueInput = form.querySelector('[name=due_date]');
       const deliveryInput = form.querySelector('[name=delivery_due_date]');
 
+      // collabPicker 는 ownerPicker 의 onChange 안에서 참조된다.
+      // memberPicker 는 생성 시점에 onChange 를 한 번 호출하므로 let 으로 먼저 선언해 둔다
+      // (const 로 두면 초기화 전 접근이 되어 폼 배선 전체가 죽는다).
+      let collabPicker;
       const ownerPicker = memberPicker(form.querySelector('[data-owner-slot] .member-pick'), {
         multi: false,
         value: task?.owner_slack_user_id ? [task.owner_slack_user_id] : (defaults.owner ? [defaults.owner] : []),
         onChange: (owner) => collabPicker?.setExclude(owner ? [owner] : []),
       });
-      const collabPicker = memberPicker(form.querySelector('[data-collab-slot] .member-pick'), {
+      collabPicker = memberPicker(form.querySelector('[data-collab-slot] .member-pick'), {
         multi: true,
         value: (task?.collaborators ?? []).map((c) => c.slack_user_id),
         exclude: task?.owner_slack_user_id ? [task.owner_slack_user_id] : [],
@@ -216,6 +230,40 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       // 납품 예정일을 넣으면 마감일 기본값으로 채운다
       deliveryInput.addEventListener('change', () => {
         if (deliveryInput.value && !dueInput.value) dueInput.value = deliveryInput.value;
+      });
+
+      // 빠른 입력 — 폼을 채워 줄 뿐, 저장하지 않는다
+      const captureBtn = root.querySelector('[data-capture]');
+      const captureInput = root.querySelector('#capture-input');
+      const captureRes = root.querySelector('.capture .cres');
+      const runCapture = async () => {
+        const text = captureInput.value.trim();
+        if (!text) return;
+        captureBtn.disabled = true;
+        captureBtn.textContent = '읽는 중…';
+        try {
+          const r = await api.post('/api/ai/capture', { text });
+          const f = r.fields;
+          if (f.title) form.querySelector('[name=title]').value = f.title;
+          if (f.project_id) form.querySelector('[name=project_id]').value = f.project_id;
+          if (f.area) { areaSel.value = f.area; syncArea(); }
+          if (f.due_date) dueInput.value = f.due_date;
+          if (f.priority) form.querySelector('[name=priority]').value = f.priority;
+          if (f.owner_slack_user_id) ownerPicker.set(f.owner_slack_user_id);
+          captureRes.hidden = false;
+          captureRes.innerHTML = r.matched.length
+            ? r.matched.map((m) => `<span class="tok">${esc(m.field)} <b>${esc(String(m.value))}</b></span>`).join('')
+              + `<span class="tok">${r.source === 'llm' ? 'AI 해석' : '규칙 해석'}</span>`
+            : '<span class="tok">인식된 항목이 없습니다. 아래에서 직접 입력해 주세요.</span>';
+        } catch (err) {
+          toast(err.message, true);
+        }
+        captureBtn.disabled = false;
+        captureBtn.textContent = '채우기';
+      };
+      captureBtn?.addEventListener('click', runCapture);
+      captureInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); runCapture(); }
       });
 
       root.querySelector('[data-save]').addEventListener('click', async () => {

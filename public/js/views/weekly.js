@@ -52,6 +52,15 @@ export async function renderWeekly(root, query) {
       </div>
     </div>
 
+    <div class="digest" id="digest">
+      <div class="dhead">
+        <h3>요약문</h3>
+        <span class="hint">숫자를 팀에 공유할 문장으로 만듭니다</span>
+        <button class="btn" data-digest>요약문 생성</button>
+      </div>
+      <p class="sum" style="color:var(--muted)">아직 생성하지 않았습니다.</p>
+    </div>
+
     <div class="report">
       <h2>KinderFlow Weekly Report</h2>
       <div class="sub" style="color:var(--muted);font-size:.84rem">
@@ -175,6 +184,21 @@ export async function renderWeekly(root, query) {
       } catch (err) { toast(err.message, true); }
       return;
     }
+    if (e.target.closest('[data-digest]')) {
+      const box = root.querySelector('#digest');
+      const btn = box.querySelector('[data-digest]');
+      btn.disabled = true;
+      btn.textContent = '생성 중…';
+      try {
+        const d = await api.post('/api/ai/digest', { week: report.period_start });
+        box.innerHTML = renderDigest(d);
+      } catch (err) {
+        toast(err.message, true);
+        btn.disabled = false;
+        btn.textContent = '요약문 생성';
+      }
+      return;
+    }
     if (e.target.closest('[data-copy]')) {
       const text = toMarkdown(report);
       try {
@@ -185,6 +209,20 @@ export async function renderWeekly(root, query) {
       }
     }
   });
+}
+
+function renderDigest(d) {
+  return `
+    <div class="dhead">
+      <h3>요약문</h3>
+      <span class="src-tag ${d.source === 'llm' ? 'llm' : ''}">${d.source === 'llm' ? 'AI 작성' : '규칙 작성'}</span>
+      <button class="btn" data-digest>다시 생성</button>
+    </div>
+    <p class="sum">${esc(d.summary)}</p>
+    ${d.highlights?.length ? `<div class="dsub">주목할 점</div>
+      <ul class="dlist">${d.highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}
+    ${d.focus?.length ? `<div class="dsub">다음 주 초점</div>
+      <ul class="dlist">${d.focus.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}`;
 }
 
 function shiftWeek(iso, days) {

@@ -5,7 +5,7 @@
 //   npm run reset         모두 지우고 다시 채운다
 
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
-import { MEMBERS, PROJECTS, TASKS, ISSUES } from './seed-data.js';
+import { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS } from './seed-data.js';
 
 const RESET = process.argv.includes('--reset');
 const T = today();
@@ -88,7 +88,8 @@ tx(() => {
          VALUES (:id, :t, 'CREATED', NULL, :to, :actor, :at)`,
       { id: uid(), t: id, to: status, actor: 'U01KIM', at: created });
 
-    if (status !== 'TODO' && status !== 'REQUEST_PLANNED') {
+    const hasExplicitStatusEvent = EXTRA_EVENTS.some(([t, type]) => t === title && type === 'STATUS_CHANGED');
+    if (!hasExplicitStatusEvent && status !== 'TODO' && status !== 'REQUEST_PLANNED') {
       run(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
            VALUES (:id, :t, 'STATUS_CHANGED', :from, :to, :actor, :at)`,
         {
@@ -96,6 +97,15 @@ tx(() => {
           actor: owner, at: completed || ts(d(Math.min(dueOffset - 3, 0)), '05'),
         });
     }
+  }
+
+  for (const [title, type, from, to, daysAgo] of EXTRA_EVENTS) {
+    const taskId = taskIdByTitle[title];
+    if (!taskId) continue;
+    const val = (v) => (typeof v === 'number' ? d(v) : v);
+    run(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
+         VALUES (:id, :t, :type, :from, :to, 'U01KIM', :at)`,
+      { id: uid(), t: taskId, type, from: val(from), to: val(to), at: ts(d(-daysAgo), '04') });
   }
 
   for (const [pk, taskTitle, title, content, owner, severity, status, targetOffset, impact] of ISSUES) {

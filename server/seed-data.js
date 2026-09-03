@@ -40,6 +40,9 @@ export const TASKS = [
   ['CP', '영상 콘텐츠 자막 번역',         'OUT',  'U03LEE',  'OUT_REVISION',    +3,  'NORMAL', [],
     { vendor: '더원 번역', worker: '이번역', requested: -14, delivery: +3, review: 'REJECTED',
       scope: '교사 교육 영상 8편 영문 자막' }],
+  ['CP', '교사 워크북 인쇄',              'OUT',  'U03LEE',  'REQUESTED',       +2,  'HIGH',   [],
+    { vendor: '한빛 콘텐츠', worker: '박인쇄', requested: -3, delivery: +2, review: 'NOT_STARTED',
+      scope: '교사 워크북 500부 인쇄 및 배송' }],
   ['CP', '콘텐츠 등록 및 검수',           'OPS',  'U04CHOI', 'TODO',            +14, 'NORMAL', ['U05JUNG']],
   ['CP', '8월 콘텐츠 성과 정리',          'MKT',  'U03LEE',  'DONE',            -2,  'NORMAL', []],
   ['CP', '스티커 리소스 1차 검수',        'OPS',  'U06HAN',  'IN_PROGRESS',     -5,  'NORMAL', []], // 비활성 담당 + 지연
@@ -63,7 +66,7 @@ export const ISSUES = [
     'U05JUNG', 'HIGH', 'CHECKING', +1, '콘텐츠 등록 일정 3일 지연 예상'],
   ['CP', '영상 콘텐츠 자막 번역', '자막 번역 용어 불일치',
     '서비스 고유 용어(관찰·평가, 놀이기록)가 영상마다 다르게 번역되어 있다. 용어집 전달 후 재작업 요청.',
-    'U03LEE', 'NORMAL', 'CHECKING', +4, '검수 1회 추가 필요'],
+    'U03LEE', 'NORMAL', 'CHECKING', -2, '검수 1회 추가 필요'],
   ['GP', null, '해외 결제 수단 정책 미확정',
     '파일럿 기관 과금 방식이 정해지지 않아 제안자료의 가격 페이지를 채울 수 없다.',
     'U03LEE', 'NORMAL', 'OPEN', +6, '제안자료 완성 지연'],
@@ -72,3 +75,11 @@ export const ISSUES = [
     'U02PARK', 'NORMAL', 'RESOLVED', -2, '해결됨 — 재이관 완료'],
 ];
 
+
+// 이력이 있어야만 드러나는 위험(반복 연기 · 검토 병목)을 보여주기 위한 추가 이벤트.
+// [업무명, 이벤트, 이전값, 이후값, 며칠 전]
+export const EXTRA_EVENTS = [
+  ['관찰 기록 API 개발', 'DUE_CHANGED', -7, -2, 12],
+  ['관찰 기록 API 개발', 'DUE_CHANGED', -2, +4, 5],
+  ['영문 제안자료 제작', 'STATUS_CHANGED', 'TODO', 'REVIEW', 6],
+];

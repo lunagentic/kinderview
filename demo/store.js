@@ -87,7 +87,9 @@ function buildSeed() {
     }
     events.push({ id: uid(), task_id: id, event_type: 'CREATED', from_value: null, to_value: status,
       actor_slack_user_id: 'U01KIM', occurred_at: created });
-    if (status !== 'TODO' && status !== 'REQUEST_PLANNED') {
+    const hasExplicitStatusEvent = (SEED.EXTRA_EVENTS ?? [])
+      .some(([t, type]) => t === title && type === 'STATUS_CHANGED');
+    if (!hasExplicitStatusEvent && status !== 'TODO' && status !== 'REQUEST_PLANNED') {
       events.push({
         id: uid(), task_id: id, event_type: 'STATUS_CHANGED',
         from_value: area === 'OUT' ? 'REQUEST_PLANNED' : 'TODO', to_value: status,
@@ -95,6 +97,14 @@ function buildSeed() {
         occurred_at: status === 'DONE' ? at(due, '08') : at(d(Math.min(dueOffset - 3, 0)), '05'),
       });
     }
+  }
+
+  for (const [title, type, from, to, daysAgo] of (SEED.EXTRA_EVENTS ?? [])) {
+    const taskId = taskIdByTitle[title];
+    if (!taskId) continue;
+    const val = (v) => (typeof v === 'number' ? d(v) : v);
+    events.push({ id: uid(), task_id: taskId, event_type: type, from_value: val(from),
+      to_value: val(to), actor_slack_user_id: 'U01KIM', occurred_at: at(d(-daysAgo), '04') });
   }
 
   const issues = SEED.ISSUES.map(([pk, taskTitle, title, content, owner, severity, status, targetOffset, impact]) => ({
@@ -908,6 +918,40 @@ function handle(method, path, body) {
   }
   if (p === '/api/weekly/generate' && method === 'POST') return weeklyGenerate(body.week, me);
   if (seg[1] === 'weekly' && seg[3] === 'share' && method === 'POST') return weeklyShare(seg[2]);
+
+  // ── AI ── 데모에는 LLM 키가 없으므로 언제나 규칙 결과다 (docs/12-ai-spec.md)
+  const aiCtx = () => ({
+    tasks: listTasks({ includeDone: true }),
+    issues: listIssues({ includeResolved: true }),
+    events: DB.events,
+    members: DB.members,
+    projects: DB.projects.filter((x) => !x.is_archived),
+    today: today(),
+  });
+  if (p === '/api/ai/status' && method === 'GET') {
+    return { enabled: false, model: 'claude-opus-5', reason: '브라우저 데모에서는 LLM 을 호출하지 않습니다' };
+  }
+  if (p === '/api/ai/risks' && method === 'GET') {
+    return { source: 'rules', rows: detectRisks(aiCtx()) };
+  }
+  if (p === '/api/ai/digest' && method === 'POST') {
+    const report = weeklyForWeek(body.week || today());
+    return {
+      ...draftDigest({
+        snapshot: report.snapshot,
+        risks: detectRisks(aiCtx()),
+        periodStart: report.period_start,
+        periodEnd: report.period_end,
+      }),
+      period_start: report.period_start,
+      period_end: report.period_end,
+    };
+  }
+  if (p === '/api/ai/capture' && method === 'POST') {
+    if (!body.text?.trim()) throw new DemoError('문장을 입력해 주세요.');
+    const c = aiCtx();
+    return parseCapture(body.text, { members: c.members, projects: c.projects, today: c.today });
+  }
 
   if (p === '/api/notifications' && method === 'GET') {
     return { slack_configured: false, rows: DB.notifications.slice(0, 200) };
