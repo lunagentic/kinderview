@@ -88,8 +88,8 @@ export async function renderTasks(root, query) {
           <thead>
             <tr>
               <th>업무</th>
-              <th class="hide-sm">프로젝트</th>
-              <th class="hide-sm">영역</th>
+              <th>프로젝트</th>
+              <th>영역</th>
               <th>담당</th>
               <th class="nowrap">마감</th>
               <th class="nowrap">상태</th>
@@ -100,20 +100,20 @@ export async function renderTasks(root, query) {
             ${rows.map((t) => `
               <tr class="row-click" data-open="${esc(t.id)}">
                 <td class="title-cell">${esc(t.title)} ${flags(t)}</td>
-                <td class="hide-sm">${esc(t.project_name)}</td>
-                <td class="hide-sm">${areaChip(t.area)}</td>
-                <td>${person(t.owner_slack_user_id, t.owner_name)}</td>
-                <td class="nowrap num due ${t.is_delayed ? 'late' : ''}">
+                <td data-label="프로젝트">${esc(t.project_name)}</td>
+                <td data-label="영역">${areaChip(t.area)}</td>
+                <td data-label="담당">${person(t.owner_slack_user_id, t.owner_name)}</td>
+                <td data-label="마감" class="nowrap num due ${t.is_delayed ? 'late' : ''}">
                   ${shortDate(t.due_date)}
                   <span style="color:var(--muted);font-size:.76rem">${t.status === 'DONE' ? '' : dDay(t.d_day)}</span>
                 </td>
-                <td class="nowrap">
+                <td data-label="상태" class="nowrap">
                   <select class="status-select" data-status="${esc(t.id)}" data-area="${esc(t.area)}" aria-label="상태 변경">
                     ${(t.area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses)
                       .map((s) => `<option value="${esc(s.code)}"${s.code === t.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
                   </select>
                 </td>
-                <td class="nowrap">${t.has_open_issue ? `<span class="flag issue">🔥 ${t.open_issue_count}</span>` : '<span style="color:var(--muted)">-</span>'}</td>
+                <td data-label="이슈" class="nowrap issue-cell">${t.has_open_issue ? `<span class="flag issue">🔥 ${t.open_issue_count}</span>` : '<span style="color:var(--muted)">-</span>'}</td>
               </tr>`).join('')}
           </tbody>
         </table>

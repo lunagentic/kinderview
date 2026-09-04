@@ -2,9 +2,11 @@
 // 서버 없이 열리는 단일 HTML 파일을 만든다. 화면 코드(public/js/**)는 그대로 쓰고,
 // api 계층만 demo/store.js 로 바꿔 끼운 뒤 ES 모듈을 하나로 이어 붙인다.
 //
-//   node tools/build-demo.mjs  →  demo/kinderflow-demo.html
+//   node tools/build-demo.mjs
+//     → demo/kinderflow-demo.html   Artifact 형식 (doctype·html·body 없음)
+//     → dist/index.html             정적 호스팅용 완전한 문서 (Vercel 배포 대상)
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -89,7 +91,10 @@ ${css}
   border-radius:var(--radius)}
 .demo-note b{color:var(--ink)}
 .demo-note .btn{margin-left:auto;font-size:.8rem}
-@media (max-width:720px){.demo-note{margin:12px 14px 0}}
+@media (max-width:860px){
+  .demo-note{margin:12px 14px 0;padding:9px 12px;font-size:.78rem;line-height:1.55;gap:6px}
+  .demo-note .btn{margin-left:0;font-size:.76rem;min-height:32px;padding:4px 10px}
+}
 </style>
 ${bodyInner.replace('<main id="view"', `${banner}\n  <main id="view"`)}
 <script type="module">
@@ -99,3 +104,27 @@ ${parts}
 
 writeFileSync(join(root, 'demo/kinderflow-demo.html'), out);
 console.log(`demo/kinderflow-demo.html  ${(out.length / 1024).toFixed(0)} KB`);
+
+// <title>·<style> 는 head, 나머지는 body 로 나눈다
+const bodyStart = out.indexOf('<header class="topbar">');
+const head = out.slice(0, bodyStart);
+const bodyHtml = out.slice(bodyStart);
+const doc = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="프로젝트의 업무와 담당을 명확히 정의하고 진행·이슈를 추적하는 업무 관리 도구">
+<meta name="theme-color" content="#F4F6F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D1119" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%E2%9C%85</text></svg>">
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+${head}</head>
+<body>
+${bodyHtml}
+</body>
+</html>`;
+mkdirSync(join(root, 'dist'), { recursive: true });
+writeFileSync(join(root, 'dist/index.html'), doc);
+console.log(`dist/index.html            ${(doc.length / 1024).toFixed(0)} KB  (정적 호스팅용)`);

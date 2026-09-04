@@ -5,3 +5,6 @@ node_modules/
 
 # 로컬 데이터베이스 (각자 로컬에서 생성)
 data/
+
+# 빌드 산출물 (Vercel 이 배포 시 생성)
+dist/

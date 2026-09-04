@@ -312,11 +312,113 @@ details.more[open] > summary{color:var(--ink)}
 .toast.bad{background:var(--s-delay);color:#fff}
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media (max-width:720px){
-  .topbar{gap:12px;padding:10px 14px}
-  .view{padding:20px 14px 60px}
+/* ── 모바일 ─────────────────────────────────
+   표는 카드로 접고, 상단바는 2줄로 나눈다.
+   조회와 상태 변경까지가 모바일의 범위다 (docs/06 §6.8). */
+@media (max-width:860px){
+  .topbar{
+    gap:10px 12px;padding:9px 14px;
+    display:grid;grid-template-columns:1fr auto;grid-template-areas:"brand right" "nav nav";
+  }
+  .brand{grid-area:brand;min-width:0}
+  .brand-sub{display:none}
+  .topbar-right{grid-area:right;gap:8px}
+  .gnb{
+    grid-area:nav;flex-wrap:nowrap;overflow-x:auto;gap:2px;
+    margin:0 -14px;padding:0 14px 2px;scrollbar-width:none;
+  }
+  .gnb::-webkit-scrollbar{display:none}
+  .gnb a{white-space:nowrap;padding:6px 11px}
   .me-label{display:none}
-  td.hide-sm,th.hide-sm{display:none}
+  #me-select{max-width:104px}
+
+  .view{padding:18px 14px 72px}
+  .page-head{gap:12px}
+  .page-head h1{font-size:1.3rem}
+  .page-actions{width:100%}
+  .page-actions .btn,.page-actions select{flex:1 1 auto}
+
+  /* 손가락으로 누를 수 있는 크기 */
+  .btn,select,input[type=text],input[type=date],input[type=search]{min-height:40px}
+  .quick button{min-height:36px;white-space:nowrap}
+
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .stat{padding:12px 13px}
+  .stat .v{font-size:1.35rem}
+
+  .filter-row,.quick{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;
+    margin:0 -14px;padding:0 14px 2px}
+  .filter-row::-webkit-scrollbar,.quick::-webkit-scrollbar{display:none}
+  .filter-row > *{flex:0 0 auto}
+
+  .bar{grid-template-columns:minmax(78px,1fr) minmax(0,2fr) 42px}
+  .report .bars .bar{grid-template-columns:minmax(78px,1fr) minmax(0,2fr) 42px}
+
+  /* 표 → 카드 */
+  .table-wrap{border:none;background:none;overflow:visible}
+  .table-wrap table{min-width:0;display:block}
+  .table-wrap thead{display:none}
+  .table-wrap tbody{display:flex;flex-direction:column;gap:9px}
+  .table-wrap tr{
+    display:flex;flex-direction:column;gap:7px;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;
+  }
+  .table-wrap tr:hover{background:var(--surface)}
+  /* 셀 하나가 카드의 한 줄이 된다. display:contents 를 쓰면
+     셀 안의 요소들이 각각 그리드 항목이 되어 라벨-값 짝이 깨진다. */
+  /* flex 로 둔다. grid 를 쓰면 셀 안의 텍스트 노드와 span 이
+     각각 그리드 항목이 되어 "9/2" 와 "-2일" 이 줄바꿈된다. */
+  .table-wrap td{
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    border:none;padding:0;font-size:.88rem;
+  }
+  .table-wrap td[data-label]::before{
+    content:attr(data-label);color:var(--muted);font-size:.76rem;white-space:nowrap;
+    flex:0 0 58px;
+  }
+  .table-wrap td > *{flex:0 1 auto}
+  .table-wrap td.title-cell{
+    display:block;font-weight:600;font-size:.98rem;
+    padding-bottom:8px;margin-bottom:3px;border-bottom:1px solid var(--line-soft);
+  }
+  .table-wrap select{flex:1 1 auto;max-width:170px}
+  .risk .head h3{flex:1 1 auto;min-width:0}
+  .sev-bar{margin-right:6px}
+
+  /* 모달은 화면을 거의 채운다 */
+  .backdrop{padding:0;align-items:stretch}
+  .modal,.modal.wide{width:100%;max-width:100%;border-radius:0;border:none;
+    display:flex;flex-direction:column;min-height:100dvh}
+  .modal-body{flex:1;overflow-y:auto}
+  .modal-foot{position:sticky;bottom:0}
+  .modal-foot .right{width:100%}
+  .modal-foot .right .btn{flex:1}
+
+  .detail-grid{gap:16px}
+  .kv{grid-template-columns:74px 1fr}
+  .panel{padding:14px 15px}
+  .report{padding:18px 16px}
+  .pill{min-width:88px;flex:1 1 88px}
+
+  /* 위험 신호 항목은 세로로 쌓는다 */
+  .risk li button,.risk li .static{flex-wrap:wrap;gap:3px 9px}
+  .risk li .sub{flex-basis:100%;white-space:normal}
+  .risk li .note{margin-left:0}
+  .risk .head{gap:7px}
+  .risk .head h3{font-size:.9rem}
+
+  .lead-row{grid-template-columns:1fr;gap:6px}
+  .noti .when{margin-left:0;flex-basis:100%}
+  .toast-root{left:14px;right:14px;transform:none;bottom:18px}
+  .toast{text-align:center}
+}
+
+@media (max-width:420px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .bar{grid-template-columns:minmax(64px,1fr) minmax(0,1.6fr) 38px}
+  .brand-mark{font-size:1.02rem}
+  .capture .crow{flex-wrap:wrap}
+  .capture .crow .btn{width:100%}
 }
 
 /* ── AI: 위험 신호 ──────────────────────────── */
@@ -395,7 +497,10 @@ details.more[open] > summary{color:var(--ink)}
   border-radius:var(--radius)}
 .demo-note b{color:var(--ink)}
 .demo-note .btn{margin-left:auto;font-size:.8rem}
-@media (max-width:720px){.demo-note{margin:12px 14px 0}}
+@media (max-width:860px){
+  .demo-note{margin:12px 14px 0;padding:9px 12px;font-size:.78rem;line-height:1.55;gap:6px}
+  .demo-note .btn{margin-left:0;font-size:.76rem;min-height:32px;padding:4px 10px}
+}
 </style>
 
   <header class="topbar">
@@ -3096,8 +3201,8 @@ async function renderTasks(root, query) {
           <thead>
             <tr>
               <th>업무</th>
-              <th class="hide-sm">프로젝트</th>
-              <th class="hide-sm">영역</th>
+              <th>프로젝트</th>
+              <th>영역</th>
               <th>담당</th>
               <th class="nowrap">마감</th>
               <th class="nowrap">상태</th>
@@ -3108,20 +3213,20 @@ async function renderTasks(root, query) {
             ${rows.map((t) => `
               <tr class="row-click" data-open="${esc(t.id)}">
                 <td class="title-cell">${esc(t.title)} ${flags(t)}</td>
-                <td class="hide-sm">${esc(t.project_name)}</td>
-                <td class="hide-sm">${areaChip(t.area)}</td>
-                <td>${person(t.owner_slack_user_id, t.owner_name)}</td>
-                <td class="nowrap num due ${t.is_delayed ? 'late' : ''}">
+                <td data-label="프로젝트">${esc(t.project_name)}</td>
+                <td data-label="영역">${areaChip(t.area)}</td>
+                <td data-label="담당">${person(t.owner_slack_user_id, t.owner_name)}</td>
+                <td data-label="마감" class="nowrap num due ${t.is_delayed ? 'late' : ''}">
                   ${shortDate(t.due_date)}
                   <span style="color:var(--muted);font-size:.76rem">${t.status === 'DONE' ? '' : dDay(t.d_day)}</span>
                 </td>
-                <td class="nowrap">
+                <td data-label="상태" class="nowrap">
                   <select class="status-select" data-status="${esc(t.id)}" data-area="${esc(t.area)}" aria-label="상태 변경">
                     ${(t.area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses)
                       .map((s) => `<option value="${esc(s.code)}"${s.code === t.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
                   </select>
                 </td>
-                <td class="nowrap">${t.has_open_issue ? `<span class="flag issue">🔥 ${t.open_issue_count}</span>` : '<span style="color:var(--muted)">-</span>'}</td>
+                <td data-label="이슈" class="nowrap issue-cell">${t.has_open_issue ? `<span class="flag issue">🔥 ${t.open_issue_count}</span>` : '<span style="color:var(--muted)">-</span>'}</td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -3396,20 +3501,20 @@ async function renderIssues(root, query) {
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>이슈</th><th class="hide-sm">프로젝트</th><th class="hide-sm">관련 업무</th>
+            <tr><th>이슈</th><th>프로젝트</th><th>관련 업무</th>
                 <th>담당</th><th class="nowrap">중요도</th><th class="nowrap">목표일</th><th class="nowrap">상태</th></tr>
           </thead>
           <tbody>
             ${rows.map((i) => `
               <tr class="row-click" data-open="${esc(i.id)}">
                 <td class="title-cell"><span class="sev-bar ${esc(i.severity)}"></span>${esc(i.title)}</td>
-                <td class="hide-sm">${esc(i.project_name)}</td>
-                <td class="hide-sm">${i.task_title ? esc(i.task_title) : '<span style="color:var(--muted)">-</span>'}</td>
-                <td>${person(i.owner_slack_user_id, i.owner_name)}</td>
-                <td class="nowrap">${esc(severityLabel(i.severity))}</td>
-                <td class="nowrap num" style="${i.target_resolve_date && i.target_resolve_date < state.today && i.status !== 'RESOLVED' ? 'color:var(--s-delay)' : ''}">
+                <td data-label="프로젝트">${esc(i.project_name)}</td>
+                <td data-label="관련 업무">${i.task_title ? esc(i.task_title) : '<span style="color:var(--muted)">-</span>'}</td>
+                <td data-label="담당">${person(i.owner_slack_user_id, i.owner_name)}</td>
+                <td data-label="중요도" class="nowrap">${esc(severityLabel(i.severity))}</td>
+                <td data-label="목표일" class="nowrap num" style="${i.target_resolve_date && i.target_resolve_date < state.today && i.status !== 'RESOLVED' ? 'color:var(--s-delay)' : ''}">
                   ${shortDate(i.target_resolve_date)}</td>
-                <td class="nowrap">
+                <td data-label="상태" class="nowrap">
                   <select data-status="${esc(i.id)}" class="status-select" aria-label="이슈 상태">
                     ${state.meta.issue_statuses.map((s) =>
                       `<option value="${esc(s.code)}"${s.code === i.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}

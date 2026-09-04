@@ -51,20 +51,20 @@ export async function renderIssues(root, query) {
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>이슈</th><th class="hide-sm">프로젝트</th><th class="hide-sm">관련 업무</th>
+            <tr><th>이슈</th><th>프로젝트</th><th>관련 업무</th>
                 <th>담당</th><th class="nowrap">중요도</th><th class="nowrap">목표일</th><th class="nowrap">상태</th></tr>
           </thead>
           <tbody>
             ${rows.map((i) => `
               <tr class="row-click" data-open="${esc(i.id)}">
                 <td class="title-cell"><span class="sev-bar ${esc(i.severity)}"></span>${esc(i.title)}</td>
-                <td class="hide-sm">${esc(i.project_name)}</td>
-                <td class="hide-sm">${i.task_title ? esc(i.task_title) : '<span style="color:var(--muted)">-</span>'}</td>
-                <td>${person(i.owner_slack_user_id, i.owner_name)}</td>
-                <td class="nowrap">${esc(severityLabel(i.severity))}</td>
-                <td class="nowrap num" style="${i.target_resolve_date && i.target_resolve_date < state.today && i.status !== 'RESOLVED' ? 'color:var(--s-delay)' : ''}">
+                <td data-label="프로젝트">${esc(i.project_name)}</td>
+                <td data-label="관련 업무">${i.task_title ? esc(i.task_title) : '<span style="color:var(--muted)">-</span>'}</td>
+                <td data-label="담당">${person(i.owner_slack_user_id, i.owner_name)}</td>
+                <td data-label="중요도" class="nowrap">${esc(severityLabel(i.severity))}</td>
+                <td data-label="목표일" class="nowrap num" style="${i.target_resolve_date && i.target_resolve_date < state.today && i.status !== 'RESOLVED' ? 'color:var(--s-delay)' : ''}">
                   ${shortDate(i.target_resolve_date)}</td>
-                <td class="nowrap">
+                <td data-label="상태" class="nowrap">
                   <select data-status="${esc(i.id)}" class="status-select" aria-label="이슈 상태">
                     ${state.meta.issue_statuses.map((s) =>
                       `<option value="${esc(s.code)}"${s.code === i.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
