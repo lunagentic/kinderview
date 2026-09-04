@@ -2,13 +2,14 @@
 
 ## 9.1 Slack의 역할
 
-**구성원 정보 + 알림.** KinderFlow가 Slack의 기능을 대체하지 않는다.
+**구성원 정보 + 알림 + 업무 등록.** KinderFlow가 Slack의 기능을 대체하지 않는다.
 
 | 역할 | 내용 |
 |---|---|
 | 구성원 정보 | Slack 멤버를 KinderFlow 담당자로 사용 (별도 구성원 DB 없음) |
 | 인증 | Sign in with Slack (OAuth) |
 | 알림 | 담당 업무·마감·지연·검토·이슈·외주·Weekly Report |
+| 업무 등록 | 슬래시 명령 `/업무` — 채널에서 한 줄로 등록 (§9.7) |
 
 논의와 대화는 Slack에 남는다. KinderFlow는 댓글 기능을 만들지 않는다.
 
@@ -145,3 +146,90 @@ KinderFlow
 | 채널 미설정 | 기본 채널로 대체. 기본 채널도 없으면 발송 생략 |
 
 알림 발송 실패가 업무 저장을 실패시키지 않는다. **알림은 비동기로 처리한다.**
+
+
+## 9.7 슬래시 명령 — 채널에서 업무 등록
+
+업무를 남기려고 웹을 열어야 한다면 기록은 습관이 되지 않는다.
+이미 팀이 하루 종일 머무는 곳에서 바로 등록할 수 있게 한다.
+
+```
+/업무 9/20까지 10월 카드뉴스 콘텐츠 제작 콘텐츠 패키지
+```
+```
+✅ 10월 카드뉴스 콘텐츠 제작
+콘텐츠 패키지 · 콘텐츠 · 담당 정OO · 마감 2026-09-20
+[업무 확인]
+```
+
+### 해석 규칙
+
+문장 해석은 웹 화면의 **빠른 입력과 같은 파서**(`server/ai/rules.js`)를 쓴다.
+슬랙용 문법을 따로 만들지 않는다 — 한 곳만 고치면 양쪽이 같이 좋아진다.
+
+| 항목 | 필수 | 인식 |
+|---|---|---|
+| 마감일 | ✔ | `9/20`, `내일`, `다음주 금요일`, `3일 뒤` |
+| 프로젝트 | ✔ | 이름 또는 약칭. **진행중 프로젝트가 하나뿐이면 생략 가능** |
+| 업무 영역 | ✔ | 키워드로 판정. 담당자를 결정하므로 반드시 필요하다 |
+| 업무명 | ✔ | 위 항목을 뺀 나머지. 끝에 붙은 영역 키워드는 꼬리표로 보고 제거한다 |
+| 우선순위 | | `긴급`, `중요` |
+
+- **담당자는 적지 않는다.** 선택된 업무 영역의 리드가 담당이 된다.
+- 항목을 찾지 못하면 **업무를 만들지 않고** 무엇이 빠졌는지 본인에게만 알려 준다.
+- `외주 작업` 영역은 업체·납품 예정일이 필요해 슬랙에서 등록하지 않고 웹으로 안내한다.
+- `/업무 도움말` 로 사용법을 볼 수 있다.
+
+### 응답 방식
+
+| 상황 | 노출 |
+|---|---|
+| 등록 성공 | **채널 전체** (`in_channel`) — 팀이 무엇이 등록됐는지 본다 |
+| 항목 부족·오류·도움말 | **본인에게만** (`ephemeral`) — 채널을 어지럽히지 않는다 |
+
+### 보안
+
+| 항목 | 처리 |
+|---|---|
+| 서명 검증 | `x-slack-signature` HMAC-SHA256. `timingSafeEqual` 로 비교한다 |
+| 재전송 방지 | `x-slack-request-timestamp` 가 5분을 넘으면 거부 |
+| 비밀 미설정 시 | **무조건 401.** 서명 없이 업무를 만들 수 있는 엔드포인트를 열어 두지 않는다 |
+| 미등록 사용자 | 구성원 목록에 없는 Slack 사용자는 등록할 수 없다 |
+| 처리 실패 | Slack 에는 200 + 안내 문구로 답한다 (사용자에게 메시지가 보이도록) |
+
+### 설치
+
+1. https://api.slack.com/apps 에서 앱을 만든다 (아래 매니페스트를 붙여넣으면 한 번에 된다)
+2. **Slash Commands** 의 Request URL 을 `https://<배포주소>/api/slack/command` 로 지정
+3. **Basic Information → Signing Secret** 을 서버의 `SLACK_SIGNING_SECRET` 환경변수에 넣는다
+4. `KINDERFLOW_BASE_URL` 에 배포 주소를 넣으면 응답에 업무 링크가 붙는다
+5. 워크스페이스에 설치하고 `npm run sync:slack` 으로 구성원을 동기화한다
+
+```yaml
+display_information:
+  name: KinderFlow
+  description: 업무의 담당을 명확히, 전체 흐름은 한눈에
+features:
+  bot_user:
+    display_name: KinderFlow
+  slash_commands:
+    - command: /업무
+      url: https://<배포주소>/api/slack/command
+      description: 한 줄로 업무를 등록합니다
+      usage_hint: "9/20까지 10월 카드뉴스 콘텐츠 제작 콘텐츠 패키지"
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - commands
+      - chat:write
+      - users:read
+      - users:read.email
+      - im:write
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+```
+
+> **전제**: 슬래시 명령은 Slack 이 호출할 수 있는 **공개 HTTPS 주소**가 있어야 한다.
+> 정적 배포(브라우저 모드)에는 서버가 없어 동작하지 않는다. [DEPLOY.md](../DEPLOY.md) 의 팀 모드가 필요하다.

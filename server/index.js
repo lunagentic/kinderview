@@ -10,6 +10,7 @@ import * as weekly from './weekly.js';
 import * as notify from './notify.js';
 import * as slack from './slack.js';
 import * as ai from './ai/index.js';
+import * as slackCommands from './slack-commands.js';
 import {
   AREAS, NORMAL_STATUSES, OUT_STATUSES, REVIEW_STATUSES, ISSUE_STATUSES,
   PRIORITIES, PROJECT_STATUSES, PROGRESS_WEIGHT,
@@ -281,9 +282,50 @@ const serveStatic = async (req, res, pathname) => {
 
 // ── 서버 ────────────────────────────────────────────────
 
+const readRaw = async (req) => {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  return Buffer.concat(chunks).toString('utf8');
+};
+
+/**
+ * Slack 슬래시 명령.
+ * 서명 검증에 원문이 필요해서 일반 JSON 파싱을 타지 않는다.
+ * 본문은 application/x-www-form-urlencoded 로 온다.
+ */
+const handleSlackCommand = async (req, res) => {
+  const raw = await readRaw(req);
+  const check = slackCommands.verify({
+    rawBody: raw,
+    signature: req.headers['x-slack-signature'],
+    timestamp: req.headers['x-slack-request-timestamp'],
+  });
+  if (!check.ok) {
+    console.warn('[slack] 명령 거부:', check.reason);
+    return json(res, 401, { error: check.reason });
+  }
+  try {
+    const result = slackCommands.handleCommand(new URLSearchParams(raw), {
+      baseUrl: process.env.KINDERFLOW_BASE_URL || '',
+    });
+    if (result._task) {
+      const task = result._task;
+      delete result._task;
+      queueMicrotask(() => notify.taskCreated(task, task.created_by).catch(() => {}));
+    }
+    return json(res, 200, result);
+  } catch (err) {
+    console.error('[slack] 명령 처리 실패:', err);
+    // Slack 에는 200 으로 답해야 사용자에게 메시지가 보인다
+    return json(res, 200, { response_type: 'ephemeral', text: '처리 중 오류가 났습니다. 잠시 후 다시 시도해 주세요.' });
+  }
+};
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const { pathname } = url;
+
+  if (pathname === '/api/slack/command' && req.method === 'POST') return handleSlackCommand(req, res);
 
   if (!pathname.startsWith('/api/')) return serveStatic(req, res, pathname);
 
@@ -311,4 +353,5 @@ server.listen(PORT, () => {
   console.log(`KinderFlow  http://localhost:${PORT}`);
   console.log(`  DB     ${dbFile}`);
   console.log(`  Slack  ${slack.isConfigured() ? '연동됨' : '미연동 (알림은 알림함에만 기록됩니다)'}`);
+  console.log(`  명령어 ${slackCommands.isConfigured() ? 'POST /api/slack/command 활성' : '비활성 (SLACK_SIGNING_SECRET 미설정)'}`);
 });

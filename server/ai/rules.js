@@ -352,9 +352,17 @@ export function parseCapture(text, ctx) {
   if (best) {
     fields.area = best.code;
     matched.push({ field: '업무 영역', value: best.code });
-    // 영역 키워드는 업무명에서 빼지 않는다.
-    // "운영 정책 문서 정리"에서 '운영'을 빼면 제목이 더 나빠진다 —
-    // 사용자가 쓴 문장을 그대로 두고, 영역은 배지로 따로 보여주는 편이 낫다.
+    // 영역 키워드가 문장 끝에 홀로 붙어 있으면 꼬리표로 본다.
+    //   "관찰 API 성능 개선 개발" → "관찰 API 성능 개선"
+    // 문장 중간의 키워드는 건드리지 않는다. "운영 정책 문서 정리"에서
+    // '운영'을 빼면 제목이 더 나빠진다.
+    for (const w of AREA_KEYWORDS[best.code]) {
+      const tail = new RegExp(`\\s${w}\\s*$`, 'i');
+      if (tail.test(rest.trim()) && rest.trim().replace(tail, '').trim().length >= 2) {
+        rest = rest.trim().replace(tail, ' ');
+        break;
+      }
+    }
   }
 
   // 우선순위

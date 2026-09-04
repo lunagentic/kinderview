@@ -79,6 +79,8 @@ SLACK_BOT_TOKEN=xoxb-... npm start
 | `KINDERFLOW_TZ_OFFSET` | `540` | 기준 시간대(분). 기본 KST(+9). 지연 판정의 "오늘"을 정한다 |
 | `SLACK_BOT_TOKEN` | 없음 | 없으면 알림을 **발송하지 않고 알림함에만 기록**한다 |
 | `SLACK_DEFAULT_CHANNEL` | 없음 | 프로젝트 채널이 없을 때 쓰는 기본 채널 |
+| `SLACK_SIGNING_SECRET` | 없음 | 슬래시 명령(`/업무`) 서명 검증. 없으면 명령 엔드포인트는 항상 401 |
+| `KINDERFLOW_BASE_URL` | 없음 | 슬랙 응답에 붙일 업무 링크의 기준 주소 |
 | `ANTHROPIC_API_KEY` | 없음 | 있으면 주간 요약문·빠른 입력에 Claude 를 쓴다. 없으면 규칙으로 동작 |
 | `KINDERFLOW_AI_TIMEOUT_MS` | `15000` | LLM 호출 타임아웃. 초과하면 규칙 결과를 쓴다 |
 
@@ -104,6 +106,17 @@ Slack 앱에 필요한 scope: `users:read`, `users:read.email`, `chat:write`, `i
 | **Issues** | 블로커 등록과 해결 추적. 업무 상태와 분리해서 관리한다 |
 | **Weekly** | 9개 섹션 주간 리포트 자동 생성, 스냅샷 저장, Slack 공유, 마크다운 복사 |
 | **알림함** | Slack으로 나가는(나갈) 알림 기록 |
+
+### 슬랙에서 바로 등록
+
+```
+/업무 9/20까지 10월 카드뉴스 콘텐츠 제작 콘텐츠 패키지
+```
+
+채널에서 한 줄로 업무를 만든다. 해석은 웹의 빠른 입력과 **같은 파서**를 쓰고,
+담당자는 적지 않는다 — 업무 영역의 리드가 담당이 된다.
+설치 방법과 보안 처리는 [09-Slack 연동 §9.7](docs/09-slack-integration.md#97-슬래시-명령--채널에서-업무-등록) 참조.
+공개 HTTPS 주소가 필요하므로 정적 배포에서는 동작하지 않는다.
 
 ### AI 기능 3종
 
@@ -156,6 +169,7 @@ server/
   weekly.js     Weekly Report 생성과 스냅샷
   notify.js     알림 규칙 (트리거 · 대상 · 묶음 · 중복 방지)
   slack.js      Slack API 어댑터
+  slack-commands.js  슬래시 명령 — 서명 검증 · 문장 해석 · 등록
   jobs.js       배치 진입점
   seed.js       예시 데이터
   ai/
