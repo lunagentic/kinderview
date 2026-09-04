@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { dbFile, today, applySchema } from './db.js';
 import { runMigrations } from './migrate.js';
-import { members, projects, vendors, tasks, issues, overview, HttpError } from './repo.js';
+import { members, projects, vendors, tasks, issues, overview, areaLeads, HttpError } from './repo.js';
 import * as weekly from './weekly.js';
 import * as notify from './notify.js';
 import * as slack from './slack.js';
@@ -74,6 +74,7 @@ route('GET', '/api/bootstrap', (ctx) => ({
   members: members.list({ includeInactive: true }),
   projects: projects.list({ includeArchived: true }),
   vendors: vendors.list(),
+  area_leads: areaLeads.list(),
   slack_configured: slack.isConfigured(),
   meta: {
     areas: AREAS,
@@ -142,6 +143,15 @@ route('PATCH', '/api/projects/:id', (ctx) => {
   const p = projects.update(ctx.params.id, ctx.body);
   if (!p) throw new HttpError(404, '프로젝트를 찾을 수 없습니다.');
   return p;
+});
+
+// ── 영역 리드 ───────────────────────────────────────────
+
+route('GET', '/api/area-leads', () => areaLeads.list());
+
+route('PATCH', '/api/area-leads', (ctx) => {
+  if (!Array.isArray(ctx.body.leads)) throw new HttpError(400, '리드 목록이 필요합니다.');
+  return ctx.body.leads.map((l) => areaLeads.set(l.area, l.slack_user_id, ctx.me));
 });
 
 // ── 이슈 ────────────────────────────────────────────────
@@ -213,6 +223,7 @@ const aiContext = () => ({
   events: tasks.allEvents(),
   members: members.list({ includeInactive: true }),
   projects: projects.list(),
+  areaLeads: areaLeads.list(),
   today: today(),
 });
 

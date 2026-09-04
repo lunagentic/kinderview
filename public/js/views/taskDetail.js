@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state } from '../state.js';
+import { state, areaMeta } from '../state.js';
 import {
   esc, statusChip, areaChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
 } from '../ui.js';
@@ -58,7 +58,7 @@ export async function renderTaskDetail(root, id) {
         <div class="panel">
           <h3>업무 정보</h3>
           <dl class="kv">
-            <dt>담당자</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}</dd>
+            <dt>담당</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}<span class="area-lead-tag">· ${esc(areaMeta(t.area).full)} 리드</span></dd>
             <dt>협업자</dt><dd>${t.collaborators.length
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
@@ -78,7 +78,7 @@ export async function renderTaskDetail(root, id) {
             <dl class="kv">
               <dt>외주 업체</dt><dd>${esc(t.vendor_name ?? '-')}</dd>
               <dt>외부 작업자</dt><dd>${esc(t.vendor_worker_name ?? '-')}</dd>
-              <dt>내부 담당자</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}</dd>
+              <dt>내부 담당</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}</dd>
               <dt>요청일</dt><dd class="num">${shortDate(t.requested_at)}</dd>
               <dt>납품 예정</dt><dd class="num" style="${t.is_delivery_delayed ? 'color:var(--s-delay)' : ''}">
                 ${shortDate(t.delivery_due_date)}${t.is_delivery_delayed ? ' · 납품 지연' : ''}</dd>

@@ -1,7 +1,7 @@
 import { api } from '../api.js';
-import { state } from '../state.js';
+import { state, leadOf } from '../state.js';
 import { esc, avatar, progressBar, pctText, loading, errorBox, empty, shortDate, go } from '../ui.js';
-import { projectForm } from '../forms.js';
+import { projectForm, areaLeadsForm } from '../forms.js';
 import { riskSection } from './risks.js';
 
 export async function renderOverview(root) {
@@ -23,7 +23,7 @@ export async function renderOverview(root) {
       <div class="page-head"><div><h1>Overview</h1></div></div>
       ${empty({
         title: '아직 등록된 업무가 없습니다',
-        hint: '업무를 등록하면 프로젝트별·영역별·담당자별 현황이 자동으로 집계됩니다.',
+        hint: '업무를 등록하면 프로젝트별·영역별 현황이 자동으로 집계됩니다.',
         action: '<button class="btn btn-primary" data-new-task>+ 업무 등록</button>',
       })}`;
     return;
@@ -78,45 +78,23 @@ export async function renderOverview(root) {
       </section>
 
       <section>
-        <div class="section-head"><h2>업무 영역별 진행</h2><span class="meta">외주 작업 포함</span></div>
+        <div class="section-head">
+          <h2>업무 영역별 진행</h2>
+          <span class="meta">영역 리드가 담당입니다 · <button class="btn btn-ghost" data-area-leads>리드 관리</button></span>
+        </div>
         <div class="bars">
-          ${ov.areas.map((a) => barRow(
-            a.label, a.progress,
-            a.count ? `업무 ${a.count} · 완료 ${a.done}${a.delayed ? ` · 지연 ${a.delayed}` : ''}` : '등록된 업무 없음',
-            `#/tasks?area=${encodeURIComponent(a.code)}&done=1`,
-          )).join('')}
+          ${ov.areas.map((a) => {
+            const lead = leadOf(a.code);
+            const who = lead ? `리드 ${lead.display_name}` : '리드 미지정';
+            return barRow(
+              a.label, a.progress,
+              a.count ? `${who} · 업무 ${a.count} · 완료 ${a.done}${a.delayed ? ` · 지연 ${a.delayed}` : ''}` : `${who} · 등록된 업무 없음`,
+              `#/tasks?area=${encodeURIComponent(a.code)}&done=1`,
+            );
+          }).join('')}
         </div>
       </section>
     </div>
-
-    <section class="section">
-      <div class="section-head">
-        <h2>담당자별 현황</h2>
-        <span class="meta">협업 참여는 담당 건수에 넣지 않습니다</span>
-      </div>
-      <div class="owners">
-        ${ov.owners.map((o) => `
-          <button class="owner" data-jump="#/tasks?owner=${encodeURIComponent(o.slack_user_id)}&done=1">
-            <span class="top">
-              ${avatar(o, '')}
-              <span class="nm">${esc(o.display_name)}</span>
-              ${o.is_active ? '' : '<span class="inactive">(비활성)</span>'}
-            </span>
-            <span class="counts">
-              <span>담당 <b>${o.count}</b></span>
-              <span>진행 <b>${o.in_progress}</b></span>
-              <span>검토 <b>${o.review}</b></span>
-              <span>완료 <b>${o.done}</b></span>
-              <span class="${o.delayed ? 'bad' : ''}">지연 <b>${o.delayed}</b></span>
-            </span>
-            <span class="bar" style="pointer-events:none;padding:0">
-              <span class="name" style="font-size:.76rem;color:var(--muted)">${o.collab_count ? `협업 ${o.collab_count}건` : ''}</span>
-              ${progressBar(o.progress)}
-              <span class="pct">${pctText(o.progress)}</span>
-            </span>
-          </button>`).join('')}
-      </div>
-    </section>
 
     <section class="section">
       <div class="section-head">
@@ -159,6 +137,15 @@ export async function renderOverview(root) {
   };
 
   root.addEventListener('click', (e) => {
+    const more = e.target.closest('[data-more]');
+    if (more) {
+      const box = root.querySelector('.risks-more');
+      const open = box.hidden;
+      box.hidden = !open;
+      more.setAttribute('aria-expanded', String(open));
+      more.textContent = open ? '접기' : `위험 신호 ${box.children.length}건 더 보기`;
+      return;
+    }
     const el = e.target.closest('[data-jump]');
     if (el) {
       const key = el.dataset.jump;
@@ -166,5 +153,6 @@ export async function renderOverview(root) {
       return;
     }
     if (e.target.closest('[data-new-project]')) projectForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
+    else if (e.target.closest('[data-area-leads]')) areaLeadsForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
   });
 }

@@ -32,7 +32,7 @@ const parts = [
   dedupeDomain(flatten(read('server/domain.js'))),
   '/* ── 예시 데이터 (server/seed-data.js) ──────────────── */',
   seed,
-  'const SEED = { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS };',
+  'const SEED = { MEMBERS, AREA_LEADS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS };',
   '/* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */',
   flatten(read('server/ai/rules.js')),
   '/* ── 브라우저 저장소 (demo/store.js) ────────────────── */',

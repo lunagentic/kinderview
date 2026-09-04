@@ -5,7 +5,7 @@
 // 데이터는 localStorage 에 저장된다. 서버도 DB도 없다.
 
 // 업무 영역 개편(v3)으로 이전 데이터의 area 값이 더는 유효하지 않다 — 키를 올려 새로 만든다
-const LS_KEY = 'kf.demo.v3';
+const LS_KEY = 'kf.demo.v4';
 
 // ── 날짜 ────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');
@@ -39,6 +39,11 @@ function buildSeed() {
     synced_at: nowISO(),
   }));
 
+  const areaLeadRows = (SEED.AREA_LEADS ?? []).map(([area, slack_user_id]) => ({
+    area, slack_user_id, updated_at: nowISO(),
+  }));
+  const leadOfArea = Object.fromEntries(areaLeadRows.map((l) => [l.area, l.slack_user_id]));
+
   const projectId = {};
   const projects = SEED.PROJECTS.map((p) => {
     const id = uid();
@@ -71,13 +76,16 @@ function buildSeed() {
     taskIdByTitle[title] = id;
     const due = d(dueOffset);
     const created = at(d(Math.max(dueOffset - 14, -60)), '01');
+    const taskOwner = leadOfArea[area] ?? owner;   // 담당자 = 영역 리드
     tasks.push({
-      id, project_id: projectId[pk], title, area, owner_slack_user_id: owner, status, priority,
+      id, project_id: projectId[pk], title, area, owner_slack_user_id: taskOwner, status, priority,
       start_date: d(dueOffset - 10), due_date: due, description: null,
       completed_at: status === 'DONE' ? at(due, '08') : null,
       created_by: 'U01KIM', created_at: created, updated_at: created, deleted_at: null,
     });
-    for (const c of collabs) collaborators.push({ task_id: id, slack_user_id: c, added_at: created });
+    for (const c of new Set(collabs.filter((c) => c !== taskOwner))) {
+      collaborators.push({ task_id: id, slack_user_id: c, added_at: created });
+    }
     if (out) {
       outsourcing.push({
         task_id: id, vendor_id: vendorId(out.vendor), vendor_worker_name: out.worker,
@@ -94,7 +102,7 @@ function buildSeed() {
       events.push({
         id: uid(), task_id: id, event_type: 'STATUS_CHANGED',
         from_value: area === 'OUT' ? 'REQUEST_PLANNED' : 'TODO', to_value: status,
-        actor_slack_user_id: owner,
+        actor_slack_user_id: taskOwner,
         occurred_at: status === 'DONE' ? at(due, '08') : at(d(Math.min(dueOffset - 3, 0)), '05'),
       });
     }
@@ -118,7 +126,7 @@ function buildSeed() {
 
   return {
     anchor: T, members, projects, vendors, tasks, collaborators, outsourcing, issues, events,
-    notifications: [], weekly_reports: [],
+    area_leads: areaLeadRows, notifications: [], weekly_reports: [],
   };
 }
 
@@ -333,6 +341,36 @@ function overview(ref = today()) {
   };
 }
 
+// ── 영역 리드 ───────────────────────────────────────────
+const leadRows = () => (DB.area_leads ?? []).map((l) => {
+  const m = member(l.slack_user_id);
+  return { ...l, display_name: m?.display_name ?? l.slack_user_id,
+    avatar_url: m?.avatar_url ?? null, is_active: Boolean(m?.is_active) };
+});
+const areaLeadOf = (area) => (DB.area_leads ?? []).find((l) => l.area === area)?.slack_user_id ?? null;
+
+function setLead(area, slackUserId, actor) {
+  const before = areaLeadOf(area);
+  const row = (DB.area_leads ??= []).find((l) => l.area === area);
+  if (row) row.slack_user_id = slackUserId;
+  else DB.area_leads.push({ area, slack_user_id: slackUserId, updated_at: nowISO() });
+  let moved = 0;
+  if (before !== slackUserId) {
+    for (const t of DB.tasks) {
+      if (t.area !== area || t.status === 'DONE' || t.deleted_at) continue;
+      t.owner_slack_user_id = slackUserId;
+      t.updated_at = nowISO();
+      logEvent(t.id, 'OWNER_CHANGED', before, slackUserId, actor);
+      moved += 1;
+    }
+    DB.collaborators = DB.collaborators.filter((c) => {
+      const t = DB.tasks.find((x) => x.id === c.task_id);
+      return !(t && t.area === area && t.status !== 'DONE' && c.slack_user_id === slackUserId);
+    });
+  }
+  return { area, slack_user_id: slackUserId, moved };
+}
+
 // ── 쓰기 ────────────────────────────────────────────────
 class DemoError extends Error {}
 
@@ -376,9 +414,10 @@ function upsertOutsourcing(taskId, input) {
 function createTask(input, actor) {
   if (!input.title?.trim()) throw new DemoError('업무명을 입력해 주세요.');
   if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
-  if (!input.owner_slack_user_id) throw new DemoError('담당자를 지정해 주세요. 담당자 없는 업무는 만들 수 없습니다.');
   const area = input.area;
   if (!AREAS.some((a) => a.code === area)) throw new DemoError('업무 영역을 선택해 주세요.');
+  const owner = areaLeadOf(area);
+  if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
   const status = input.status || defaultStatusFor(area);
   if (!statusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
   const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null);
@@ -387,7 +426,7 @@ function createTask(input, actor) {
 
   const t = {
     id: uid(), project_id: input.project_id, title: input.title.trim(), area,
-    owner_slack_user_id: input.owner_slack_user_id, status,
+    owner_slack_user_id: owner, status,
     priority: input.priority || 'NORMAL',
     start_date: input.start_date || null, due_date: due,
     description: input.description || null,
@@ -395,7 +434,7 @@ function createTask(input, actor) {
     created_by: actor, created_at: nowISO(), updated_at: nowISO(), deleted_at: null,
   };
   DB.tasks.push(t);
-  setCollaborators(t.id, input.collaborators || [], t.owner_slack_user_id);
+  setCollaborators(t.id, input.collaborators || [], owner);
   if (area === 'OUT') upsertOutsourcing(t.id, input);
   logEvent(t.id, 'CREATED', null, status, actor);
   const hydrated = hydrate(t);
@@ -412,8 +451,11 @@ function updateTask(id, input, actor) {
   const area = input.area ?? t.area;
   const status = input.status ?? (area === t.area ? t.status : defaultStatusFor(area));
   if (!statusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
-  const owner = input.owner_slack_user_id ?? t.owner_slack_user_id;
-  if (!owner) throw new DemoError('담당자는 비울 수 없습니다.');
+  let owner = t.owner_slack_user_id;
+  if (area !== t.area) {
+    owner = areaLeadOf(area);
+    if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
+  }
   const due = input.due_date ?? t.due_date;
 
   Object.assign(t, {
@@ -814,6 +856,7 @@ function handle(method, path, body) {
     return {
       me, today: today(),
       members: DB.members, projects: DB.projects, vendors: DB.vendors,
+      area_leads: leadRows(),
       slack_configured: false,
       meta: {
         areas: AREAS, normal_statuses: NORMAL_STATUSES, out_statuses: OUT_STATUSES,
@@ -887,6 +930,14 @@ function handle(method, path, body) {
     return pr;
   }
 
+  if (p === '/api/area-leads' && method === 'GET') return leadRows();
+  if (p === '/api/area-leads' && method === 'PATCH') {
+    if (!Array.isArray(body.leads)) throw new DemoError('리드 목록이 필요합니다.');
+    const out = body.leads.map((l) => setLead(l.area, l.slack_user_id, me));
+    save();
+    return out;
+  }
+
   if (p === '/api/issues' && method === 'GET') {
     return listIssues({
       project: listParam(sp, 'project'),
@@ -927,6 +978,7 @@ function handle(method, path, body) {
     events: DB.events,
     members: DB.members,
     projects: DB.projects.filter((x) => !x.is_archived),
+    areaLeads: leadRows(),
     today: today(),
   });
   if (p === '/api/ai/status' && method === 'GET') {

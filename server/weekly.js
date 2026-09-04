@@ -85,7 +85,7 @@ export function buildSnapshot({ periodStart, periodEnd, ref }) {
     })),
   };
 
-  // ── ⑧ 담당자별 현황
+  // ── ⑧ 리드별 현황
   const owners = ov.owners
     .filter((o) => o.count > 0)
     .map((o) => ({

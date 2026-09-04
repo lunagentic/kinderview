@@ -2,6 +2,9 @@ import { esc } from '../ui.js';
 
 const SEV_LABEL = { high: '높음', medium: '보통', low: '낮음' };
 
+// 한눈에 볼 수 있는 만큼만 펼쳐 둔다. 나머지는 접어 두되 몇 건인지는 알려준다.
+const VISIBLE = 3;
+
 /** 위험 신호 섹션 마크업. 근거가 되는 업무·이슈로 바로 이동할 수 있어야 한다. */
 export function riskSection(rows, { source = 'rules' } = {}) {
   const head = `
@@ -20,9 +23,7 @@ export function riskSection(rows, { source = 'rules' } = {}) {
     </section>`;
   }
 
-  return `<section class="section">${head}
-    <div class="risks">
-      ${rows.map((r) => `
+  const card = (r) => `
         <article class="risk ${esc(r.severity)}">
           <div class="head">
             <span class="sev">${esc(SEV_LABEL[r.severity] ?? r.severity)}</span>
@@ -40,6 +41,7 @@ export function riskSection(rows, { source = 'rules' } = {}) {
                 : i.kind === 'issue' ? `#/issues/${i.id}`
                 : i.kind === 'owner' ? `#/tasks?owner=${encodeURIComponent(i.id)}&done=1`
                 : i.kind === 'project' ? `#/tasks?project=${encodeURIComponent(i.id)}&done=1`
+                : i.kind === 'area' ? `#/tasks?area=${encodeURIComponent(i.id)}&done=1`
                 : null;
               return `<li>${target
                 ? `<button type="button" data-jump="${esc(target)}">${inner}</button>`
@@ -48,7 +50,19 @@ export function riskSection(rows, { source = 'rules' } = {}) {
             ${r.items.length > 5
               ? `<li><span class="static"><span class="sub">외 ${r.items.length - 5}건</span></span></li>` : ''}
           </ul>
-        </article>`).join('')}
+        </article>`;
+
+  const shown = rows.slice(0, VISIBLE);
+  const hidden = rows.slice(VISIBLE);
+
+  return `<section class="section">${head}
+    <div class="risks">
+      ${shown.map(card).join('')}
+      ${hidden.length ? `
+        <div class="risks-more" hidden>${hidden.map(card).join('')}</div>
+        <button class="btn risks-toggle" data-more aria-expanded="false">
+          위험 신호 ${hidden.length}건 더 보기
+        </button>` : ''}
     </div>
   </section>`;
 }

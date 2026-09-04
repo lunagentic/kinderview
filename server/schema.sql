@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS task (
   id                  TEXT PRIMARY KEY,
   project_id          TEXT NOT NULL REFERENCES project(id),
   title               TEXT NOT NULL,
-  area                TEXT NOT NULL CHECK (area IN ('PLAN','DEV','CONTENT','BIZ','OPS','OUT','ETC')),
+  area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','ETC')),
   owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
   status              TEXT NOT NULL,
   priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),
@@ -78,6 +78,15 @@ CREATE INDEX IF NOT EXISTS idx_task_project ON task(project_id);
 CREATE INDEX IF NOT EXISTS idx_task_owner   ON task(owner_slack_user_id);
 CREATE INDEX IF NOT EXISTS idx_task_due     ON task(due_date);
 CREATE INDEX IF NOT EXISTS idx_task_open    ON task(due_date) WHERE deleted_at IS NULL AND status <> 'DONE';
+
+-- 영역 리드: 업무 영역마다 책임자 1명.
+-- 업무의 담당자는 사람을 따로 고르지 않고 이 표에서 결정된다.
+CREATE TABLE IF NOT EXISTS area_lead (
+  area          TEXT PRIMARY KEY
+                CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','ETC')),
+  slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
+  updated_at    TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS task_collaborator (
   task_id       TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,

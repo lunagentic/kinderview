@@ -12,6 +12,19 @@ export const MEMBERS = [
   { id: 'U06HAN',  name: '한OO', handle: 'han',  active: 0 }, // 비활성 — 인수인계 필요 케이스
 ];
 
+// 영역 리드 — 업무의 담당자는 여기서 정해진다
+export const AREA_LEADS = [
+  ['PLAN',    'U01KIM'],
+  ['DESIGN',  'U05JUNG'],
+  ['DEV',     'U02PARK'],
+  ['CONTENT', 'U05JUNG'],
+  ['MKT',     'U03LEE'],
+  ['BIZ',     'U03LEE'],
+  ['OPS',     'U04CHOI'],
+  ['OUT',     'U01KIM'],
+  ['ETC',     'U01KIM'],
+];
+
 export const PROJECTS = [
   { key: 'KV', name: 'Kinderverse',   code: 'KV',  lead: 'U01KIM',  order: 1, channel: '#kinderverse' },
   { key: 'CP', name: '콘텐츠 패키지', code: 'CP',  lead: 'U03LEE',  order: 2, channel: '#content' },
@@ -24,6 +37,7 @@ export const TASKS = [
   ['KV', '관찰 기록 API 개발',            'DEV',  'U02PARK', 'IN_PROGRESS',     +4,  'HIGH',   []],
   ['KV', '아이 프로필 화면 리뉴얼',       'PLAN', 'U01KIM',  'REVIEW',          +1,  'NORMAL', ['U05JUNG']],
   ['KV', '알림 발송 인프라 정비',         'DEV',  'U02PARK', 'TODO',            +9,  'NORMAL', []],
+  ['KV', '관찰 기록 화면 UI 디자인',      'DESIGN', 'U05JUNG', 'IN_PROGRESS',   +6,  'NORMAL', ['U01KIM']],
   ['KV', '운영 정책 v2 정리',             'OPS',  'U04CHOI', 'IN_PROGRESS',     +6,  'NORMAL', []],
   ['KV', '2분기 회고 및 로드맵 확정',     'BIZ',  'U03LEE',  'DONE',            -3,  'NORMAL', ['U01KIM']],
   ['KV', '교사 온보딩 문구 개편',         'PLAN', 'U05JUNG', 'DONE',            -1,  'NORMAL', []],
@@ -43,12 +57,13 @@ export const TASKS = [
   ['CP', '교사 워크북 인쇄',              'OUT',  'U03LEE',  'REQUESTED',       +2,  'HIGH',   [],
     { vendor: '한빛 콘텐츠', worker: '박인쇄', requested: -3, delivery: +2, review: 'NOT_STARTED',
       scope: '교사 워크북 500부 인쇄 및 배송' }],
+  ['CP', '활동지 표지 디자인 시안',       'DESIGN', 'U05JUNG', 'REVIEW',        +3,  'NORMAL', []],
   ['CP', '콘텐츠 등록 및 검수',           'OPS',  'U04CHOI', 'TODO',            +14, 'NORMAL', ['U05JUNG']],
   ['CP', '8월 콘텐츠 성과 정리',          'CONTENT',  'U03LEE',  'DONE',            -2,  'NORMAL', []],
   ['CP', '스티커 리소스 1차 검수',        'CONTENT',  'U06HAN',  'IN_PROGRESS',     -5,  'NORMAL', []], // 비활성 담당 + 지연
 
   ['GP', '해외 파일럿 기관 리스트업',     'BIZ',  'U03LEE',  'IN_PROGRESS',     +7,  'NORMAL', []],
-  ['GP', '영문 제안자료 제작',            'BIZ',  'U03LEE',  'REVIEW',          +1,  'HIGH',   ['U05JUNG']],
+  ['GP', '영문 제안자료 제작',            'MKT',  'U03LEE',  'REVIEW',          +1,  'HIGH',   ['U05JUNG']],
   ['GP', '다국어 지원 기술 검토',         'DEV',  'U02PARK', 'TODO',            +11, 'LOW',    []],
   ['GP', '파일럿 운영 매뉴얼 초안',       'OPS',  'U04CHOI', 'TODO',            -1,  'NORMAL', []], // 지연
 

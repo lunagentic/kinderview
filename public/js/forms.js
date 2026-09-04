@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { state, activeMembers, activeProjects, statusesFor, memberOf } from './state.js';
+import { state, activeMembers, activeProjects, statusesFor, memberOf, leadOf } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal } from './ui.js';
 
 // ── Slack 멤버 검색 선택기 ──────────────────────────────
@@ -115,7 +115,10 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           <select name="area" required>${opts(state.meta.areas, area0)}</select>
         </label>
 
-        <div data-owner-slot>${pickerMarkup('담당자', { required: true })}</div>
+        <label class="field">
+          <span class="lab">담당 <span class="hint" style="font-weight:400">영역 리드가 맡습니다</span></span>
+          <div class="lead-box" data-lead-box>영역을 선택해 주세요</div>
+        </label>
 
         <label class="field">
           <span class="lab">마감일<span class="req">*</span></span>
@@ -201,20 +204,21 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       const dueInput = form.querySelector('[name=due_date]');
       const deliveryInput = form.querySelector('[name=delivery_due_date]');
 
-      // collabPicker 는 ownerPicker 의 onChange 안에서 참조된다.
-      // memberPicker 는 생성 시점에 onChange 를 한 번 호출하므로 let 으로 먼저 선언해 둔다
-      // (const 로 두면 초기화 전 접근이 되어 폼 배선 전체가 죽는다).
-      let collabPicker;
-      const ownerPicker = memberPicker(form.querySelector('[data-owner-slot] .member-pick'), {
-        multi: false,
-        value: task?.owner_slack_user_id ? [task.owner_slack_user_id] : (defaults.owner ? [defaults.owner] : []),
-        onChange: (owner) => collabPicker?.setExclude(owner ? [owner] : []),
-      });
-      collabPicker = memberPicker(form.querySelector('[data-collab-slot] .member-pick'), {
+      // 담당자는 사람을 고르지 않는다 — 선택한 영역의 리드가 곧 담당이다
+      const leadBox = form.querySelector('[data-lead-box]');
+      const collabPicker = memberPicker(form.querySelector('[data-collab-slot] .member-pick'), {
         multi: true,
         value: (task?.collaborators ?? []).map((c) => c.slack_user_id),
-        exclude: task?.owner_slack_user_id ? [task.owner_slack_user_id] : [],
       });
+
+      const syncLead = () => {
+        const lead = leadOf(areaSel.value);
+        leadBox.innerHTML = lead
+          ? `${avatar(lead, 'sm')}<span>${esc(lead.display_name)}</span>`
+            + `${lead.is_active ? '' : '<span class="inactive">(비활성)</span>'}`
+          : '<span class="lead-none">이 영역의 리드가 없습니다 · Overview에서 지정해 주세요</span>';
+        collabPicker.setExclude(lead ? [lead.slack_user_id] : []);
+      };
 
       const syncArea = () => {
         const area = areaSel.value;
@@ -224,8 +228,9 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         const keep = list.some((s) => s.code === statusSel.value) ? statusSel.value : list[0].code;
         statusSel.innerHTML = opts(list, keep);
       };
-      areaSel.addEventListener('change', syncArea);
+      areaSel.addEventListener('change', () => { syncArea(); syncLead(); });
       syncArea();
+      syncLead();
 
       // 납품 예정일을 넣으면 마감일 기본값으로 채운다
       deliveryInput.addEventListener('change', () => {
@@ -246,10 +251,9 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           const f = r.fields;
           if (f.title) form.querySelector('[name=title]').value = f.title;
           if (f.project_id) form.querySelector('[name=project_id]').value = f.project_id;
-          if (f.area) { areaSel.value = f.area; syncArea(); }
+          if (f.area) { areaSel.value = f.area; syncArea(); syncLead(); }
           if (f.due_date) dueInput.value = f.due_date;
           if (f.priority) form.querySelector('[name=priority]').value = f.priority;
-          if (f.owner_slack_user_id) ownerPicker.set(f.owner_slack_user_id);
           captureRes.hidden = false;
           captureRes.innerHTML = r.matched.length
             ? r.matched.map((m) => `<span class="tok">${esc(m.field)} <b>${esc(String(m.value))}</b></span>`).join('')
@@ -269,12 +273,11 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       root.querySelector('[data-save]').addEventListener('click', async () => {
         const fd = new FormData(form);
         const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
-        payload.owner_slack_user_id = ownerPicker.value;
         payload.collaborators = collabPicker.value;
 
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
         if (!payload.project_id) return toast('프로젝트를 선택해 주세요.', true);
-        if (!payload.owner_slack_user_id) return toast('담당자를 지정해 주세요. 담당자 없는 업무는 만들 수 없습니다.', true);
+        if (!leadOf(payload.area)) return toast('이 영역의 리드가 지정되지 않았습니다. Overview에서 영역 리드를 먼저 설정해 주세요.', true);
         if (!payload.due_date && !payload.delivery_due_date) return toast('마감일을 입력해 주세요.', true);
 
         try {
@@ -329,7 +332,10 @@ export function issueForm({ issue = null, defaults = {}, onSaved }) {
           <span class="lab">내용<span class="req">*</span></span>
           <textarea name="content" required placeholder="무엇이 막고 있는지, 원인은 무엇인지">${esc(issue?.content ?? '')}</textarea>
         </label>
-        <div data-owner-slot>${pickerMarkup('담당자', { required: true })}</div>
+        <label class="field">
+          <span class="lab">담당 <span class="hint" style="font-weight:400">영역 리드가 맡습니다</span></span>
+          <div class="lead-box" data-lead-box>영역을 선택해 주세요</div>
+        </label>
         <label class="field">
           <span class="lab">중요도</span>
           <select name="severity">${opts(state.meta.priorities, issue?.severity ?? 'NORMAL')}</select>
@@ -469,6 +475,54 @@ export function projectForm({ project = null, onSaved }) {
           toast(editing ? '프로젝트를 저장했습니다.' : '프로젝트를 등록했습니다.');
           close();
           onSaved?.(saved);
+        } catch (err) {
+          toast(err.message, true);
+        }
+      });
+    },
+  });
+}
+
+// ── 영역 리드 관리 ──────────────────────────────────────
+// 업무마다 사람을 고르는 대신 여기서 영역별 책임자를 정한다.
+export function areaLeadsForm({ onSaved }) {
+  const current = Object.fromEntries(state.areaLeads.map((l) => [l.area, l.slack_user_id]));
+  const people = activeMembers();
+
+  const body = `
+    <p class="hint" style="margin-bottom:14px">
+      업무를 등록할 때 담당자를 따로 고르지 않습니다. 선택한 <b>업무 영역의 리드</b>가 담당이 됩니다.
+      리드를 바꾸면 그 영역의 <b>미완료 업무</b> 담당도 함께 옮겨지고, 완료된 업무는 기록으로 남습니다.
+    </p>
+    <div class="lead-table">
+      ${state.meta.areas.map((a) => `
+        <div class="lead-row">
+          <span class="lead-area">${esc(a.full)}</span>
+          <select data-area="${esc(a.code)}">
+            <option value="">지정 안 함</option>
+            ${people.map((m) => `<option value="${esc(m.slack_user_id)}"${
+              current[a.code] === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+    </div>`;
+
+  modal({
+    title: '영역 리드',
+    body,
+    footer: `<div class="right"><button class="btn" data-close>취소</button>
+             <button class="btn btn-primary" data-save>저장</button></div>`,
+    onMount({ root, close }) {
+      root.querySelector('[data-save]').addEventListener('click', async () => {
+        const leads = [...root.querySelectorAll('[data-area]')]
+          .filter((sel) => sel.value)
+          .map((sel) => ({ area: sel.dataset.area, slack_user_id: sel.value }));
+        if (!leads.length) return toast('리드를 한 명 이상 지정해 주세요.', true);
+        try {
+          const result = await api.patch('/api/area-leads', { leads });
+          const moved = result.reduce((n, r) => n + (r.moved ?? 0), 0);
+          toast(moved ? `영역 리드를 저장했습니다. 업무 ${moved}건의 담당이 함께 바뀌었습니다.` : '영역 리드를 저장했습니다.');
+          close();
+          onSaved?.();
         } catch (err) {
           toast(err.message, true);
         }

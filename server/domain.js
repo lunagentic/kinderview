@@ -5,8 +5,10 @@
 // 기획서(§4)의 결정대로 별도 메뉴가 아닌 영역 값으로 유지한다.
 export const AREAS = [
   { code: 'PLAN',    label: '서비스기획', full: '서비스기획' },
+  { code: 'DESIGN',  label: '디자인',     full: '디자인' },
   { code: 'DEV',     label: '개발',       full: '개발' },
   { code: 'CONTENT', label: '콘텐츠',     full: '콘텐츠' },
+  { code: 'MKT',     label: '마케팅',     full: '마케팅' },
   { code: 'BIZ',     label: '사업전략',   full: '사업전략' },
   { code: 'OPS',     label: '운영',       full: '운영' },
   { code: 'OUT',     label: '외주',       full: '외주 작업' },

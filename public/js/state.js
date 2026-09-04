@@ -9,6 +9,7 @@ export const state = {
   members: [],
   projects: [],
   vendors: [],
+  areaLeads: [],
   meta: null,
   today: null,
   slackConfigured: false,
@@ -19,6 +20,7 @@ export async function loadBootstrap() {
   state.members = data.members;
   state.projects = data.projects;
   state.vendors = data.vendors;
+  state.areaLeads = data.area_leads ?? [];
   state.meta = data.meta;
   state.today = data.today;
   state.slackConfigured = data.slack_configured;
@@ -44,6 +46,10 @@ export const statusMeta = (code) => {
 };
 export const statusesFor = (area) =>
   area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses;
+export const leadOf = (area) => state.areaLeads.find((l) => l.area === area) ?? null;
+export const leadAreas = (slackUserId) =>
+  state.areaLeads.filter((l) => l.slack_user_id === slackUserId).map((l) => l.area);
+
 export const areaMeta = (code) => (state.meta?.areas || []).find((a) => a.code === code) || { code, label: code };
 export const issueStatusMeta = (code) =>
   (state.meta?.issue_statuses || []).find((s) => s.code === code) || { code, label: code, tone: 'wait' };

@@ -149,8 +149,8 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 | `id` | uuid | ✔ | PK |
 | `project_id` | uuid FK | ✔ | 소속 프로젝트 |
 | `title` | text | ✔ | 업무명 |
-| `area` | enum | ✔ | 업무 영역 (`PLAN`/`DEV`/`CONTENT`/`BIZ`/`OPS`/`OUT`/`ETC`) |
-| `owner_slack_user_id` | text FK | ✔ | **담당자. 단일 값** |
+| `area` | enum | ✔ | 업무 영역 (`PLAN`/`DESIGN`/`DEV`/`CONTENT`/`MKT`/`BIZ`/`OPS`/`OUT`/`ETC`). **담당자를 결정한다** |
+| `owner_slack_user_id` | text FK | ✔ | **담당자. 단일 값.** 사람을 고르지 않고 `area_lead` 에서 채워진다 |
 | `status` | enum | ✔ | 업무 상태. 기본 `TODO`(외주는 `REQUEST_PLANNED`) |
 | `priority` | enum | | `HIGH` 높음 / `NORMAL` 보통 / `LOW` 낮음. 기본 `NORMAL` |
 | `start_date` | date | | 시작일 |
@@ -162,9 +162,26 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 
 **제약**
 - `owner_slack_user_id`는 NOT NULL — 담당자 없는 업무는 생성할 수 없다. (원칙 1)
+  값은 입력이 아니라 **선택한 영역의 리드**에서 온다. 리드가 없는 영역은 업무 생성이 막힌다.
+- 영역을 바꾸면 담당도 새 영역의 리드로 따라간다.
+- 영역 리드를 교체하면 그 영역의 **미완료 업무** 담당이 함께 옮겨지고,
+  완료된 업무는 당시 담당자를 그대로 유지한다 (기록 보존).
 - `project_id`는 NOT NULL — 프로젝트 없는 업무는 생성할 수 없다. (원칙 2)
 - `start_date`가 있으면 `start_date <= due_date`.
 - `area = 'OUT'` ⇔ `OUTSOURCING` 레코드 존재 (양방향 필수).
+
+### AREA_LEAD — 영역 리드
+
+업무의 담당자를 결정하는 표. 업무마다 사람을 고르는 대신 여기서 영역별 책임자를 정한다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `area` | enum | ✔ | PK. 업무 영역 |
+| `slack_user_id` | text FK | ✔ | 그 영역의 리드 |
+| `updated_at` | timestamptz | ✔ | |
+
+- 한 사람이 여러 영역의 리드를 겸할 수 있다.
+- 리드가 비활성 처리되거나 지정되지 않은 영역은 위험 신호(`HANDOVER`)로 노출된다.
 
 ### TASK_COLLABORATOR — 협업자
 

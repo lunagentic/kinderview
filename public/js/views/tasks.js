@@ -6,7 +6,7 @@ import {
 import { taskForm } from '../forms.js';
 
 const QUICK = [
-  { key: 'mine',    label: '내 담당 업무', params: { owner: 'me' } },
+  { key: 'mine',    label: '내 영역 업무', params: { owner: 'me' } },
   { key: 'all',     label: '전체',         params: { done: '1' } },
   { key: 'progress',label: '진행중',       params: { stage: 'IN_PROGRESS' } },
   { key: 'review',  label: '검토',         params: { stage: 'REVIEW' } },
@@ -58,7 +58,7 @@ export async function renderTasks(root, query) {
     <div class="page-head">
       <div>
         <h1>Tasks</h1>
-        <div class="sub">${rows.length}건 · 담당자 없는 업무는 만들 수 없습니다</div>
+        <div class="sub">${rows.length}건 · 담당은 업무 영역의 리드가 맡습니다</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
@@ -74,7 +74,7 @@ export async function renderTasks(root, query) {
     <div class="filter-row" style="margin-bottom:16px">
       <select data-f="project"><option value="">프로젝트 전체</option>${projectOptions}</select>
       <select data-f="area"><option value="">영역 전체</option>${areaOptions}</select>
-      <select data-f="owner"><option value="">담당자 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
+      <select data-f="owner"><option value="">리드 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label style="display:flex;align-items:center;gap:6px;font-size:.83rem;color:var(--muted)">
         <input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함

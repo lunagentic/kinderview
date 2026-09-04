@@ -5,7 +5,7 @@
 //   npm run reset         모두 지우고 다시 채운다
 
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
-import { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS } from './seed-data.js';
+import { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS } from './seed-data.js';
 import { runMigrations } from './migrate.js';
 
 if (runMigrations().length) (await import('./db.js')).applySchema();
@@ -37,6 +37,11 @@ tx(() => {
       { id: m.id, name: m.name, email: `${m.handle}@example.com`, active: m.active, at });
   }
 
+  for (const [area, uid] of AREA_LEADS) {
+    run('INSERT INTO area_lead (area, slack_user_id, updated_at) VALUES (:area, :uid, :at)',
+      { area, uid, at });
+  }
+
   const projectId = {};
   for (const p of PROJECTS) {
     const id = uid();
@@ -56,10 +61,12 @@ tx(() => {
     return id;
   };
 
+  const leadOf = Object.fromEntries(AREA_LEADS);
   const taskIdByTitle = {};
   for (const [pk, title, area, owner, status, dueOffset, priority, collabs, out] of TASKS) {
     const id = uid();
     taskIdByTitle[title] = id;
+    const taskOwner = leadOf[area] ?? owner;   // 담당자 = 영역 리드
     const due = d(dueOffset);
     const created = ts(d(dueOffset - 14 < -60 ? -60 : dueOffset - 14), '01');
     const completed = status === 'DONE' ? ts(due, '08') : null;
@@ -68,11 +75,11 @@ tx(() => {
          VALUES (:id, :pid, :title, :area, :owner, :status, :priority,
                  :start, :due, :desc, :completed, :by, :created, :created)`,
       {
-        id, pid: projectId[pk], title, area, owner, status, priority,
+        id, pid: projectId[pk], title, area, owner: taskOwner, status, priority,
         start: d(dueOffset - 10), due, desc: null, completed, by: 'U01KIM', created,
       });
 
-    for (const c of collabs) {
+    for (const c of new Set(collabs.filter((c) => c !== taskOwner))) {
       run('INSERT INTO task_collaborator (task_id, slack_user_id, added_at) VALUES (:t, :u, :at)',
         { t: id, u: c, at: created });
     }
@@ -97,7 +104,7 @@ tx(() => {
            VALUES (:id, :t, 'STATUS_CHANGED', :from, :to, :actor, :at)`,
         {
           id: uid(), t: id, from: area === 'OUT' ? 'REQUEST_PLANNED' : 'TODO', to: status,
-          actor: owner, at: completed || ts(d(Math.min(dueOffset - 3, 0)), '05'),
+          actor: taskOwner, at: completed || ts(d(Math.min(dueOffset - 3, 0)), '05'),
         });
     }
   }

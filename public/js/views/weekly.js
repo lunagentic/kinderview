@@ -135,10 +135,10 @@ export async function renderWeekly(root, query) {
             ${i.impact ? ` · ${esc(i.impact)}` : ''}</span></li>`).join('')}</ul>`
           : '<p class="hint">미해결 이슈가 없습니다.</p>'}`)}
 
-      ${sec('⑧', '담당자별 현황', `
+      ${sec('⑧', '리드별 현황', `
         <div class="table-wrap">
           <table>
-            <thead><tr><th>담당자</th><th class="nowrap">담당 업무</th><th class="nowrap">진행</th>
+            <thead><tr><th>리드</th><th class="nowrap">담당 업무</th><th class="nowrap">진행</th>
               <th class="nowrap">이번 주 완료</th><th class="nowrap">지연</th><th class="nowrap">진행률</th></tr></thead>
             <tbody>
               ${s.owners.map((o) => `
@@ -253,7 +253,7 @@ function toMarkdown(report) {
   L.push(`- 진행 ${s.outsourcing.active}건 · 검수 ${s.outsourcing.review}건 · 수정 ${s.outsourcing.revision}건 · 납품 지연 ${s.outsourcing.delivery_delayed}건`);
   L.push('', '## ⑦ 주요 이슈');
   for (const i of s.issues.rows) L.push(`- [${i.severity}] ${i.title} (${i.project_name} · ${i.owner_name})${i.impact ? ` — ${i.impact}` : ''}`);
-  L.push('', '## ⑧ 담당자별 현황');
+  L.push('', '## ⑧ 리드별 현황');
   for (const o of s.owners) L.push(`- ${o.display_name}: 담당 ${o.count} · 진행 ${o.in_progress} · 이번 주 완료 ${o.completed_this_week} · 지연 ${o.delayed}`);
   L.push('', '## ⑨ 다음 주 주요 업무');
   for (const t of s.next_week.due) L.push(`- ${t.title} (${t.project_name} · ${t.owner_name} · 마감 ${t.due_date})`);

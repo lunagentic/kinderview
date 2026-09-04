@@ -6,12 +6,14 @@ import { db, one, run } from './db.js';
 const tableSql = (name) =>
   one("SELECT sql FROM sqlite_master WHERE type='table' AND name = :name", { name })?.sql ?? '';
 
-/** 업무 영역 개편: 마케팅(MKT) 제거, 콘텐츠(CONTENT) 추가 */
+/**
+ * 업무 영역 개편: 콘텐츠·디자인 신설.
+ * 기존 코드(PLAN/DEV/MKT/BIZ/OPS/OUT/ETC)는 모두 그대로 유효하므로 값을 옮기지 않는다.
+ * 제약만 넓히면 되지만, SQLite 의 CHECK 는 테이블 정의에 들어 있어 재생성이 필요하다.
+ */
 function migrateAreas() {
   const sql = tableSql('task');
-  if (!sql || sql.includes("'CONTENT'")) return null;
-
-  const moved = one("SELECT COUNT(*) AS n FROM task WHERE area = 'MKT'").n;
+  if (!sql || sql.includes("'DESIGN'")) return null;
 
   db.exec('PRAGMA foreign_keys = OFF');
   db.exec('BEGIN');
@@ -21,7 +23,7 @@ function migrateAreas() {
         id                  TEXT PRIMARY KEY,
         project_id          TEXT NOT NULL REFERENCES project(id),
         title               TEXT NOT NULL,
-        area                TEXT NOT NULL CHECK (area IN ('PLAN','DEV','CONTENT','BIZ','OPS','OUT','ETC')),
+        area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','ETC')),
         owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
         status              TEXT NOT NULL,
         priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),
@@ -45,14 +47,7 @@ function migrateAreas() {
         )
       )`);
 
-    // 마케팅 업무는 사업전략으로 옮긴다. 콘텐츠 성격이면 사용자가 화면에서 다시 고르면 된다.
-    db.exec(`
-      INSERT INTO task_migrated
-      SELECT id, project_id, title,
-             CASE area WHEN 'MKT' THEN 'BIZ' ELSE area END,
-             owner_slack_user_id, status, priority, start_date, due_date, description,
-             completed_at, created_by, created_at, updated_at, deleted_at
-      FROM task`);
+    db.exec('INSERT INTO task_migrated SELECT * FROM task');
 
     db.exec('DROP TABLE task');
     db.exec('ALTER TABLE task_migrated RENAME TO task');
@@ -64,7 +59,7 @@ function migrateAreas() {
   }
   db.exec('PRAGMA foreign_keys = ON');
 
-  return `업무 영역 개편: 테이블 재생성 완료${moved ? ` · 마케팅 ${moved}건 → 사업전략` : ''}`;
+  return '업무 영역 개편: 콘텐츠·디자인 추가 (기존 업무의 영역 값은 그대로)';
 }
 
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */

@@ -22,7 +22,7 @@ const risk = (code, severity, title, detail, items) => ({
  * @param {{tasks:Array, issues:Array, events:Array, members:Array, projects:Array, today:string}} ctx
  */
 export function detectRisks(ctx) {
-  const { tasks, issues, events, members, projects, today } = ctx;
+  const { tasks, issues, events, members, projects, areaLeads = [], today } = ctx;
   const open = tasks.filter((t) => t.status !== 'DONE');
   const out = [];
 
@@ -113,8 +113,8 @@ export function detectRisks(ctx) {
       note: `7일 내 마감 ${rows.length}건`,
     }));
   if (overload.length) {
-    out.push(risk('OWNER_OVERLOAD', 'medium', '한 담당자에게 마감이 몰려 있습니다',
-      '일주일 안에 마감이 네 건 이상인 담당자입니다. 일정 재배치를 검토해 주세요.', overload));
+    out.push(risk('OWNER_OVERLOAD', 'medium', '한 리드에게 마감이 몰려 있습니다',
+      '일주일 안에 마감이 네 건 이상인 리드입니다. 영역 배분이나 일정 재배치를 검토해 주세요.', overload));
   }
 
   // 해결 목표일을 넘긴 이슈
@@ -136,14 +136,27 @@ export function detectRisks(ctx) {
       '중요도 높음으로 등록된 뒤 일주일 넘게 해결되지 않은 이슈입니다.', staleIssues));
   }
 
-  // 비활성 담당자에게 남은 업무
+  // 비활성 구성원이 리드로 지정된 영역 — 담당은 영역 리드로 정해지므로 여기가 곧 공백이다
   const inactive = new Set(members.filter((m) => !m.is_active).map((m) => m.slack_user_id));
-  const handover = open
-    .filter((t) => inactive.has(t.owner_slack_user_id))
-    .map((t) => ({ ...link(t), note: '담당자 비활성' }));
+  const orphanAreas = areaLeads.filter((l) => inactive.has(l.slack_user_id));
+  const handover = orphanAreas.map((l) => {
+    const rows = open.filter((t) => t.area === l.area);
+    return {
+      id: l.area, kind: 'area', label: l.display_name ?? l.slack_user_id,
+      sub: `${l.area} 영역 리드 · 미완료 ${rows.length}건`,
+      note: '리드 비활성',
+    };
+  });
+  // 리드가 아예 없는 영역에 업무가 쌓여 있는 경우도 같은 공백이다
+  const ledAreas = new Set(areaLeads.map((l) => l.area));
+  for (const t of open) {
+    if (ledAreas.has(t.area) || handover.some((h) => h.id === t.area)) continue;
+    handover.push({ id: t.area, kind: 'area', label: t.area, sub: '리드 미지정', note: '담당 공백' });
+    ledAreas.add(t.area);
+  }
   if (handover.length) {
-    out.push(risk('HANDOVER', 'high', '비활성 구성원이 담당인 업무가 남아 있습니다',
-      '담당자가 비활성 처리된 미완료 업무입니다. 인수인계가 필요합니다.', handover));
+    out.push(risk('HANDOVER', 'high', '리드가 비어 있는 업무 영역이 있습니다',
+      '리드가 비활성이거나 지정되지 않은 영역입니다. 그 영역의 업무에 책임자가 없습니다.', handover));
   }
 
   // 지연 비중이 높은 프로젝트
@@ -218,10 +231,12 @@ export function draftDigest({ snapshot, risks, periodStart, periodEnd }) {
 // ── ③ 빠른 입력 (규칙 파서) ────────────────────────────
 const AREA_KEYWORDS = {
   OUT: ['외주', '납품', '업체', '외부 작업자'],
+  PLAN: ['기획', '정책', '요구사항', '와이어', '설계', '서비스 기획', '플로우'],
+  DESIGN: ['디자인', '시안', '그래픽', '일러스트', '아이콘', '썸네일', '레이아웃', 'ui', 'ux'],
   DEV: ['개발', 'api', '배포', '서버', '버그', 'qa', '인프라', '프론트', '백엔드'],
-  PLAN: ['기획', '정책', '요구사항', 'ux', 'ui', '와이어', '설계', '서비스 기획'],
-  CONTENT: ['콘텐츠', '활동지', '교안', '워크북', '영상', '카드뉴스', '스티커', '자료 제작', '번역', '디자인'],
-  BIZ: ['사업', '계약', '예산', '보고', '전략', '제안', '투자', '의사결정'],
+  CONTENT: ['콘텐츠', '활동지', '교안', '워크북', '영상', '카드뉴스', '스티커', '자료 제작', '번역'],
+  MKT: ['마케팅', '홍보', '캠페인', 'sns', '광고', '제안자료', '바이럴', '유입'],
+  BIZ: ['사업', '계약', '예산', '보고', '전략', '투자', '의사결정', '파트너'],
   OPS: ['운영', '대응', '모니터링', '문의', '등록', '고객'],
 };
 

@@ -49,6 +49,9 @@
 }
 
 *{box-sizing:border-box}
+/* hidden 속성은 어떤 display 선언보다 우선한다 —
+   .risks-more 처럼 display 를 지정한 요소에서 접기가 무시되는 것을 막는다 */
+[hidden]{display:none!important}
 html,body{margin:0;padding:0}
 body{
   background:var(--ground); color:var(--ink);
@@ -370,6 +373,19 @@ details.more[open] > summary{color:var(--ink)}
 .capture .cres .tok{font-size:.76rem;background:var(--surface);border:1px solid var(--line);
   border-radius:999px;padding:2px 9px;color:var(--ink-2)}
 .capture .cres .tok b{color:var(--ink)}
+.risks-more{display:flex;flex-direction:column;gap:10px}
+.risks-toggle{align-self:flex-start;font-size:.84rem;color:var(--ink-2)}
+
+/* ── 영역 리드 ──────────────────────────────── */
+.lead-box{display:flex;align-items:center;gap:7px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:var(--radius);padding:7px 10px;min-height:36px;font-size:.9rem}
+.lead-box .lead-none{color:var(--muted);font-size:.82rem}
+.lead-table{display:flex;flex-direction:column;gap:1px;background:var(--line-soft);
+  border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden}
+.lead-row{background:var(--surface);display:grid;grid-template-columns:1fr 200px;gap:14px;
+  align-items:center;padding:9px 14px}
+.lead-area{font-weight:500;font-size:.9rem}
+.area-lead-tag{color:var(--muted);font-size:.78rem;display:inline-flex;align-items:center;gap:5px}
 
 
 /* 데모 안내 (빌드에서만 추가) */
@@ -425,8 +441,10 @@ details.more[open] > summary{color:var(--ink)}
 // 기획서(§4)의 결정대로 별도 메뉴가 아닌 영역 값으로 유지한다.
 const AREAS = [
   { code: 'PLAN',    label: '서비스기획', full: '서비스기획' },
+  { code: 'DESIGN',  label: '디자인',     full: '디자인' },
   { code: 'DEV',     label: '개발',       full: '개발' },
   { code: 'CONTENT', label: '콘텐츠',     full: '콘텐츠' },
+  { code: 'MKT',     label: '마케팅',     full: '마케팅' },
   { code: 'BIZ',     label: '사업전략',   full: '사업전략' },
   { code: 'OPS',     label: '운영',       full: '운영' },
   { code: 'OUT',     label: '외주',       full: '외주 작업' },
@@ -523,6 +541,19 @@ const MEMBERS = [
   { id: 'U06HAN',  name: '한OO', handle: 'han',  active: 0 }, // 비활성 — 인수인계 필요 케이스
 ];
 
+
+const AREA_LEADS = [
+  ['PLAN',    'U01KIM'],
+  ['DESIGN',  'U05JUNG'],
+  ['DEV',     'U02PARK'],
+  ['CONTENT', 'U05JUNG'],
+  ['MKT',     'U03LEE'],
+  ['BIZ',     'U03LEE'],
+  ['OPS',     'U04CHOI'],
+  ['OUT',     'U01KIM'],
+  ['ETC',     'U01KIM'],
+];
+
 const PROJECTS = [
   { key: 'KV', name: 'Kinderverse',   code: 'KV',  lead: 'U01KIM',  order: 1, channel: '#kinderverse' },
   { key: 'CP', name: '콘텐츠 패키지', code: 'CP',  lead: 'U03LEE',  order: 2, channel: '#content' },
@@ -535,6 +566,7 @@ const TASKS = [
   ['KV', '관찰 기록 API 개발',            'DEV',  'U02PARK', 'IN_PROGRESS',     +4,  'HIGH',   []],
   ['KV', '아이 프로필 화면 리뉴얼',       'PLAN', 'U01KIM',  'REVIEW',          +1,  'NORMAL', ['U05JUNG']],
   ['KV', '알림 발송 인프라 정비',         'DEV',  'U02PARK', 'TODO',            +9,  'NORMAL', []],
+  ['KV', '관찰 기록 화면 UI 디자인',      'DESIGN', 'U05JUNG', 'IN_PROGRESS',   +6,  'NORMAL', ['U01KIM']],
   ['KV', '운영 정책 v2 정리',             'OPS',  'U04CHOI', 'IN_PROGRESS',     +6,  'NORMAL', []],
   ['KV', '2분기 회고 및 로드맵 확정',     'BIZ',  'U03LEE',  'DONE',            -3,  'NORMAL', ['U01KIM']],
   ['KV', '교사 온보딩 문구 개편',         'PLAN', 'U05JUNG', 'DONE',            -1,  'NORMAL', []],
@@ -554,12 +586,13 @@ const TASKS = [
   ['CP', '교사 워크북 인쇄',              'OUT',  'U03LEE',  'REQUESTED',       +2,  'HIGH',   [],
     { vendor: '한빛 콘텐츠', worker: '박인쇄', requested: -3, delivery: +2, review: 'NOT_STARTED',
       scope: '교사 워크북 500부 인쇄 및 배송' }],
+  ['CP', '활동지 표지 디자인 시안',       'DESIGN', 'U05JUNG', 'REVIEW',        +3,  'NORMAL', []],
   ['CP', '콘텐츠 등록 및 검수',           'OPS',  'U04CHOI', 'TODO',            +14, 'NORMAL', ['U05JUNG']],
   ['CP', '8월 콘텐츠 성과 정리',          'CONTENT',  'U03LEE',  'DONE',            -2,  'NORMAL', []],
   ['CP', '스티커 리소스 1차 검수',        'CONTENT',  'U06HAN',  'IN_PROGRESS',     -5,  'NORMAL', []], // 비활성 담당 + 지연
 
   ['GP', '해외 파일럿 기관 리스트업',     'BIZ',  'U03LEE',  'IN_PROGRESS',     +7,  'NORMAL', []],
-  ['GP', '영문 제안자료 제작',            'BIZ',  'U03LEE',  'REVIEW',          +1,  'HIGH',   ['U05JUNG']],
+  ['GP', '영문 제안자료 제작',            'MKT',  'U03LEE',  'REVIEW',          +1,  'HIGH',   ['U05JUNG']],
   ['GP', '다국어 지원 기술 검토',         'DEV',  'U02PARK', 'TODO',            +11, 'LOW',    []],
   ['GP', '파일럿 운영 매뉴얼 초안',       'OPS',  'U04CHOI', 'TODO',            -1,  'NORMAL', []], // 지연
 
@@ -596,7 +629,7 @@ const EXTRA_EVENTS = [
 ];
 
 
-const SEED = { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS };
+const SEED = { MEMBERS, AREA_LEADS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS };
 
 /* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */
 
@@ -624,7 +657,7 @@ const risk = (code, severity, title, detail, items) => ({
  * @param {{tasks:Array, issues:Array, events:Array, members:Array, projects:Array, today:string}} ctx
  */
 function detectRisks(ctx) {
-  const { tasks, issues, events, members, projects, today } = ctx;
+  const { tasks, issues, events, members, projects, areaLeads = [], today } = ctx;
   const open = tasks.filter((t) => t.status !== 'DONE');
   const out = [];
 
@@ -715,8 +748,8 @@ function detectRisks(ctx) {
       note: `7일 내 마감 ${rows.length}건`,
     }));
   if (overload.length) {
-    out.push(risk('OWNER_OVERLOAD', 'medium', '한 담당자에게 마감이 몰려 있습니다',
-      '일주일 안에 마감이 네 건 이상인 담당자입니다. 일정 재배치를 검토해 주세요.', overload));
+    out.push(risk('OWNER_OVERLOAD', 'medium', '한 리드에게 마감이 몰려 있습니다',
+      '일주일 안에 마감이 네 건 이상인 리드입니다. 영역 배분이나 일정 재배치를 검토해 주세요.', overload));
   }
 
   // 해결 목표일을 넘긴 이슈
@@ -738,14 +771,27 @@ function detectRisks(ctx) {
       '중요도 높음으로 등록된 뒤 일주일 넘게 해결되지 않은 이슈입니다.', staleIssues));
   }
 
-  // 비활성 담당자에게 남은 업무
+  // 비활성 구성원이 리드로 지정된 영역 — 담당은 영역 리드로 정해지므로 여기가 곧 공백이다
   const inactive = new Set(members.filter((m) => !m.is_active).map((m) => m.slack_user_id));
-  const handover = open
-    .filter((t) => inactive.has(t.owner_slack_user_id))
-    .map((t) => ({ ...link(t), note: '담당자 비활성' }));
+  const orphanAreas = areaLeads.filter((l) => inactive.has(l.slack_user_id));
+  const handover = orphanAreas.map((l) => {
+    const rows = open.filter((t) => t.area === l.area);
+    return {
+      id: l.area, kind: 'area', label: l.display_name ?? l.slack_user_id,
+      sub: `${l.area} 영역 리드 · 미완료 ${rows.length}건`,
+      note: '리드 비활성',
+    };
+  });
+  // 리드가 아예 없는 영역에 업무가 쌓여 있는 경우도 같은 공백이다
+  const ledAreas = new Set(areaLeads.map((l) => l.area));
+  for (const t of open) {
+    if (ledAreas.has(t.area) || handover.some((h) => h.id === t.area)) continue;
+    handover.push({ id: t.area, kind: 'area', label: t.area, sub: '리드 미지정', note: '담당 공백' });
+    ledAreas.add(t.area);
+  }
   if (handover.length) {
-    out.push(risk('HANDOVER', 'high', '비활성 구성원이 담당인 업무가 남아 있습니다',
-      '담당자가 비활성 처리된 미완료 업무입니다. 인수인계가 필요합니다.', handover));
+    out.push(risk('HANDOVER', 'high', '리드가 비어 있는 업무 영역이 있습니다',
+      '리드가 비활성이거나 지정되지 않은 영역입니다. 그 영역의 업무에 책임자가 없습니다.', handover));
   }
 
   // 지연 비중이 높은 프로젝트
@@ -820,10 +866,12 @@ function draftDigest({ snapshot, risks, periodStart, periodEnd }) {
 // ── ③ 빠른 입력 (규칙 파서) ────────────────────────────
 const AREA_KEYWORDS = {
   OUT: ['외주', '납품', '업체', '외부 작업자'],
+  PLAN: ['기획', '정책', '요구사항', '와이어', '설계', '서비스 기획', '플로우'],
+  DESIGN: ['디자인', '시안', '그래픽', '일러스트', '아이콘', '썸네일', '레이아웃', 'ui', 'ux'],
   DEV: ['개발', 'api', '배포', '서버', '버그', 'qa', '인프라', '프론트', '백엔드'],
-  PLAN: ['기획', '정책', '요구사항', 'ux', 'ui', '와이어', '설계', '서비스 기획'],
-  CONTENT: ['콘텐츠', '활동지', '교안', '워크북', '영상', '카드뉴스', '스티커', '자료 제작', '번역', '디자인'],
-  BIZ: ['사업', '계약', '예산', '보고', '전략', '제안', '투자', '의사결정'],
+  CONTENT: ['콘텐츠', '활동지', '교안', '워크북', '영상', '카드뉴스', '스티커', '자료 제작', '번역'],
+  MKT: ['마케팅', '홍보', '캠페인', 'sns', '광고', '제안자료', '바이럴', '유입'],
+  BIZ: ['사업', '계약', '예산', '보고', '전략', '투자', '의사결정', '파트너'],
   OPS: ['운영', '대응', '모니터링', '문의', '등록', '고객'],
 };
 
@@ -976,7 +1024,7 @@ function parseCapture(text, ctx) {
 // 데이터는 localStorage 에 저장된다. 서버도 DB도 없다.
 
 // 업무 영역 개편(v3)으로 이전 데이터의 area 값이 더는 유효하지 않다 — 키를 올려 새로 만든다
-const LS_KEY = 'kf.demo.v3';
+const LS_KEY = 'kf.demo.v4';
 
 // ── 날짜 ────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');
@@ -1010,6 +1058,11 @@ function buildSeed() {
     synced_at: nowISO(),
   }));
 
+  const areaLeadRows = (SEED.AREA_LEADS ?? []).map(([area, slack_user_id]) => ({
+    area, slack_user_id, updated_at: nowISO(),
+  }));
+  const leadOfArea = Object.fromEntries(areaLeadRows.map((l) => [l.area, l.slack_user_id]));
+
   const projectId = {};
   const projects = SEED.PROJECTS.map((p) => {
     const id = uid();
@@ -1042,13 +1095,16 @@ function buildSeed() {
     taskIdByTitle[title] = id;
     const due = d(dueOffset);
     const created = at(d(Math.max(dueOffset - 14, -60)), '01');
+    const taskOwner = leadOfArea[area] ?? owner;   // 담당자 = 영역 리드
     tasks.push({
-      id, project_id: projectId[pk], title, area, owner_slack_user_id: owner, status, priority,
+      id, project_id: projectId[pk], title, area, owner_slack_user_id: taskOwner, status, priority,
       start_date: d(dueOffset - 10), due_date: due, description: null,
       completed_at: status === 'DONE' ? at(due, '08') : null,
       created_by: 'U01KIM', created_at: created, updated_at: created, deleted_at: null,
     });
-    for (const c of collabs) collaborators.push({ task_id: id, slack_user_id: c, added_at: created });
+    for (const c of new Set(collabs.filter((c) => c !== taskOwner))) {
+      collaborators.push({ task_id: id, slack_user_id: c, added_at: created });
+    }
     if (out) {
       outsourcing.push({
         task_id: id, vendor_id: vendorId(out.vendor), vendor_worker_name: out.worker,
@@ -1065,7 +1121,7 @@ function buildSeed() {
       events.push({
         id: uid(), task_id: id, event_type: 'STATUS_CHANGED',
         from_value: area === 'OUT' ? 'REQUEST_PLANNED' : 'TODO', to_value: status,
-        actor_slack_user_id: owner,
+        actor_slack_user_id: taskOwner,
         occurred_at: status === 'DONE' ? at(due, '08') : at(d(Math.min(dueOffset - 3, 0)), '05'),
       });
     }
@@ -1089,7 +1145,7 @@ function buildSeed() {
 
   return {
     anchor: T, members, projects, vendors, tasks, collaborators, outsourcing, issues, events,
-    notifications: [], weekly_reports: [],
+    area_leads: areaLeadRows, notifications: [], weekly_reports: [],
   };
 }
 
@@ -1304,6 +1360,36 @@ function overview(ref = today()) {
   };
 }
 
+// ── 영역 리드 ───────────────────────────────────────────
+const leadRows = () => (DB.area_leads ?? []).map((l) => {
+  const m = member(l.slack_user_id);
+  return { ...l, display_name: m?.display_name ?? l.slack_user_id,
+    avatar_url: m?.avatar_url ?? null, is_active: Boolean(m?.is_active) };
+});
+const areaLeadOf = (area) => (DB.area_leads ?? []).find((l) => l.area === area)?.slack_user_id ?? null;
+
+function setLead(area, slackUserId, actor) {
+  const before = areaLeadOf(area);
+  const row = (DB.area_leads ??= []).find((l) => l.area === area);
+  if (row) row.slack_user_id = slackUserId;
+  else DB.area_leads.push({ area, slack_user_id: slackUserId, updated_at: nowISO() });
+  let moved = 0;
+  if (before !== slackUserId) {
+    for (const t of DB.tasks) {
+      if (t.area !== area || t.status === 'DONE' || t.deleted_at) continue;
+      t.owner_slack_user_id = slackUserId;
+      t.updated_at = nowISO();
+      logEvent(t.id, 'OWNER_CHANGED', before, slackUserId, actor);
+      moved += 1;
+    }
+    DB.collaborators = DB.collaborators.filter((c) => {
+      const t = DB.tasks.find((x) => x.id === c.task_id);
+      return !(t && t.area === area && t.status !== 'DONE' && c.slack_user_id === slackUserId);
+    });
+  }
+  return { area, slack_user_id: slackUserId, moved };
+}
+
 // ── 쓰기 ────────────────────────────────────────────────
 class DemoError extends Error {}
 
@@ -1347,9 +1433,10 @@ function upsertOutsourcing(taskId, input) {
 function createTask(input, actor) {
   if (!input.title?.trim()) throw new DemoError('업무명을 입력해 주세요.');
   if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
-  if (!input.owner_slack_user_id) throw new DemoError('담당자를 지정해 주세요. 담당자 없는 업무는 만들 수 없습니다.');
   const area = input.area;
   if (!AREAS.some((a) => a.code === area)) throw new DemoError('업무 영역을 선택해 주세요.');
+  const owner = areaLeadOf(area);
+  if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
   const status = input.status || defaultStatusFor(area);
   if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
   const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null);
@@ -1358,7 +1445,7 @@ function createTask(input, actor) {
 
   const t = {
     id: uid(), project_id: input.project_id, title: input.title.trim(), area,
-    owner_slack_user_id: input.owner_slack_user_id, status,
+    owner_slack_user_id: owner, status,
     priority: input.priority || 'NORMAL',
     start_date: input.start_date || null, due_date: due,
     description: input.description || null,
@@ -1366,7 +1453,7 @@ function createTask(input, actor) {
     created_by: actor, created_at: nowISO(), updated_at: nowISO(), deleted_at: null,
   };
   DB.tasks.push(t);
-  setCollaborators(t.id, input.collaborators || [], t.owner_slack_user_id);
+  setCollaborators(t.id, input.collaborators || [], owner);
   if (area === 'OUT') upsertOutsourcing(t.id, input);
   logEvent(t.id, 'CREATED', null, status, actor);
   const hydrated = hydrate(t);
@@ -1383,8 +1470,11 @@ function updateTask(id, input, actor) {
   const area = input.area ?? t.area;
   const status = input.status ?? (area === t.area ? t.status : defaultStatusFor(area));
   if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
-  const owner = input.owner_slack_user_id ?? t.owner_slack_user_id;
-  if (!owner) throw new DemoError('담당자는 비울 수 없습니다.');
+  let owner = t.owner_slack_user_id;
+  if (area !== t.area) {
+    owner = areaLeadOf(area);
+    if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
+  }
   const due = input.due_date ?? t.due_date;
 
   Object.assign(t, {
@@ -1785,6 +1875,7 @@ function handle(method, path, body) {
     return {
       me, today: today(),
       members: DB.members, projects: DB.projects, vendors: DB.vendors,
+      area_leads: leadRows(),
       slack_configured: false,
       meta: {
         areas: AREAS, normal_statuses: NORMAL_STATUSES, out_statuses: OUT_STATUSES,
@@ -1858,6 +1949,14 @@ function handle(method, path, body) {
     return pr;
   }
 
+  if (p === '/api/area-leads' && method === 'GET') return leadRows();
+  if (p === '/api/area-leads' && method === 'PATCH') {
+    if (!Array.isArray(body.leads)) throw new DemoError('리드 목록이 필요합니다.');
+    const out = body.leads.map((l) => setLead(l.area, l.slack_user_id, me));
+    save();
+    return out;
+  }
+
   if (p === '/api/issues' && method === 'GET') {
     return listIssues({
       project: listParam(sp, 'project'),
@@ -1898,6 +1997,7 @@ function handle(method, path, body) {
     events: DB.events,
     members: DB.members,
     projects: DB.projects.filter((x) => !x.is_archived),
+    areaLeads: leadRows(),
     today: today(),
   });
   if (p === '/api/ai/status' && method === 'GET') {
@@ -1958,6 +2058,7 @@ const state = {
   members: [],
   projects: [],
   vendors: [],
+  areaLeads: [],
   meta: null,
   today: null,
   slackConfigured: false,
@@ -1968,6 +2069,7 @@ async function loadBootstrap() {
   state.members = data.members;
   state.projects = data.projects;
   state.vendors = data.vendors;
+  state.areaLeads = data.area_leads ?? [];
   state.meta = data.meta;
   state.today = data.today;
   state.slackConfigured = data.slack_configured;
@@ -1993,6 +2095,10 @@ const statusMeta = (code) => {
 };
 const statusesFor = (area) =>
   area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses;
+const leadOf = (area) => state.areaLeads.find((l) => l.area === area) ?? null;
+const leadAreas = (slackUserId) =>
+  state.areaLeads.filter((l) => l.slack_user_id === slackUserId).map((l) => l.area);
+
 const areaMeta = (code) => (state.meta?.areas || []).find((a) => a.code === code) || { code, label: code };
 const issueStatusMeta = (code) =>
   (state.meta?.issue_statuses || []).find((s) => s.code === code) || { code, label: code, tone: 'wait' };
@@ -2255,7 +2361,10 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
           <select name="area" required>${opts(state.meta.areas, area0)}</select>
         </label>
 
-        <div data-owner-slot>${pickerMarkup('담당자', { required: true })}</div>
+        <label class="field">
+          <span class="lab">담당 <span class="hint" style="font-weight:400">영역 리드가 맡습니다</span></span>
+          <div class="lead-box" data-lead-box>영역을 선택해 주세요</div>
+        </label>
 
         <label class="field">
           <span class="lab">마감일<span class="req">*</span></span>
@@ -2341,20 +2450,21 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
       const dueInput = form.querySelector('[name=due_date]');
       const deliveryInput = form.querySelector('[name=delivery_due_date]');
 
-      // collabPicker 는 ownerPicker 의 onChange 안에서 참조된다.
-      // memberPicker 는 생성 시점에 onChange 를 한 번 호출하므로 let 으로 먼저 선언해 둔다
-      // (const 로 두면 초기화 전 접근이 되어 폼 배선 전체가 죽는다).
-      let collabPicker;
-      const ownerPicker = memberPicker(form.querySelector('[data-owner-slot] .member-pick'), {
-        multi: false,
-        value: task?.owner_slack_user_id ? [task.owner_slack_user_id] : (defaults.owner ? [defaults.owner] : []),
-        onChange: (owner) => collabPicker?.setExclude(owner ? [owner] : []),
-      });
-      collabPicker = memberPicker(form.querySelector('[data-collab-slot] .member-pick'), {
+      // 담당자는 사람을 고르지 않는다 — 선택한 영역의 리드가 곧 담당이다
+      const leadBox = form.querySelector('[data-lead-box]');
+      const collabPicker = memberPicker(form.querySelector('[data-collab-slot] .member-pick'), {
         multi: true,
         value: (task?.collaborators ?? []).map((c) => c.slack_user_id),
-        exclude: task?.owner_slack_user_id ? [task.owner_slack_user_id] : [],
       });
+
+      const syncLead = () => {
+        const lead = leadOf(areaSel.value);
+        leadBox.innerHTML = lead
+          ? `${avatar(lead, 'sm')}<span>${esc(lead.display_name)}</span>`
+            + `${lead.is_active ? '' : '<span class="inactive">(비활성)</span>'}`
+          : '<span class="lead-none">이 영역의 리드가 없습니다 · Overview에서 지정해 주세요</span>';
+        collabPicker.setExclude(lead ? [lead.slack_user_id] : []);
+      };
 
       const syncArea = () => {
         const area = areaSel.value;
@@ -2364,8 +2474,9 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         const keep = list.some((s) => s.code === statusSel.value) ? statusSel.value : list[0].code;
         statusSel.innerHTML = opts(list, keep);
       };
-      areaSel.addEventListener('change', syncArea);
+      areaSel.addEventListener('change', () => { syncArea(); syncLead(); });
       syncArea();
+      syncLead();
 
       // 납품 예정일을 넣으면 마감일 기본값으로 채운다
       deliveryInput.addEventListener('change', () => {
@@ -2386,10 +2497,9 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
           const f = r.fields;
           if (f.title) form.querySelector('[name=title]').value = f.title;
           if (f.project_id) form.querySelector('[name=project_id]').value = f.project_id;
-          if (f.area) { areaSel.value = f.area; syncArea(); }
+          if (f.area) { areaSel.value = f.area; syncArea(); syncLead(); }
           if (f.due_date) dueInput.value = f.due_date;
           if (f.priority) form.querySelector('[name=priority]').value = f.priority;
-          if (f.owner_slack_user_id) ownerPicker.set(f.owner_slack_user_id);
           captureRes.hidden = false;
           captureRes.innerHTML = r.matched.length
             ? r.matched.map((m) => `<span class="tok">${esc(m.field)} <b>${esc(String(m.value))}</b></span>`).join('')
@@ -2409,12 +2519,11 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
       root.querySelector('[data-save]').addEventListener('click', async () => {
         const fd = new FormData(form);
         const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
-        payload.owner_slack_user_id = ownerPicker.value;
         payload.collaborators = collabPicker.value;
 
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
         if (!payload.project_id) return toast('프로젝트를 선택해 주세요.', true);
-        if (!payload.owner_slack_user_id) return toast('담당자를 지정해 주세요. 담당자 없는 업무는 만들 수 없습니다.', true);
+        if (!leadOf(payload.area)) return toast('이 영역의 리드가 지정되지 않았습니다. Overview에서 영역 리드를 먼저 설정해 주세요.', true);
         if (!payload.due_date && !payload.delivery_due_date) return toast('마감일을 입력해 주세요.', true);
 
         try {
@@ -2469,7 +2578,10 @@ function issueForm({ issue = null, defaults = {}, onSaved }) {
           <span class="lab">내용<span class="req">*</span></span>
           <textarea name="content" required placeholder="무엇이 막고 있는지, 원인은 무엇인지">${esc(issue?.content ?? '')}</textarea>
         </label>
-        <div data-owner-slot>${pickerMarkup('담당자', { required: true })}</div>
+        <label class="field">
+          <span class="lab">담당 <span class="hint" style="font-weight:400">영역 리드가 맡습니다</span></span>
+          <div class="lead-box" data-lead-box>영역을 선택해 주세요</div>
+        </label>
         <label class="field">
           <span class="lab">중요도</span>
           <select name="severity">${opts(state.meta.priorities, issue?.severity ?? 'NORMAL')}</select>
@@ -2617,10 +2729,61 @@ function projectForm({ project = null, onSaved }) {
   });
 }
 
+// ── 영역 리드 관리 ──────────────────────────────────────
+// 업무마다 사람을 고르는 대신 여기서 영역별 책임자를 정한다.
+function areaLeadsForm({ onSaved }) {
+  const current = Object.fromEntries(state.areaLeads.map((l) => [l.area, l.slack_user_id]));
+  const people = activeMembers();
+
+  const body = `
+    <p class="hint" style="margin-bottom:14px">
+      업무를 등록할 때 담당자를 따로 고르지 않습니다. 선택한 <b>업무 영역의 리드</b>가 담당이 됩니다.
+      리드를 바꾸면 그 영역의 <b>미완료 업무</b> 담당도 함께 옮겨지고, 완료된 업무는 기록으로 남습니다.
+    </p>
+    <div class="lead-table">
+      ${state.meta.areas.map((a) => `
+        <div class="lead-row">
+          <span class="lead-area">${esc(a.full)}</span>
+          <select data-area="${esc(a.code)}">
+            <option value="">지정 안 함</option>
+            ${people.map((m) => `<option value="${esc(m.slack_user_id)}"${
+              current[a.code] === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+    </div>`;
+
+  modal({
+    title: '영역 리드',
+    body,
+    footer: `<div class="right"><button class="btn" data-close>취소</button>
+             <button class="btn btn-primary" data-save>저장</button></div>`,
+    onMount({ root, close }) {
+      root.querySelector('[data-save]').addEventListener('click', async () => {
+        const leads = [...root.querySelectorAll('[data-area]')]
+          .filter((sel) => sel.value)
+          .map((sel) => ({ area: sel.dataset.area, slack_user_id: sel.value }));
+        if (!leads.length) return toast('리드를 한 명 이상 지정해 주세요.', true);
+        try {
+          const result = await api.patch('/api/area-leads', { leads });
+          const moved = result.reduce((n, r) => n + (r.moved ?? 0), 0);
+          toast(moved ? `영역 리드를 저장했습니다. 업무 ${moved}건의 담당이 함께 바뀌었습니다.` : '영역 리드를 저장했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) {
+          toast(err.message, true);
+        }
+      });
+    },
+  });
+}
+
 
 
 
 const SEV_LABEL = { high: '높음', medium: '보통', low: '낮음' };
+
+// 한눈에 볼 수 있는 만큼만 펼쳐 둔다. 나머지는 접어 두되 몇 건인지는 알려준다.
+const VISIBLE = 3;
 
 /** 위험 신호 섹션 마크업. 근거가 되는 업무·이슈로 바로 이동할 수 있어야 한다. */
 function riskSection(rows, { source = 'rules' } = {}) {
@@ -2640,9 +2803,7 @@ function riskSection(rows, { source = 'rules' } = {}) {
     </section>`;
   }
 
-  return `<section class="section">${head}
-    <div class="risks">
-      ${rows.map((r) => `
+  const card = (r) => `
         <article class="risk ${esc(r.severity)}">
           <div class="head">
             <span class="sev">${esc(SEV_LABEL[r.severity] ?? r.severity)}</span>
@@ -2660,6 +2821,7 @@ function riskSection(rows, { source = 'rules' } = {}) {
                 : i.kind === 'issue' ? `#/issues/${i.id}`
                 : i.kind === 'owner' ? `#/tasks?owner=${encodeURIComponent(i.id)}&done=1`
                 : i.kind === 'project' ? `#/tasks?project=${encodeURIComponent(i.id)}&done=1`
+                : i.kind === 'area' ? `#/tasks?area=${encodeURIComponent(i.id)}&done=1`
                 : null;
               return `<li>${target
                 ? `<button type="button" data-jump="${esc(target)}">${inner}</button>`
@@ -2668,7 +2830,19 @@ function riskSection(rows, { source = 'rules' } = {}) {
             ${r.items.length > 5
               ? `<li><span class="static"><span class="sub">외 ${r.items.length - 5}건</span></span></li>` : ''}
           </ul>
-        </article>`).join('')}
+        </article>`;
+
+  const shown = rows.slice(0, VISIBLE);
+  const hidden = rows.slice(VISIBLE);
+
+  return `<section class="section">${head}
+    <div class="risks">
+      ${shown.map(card).join('')}
+      ${hidden.length ? `
+        <div class="risks-more" hidden>${hidden.map(card).join('')}</div>
+        <button class="btn risks-toggle" data-more aria-expanded="false">
+          위험 신호 ${hidden.length}건 더 보기
+        </button>` : ''}
     </div>
   </section>`;
 }
@@ -2699,7 +2873,7 @@ async function renderOverview(root) {
       <div class="page-head"><div><h1>Overview</h1></div></div>
       ${empty({
         title: '아직 등록된 업무가 없습니다',
-        hint: '업무를 등록하면 프로젝트별·영역별·담당자별 현황이 자동으로 집계됩니다.',
+        hint: '업무를 등록하면 프로젝트별·영역별 현황이 자동으로 집계됩니다.',
         action: '<button class="btn btn-primary" data-new-task>+ 업무 등록</button>',
       })}`;
     return;
@@ -2754,45 +2928,23 @@ async function renderOverview(root) {
       </section>
 
       <section>
-        <div class="section-head"><h2>업무 영역별 진행</h2><span class="meta">외주 작업 포함</span></div>
+        <div class="section-head">
+          <h2>업무 영역별 진행</h2>
+          <span class="meta">영역 리드가 담당입니다 · <button class="btn btn-ghost" data-area-leads>리드 관리</button></span>
+        </div>
         <div class="bars">
-          ${ov.areas.map((a) => barRow(
-            a.label, a.progress,
-            a.count ? `업무 ${a.count} · 완료 ${a.done}${a.delayed ? ` · 지연 ${a.delayed}` : ''}` : '등록된 업무 없음',
-            `#/tasks?area=${encodeURIComponent(a.code)}&done=1`,
-          )).join('')}
+          ${ov.areas.map((a) => {
+            const lead = leadOf(a.code);
+            const who = lead ? `리드 ${lead.display_name}` : '리드 미지정';
+            return barRow(
+              a.label, a.progress,
+              a.count ? `${who} · 업무 ${a.count} · 완료 ${a.done}${a.delayed ? ` · 지연 ${a.delayed}` : ''}` : `${who} · 등록된 업무 없음`,
+              `#/tasks?area=${encodeURIComponent(a.code)}&done=1`,
+            );
+          }).join('')}
         </div>
       </section>
     </div>
-
-    <section class="section">
-      <div class="section-head">
-        <h2>담당자별 현황</h2>
-        <span class="meta">협업 참여는 담당 건수에 넣지 않습니다</span>
-      </div>
-      <div class="owners">
-        ${ov.owners.map((o) => `
-          <button class="owner" data-jump="#/tasks?owner=${encodeURIComponent(o.slack_user_id)}&done=1">
-            <span class="top">
-              ${avatar(o, '')}
-              <span class="nm">${esc(o.display_name)}</span>
-              ${o.is_active ? '' : '<span class="inactive">(비활성)</span>'}
-            </span>
-            <span class="counts">
-              <span>담당 <b>${o.count}</b></span>
-              <span>진행 <b>${o.in_progress}</b></span>
-              <span>검토 <b>${o.review}</b></span>
-              <span>완료 <b>${o.done}</b></span>
-              <span class="${o.delayed ? 'bad' : ''}">지연 <b>${o.delayed}</b></span>
-            </span>
-            <span class="bar" style="pointer-events:none;padding:0">
-              <span class="name" style="font-size:.76rem;color:var(--muted)">${o.collab_count ? `협업 ${o.collab_count}건` : ''}</span>
-              ${progressBar(o.progress)}
-              <span class="pct">${pctText(o.progress)}</span>
-            </span>
-          </button>`).join('')}
-      </div>
-    </section>
 
     <section class="section">
       <div class="section-head">
@@ -2835,6 +2987,15 @@ async function renderOverview(root) {
   };
 
   root.addEventListener('click', (e) => {
+    const more = e.target.closest('[data-more]');
+    if (more) {
+      const box = root.querySelector('.risks-more');
+      const open = box.hidden;
+      box.hidden = !open;
+      more.setAttribute('aria-expanded', String(open));
+      more.textContent = open ? '접기' : `위험 신호 ${box.children.length}건 더 보기`;
+      return;
+    }
     const el = e.target.closest('[data-jump]');
     if (el) {
       const key = el.dataset.jump;
@@ -2842,6 +3003,7 @@ async function renderOverview(root) {
       return;
     }
     if (e.target.closest('[data-new-project]')) projectForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
+    else if (e.target.closest('[data-area-leads]')) areaLeadsForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
   });
 }
 
@@ -2852,7 +3014,7 @@ async function renderOverview(root) {
 
 
 const QUICK = [
-  { key: 'mine',    label: '내 담당 업무', params: { owner: 'me' } },
+  { key: 'mine',    label: '내 영역 업무', params: { owner: 'me' } },
   { key: 'all',     label: '전체',         params: { done: '1' } },
   { key: 'progress',label: '진행중',       params: { stage: 'IN_PROGRESS' } },
   { key: 'review',  label: '검토',         params: { stage: 'REVIEW' } },
@@ -2904,7 +3066,7 @@ async function renderTasks(root, query) {
     <div class="page-head">
       <div>
         <h1>Tasks</h1>
-        <div class="sub">${rows.length}건 · 담당자 없는 업무는 만들 수 없습니다</div>
+        <div class="sub">${rows.length}건 · 담당은 업무 영역의 리드가 맡습니다</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
@@ -2920,7 +3082,7 @@ async function renderTasks(root, query) {
     <div class="filter-row" style="margin-bottom:16px">
       <select data-f="project"><option value="">프로젝트 전체</option>${projectOptions}</select>
       <select data-f="area"><option value="">영역 전체</option>${areaOptions}</select>
-      <select data-f="owner"><option value="">담당자 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
+      <select data-f="owner"><option value="">리드 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label style="display:flex;align-items:center;gap:6px;font-size:.83rem;color:var(--muted)">
         <input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함
@@ -3069,7 +3231,7 @@ async function renderTaskDetail(root, id) {
         <div class="panel">
           <h3>업무 정보</h3>
           <dl class="kv">
-            <dt>담당자</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}</dd>
+            <dt>담당</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}<span class="area-lead-tag">· ${esc(areaMeta(t.area).full)} 리드</span></dd>
             <dt>협업자</dt><dd>${t.collaborators.length
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
@@ -3089,7 +3251,7 @@ async function renderTaskDetail(root, id) {
             <dl class="kv">
               <dt>외주 업체</dt><dd>${esc(t.vendor_name ?? '-')}</dd>
               <dt>외부 작업자</dt><dd>${esc(t.vendor_worker_name ?? '-')}</dd>
-              <dt>내부 담당자</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}</dd>
+              <dt>내부 담당</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}</dd>
               <dt>요청일</dt><dd class="num">${shortDate(t.requested_at)}</dd>
               <dt>납품 예정</dt><dd class="num" style="${t.is_delivery_delayed ? 'color:var(--s-delay)' : ''}">
                 ${shortDate(t.delivery_due_date)}${t.is_delivery_delayed ? ' · 납품 지연' : ''}</dd>
@@ -3491,10 +3653,10 @@ async function renderWeekly(root, query) {
             ${i.impact ? ` · ${esc(i.impact)}` : ''}</span></li>`).join('')}</ul>`
           : '<p class="hint">미해결 이슈가 없습니다.</p>'}`)}
 
-      ${sec('⑧', '담당자별 현황', `
+      ${sec('⑧', '리드별 현황', `
         <div class="table-wrap">
           <table>
-            <thead><tr><th>담당자</th><th class="nowrap">담당 업무</th><th class="nowrap">진행</th>
+            <thead><tr><th>리드</th><th class="nowrap">담당 업무</th><th class="nowrap">진행</th>
               <th class="nowrap">이번 주 완료</th><th class="nowrap">지연</th><th class="nowrap">진행률</th></tr></thead>
             <tbody>
               ${s.owners.map((o) => `
@@ -3609,7 +3771,7 @@ function toMarkdown(report) {
   L.push(`- 진행 ${s.outsourcing.active}건 · 검수 ${s.outsourcing.review}건 · 수정 ${s.outsourcing.revision}건 · 납품 지연 ${s.outsourcing.delivery_delayed}건`);
   L.push('', '## ⑦ 주요 이슈');
   for (const i of s.issues.rows) L.push(`- [${i.severity}] ${i.title} (${i.project_name} · ${i.owner_name})${i.impact ? ` — ${i.impact}` : ''}`);
-  L.push('', '## ⑧ 담당자별 현황');
+  L.push('', '## ⑧ 리드별 현황');
   for (const o of s.owners) L.push(`- ${o.display_name}: 담당 ${o.count} · 진행 ${o.in_progress} · 이번 주 완료 ${o.completed_this_week} · 지연 ${o.delayed}`);
   L.push('', '## ⑨ 다음 주 주요 업무');
   for (const t of s.next_week.due) L.push(`- ${t.title} (${t.project_name} · ${t.owner_name} · 마감 ${t.due_date})`);

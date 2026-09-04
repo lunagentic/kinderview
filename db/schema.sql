@@ -8,7 +8,7 @@
 
 CREATE TYPE project_status AS ENUM ('PLANNED', 'ACTIVE', 'ON_HOLD', 'DONE');
 
-CREATE TYPE task_area AS ENUM ('PLAN', 'DEV', 'CONTENT', 'BIZ', 'OPS', 'OUT', 'ETC');
+CREATE TYPE task_area AS ENUM ('PLAN', 'DESIGN', 'DEV', 'CONTENT', 'MKT', 'BIZ', 'OPS', 'OUT', 'ETC');
 
 CREATE TYPE task_status AS ENUM (
   -- 일반 업무
@@ -120,6 +120,17 @@ CREATE INDEX idx_task_area      ON task (area) WHERE deleted_at IS NULL;
 CREATE INDEX idx_task_due       ON task (due_date) WHERE deleted_at IS NULL;
 -- 지연 판정용: 미완료 업무만
 CREATE INDEX idx_task_open_due  ON task (due_date) WHERE deleted_at IS NULL AND status <> 'DONE';
+
+-- ─────────────────────────────────────────────
+-- AREA_LEAD — 영역 리드
+-- 업무의 담당자는 사람을 따로 고르지 않고 이 표에서 결정된다.
+-- ─────────────────────────────────────────────
+
+CREATE TABLE area_lead (
+  area          task_area PRIMARY KEY,
+  slack_user_id text NOT NULL REFERENCES member (slack_user_id),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
 
 -- ─────────────────────────────────────────────
 -- TASK_COLLABORATOR — 협업자
