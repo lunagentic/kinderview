@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { state } from '../state.js';
 import {
-  esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay,
+  esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
 } from '../ui.js';
 import { phaseForm, milestoneForm } from '../forms.js';
 
@@ -228,33 +228,9 @@ export async function renderTimeline(root) {
           </table>
         </div>` : '<p class="hint">등록된 마일스톤이 없습니다.</p>'}
     </section>
+`;
 
-    <div class="tl-tip" hidden></div>`;
-
-  // ── 호버 툴팁 ─────────────────────────────────────────
-  const tip = root.querySelector('.tl-tip');
-  const showTip = (el) => {
-    tip.innerHTML = el.dataset.tip;
-    tip.hidden = false;
-    const r = el.getBoundingClientRect();
-    const host = root.getBoundingClientRect();
-    const w = tip.offsetWidth;
-    const left = Math.min(Math.max(r.left - host.left + r.width / 2 - w / 2, 4), host.width - w - 4);
-    tip.style.left = `${left}px`;
-    tip.style.top = `${r.top - host.top - tip.offsetHeight - 8}px`;
-  };
-  const hideTip = () => { tip.hidden = true; };
-  root.addEventListener('mouseover', (e) => {
-    const el = e.target.closest('[data-tip]');
-    if (el) showTip(el); else hideTip();
-  });
-  root.addEventListener('mouseleave', hideTip);
-  root.addEventListener('focusin', (e) => {
-    const el = e.target.closest('[data-tip]');
-    if (el) showTip(el);
-  });
-  root.addEventListener('focusout', hideTip);
-  root.addEventListener('scroll', hideTip, true);
+  hoverTip(root);
 
   // ── 편집 ──────────────────────────────────────────────
   const reload = () => window.dispatchEvent(new Event('kf:reload'));

@@ -82,6 +82,45 @@ export const progressBar = (pct, extraClass = '') =>
 
 export const pctText = (v) => (v === null || v === undefined ? '-' : `${v}%`);
 
+// ── 호버 툴팁 ───────────────────────────────────────────
+// [data-tip] 을 가진 요소에 붙는다. 마우스와 키보드 포커스를 함께 받는다.
+// 차트 계열 화면(타임라인·보드 지도)이 같은 것을 쓴다.
+export function hoverTip(root) {
+  // 툴팁 좌표는 root 기준이다 — root 가 배치 기준이 되어야 어긋나지 않는다
+  if (getComputedStyle(root).position === 'static') root.style.position = 'relative';
+  const tip = document.createElement('div');
+  tip.className = 'hovertip';
+  tip.hidden = true;
+  root.appendChild(tip);
+
+  const show = (el) => {
+    tip.innerHTML = el.dataset.tip;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const host = root.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    const left = Math.min(Math.max(r.left - host.left + r.width / 2 - w / 2, 4), host.width - w - 4);
+    const above = r.top - host.top - tip.offsetHeight - 8;
+    tip.style.left = `${Math.max(left, 4)}px`;
+    // 위쪽에 자리가 없으면 아래로 뒤집는다
+    tip.style.top = `${above < 0 ? r.bottom - host.top + 8 : above}px`;
+  };
+  const hide = () => { tip.hidden = true; };
+
+  root.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el) show(el); else hide();
+  });
+  root.addEventListener('mouseleave', hide);
+  root.addEventListener('focusin', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el) show(el);
+  });
+  root.addEventListener('focusout', hide);
+  root.addEventListener('scroll', hide, true);
+  return tip;
+}
+
 // ── 토스트 ──────────────────────────────────────────────
 export function toast(message, bad = false) {
   const root = document.getElementById('toast-root');

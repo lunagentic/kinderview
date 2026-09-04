@@ -267,6 +267,7 @@ function listTasks(f = {}) {
   if (f.area?.length) rows = rows.filter((t) => f.area.includes(t.area));
   if (f.owner?.length) rows = rows.filter((t) => f.owner.includes(t.owner_slack_user_id));
   if (f.status?.length) rows = rows.filter((t) => f.status.includes(t.status));
+  if (f.stage === 'WAIT') rows = rows.filter((t) => WAIT_STATUSES.includes(t.status));
   if (f.stage === 'IN_PROGRESS') rows = rows.filter((t) => IN_PROGRESS_STATUSES.includes(t.status));
   if (f.stage === 'REVIEW') rows = rows.filter((t) => REVIEW_STAGE_STATUSES.includes(t.status));
   if (f.stage === 'DONE') rows = rows.filter((t) => t.status === 'DONE');
@@ -377,6 +378,23 @@ function overview(ref = today()) {
     },
     handover: owners.filter((o) => !o.is_active && o.count - o.done > 0)
       .map((o) => ({ display_name: o.display_name, open: o.count - o.done })),
+    // 보드 지도 — 업무 하나가 타일 하나다. 프로젝트 순서로 묶고 지연을 앞에 세운다.
+    board: (() => {
+      const order = new Map(DB.projects
+        .slice().sort((a, b) => a.sort_order - b.sort_order)
+        .map((p, i) => [p.id, i]));
+      return rows.slice()
+        .sort((a, b) => (order.get(a.project_id) ?? 99) - (order.get(b.project_id) ?? 99)
+          || (b.is_delayed - a.is_delayed)
+          || String(a.due_date).localeCompare(String(b.due_date)))
+        .slice(0, 400)
+        .map((t) => ({
+          id: t.id, title: t.title, project_id: t.project_id, project_name: t.project_name,
+          stage: t.stage, owner_name: t.owner_name, due_date: t.due_date,
+          is_delayed: t.is_delayed, has_open_issue: t.has_open_issue,
+        }));
+    })(),
+    board_truncated: rows.length > 400,
     progress: pct(rows.reduce((s, t) => s + (PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
   };
 }

@@ -672,10 +672,11 @@ details.more[open] > summary{color:var(--ink)}
 
 .chip.ms-done{color:var(--s-done)} .chip.ms-late{color:var(--s-delay)} .chip.ms-plan{color:var(--s-wait)}
 
-.tl-tip{position:absolute;z-index:40;pointer-events:none;max-width:260px;
+.hovertip{position:absolute;z-index:40;pointer-events:none;max-width:260px;
   background:var(--chrome);color:var(--on-chrome);border-radius:var(--radius-sm);
   padding:8px 11px;font-size:.76rem;line-height:1.5;box-shadow:var(--shadow)}
-.tl-tip b{font-weight:600}
+.hovertip b{font-weight:600}
+.hovertip .tip-sub{color:var(--on-chrome-muted)}
 
 .tl-table{margin-top:14px}
 .tl-table summary{cursor:pointer;font-size:.8rem;color:var(--muted);padding:6px 2px}
@@ -694,6 +695,79 @@ details.more[open] > summary{color:var(--ink)}
 .exp-cat{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
   border-radius:999px;padding:4px 11px;font-size:.76rem;background:var(--surface)}
 .exp-cat b{font-family:var(--mono);font-weight:600}
+
+/* ── 보드 지도 (Overview 히어로) ──────────────
+   업무 하나 = 타일 하나. 이 화면의 유일한 그래프다.
+   위치(열)=단계 · 색=프로젝트 · 빨간 테두리=지연 · 개수=업무 수.
+   채널을 하나씩만 쓴다. 타일 크기는 어디서나 같다 — 크기가 뜻을 갖지 않도록. */
+.boardmap{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 20px 14px;margin-bottom:24px;position:relative;
+}
+.bm-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:15px}
+
+/* 히어로 숫자 — 이 화면이 앞세우는 하나의 값 */
+.bm-num{font-family:var(--display);font-size:3.1rem;font-weight:800;line-height:1;letter-spacing:-.045em}
+.bm-cap{font-size:.8rem;color:var(--muted);margin-top:6px}
+
+.bm-alerts{display:flex;gap:8px}
+.bm-alert{
+  display:flex;flex-direction:column;gap:1px;min-width:76px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 13px;
+}
+.bm-alert:hover{border-color:var(--muted)}
+.bm-alert .k{font-size:.74rem;color:var(--muted)}
+.bm-alert .v{font-family:var(--display);font-weight:800;font-size:1.4rem;line-height:1.15;
+  font-variant-numeric:tabular-nums;color:var(--muted)}
+.bm-alert.on{border-color:var(--s-delay)}
+.bm-alert.on .v{color:var(--s-delay)}
+.bm-alert.warn.on{border-color:var(--s-issue)}
+.bm-alert.warn.on .v{color:var(--s-issue)}
+
+.bm-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+  background:var(--line-soft);border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden}
+.bm-col{background:var(--surface);padding:11px 13px 14px;min-width:0}
+.bm-head{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;
+  background:none;border:none;padding:0 0 10px;cursor:pointer}
+.bm-head:hover .bm-stage{color:var(--ink)}
+.bm-stage{font-size:.8rem;font-weight:500;color:var(--muted)}
+.bm-count{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:1rem;
+  font-weight:600;color:var(--ink);margin-left:auto}
+
+/* 타일 — 간격이 구분을 맡는다. 마크에 테두리를 둘러 나누지 않는다.
+   지연 테두리는 구분선이 아니라 값이라 예외다. */
+.bm-tiles{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;min-height:44px}
+.bm-tile{
+  width:22px;height:22px;flex:none;padding:0;cursor:pointer;
+  border:2.5px solid transparent;border-radius:6px;
+  background:var(--pc,var(--muted));background-clip:padding-box;
+  animation:bm-pop .34s cubic-bezier(.2,.8,.3,1) both;
+  animation-delay:min(calc(var(--i,0) * 9ms), 520ms);
+}
+.bm-tile:hover{transform:scale(1.18);z-index:2;position:relative}
+.bm-tile:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.bm-tile.late{border-color:var(--s-delay)}
+.bm-rest{font-family:var(--mono);font-size:.72rem;color:var(--muted);align-self:center;padding-left:2px}
+@keyframes bm-pop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+
+.bm-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:14px;font-size:.76rem;color:var(--muted)}
+.bm-key{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2)}
+.bm-key .sw{width:11px;height:11px;border-radius:3px;background:var(--pc,var(--muted));flex:none}
+.bm-key.late .sw{background:transparent;border:2px solid var(--s-delay)}
+.bm-note{margin-left:auto}
+
+@media (max-width:860px){
+  .boardmap{padding:16px 15px 13px}
+  .bm-num{font-size:2.3rem}
+  .bm-alerts{width:100%}
+  .bm-alert{flex:1}
+  .bm-grid{grid-template-columns:repeat(2,1fr)}
+  .bm-col{padding:10px 11px 12px}
+  .bm-note{margin-left:0;flex-basis:100%}
+}
+@media (max-width:420px){
+  .bm-tile{width:18px;height:18px}
+}
 
 
 /* 데모 안내 (빌드에서만 추가) */
@@ -821,6 +895,7 @@ const STAGE = {
   DONE: 'DONE',
 };
 
+const WAIT_STATUSES = ['TODO', 'REQUEST_PLANNED', 'REQUESTED'];
 const IN_PROGRESS_STATUSES = ['IN_PROGRESS', 'OUT_IN_PROGRESS', 'OUT_REVISION'];
 const REVIEW_STAGE_STATUSES = ['REVIEW', 'OUT_REVIEW'];
 
@@ -1709,6 +1784,7 @@ function listTasks(f = {}) {
   if (f.area?.length) rows = rows.filter((t) => f.area.includes(t.area));
   if (f.owner?.length) rows = rows.filter((t) => f.owner.includes(t.owner_slack_user_id));
   if (f.status?.length) rows = rows.filter((t) => f.status.includes(t.status));
+  if (f.stage === 'WAIT') rows = rows.filter((t) => WAIT_STATUSES.includes(t.status));
   if (f.stage === 'IN_PROGRESS') rows = rows.filter((t) => IN_PROGRESS_STATUSES.includes(t.status));
   if (f.stage === 'REVIEW') rows = rows.filter((t) => REVIEW_STAGE_STATUSES.includes(t.status));
   if (f.stage === 'DONE') rows = rows.filter((t) => t.status === 'DONE');
@@ -1819,6 +1895,23 @@ function overview(ref = today()) {
     },
     handover: owners.filter((o) => !o.is_active && o.count - o.done > 0)
       .map((o) => ({ display_name: o.display_name, open: o.count - o.done })),
+    // 보드 지도 — 업무 하나가 타일 하나다. 프로젝트 순서로 묶고 지연을 앞에 세운다.
+    board: (() => {
+      const order = new Map(DB.projects
+        .slice().sort((a, b) => a.sort_order - b.sort_order)
+        .map((p, i) => [p.id, i]));
+      return rows.slice()
+        .sort((a, b) => (order.get(a.project_id) ?? 99) - (order.get(b.project_id) ?? 99)
+          || (b.is_delayed - a.is_delayed)
+          || String(a.due_date).localeCompare(String(b.due_date)))
+        .slice(0, 400)
+        .map((t) => ({
+          id: t.id, title: t.title, project_id: t.project_id, project_name: t.project_name,
+          stage: t.stage, owner_name: t.owner_name, due_date: t.due_date,
+          is_delayed: t.is_delayed, has_open_issue: t.has_open_issue,
+        }));
+    })(),
+    board_truncated: rows.length > 400,
     progress: pct(rows.reduce((s, t) => s + (PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
   };
 }
@@ -3033,6 +3126,45 @@ const progressBar = (pct, extraClass = '') =>
 
 const pctText = (v) => (v === null || v === undefined ? '-' : `${v}%`);
 
+// ── 호버 툴팁 ───────────────────────────────────────────
+// [data-tip] 을 가진 요소에 붙는다. 마우스와 키보드 포커스를 함께 받는다.
+// 차트 계열 화면(타임라인·보드 지도)이 같은 것을 쓴다.
+function hoverTip(root) {
+  // 툴팁 좌표는 root 기준이다 — root 가 배치 기준이 되어야 어긋나지 않는다
+  if (getComputedStyle(root).position === 'static') root.style.position = 'relative';
+  const tip = document.createElement('div');
+  tip.className = 'hovertip';
+  tip.hidden = true;
+  root.appendChild(tip);
+
+  const show = (el) => {
+    tip.innerHTML = el.dataset.tip;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const host = root.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    const left = Math.min(Math.max(r.left - host.left + r.width / 2 - w / 2, 4), host.width - w - 4);
+    const above = r.top - host.top - tip.offsetHeight - 8;
+    tip.style.left = `${Math.max(left, 4)}px`;
+    // 위쪽에 자리가 없으면 아래로 뒤집는다
+    tip.style.top = `${above < 0 ? r.bottom - host.top + 8 : above}px`;
+  };
+  const hide = () => { tip.hidden = true; };
+
+  root.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el) show(el); else hide();
+  });
+  root.addEventListener('mouseleave', hide);
+  root.addEventListener('focusin', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el) show(el);
+  });
+  root.addEventListener('focusout', hide);
+  root.addEventListener('scroll', hide, true);
+  return tip;
+}
+
 // ── 토스트 ──────────────────────────────────────────────
 function toast(message, bad = false) {
   const root = document.getElementById('toast-root');
@@ -3959,6 +4091,88 @@ function riskSection(rows, { source = 'rules' } = {}) {
 
 
 
+// ── 보드 지도 ───────────────────────────────────────────
+// 업무 하나가 타일 하나다. 이 화면에서 유일한 그래프이고, 보드 자체를 그린 것이다.
+//
+// 무엇을 무엇으로 나타내는가 — 채널을 하나씩만 쓴다.
+//   가로 위치(열) = 진행 단계   대기 → 진행중 → 검토 → 완료
+//   타일 색       = 프로젝트    (4칸 팔레트, 대비·색각 검증을 통과한 값)
+//   테두리 빨강   = 지연        상태색은 지연에만 쓴다. 범례와 툴팁이 말로도 알려 준다
+//   타일 개수     = 업무 수     넓이가 아니라 개수다. 하나가 하나다
+//
+// 색만으로 구분하게 두지 않는다: 열 머리에 개수가 적혀 있고, 같은 프로젝트끼리
+// 붙여 두며, 아래 범례와 타일 툴팁이 이름을 말한다.
+
+const BOARD_STAGES = [
+  { key: 'WAIT',     label: '대기',   jump: '#/project/tasks?stage=WAIT' },
+  { key: 'PROGRESS', label: '진행중', jump: '#/project/tasks?stage=IN_PROGRESS' },
+  { key: 'REVIEW',   label: '검토',   jump: '#/project/tasks?stage=REVIEW' },
+  { key: 'DONE',     label: '완료',   jump: '#/project/tasks?stage=DONE&done=1' },
+];
+const BOARD_COLUMN_CAP = 72;   // 한 열에 이보다 많으면 접고 개수만 알린다
+
+function boardMap(ov) {
+  const used = ov.projects.filter((p) => p.count > 0);
+  let i = 0;   // 등장 순서 — 타일이 차례로 나타나는 효과에만 쓴다
+
+  const column = (st) => {
+    const rows = ov.board.filter((t) => t.stage === st.key);
+    const total = ov.summary.total
+      ? { WAIT: ov.summary.total - ov.summary.in_progress - ov.summary.review - ov.summary.done,
+          PROGRESS: ov.summary.in_progress, REVIEW: ov.summary.review, DONE: ov.summary.done }[st.key]
+      : 0;
+    const shown = rows.slice(0, BOARD_COLUMN_CAP);
+    const hidden = Math.max(total - shown.length, 0);
+
+    return `
+      <div class="bm-col">
+        <button class="bm-head" data-jump="${esc(st.jump)}">
+          <span class="bm-stage">${esc(st.label)}</span>
+          <span class="bm-count">${total}</span>
+        </button>
+        <div class="bm-tiles">
+          ${shown.map((t) => {
+            i += 1;
+            const tip = `<b>${esc(t.title)}</b><br><span class="tip-sub">${esc(t.project_name)} · ${esc(t.owner_name)}`
+              + `${t.due_date ? ` · ${esc(shortDate(t.due_date))}` : ''}</span>`
+              + `${t.is_delayed ? '<br>⚠ 지연' : ''}${t.has_open_issue ? '<br>🔥 이슈' : ''}`;
+            return `<button class="bm-tile${t.is_delayed ? ' late' : ''}"
+                      style="${projectStyle(t.project_id)};--i:${i}"
+                      data-jump="#/project/tasks/${esc(t.id)}" data-tip="${esc(tip)}"
+                      aria-label="${esc(`${t.title} — ${t.project_name}${t.is_delayed ? ' 지연' : ''}`)}"></button>`;
+          }).join('')}
+          ${hidden ? `<span class="bm-rest">+${hidden}</span>` : ''}
+        </div>
+      </div>`;
+  };
+
+  return `
+    <section class="boardmap">
+      <div class="bm-top">
+        <div class="bm-figure">
+          <div class="bm-num">${pctText(ov.progress)}</div>
+          <div class="bm-cap">전체 진행률 · 업무 ${ov.summary.total}건</div>
+        </div>
+        <div class="bm-alerts">
+          <button class="bm-alert ${ov.summary.delayed ? 'on' : ''}" data-jump="delayed">
+            <span class="k">지연</span><span class="v">${ov.summary.delayed}</span>
+          </button>
+          <button class="bm-alert warn ${ov.summary.issues ? 'on' : ''}" data-jump="issues">
+            <span class="k">이슈</span><span class="v">${ov.summary.issues}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="bm-grid">${BOARD_STAGES.map(column).join('')}</div>
+
+      <div class="bm-legend">
+        ${used.map((p) => `<span class="bm-key" style="${projectStyle(p.id)}"><i class="sw"></i>${esc(p.name)}</span>`).join('')}
+        <span class="bm-key late"><i class="sw"></i>지연</span>
+        <span class="bm-note">타일 하나 = 업무 하나 · 누르면 그 업무로</span>
+      </div>
+    </section>`;
+}
+
 async function renderOverview(root) {
   root.innerHTML = loading();
   let ov;
@@ -3984,11 +4198,6 @@ async function renderOverview(root) {
     return;
   }
 
-  const stat = (key, label, value, cls = '') => `
-    <button class="stat ${cls} ${value === 0 ? 'zero' : ''}" data-jump="${key}">
-      <div class="k">${esc(label)}</div><div class="v">${value}</div>
-    </button>`;
-
   const barRow = (name, pct, sub, jump, style = '') => `
     <button class="bar" data-jump="${esc(jump)}" style="${style}">
       <span class="name">${esc(name)}</span>
@@ -4001,7 +4210,7 @@ async function renderOverview(root) {
     <div class="page-head">
       <div>
         <h1>Overview</h1>
-        <div class="sub">기준일 ${shortDate(ov.today)} · 전체 진행률 ${pctText(ov.progress)} · 내부 업무와 외주 작업을 함께 집계합니다</div>
+        <div class="sub">기준일 ${shortDate(ov.today)} · 내부 업무와 외주 작업을 함께 봅니다</div>
       </div>
       <div class="page-actions">
         <button class="btn" data-new-project>+ 프로젝트</button>
@@ -4009,14 +4218,7 @@ async function renderOverview(root) {
       </div>
     </div>
 
-    <div class="stats">
-      ${stat('all', '전체 업무', ov.summary.total)}
-      ${stat('progress', '진행중', ov.summary.in_progress)}
-      ${stat('review', '검토', ov.summary.review)}
-      ${stat('done', '완료', ov.summary.done)}
-      ${stat('delayed', '지연', ov.summary.delayed, 'alert')}
-      ${stat('issues', '이슈', ov.summary.issues, 'warn')}
-    </div>
+    ${boardMap(ov)}
 
     ${riskSection(risks.rows, { source: risks.source })}
 
@@ -4082,6 +4284,8 @@ async function renderOverview(root) {
           </table>
         </div>` : ''}
     </section>`;
+
+  hoverTip(root);
 
   const jumps = {
     all: '#/project/tasks?done=1',
@@ -5195,33 +5399,9 @@ async function renderTimeline(root) {
           </table>
         </div>` : '<p class="hint">등록된 마일스톤이 없습니다.</p>'}
     </section>
+`;
 
-    <div class="tl-tip" hidden></div>`;
-
-  // ── 호버 툴팁 ─────────────────────────────────────────
-  const tip = root.querySelector('.tl-tip');
-  const showTip = (el) => {
-    tip.innerHTML = el.dataset.tip;
-    tip.hidden = false;
-    const r = el.getBoundingClientRect();
-    const host = root.getBoundingClientRect();
-    const w = tip.offsetWidth;
-    const left = Math.min(Math.max(r.left - host.left + r.width / 2 - w / 2, 4), host.width - w - 4);
-    tip.style.left = `${left}px`;
-    tip.style.top = `${r.top - host.top - tip.offsetHeight - 8}px`;
-  };
-  const hideTip = () => { tip.hidden = true; };
-  root.addEventListener('mouseover', (e) => {
-    const el = e.target.closest('[data-tip]');
-    if (el) showTip(el); else hideTip();
-  });
-  root.addEventListener('mouseleave', hideTip);
-  root.addEventListener('focusin', (e) => {
-    const el = e.target.closest('[data-tip]');
-    if (el) showTip(el);
-  });
-  root.addEventListener('focusout', hideTip);
-  root.addEventListener('scroll', hideTip, true);
+  hoverTip(root);
 
   // ── 편집 ──────────────────────────────────────────────
   const reload = () => window.dispatchEvent(new Event('kf:reload'));

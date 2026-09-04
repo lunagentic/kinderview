@@ -1,6 +1,6 @@
 import { all, one, run, tx, uid, nowISO, today, addDays } from './db.js';
 import {
-  PROGRESS_WEIGHT, STAGE, IN_PROGRESS_STATUSES, REVIEW_STAGE_STATUSES,
+  PROGRESS_WEIGHT, STAGE, WAIT_STATUSES, IN_PROGRESS_STATUSES, REVIEW_STAGE_STATUSES,
   defaultStatusFor, statusesFor, AREAS,
 } from './domain.js';
 
@@ -477,6 +477,7 @@ export const tasks = {
     if (filter.phase?.length) where.push(`t.phase_id IN ${inClause('phz', filter.phase, params)}`);
     if (filter.owner?.length) where.push(`t.owner_slack_user_id IN ${inClause('ow', filter.owner, params)}`);
     if (filter.status?.length) where.push(`t.status IN ${inClause('st', filter.status, params)}`);
+    if (filter.stage === 'WAIT') where.push(`t.status IN ${inClause('sg', WAIT_STATUSES, params)}`);
     if (filter.stage === 'IN_PROGRESS') where.push(`t.status IN ${inClause('sg', IN_PROGRESS_STATUSES, params)}`);
     if (filter.stage === 'REVIEW') where.push(`t.status IN ${inClause('sg', REVIEW_STAGE_STATUSES, params)}`);
     if (filter.stage === 'DONE') where.push("t.status = 'DONE'");
@@ -1048,6 +1049,23 @@ export function overview(ref = today()) {
     .filter((o) => !o.is_active && o.count - o.done > 0)
     .map((o) => ({ display_name: o.display_name, open: o.count - o.done }));
 
+  // 보드 지도 — 업무 하나가 타일 하나다. 화면에서 세는 값이므로 필드는 최소로 둔다.
+  // 프로젝트 정렬 순서로 묶어 같은 색이 붙어 있게 하고(색만으로 구분하지 않도록),
+  // 그 안에서는 지연 → 마감 순으로 앞에 세운다.
+  const projectOrder = new Map(projectRows.map((p, i) => [p.id, i]));
+  const BOARD_CAP = 400;   // 이보다 많으면 화면에서 접는다. 서버가 다 보낼 이유가 없다.
+  const board = rows
+    .slice()
+    .sort((a, b) => (projectOrder.get(a.project_id) ?? 99) - (projectOrder.get(b.project_id) ?? 99)
+      || (b.is_delayed - a.is_delayed)
+      || String(a.due_date).localeCompare(String(b.due_date)))
+    .slice(0, BOARD_CAP)
+    .map((t) => ({
+      id: t.id, title: t.title, project_id: t.project_id, project_name: t.project_name,
+      stage: t.stage, owner_name: t.owner_name, due_date: t.due_date,
+      is_delayed: t.is_delayed, has_open_issue: t.has_open_issue,
+    }));
+
   return {
     today: ref,
     summary,
@@ -1056,6 +1074,8 @@ export function overview(ref = today()) {
     owners: ownerRows,
     outsourcing,
     handover,
+    board,
+    board_truncated: rows.length > BOARD_CAP,
     progress: pct(rows.reduce((s, t) => s + (PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
   };
 }

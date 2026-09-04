@@ -75,6 +75,7 @@ export const STAGE = {
   DONE: 'DONE',
 };
 
+export const WAIT_STATUSES = ['TODO', 'REQUEST_PLANNED', 'REQUESTED'];
 export const IN_PROGRESS_STATUSES = ['IN_PROGRESS', 'OUT_IN_PROGRESS', 'OUT_REVISION'];
 export const REVIEW_STAGE_STATUSES = ['REVIEW', 'OUT_REVIEW'];
 
