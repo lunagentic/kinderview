@@ -33,6 +33,53 @@ CREATE TABLE IF NOT EXISTS project (
   CHECK (end_date IS NULL OR start_date IS NULL OR start_date <= end_date)
 );
 
+-- 페이즈 — 프로젝트를 기간으로 나눈 단계. 업무·시간·경비가 여기에 묶인다.
+CREATE TABLE IF NOT EXISTS phase (
+  id         TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  start_date TEXT,
+  end_date   TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (end_date IS NULL OR start_date IS NULL OR start_date <= end_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_phase_project ON phase(project_id, sort_order);
+
+-- 마일스톤 — 산출물이 나오는 날. 페이즈에 붙을 수도, 프로젝트에 바로 붙을 수도 있다.
+CREATE TABLE IF NOT EXISTS milestone (
+  id         TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  phase_id   TEXT REFERENCES phase(id) ON DELETE SET NULL,
+  name       TEXT NOT NULL,
+  due_date   TEXT NOT NULL,
+  done_at    TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_milestone_project ON milestone(project_id, due_date);
+
+-- 경비 — 시간과 함께 프로젝트에 쌓이는 실비. 요율·인건비는 다루지 않는다.
+CREATE TABLE IF NOT EXISTS expense (
+  id            TEXT PRIMARY KEY,
+  project_id    TEXT NOT NULL REFERENCES project(id),
+  task_id       TEXT REFERENCES task(id) ON DELETE SET NULL,
+  slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
+  spent_on      TEXT NOT NULL,
+  category      TEXT NOT NULL
+                CHECK (category IN ('TRANSPORT','MATERIAL','MEAL','SOFTWARE','ETC')),
+  amount        INTEGER NOT NULL CHECK (amount > 0),
+  memo          TEXT,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_expense_project ON expense(project_id, spent_on);
+CREATE INDEX IF NOT EXISTS idx_expense_date    ON expense(spent_on);
+
 CREATE TABLE IF NOT EXISTS vendor (
   id         TEXT PRIMARY KEY,
   name       TEXT NOT NULL UNIQUE,
@@ -48,6 +95,7 @@ CREATE TABLE IF NOT EXISTS vendor (
 CREATE TABLE IF NOT EXISTS task (
   id                  TEXT PRIMARY KEY,
   project_id          TEXT NOT NULL REFERENCES project(id),
+  phase_id            TEXT REFERENCES phase(id) ON DELETE SET NULL,
   title               TEXT NOT NULL,
   area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','ETC')),
   owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),

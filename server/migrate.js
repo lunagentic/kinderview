@@ -72,9 +72,18 @@ function addOutsourcingPayment() {
   return '외주 지급 컬럼 추가 (amount · payment_status · paid_at)';
 }
 
+/** 업무를 페이즈에 묶는 컬럼 — 비어 있어도 되므로 컬럼만 더하면 된다 */
+function addTaskPhase() {
+  const sql = tableSql('task');
+  if (!sql || sql.includes('phase_id')) return null;
+  db.exec('ALTER TABLE task ADD COLUMN phase_id TEXT REFERENCES phase(id)');
+  return '업무에 페이즈 컬럼 추가';
+}
+
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
-  const notes = [migrateAreas(), addOutsourcingPayment()].filter(Boolean);
+  // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
+  const notes = [migrateAreas(), addTaskPhase(), addOutsourcingPayment()].filter(Boolean);
   for (const note of notes) console.log(`[migrate] ${note}`);
   return notes;
 }

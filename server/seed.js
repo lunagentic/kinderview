@@ -5,7 +5,10 @@
 //   npm run reset         모두 지우고 다시 채운다
 
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
-import { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, TIME_ENTRIES } from './seed-data.js';
+import {
+  MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, TIME_ENTRIES,
+  PHASES, TASK_PHASE, MILESTONES, EXPENSES,
+} from './seed-data.js';
 import { runMigrations } from './migrate.js';
 
 if (runMigrations().length) (await import('./db.js')).applySchema();
@@ -18,7 +21,9 @@ const ts = (isoDate, hh = '10', mm = '00') => `${isoDate}T${hh}:${mm}:00.000Z`;
 if (RESET) {
   db.exec(`DELETE FROM notification; DELETE FROM weekly_report; DELETE FROM task_event;
            DELETE FROM issue; DELETE FROM outsourcing; DELETE FROM task_collaborator;
-           DELETE FROM task; DELETE FROM vendor; DELETE FROM project; DELETE FROM member;`);
+           DELETE FROM time_entry; DELETE FROM expense; DELETE FROM milestone;
+           DELETE FROM task; DELETE FROM phase; DELETE FROM vendor;
+           DELETE FROM project; DELETE FROM member;`);
 }
 
 if (one('SELECT COUNT(*) AS n FROM task').n > 0) {
@@ -61,6 +66,15 @@ tx(() => {
     return id;
   };
 
+  const phaseId = {};
+  for (const [pk, key, name, start, end, order] of PHASES) {
+    const id = uid();
+    phaseId[key] = id;
+    run(`INSERT INTO phase (id, project_id, name, start_date, end_date, sort_order, created_at, updated_at)
+         VALUES (:id, :pid, :name, :start, :end, :order, :at, :at)`,
+      { id, pid: projectId[pk], name, start: start == null ? null : d(start), end: end == null ? null : d(end), order, at });
+  }
+
   const leadOf = Object.fromEntries(AREA_LEADS);
   const taskIdByTitle = {};
   for (const [pk, title, area, owner, status, dueOffset, priority, collabs, out] of TASKS) {
@@ -70,12 +84,13 @@ tx(() => {
     const due = d(dueOffset);
     const created = ts(d(dueOffset - 14 < -60 ? -60 : dueOffset - 14), '01');
     const completed = status === 'DONE' ? ts(due, '08') : null;
-    run(`INSERT INTO task (id, project_id, title, area, owner_slack_user_id, status, priority,
+    run(`INSERT INTO task (id, project_id, phase_id, title, area, owner_slack_user_id, status, priority,
                            start_date, due_date, description, completed_at, created_by, created_at, updated_at)
-         VALUES (:id, :pid, :title, :area, :owner, :status, :priority,
+         VALUES (:id, :pid, :phase, :title, :area, :owner, :status, :priority,
                  :start, :due, :desc, :completed, :by, :created, :created)`,
       {
-        id, pid: projectId[pk], title, area, owner: taskOwner, status, priority,
+        id, pid: projectId[pk], phase: phaseId[TASK_PHASE[title]] ?? null,
+        title, area, owner: taskOwner, status, priority,
         start: d(dueOffset - 10), due, desc: null, completed, by: 'U01KIM', created,
       });
 
@@ -132,6 +147,24 @@ tx(() => {
       { id: uid(), t: taskId, u: member, d: d(dayOffset), h: hours, at });
   }
 
+  for (const [pk, phaseKey, name, dueOffset, doneOffset] of MILESTONES) {
+    run(`INSERT INTO milestone (id, project_id, phase_id, name, due_date, done_at, created_at, updated_at)
+         VALUES (:id, :pid, :phase, :name, :due, :done, :at, :at)`,
+      {
+        id: uid(), pid: projectId[pk], phase: phaseKey ? phaseId[phaseKey] : null, name,
+        due: d(dueOffset), done: doneOffset == null ? null : ts(d(doneOffset), '07'), at,
+      });
+  }
+
+  for (const [pk, taskTitle, member, dayOffset, category, amount, memo] of EXPENSES) {
+    run(`INSERT INTO expense (id, project_id, task_id, slack_user_id, spent_on, category, amount, memo, created_at, updated_at)
+         VALUES (:id, :pid, :tid, :u, :on, :cat, :amount, :memo, :at, :at)`,
+      {
+        id: uid(), pid: projectId[pk], tid: taskTitle ? taskIdByTitle[taskTitle] ?? null : null,
+        u: member, on: d(dayOffset), cat: category, amount, memo, at,
+      });
+  }
+
   for (const [pk, taskTitle, title, content, owner, severity, status, targetOffset, impact] of ISSUES) {
     const id = uid();
     const created = ts(d(-4), '03');
@@ -154,6 +187,9 @@ const counts = {
   업무: one('SELECT COUNT(*) AS n FROM task').n,
   외주: one('SELECT COUNT(*) AS n FROM outsourcing').n,
   이슈: one('SELECT COUNT(*) AS n FROM issue').n,
+  페이즈: one('SELECT COUNT(*) AS n FROM phase').n,
+  마일스톤: one('SELECT COUNT(*) AS n FROM milestone').n,
+  경비: one('SELECT COUNT(*) AS n FROM expense').n,
 };
 console.log('시드 완료:', Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(' · '));
 console.log('기준일:', T);

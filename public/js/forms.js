@@ -140,6 +140,11 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
             <input type="date" name="start_date" value="${esc(task?.start_date ?? '')}">
           </label>
           <label class="field">
+            <span class="lab">페이즈</span>
+            <select name="phase_id"><option value="">지정 안 함</option></select>
+            <span class="hint">프로젝트를 고르면 채워집니다 · 타임라인에서 묶이는 단위</span>
+          </label>
+          <label class="field">
             <span class="lab">우선순위</span>
             <select name="priority">${opts(state.meta.priorities, task?.priority ?? 'NORMAL')}</select>
           </label>
@@ -231,6 +236,24 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       areaSel.addEventListener('change', () => { syncArea(); syncLead(); });
       syncArea();
       syncLead();
+
+      // 페이즈는 프로젝트에 딸린 값이라 프로젝트가 바뀔 때마다 다시 불러온다
+      const projectSel = form.querySelector('[name=project_id]');
+      const phaseSel = form.querySelector('[name=phase_id]');
+      const syncPhases = async () => {
+        const pid = projectSel.value;
+        const want = phaseSel.dataset.want ?? task?.phase_id ?? '';
+        phaseSel.innerHTML = '<option value="">지정 안 함</option>';
+        if (!pid) return;
+        try {
+          const list = await api.get(`/api/phases?project=${encodeURIComponent(pid)}`);
+          phaseSel.insertAdjacentHTML('beforeend',
+            list.map((ph) => `<option value="${esc(ph.id)}">${esc(ph.name)}</option>`).join(''));
+          if (want && list.some((ph) => ph.id === want)) phaseSel.value = want;
+        } catch { /* 페이즈를 못 불러와도 업무는 저장할 수 있다 */ }
+      };
+      projectSel.addEventListener('change', () => { delete phaseSel.dataset.want; syncPhases(); });
+      syncPhases();
 
       // 납품 예정일을 넣으면 마감일 기본값으로 채운다
       deliveryInput.addEventListener('change', () => {
@@ -526,6 +549,224 @@ export function areaLeadsForm({ onSaved }) {
         } catch (err) {
           toast(err.message, true);
         }
+      });
+    },
+  });
+}
+
+// ── 페이즈 ──────────────────────────────────────────────
+// 기간을 비워 두면 그 페이즈에 속한 업무 일정에서 자동으로 유도된다.
+export function phaseForm({ phase = null, projectId, onSaved }) {
+  const editing = Boolean(phase);
+  const body = `
+    <form id="phase-form">
+      <div class="form-grid">
+        <label class="field span2">
+          <span class="lab">페이즈 이름<span class="req">*</span></span>
+          <input type="text" name="name" required maxlength="60" value="${esc(phase?.name ?? '')}"
+                 placeholder="예: 기획·설계">
+        </label>
+        <label class="field">
+          <span class="lab">시작일</span>
+          <input type="date" name="start_date" value="${esc(phase?.start_date ?? '')}">
+        </label>
+        <label class="field">
+          <span class="lab">종료일</span>
+          <input type="date" name="end_date" value="${esc(phase?.end_date ?? '')}">
+        </label>
+        <p class="hint span2">기간을 비워 두면 이 페이즈에 속한 업무의 시작·마감으로 자동 계산합니다.</p>
+      </div>
+    </form>`;
+
+  modal({
+    title: editing ? '페이즈 수정' : '페이즈 추가',
+    body,
+    footer: `<div class="right">
+      ${editing ? '<button class="btn btn-danger" data-remove>삭제</button>' : ''}
+      <button class="btn" data-close>취소</button>
+      <button class="btn btn-primary" data-save>${editing ? '저장' : '추가'}</button></div>`,
+    onMount({ root, close }) {
+      const form = root.querySelector('#phase-form');
+      root.querySelector('[data-remove]')?.addEventListener('click', async () => {
+        const ok = await confirmModal('페이즈를 삭제하면 속한 업무는 남고 연결만 끊어집니다. 계속할까요?', { danger: true });
+        if (!ok) return;
+        try {
+          await api.del(`/api/phases/${phase.id}`);
+          toast('페이즈를 삭제했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
+      });
+      root.querySelector('[data-save]').addEventListener('click', async () => {
+        const fd = new FormData(form);
+        const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
+        if (!payload.name?.trim()) return toast('페이즈 이름을 입력해 주세요.', true);
+        payload.project_id = projectId ?? phase?.project_id;
+        try {
+          await (editing ? api.patch(`/api/phases/${phase.id}`, payload) : api.post('/api/phases', payload));
+          toast(editing ? '페이즈를 저장했습니다.' : '페이즈를 추가했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
+      });
+    },
+  });
+}
+
+// ── 마일스톤 ────────────────────────────────────────────
+export function milestoneForm({ milestone = null, projectId, phases = [], onSaved }) {
+  const editing = Boolean(milestone);
+  const pid = projectId ?? milestone?.project_id;
+  const mine = phases.filter((p) => p.project_id === pid);
+  const body = `
+    <form id="milestone-form">
+      <div class="form-grid">
+        <label class="field span2">
+          <span class="lab">마일스톤<span class="req">*</span></span>
+          <input type="text" name="name" required maxlength="80" value="${esc(milestone?.name ?? '')}"
+                 placeholder="예: 교사 앱 베타 오픈">
+        </label>
+        <label class="field">
+          <span class="lab">날짜<span class="req">*</span></span>
+          <input type="date" name="due_date" required value="${esc(milestone?.due_date ?? '')}">
+        </label>
+        <label class="field">
+          <span class="lab">페이즈</span>
+          <select name="phase_id">
+            <option value="">지정 안 함</option>
+            ${mine.map((p) => `<option value="${esc(p.id)}"${p.id === milestone?.phase_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
+          </select>
+        </label>
+        ${editing ? `
+        <label class="field span2 check">
+          <input type="checkbox" name="done"${milestone.done_at ? ' checked' : ''}>
+          <span>달성함</span>
+        </label>` : ''}
+      </div>
+    </form>`;
+
+  modal({
+    title: editing ? '마일스톤 수정' : '마일스톤 추가',
+    body,
+    footer: `<div class="right">
+      ${editing ? '<button class="btn btn-danger" data-remove>삭제</button>' : ''}
+      <button class="btn" data-close>취소</button>
+      <button class="btn btn-primary" data-save>${editing ? '저장' : '추가'}</button></div>`,
+    onMount({ root, close }) {
+      const form = root.querySelector('#milestone-form');
+      root.querySelector('[data-remove]')?.addEventListener('click', async () => {
+        const ok = await confirmModal('마일스톤을 삭제할까요?', { danger: true });
+        if (!ok) return;
+        try {
+          await api.del(`/api/milestones/${milestone.id}`);
+          toast('마일스톤을 삭제했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
+      });
+      root.querySelector('[data-save]').addEventListener('click', async () => {
+        const fd = new FormData(form);
+        const payload = {
+          name: fd.get('name'),
+          due_date: fd.get('due_date') || null,
+          phase_id: fd.get('phase_id') || null,
+          project_id: pid,
+        };
+        if (editing) payload.done = form.querySelector('[name=done]').checked;
+        if (!payload.name?.trim()) return toast('마일스톤 이름을 입력해 주세요.', true);
+        if (!payload.due_date) return toast('날짜를 입력해 주세요.', true);
+        try {
+          await (editing ? api.patch(`/api/milestones/${milestone.id}`, payload) : api.post('/api/milestones', payload));
+          toast(editing ? '마일스톤을 저장했습니다.' : '마일스톤을 추가했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
+      });
+    },
+  });
+}
+
+// ── 경비 ────────────────────────────────────────────────
+// 실비만 다룬다. 요율·인건비는 넣지 않는다 (docs/13-time-invoice-spec.md).
+export function expenseForm({ defaults = {}, onSaved }) {
+  const cats = state.meta?.expense_categories ?? [];
+  const body = `
+    <form id="expense-form">
+      <div class="form-grid">
+        <label class="field">
+          <span class="lab">프로젝트<span class="req">*</span></span>
+          <select name="project_id" required>
+            <option value="">선택</option>
+            ${opts(activeProjects(), defaults.project_id, { value: 'id', label: 'name' })}
+          </select>
+        </label>
+        <label class="field">
+          <span class="lab">사용일<span class="req">*</span></span>
+          <input type="date" name="spent_on" required value="${esc(defaults.spent_on ?? state.today ?? '')}">
+        </label>
+        <label class="field">
+          <span class="lab">분류<span class="req">*</span></span>
+          <select name="category" required>${opts(cats, defaults.category ?? 'TRANSPORT')}</select>
+        </label>
+        <label class="field">
+          <span class="lab">금액(원)<span class="req">*</span></span>
+          <input type="text" name="amount" inputmode="numeric" required placeholder="예: 18400">
+        </label>
+        <label class="field span2">
+          <span class="lab">연결 업무</span>
+          <select name="task_id"><option value="">지정 안 함</option></select>
+          <span class="hint">프로젝트를 고르면 내 업무 목록이 채워집니다.</span>
+        </label>
+        <label class="field span2">
+          <span class="lab">메모</span>
+          <input type="text" name="memo" maxlength="120" placeholder="예: 파일럿 어린이집 방문 인터뷰">
+        </label>
+      </div>
+    </form>`;
+
+  modal({
+    title: '경비 등록',
+    body,
+    footer: `<div class="right">
+      <button class="btn" data-close>취소</button>
+      <button class="btn btn-primary" data-save>등록</button></div>`,
+    onMount({ root, close }) {
+      const form = root.querySelector('#expense-form');
+      const taskSel = form.querySelector('[name=task_id]');
+
+      const loadTasks = async () => {
+        const pid = form.querySelector('[name=project_id]').value;
+        taskSel.innerHTML = '<option value="">지정 안 함</option>';
+        if (!pid) return;
+        try {
+          const rows = await api.get(`/api/tasks?project=${encodeURIComponent(pid)}&done=1`);
+          taskSel.insertAdjacentHTML('beforeend',
+            rows.map((t) => `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join(''));
+          if (defaults.task_id) taskSel.value = defaults.task_id;
+        } catch { /* 업무를 못 불러와도 경비는 등록할 수 있다 */ }
+      };
+      form.querySelector('[name=project_id]').addEventListener('change', loadTasks);
+      loadTasks();
+
+      root.querySelector('[data-save]').addEventListener('click', async () => {
+        const fd = new FormData(form);
+        const amount = Number(String(fd.get('amount')).replace(/[,\s원]/g, ''));
+        if (!fd.get('project_id')) return toast('프로젝트를 선택해 주세요.', true);
+        if (!fd.get('spent_on')) return toast('사용일을 입력해 주세요.', true);
+        if (!Number.isFinite(amount) || amount <= 0) return toast('금액을 0보다 큰 숫자로 입력해 주세요.', true);
+        try {
+          await api.post('/api/expenses', {
+            project_id: fd.get('project_id'),
+            task_id: fd.get('task_id') || null,
+            spent_on: fd.get('spent_on'),
+            category: fd.get('category'),
+            amount,
+            memo: fd.get('memo') || null,
+          });
+          toast('경비를 등록했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
       });
     },
   });

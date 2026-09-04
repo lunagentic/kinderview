@@ -1,6 +1,12 @@
 import { api } from '../api.js';
 import { state, areaMeta } from '../state.js';
-import { esc, loading, errorBox, empty, toast, go, projectName, progressBar, pctText } from '../ui.js';
+import {
+  esc, loading, errorBox, empty, toast, go, projectName, projectTone,
+  progressBar, pctText, shortDate, confirmModal,
+} from '../ui.js';
+import { expenseForm } from '../forms.js';
+
+const won = (n) => `${Number(n || 0).toLocaleString('ko-KR')}원`;
 
 const WEEK_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
 const dayShift = (iso, n) =>
@@ -16,12 +22,16 @@ export async function renderTime(root, query) {
   let sheet;
   let summary;
   let myTasks;
+  let spend;
   try {
     [sheet, myTasks] = await Promise.all([
       api.get(`/api/time/week${week ? `?week=${encodeURIComponent(week)}` : ''}`),
       api.get('/api/tasks?owner=me&done=1'),
     ]);
-    summary = await api.get(`/api/time/summary?from=${sheet.period.start}&to=${sheet.period.end}`);
+    [summary, spend] = await Promise.all([
+      api.get(`/api/time/summary?from=${sheet.period.start}&to=${sheet.period.end}`),
+      api.get(`/api/expenses?from=${sheet.period.start}&to=${sheet.period.end}`),
+    ]);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
@@ -39,6 +49,7 @@ export async function renderTime(root, query) {
         <div class="sub">${mmdd(sheet.period.start)} ~ ${mmdd(sheet.period.end)} · 이번 주 <b>${fmtHours(sheet.total) || 0}시간</b></div>
       </div>
       <div class="page-actions">
+        <button class="btn" data-new-expense>+ 경비</button>
         <button class="btn" data-week="${esc(dayShift(sheet.period.start, -7))}">◀ 지난주</button>
         <button class="btn" data-week="${esc(dayShift(sheet.period.start, 7))}">다음주 ▶</button>
       </div>
@@ -114,7 +125,7 @@ export async function renderTime(root, query) {
           <h3 class="mini-head">프로젝트별</h3>
           <div class="bars">
             ${summary.projects.length ? summary.projects.map((r) => `
-              <div class="bar" style="cursor:default;--pc:var(--p${tone(r.key)})">
+              <div class="bar" style="cursor:default;--pc:var(--p${projectTone(r.key)})">
                 <span class="name">${esc(r.label)}</span>
                 ${progressBar(summary.total ? Math.round((r.hours / summary.total) * 100) : 0)}
                 <span class="pct">${fmtHours(r.hours)}h</span>
@@ -133,13 +144,45 @@ export async function renderTime(root, query) {
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>이번 주 경비</h2>
+        <span class="meta">실비만 기록합니다 · 요율·인건비는 다루지 않습니다</span>
+      </div>
+      <div class="exp-head">
+        <span class="exp-total">${won(spend.summary.total)}</span>
+        <span class="hint">${spend.summary.count}건</span>
+      </div>
+      ${spend.summary.categories.length ? `
+        <div class="exp-cats">
+          ${spend.summary.categories.map((c) => `
+            <span class="exp-cat">${esc(c.label)} <b>${won(c.amount)}</b></span>`).join('')}
+        </div>` : ''}
+      ${spend.rows.length ? `
+        <div class="table-wrap">
+          <table class="list">
+            <thead><tr><th>사용일</th><th>프로젝트</th><th>분류</th><th>내용</th><th>지출자</th><th class="num">금액</th><th></th></tr></thead>
+            <tbody>
+              ${spend.rows.map((r) => `
+                <tr>
+                  <td data-label="사용일" class="nowrap">${shortDate(r.spent_on)}</td>
+                  <td data-label="프로젝트">${projectName(r.project_id, r.project_name)}</td>
+                  <td data-label="분류">${esc(catLabel(r.category))}</td>
+                  <td data-label="내용">${esc(r.memo || '-')}${
+                    r.task_title ? `<span class="hint"> · ${esc(r.task_title)}</span>` : ''}</td>
+                  <td data-label="지출자">${esc(r.display_name)}</td>
+                  <td data-label="금액" class="num nowrap">${won(r.amount)}</td>
+                  <td class="num"><button class="btn btn-ghost sm" data-del-expense="${esc(r.id)}">삭제</button></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<p class="hint">이번 주에 등록된 경비가 없습니다.</p>'}
     </section>`;
 
-  // 프로젝트 색은 Overview 와 같은 규칙을 쓴다
-  function tone(id) {
-    let h = 0;
-    for (const ch of String(id ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    return h % 6;
+  function catLabel(code) {
+    return (state.meta?.expense_categories ?? []).find((c) => c.code === code)?.label ?? code;
   }
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
@@ -185,9 +228,25 @@ export async function renderTime(root, query) {
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.closest('.hcell')) { e.preventDefault(); e.target.blur(); }
   });
-  root.addEventListener('click', (e) => {
+  root.addEventListener('click', async (e) => {
     const w = e.target.closest('[data-week]');
-    if (w) go(`#/time?week=${w.dataset.week}`);
+    if (w) return go(`#/time?week=${w.dataset.week}`);
+
+    if (e.target.closest('[data-new-expense]')) {
+      return expenseForm({ defaults: { spent_on: state.today }, onSaved: reload });
+    }
+
+    const del = e.target.closest('[data-del-expense]');
+    if (del) {
+      const ok = await confirmModal('이 경비 기록을 삭제할까요?', { danger: true });
+      if (!ok) return undefined;
+      try {
+        await api.del(`/api/expenses/${del.dataset.delExpense}`);
+        toast('경비를 삭제했습니다.');
+        reload();
+      } catch (err) { toast(err.message, true); }
+    }
+    return undefined;
   });
   void pctText;
 }

@@ -35,9 +35,11 @@
   --focus:var(--indigo);
 
   /* 프로젝트 색 — id 로 고정 배정된다 (ui.js projectTone).
-     로즈는 넣지 않는다. 지연(빨강)과 섞여 경고로 읽힌다. */
-  --p0:var(--indigo); --p1:var(--orchid); --p2:var(--teal);
-  --p3:var(--amber);  --p4:var(--purple); --p5:#2E7DF6;
+     4칸이다. 6칸일 때는 보라(#7A4FD4)와 파랑(#2E7DF6)이 구분되지 않았다
+     (정상 시야 ΔE 13.3, 기준 15). 색은 보조 신호다 — 어디서든 점 옆에
+     프로젝트 이름이 함께 나온다. 로즈는 넣지 않는다: 지연(빨강)과 섞여 경고로 읽힌다.
+     대비·색각 검증을 통과한 값이다. 바꾸려면 다시 검증할 것. */
+  --p0:#3B2FC8; --p1:#CE5EC6; --p2:#0E9384; --p3:#C77B12;
 
   /* 상태 */
   --s-wait:#858CA6;
@@ -64,6 +66,7 @@
     --on-chrome:#E7E9F4; --on-chrome-muted:#8A92B2;
     --indigo:#7C72F5; --orchid:#E27BE8; --amber:#F5BE55;
     --teal:#2DD4BF; --purple:#A188EC; --rose:#F2697F;
+    --p0:#6055DE; --p1:#C85FC0; --p2:#17A187; --p3:#C08722;
     --s-wait:#949BB4; --s-prog:#7C72F5; --s-review:#A188EC;
     --s-done:#2DD4BF; --s-delay:#F2697F; --s-issue:#E0A83E;
     --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
@@ -77,6 +80,7 @@
   --on-chrome:#E7E9F4; --on-chrome-muted:#8A92B2;
   --indigo:#7C72F5; --orchid:#E27BE8; --amber:#F5BE55;
   --teal:#2DD4BF; --purple:#A188EC; --rose:#F2697F;
+  --p0:#6055DE; --p1:#C85FC0; --p2:#17A187; --p3:#C08722;
   --s-wait:#949BB4; --s-prog:#7C72F5; --s-review:#A188EC;
   --s-done:#2DD4BF; --s-delay:#F2697F; --s-issue:#E0A83E;
   --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
@@ -586,3 +590,102 @@ details.more[open] > summary{color:var(--ink)}
     margin:0;font-size:.88rem}
   .sheet-add .field{min-width:0;width:100%}
 }
+
+/* ── 타임라인 (간트) ────────────────────────
+   색 규칙은 화면 전체와 같다: 프로젝트 색은 정체성, 채움 길이는 진행률,
+   상태색은 마일스톤 상태에만. 막대에는 늘 이름이 붙어 색만으로 구분되는 곳이 없다. */
+.tl-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:6px 16px 14px;overflow-x:auto;position:relative}
+.tl-chart{min-width:660px;position:relative;--tl-label:172px}
+
+.tl-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 2px 10px;font-size:.76rem;color:var(--muted)}
+.tl-key{display:inline-flex;align-items:center;gap:7px}
+.tl-key i{flex:none}
+.tl-key .k-bar{width:26px;height:9px;border-radius:4px;background:var(--surface-2);
+  border:1px solid var(--line);position:relative;overflow:hidden}
+.tl-key .k-bar::before{content:"";position:absolute;inset:0 auto 0 0;width:55%;background:var(--muted);opacity:.55}
+.tl-key .k-ms{width:9px;height:9px;transform:rotate(45deg);border-radius:2px;border:2px solid var(--muted)}
+.tl-key .k-ms.plan{border-color:var(--muted);background:var(--surface)}
+.tl-key .k-ms.late{border-color:var(--s-delay);background:var(--s-delay)}
+.tl-key .k-ms.done{border-color:var(--s-done);background:var(--s-done)}
+.tl-key .k-today{width:2px;height:13px;background:var(--ink-2)}
+
+.tl-row{display:grid;grid-template-columns:var(--tl-label) 1fr;align-items:center;gap:12px;min-height:30px}
+.tl-label{min-width:0;display:flex;flex-direction:column;gap:1px;padding:3px 0}
+.tl-name{background:none;border:none;padding:0;text-align:left;font:inherit;font-weight:500;
+  color:var(--ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-name:hover{color:var(--indigo);text-decoration:underline}
+.tl-meta{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-track{position:relative;height:22px}
+
+/* 눈금은 뒤로 물러나 있어야 한다 */
+.tl-grid{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--line-soft)}
+
+.tl-axis{min-height:26px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.tl-axis .tl-track{height:20px}
+.tl-month{position:absolute;top:2px;font-family:var(--mono);font-size:.68rem;color:var(--muted);
+  padding-left:5px;border-left:1px solid var(--line);line-height:16px;white-space:nowrap;overflow:hidden}
+
+/* 오늘 — 차트 전체를 관통하는 한 줄 */
+.tl-today{position:absolute;top:26px;bottom:6px;width:2px;background:var(--ink-2);opacity:.4;
+  pointer-events:none;z-index:2}
+.tl-today-cap{position:absolute;top:0;transform:translateX(-50%);font-size:.66rem;font-style:normal;
+  color:var(--ink-2);background:var(--surface);padding:0 4px;white-space:nowrap}
+
+.tl-group{padding:10px 0 12px;border-bottom:1px solid var(--line-soft)}
+.tl-group:last-of-type{border-bottom:none}
+.tl-group-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.tl-group-head h2{font-size:.95rem;font-weight:700;letter-spacing:-.01em}
+.tl-group-actions{margin-left:auto;display:flex;gap:6px}
+.btn.sm{padding:3px 9px;font-size:.74rem}
+
+/* 페이즈 막대 — 테두리가 전체 기간, 채움이 완료 비율 */
+.tl-bar{position:absolute;top:3px;height:16px;border-radius:4px;
+  background:color-mix(in oklab, var(--pc) 16%, var(--surface));
+  border:1.5px solid var(--pc);cursor:pointer;overflow:hidden;
+  display:flex;align-items:center;min-width:6px}
+.tl-bar:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.tl-bar.is-derived{border-style:dashed}
+.tl-fill{position:absolute;inset:0 auto 0 0;background:var(--pc);border-radius:2px 0 0 2px}
+/* 페이즈 이름은 왼쪽 축이 이미 달고 있다. 막대 위에 겹쳐 쓰면
+   진한 채움 위에서 읽히지 않으므로, 막대 오른쪽에 기간만 덧붙인다. */
+.tl-range{position:absolute;top:4px;margin-left:7px;font-size:.7rem;color:var(--muted);
+  white-space:nowrap;pointer-events:none;font-family:var(--mono)}
+.tl-nodate{position:absolute;left:0;top:3px;font-size:.72rem;color:var(--muted)}
+
+/* 마일스톤 — 마름모. 상태색과 함께 기호를 단다 */
+.tl-row-ms .tl-track{height:18px}
+.tl-ms{position:absolute;top:0;transform:translateX(-50%);width:22px;height:18px;
+  background:none;border:none;padding:0;cursor:pointer;display:grid;place-items:center}
+.tl-ms i{width:10px;height:10px;transform:rotate(45deg);border-radius:2px;
+  border:2px solid var(--muted);background:var(--surface);
+  box-shadow:0 0 0 2px var(--surface)}
+.tl-ms.is-plan i{border-color:var(--pc);background:var(--surface)}
+.tl-ms.is-late i{border-color:var(--s-delay);background:var(--s-delay)}
+.tl-ms.is-done i{border-color:var(--s-done);background:var(--s-done)}
+.tl-ms:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
+
+.chip.ms-done{color:var(--s-done)} .chip.ms-late{color:var(--s-delay)} .chip.ms-plan{color:var(--s-wait)}
+
+.tl-tip{position:absolute;z-index:40;pointer-events:none;max-width:260px;
+  background:var(--chrome);color:var(--on-chrome);border-radius:var(--radius-sm);
+  padding:8px 11px;font-size:.76rem;line-height:1.5;box-shadow:var(--shadow)}
+.tl-tip b{font-weight:600}
+
+.tl-table{margin-top:14px}
+.tl-table summary{cursor:pointer;font-size:.8rem;color:var(--muted);padding:6px 2px}
+.tl-table summary:hover{color:var(--ink)}
+.tl-table .table-wrap{margin-top:8px}
+
+@media (max-width:860px){
+  .tl-chart{--tl-label:112px;min-width:560px}
+  .tl-group-actions{margin-left:0;width:100%}
+}
+
+/* ── 경비 ──────────────────────────────────── */
+.exp-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.exp-total{font-family:var(--mono);font-size:1.5rem;font-weight:600;letter-spacing:-.02em}
+.exp-cats{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
+.exp-cat{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
+  border-radius:999px;padding:4px 11px;font-size:.76rem;background:var(--surface)}
+.exp-cat b{font-family:var(--mono);font-weight:600}

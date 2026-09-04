@@ -7,6 +7,7 @@ import { renderTaskDetail } from './views/taskDetail.js';
 import { renderIssues, renderIssueDetail } from './views/issues.js';
 import { renderWeekly } from './views/weekly.js';
 import { renderNotifications } from './views/notifications.js';
+import { renderTimeline } from './views/timeline.js';
 import { renderTime } from './views/time.js';
 import { renderInvoice } from './views/invoice.js';
 
@@ -16,6 +17,7 @@ const view = document.getElementById('view');
 const PROJECT_TABS = [
   { key: 'overview', label: '현황' },
   { key: 'tasks',    label: '업무' },
+  { key: 'timeline', label: '타임라인' },
   { key: 'issues',   label: '이슈' },
   { key: 'weekly',   label: '주간 리포트' },
 ];
@@ -62,6 +64,7 @@ async function render() {
       fresh.appendChild(host);
       if (sub === 'overview') await renderOverview(host);
       else if (sub === 'tasks') { if (id) await renderTaskDetail(host, id); else await renderTasks(host, query); }
+      else if (sub === 'timeline') await renderTimeline(host);
       else if (sub === 'issues') { if (id) await renderIssueDetail(host, id); else await renderIssues(host, query); }
       else await renderWeekly(host, query);
       return;

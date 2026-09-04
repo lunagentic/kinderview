@@ -7,7 +7,8 @@ import { dbFile, today, applySchema, weekStart, addDays } from './db.js';
 import { runMigrations } from './migrate.js';
 import {
   members, projects, vendors, tasks, issues, overview, areaLeads,
-  timeEntries, payments, HttpError,
+  timeEntries, payments, phases, milestones, timeline, expenses,
+  EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
 import * as weekly from './weekly.js';
 import * as notify from './notify.js';
@@ -89,6 +90,7 @@ route('GET', '/api/bootstrap', (ctx) => ({
     priorities: PRIORITIES,
     project_statuses: PROJECT_STATUSES,
     progress_weight: PROGRESS_WEIGHT,
+    expense_categories: EXPENSE_CATEGORIES,
   },
 }));
 
@@ -103,6 +105,7 @@ route('GET', '/api/tasks', (ctx) => {
   const owner = listParam(u, 'owner')?.map((o) => (o === 'me' ? ctx.me : o));
   return tasks.list({
     project: listParam(u, 'project'),
+    phase: u.searchParams.get('phase') || undefined,
     area: listParam(u, 'area'),
     owner,
     status: listParam(u, 'status'),
@@ -217,6 +220,39 @@ route('POST', '/api/slack/sync', async () => {
   const list = await slack.fetchMembers();
   return members.syncAll(list);
 });
+
+// ── 페이즈 · 마일스톤 · 타임라인 ────────────────────────
+
+route('GET', '/api/timeline', () => timeline());
+
+route('GET', '/api/phases', (ctx) => phases.list(ctx.url.searchParams.get('project') || undefined));
+route('POST', '/api/phases', (ctx) => phases.create(ctx.body));
+route('PATCH', '/api/phases/:id', (ctx) => phases.update(ctx.params.id, ctx.body));
+route('DELETE', '/api/phases/:id', (ctx) => phases.remove(ctx.params.id));
+
+route('GET', '/api/milestones', (ctx) => milestones.list(ctx.url.searchParams.get('project') || undefined));
+route('POST', '/api/milestones', (ctx) => milestones.create(ctx.body));
+route('PATCH', '/api/milestones/:id', (ctx) => milestones.update(ctx.params.id, ctx.body));
+route('DELETE', '/api/milestones/:id', (ctx) => milestones.remove(ctx.params.id));
+
+// ── 경비 ────────────────────────────────────────────────
+
+route('GET', '/api/expenses', (ctx) => {
+  const u = ctx.url;
+  const range = {
+    from: u.searchParams.get('from') || undefined,
+    to: u.searchParams.get('to') || undefined,
+    project: u.searchParams.get('project') || undefined,
+    member: (() => {
+      const who = u.searchParams.get('member');
+      return who === 'me' ? ctx.me : (who || undefined);
+    })(),
+  };
+  return { rows: expenses.list(range), summary: expenses.summary(range) };
+});
+
+route('POST', '/api/expenses', (ctx) => expenses.create(ctx.body, ctx.me));
+route('DELETE', '/api/expenses/:id', (ctx) => expenses.remove(ctx.params.id));
 
 // ── 타임트래킹 ──────────────────────────────────────────
 

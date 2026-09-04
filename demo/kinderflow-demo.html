@@ -40,9 +40,11 @@
   --focus:var(--indigo);
 
   /* 프로젝트 색 — id 로 고정 배정된다 (ui.js projectTone).
-     로즈는 넣지 않는다. 지연(빨강)과 섞여 경고로 읽힌다. */
-  --p0:var(--indigo); --p1:var(--orchid); --p2:var(--teal);
-  --p3:var(--amber);  --p4:var(--purple); --p5:#2E7DF6;
+     4칸이다. 6칸일 때는 보라(#7A4FD4)와 파랑(#2E7DF6)이 구분되지 않았다
+     (정상 시야 ΔE 13.3, 기준 15). 색은 보조 신호다 — 어디서든 점 옆에
+     프로젝트 이름이 함께 나온다. 로즈는 넣지 않는다: 지연(빨강)과 섞여 경고로 읽힌다.
+     대비·색각 검증을 통과한 값이다. 바꾸려면 다시 검증할 것. */
+  --p0:#3B2FC8; --p1:#CE5EC6; --p2:#0E9384; --p3:#C77B12;
 
   /* 상태 */
   --s-wait:#858CA6;
@@ -69,6 +71,7 @@
     --on-chrome:#E7E9F4; --on-chrome-muted:#8A92B2;
     --indigo:#7C72F5; --orchid:#E27BE8; --amber:#F5BE55;
     --teal:#2DD4BF; --purple:#A188EC; --rose:#F2697F;
+    --p0:#6055DE; --p1:#C85FC0; --p2:#17A187; --p3:#C08722;
     --s-wait:#949BB4; --s-prog:#7C72F5; --s-review:#A188EC;
     --s-done:#2DD4BF; --s-delay:#F2697F; --s-issue:#E0A83E;
     --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
@@ -82,6 +85,7 @@
   --on-chrome:#E7E9F4; --on-chrome-muted:#8A92B2;
   --indigo:#7C72F5; --orchid:#E27BE8; --amber:#F5BE55;
   --teal:#2DD4BF; --purple:#A188EC; --rose:#F2697F;
+  --p0:#6055DE; --p1:#C85FC0; --p2:#17A187; --p3:#C08722;
   --s-wait:#949BB4; --s-prog:#7C72F5; --s-review:#A188EC;
   --s-done:#2DD4BF; --s-delay:#F2697F; --s-issue:#E0A83E;
   --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
@@ -592,6 +596,105 @@ details.more[open] > summary{color:var(--ink)}
   .sheet-add .field{min-width:0;width:100%}
 }
 
+/* ── 타임라인 (간트) ────────────────────────
+   색 규칙은 화면 전체와 같다: 프로젝트 색은 정체성, 채움 길이는 진행률,
+   상태색은 마일스톤 상태에만. 막대에는 늘 이름이 붙어 색만으로 구분되는 곳이 없다. */
+.tl-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:6px 16px 14px;overflow-x:auto;position:relative}
+.tl-chart{min-width:660px;position:relative;--tl-label:172px}
+
+.tl-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 2px 10px;font-size:.76rem;color:var(--muted)}
+.tl-key{display:inline-flex;align-items:center;gap:7px}
+.tl-key i{flex:none}
+.tl-key .k-bar{width:26px;height:9px;border-radius:4px;background:var(--surface-2);
+  border:1px solid var(--line);position:relative;overflow:hidden}
+.tl-key .k-bar::before{content:"";position:absolute;inset:0 auto 0 0;width:55%;background:var(--muted);opacity:.55}
+.tl-key .k-ms{width:9px;height:9px;transform:rotate(45deg);border-radius:2px;border:2px solid var(--muted)}
+.tl-key .k-ms.plan{border-color:var(--muted);background:var(--surface)}
+.tl-key .k-ms.late{border-color:var(--s-delay);background:var(--s-delay)}
+.tl-key .k-ms.done{border-color:var(--s-done);background:var(--s-done)}
+.tl-key .k-today{width:2px;height:13px;background:var(--ink-2)}
+
+.tl-row{display:grid;grid-template-columns:var(--tl-label) 1fr;align-items:center;gap:12px;min-height:30px}
+.tl-label{min-width:0;display:flex;flex-direction:column;gap:1px;padding:3px 0}
+.tl-name{background:none;border:none;padding:0;text-align:left;font:inherit;font-weight:500;
+  color:var(--ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-name:hover{color:var(--indigo);text-decoration:underline}
+.tl-meta{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-track{position:relative;height:22px}
+
+/* 눈금은 뒤로 물러나 있어야 한다 */
+.tl-grid{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--line-soft)}
+
+.tl-axis{min-height:26px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.tl-axis .tl-track{height:20px}
+.tl-month{position:absolute;top:2px;font-family:var(--mono);font-size:.68rem;color:var(--muted);
+  padding-left:5px;border-left:1px solid var(--line);line-height:16px;white-space:nowrap;overflow:hidden}
+
+/* 오늘 — 차트 전체를 관통하는 한 줄 */
+.tl-today{position:absolute;top:26px;bottom:6px;width:2px;background:var(--ink-2);opacity:.4;
+  pointer-events:none;z-index:2}
+.tl-today-cap{position:absolute;top:0;transform:translateX(-50%);font-size:.66rem;font-style:normal;
+  color:var(--ink-2);background:var(--surface);padding:0 4px;white-space:nowrap}
+
+.tl-group{padding:10px 0 12px;border-bottom:1px solid var(--line-soft)}
+.tl-group:last-of-type{border-bottom:none}
+.tl-group-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.tl-group-head h2{font-size:.95rem;font-weight:700;letter-spacing:-.01em}
+.tl-group-actions{margin-left:auto;display:flex;gap:6px}
+.btn.sm{padding:3px 9px;font-size:.74rem}
+
+/* 페이즈 막대 — 테두리가 전체 기간, 채움이 완료 비율 */
+.tl-bar{position:absolute;top:3px;height:16px;border-radius:4px;
+  background:color-mix(in oklab, var(--pc) 16%, var(--surface));
+  border:1.5px solid var(--pc);cursor:pointer;overflow:hidden;
+  display:flex;align-items:center;min-width:6px}
+.tl-bar:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.tl-bar.is-derived{border-style:dashed}
+.tl-fill{position:absolute;inset:0 auto 0 0;background:var(--pc);border-radius:2px 0 0 2px}
+/* 페이즈 이름은 왼쪽 축이 이미 달고 있다. 막대 위에 겹쳐 쓰면
+   진한 채움 위에서 읽히지 않으므로, 막대 오른쪽에 기간만 덧붙인다. */
+.tl-range{position:absolute;top:4px;margin-left:7px;font-size:.7rem;color:var(--muted);
+  white-space:nowrap;pointer-events:none;font-family:var(--mono)}
+.tl-nodate{position:absolute;left:0;top:3px;font-size:.72rem;color:var(--muted)}
+
+/* 마일스톤 — 마름모. 상태색과 함께 기호를 단다 */
+.tl-row-ms .tl-track{height:18px}
+.tl-ms{position:absolute;top:0;transform:translateX(-50%);width:22px;height:18px;
+  background:none;border:none;padding:0;cursor:pointer;display:grid;place-items:center}
+.tl-ms i{width:10px;height:10px;transform:rotate(45deg);border-radius:2px;
+  border:2px solid var(--muted);background:var(--surface);
+  box-shadow:0 0 0 2px var(--surface)}
+.tl-ms.is-plan i{border-color:var(--pc);background:var(--surface)}
+.tl-ms.is-late i{border-color:var(--s-delay);background:var(--s-delay)}
+.tl-ms.is-done i{border-color:var(--s-done);background:var(--s-done)}
+.tl-ms:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
+
+.chip.ms-done{color:var(--s-done)} .chip.ms-late{color:var(--s-delay)} .chip.ms-plan{color:var(--s-wait)}
+
+.tl-tip{position:absolute;z-index:40;pointer-events:none;max-width:260px;
+  background:var(--chrome);color:var(--on-chrome);border-radius:var(--radius-sm);
+  padding:8px 11px;font-size:.76rem;line-height:1.5;box-shadow:var(--shadow)}
+.tl-tip b{font-weight:600}
+
+.tl-table{margin-top:14px}
+.tl-table summary{cursor:pointer;font-size:.8rem;color:var(--muted);padding:6px 2px}
+.tl-table summary:hover{color:var(--ink)}
+.tl-table .table-wrap{margin-top:8px}
+
+@media (max-width:860px){
+  .tl-chart{--tl-label:112px;min-width:560px}
+  .tl-group-actions{margin-left:0;width:100%}
+}
+
+/* ── 경비 ──────────────────────────────────── */
+.exp-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.exp-total{font-family:var(--mono);font-size:1.5rem;font-weight:600;letter-spacing:-.02em}
+.exp-cats{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
+.exp-cat{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
+  border-radius:999px;padding:4px 11px;font-size:.76rem;background:var(--surface)}
+.exp-cat b{font-family:var(--mono);font-weight:600}
+
 
 /* 데모 안내 (빌드에서만 추가) */
 .demo-note{max-width:1320px;margin:16px auto 0;padding:11px 16px;display:flex;gap:10px;
@@ -856,7 +959,92 @@ const TIME_ENTRIES = [
 ];
 
 
-const SEED = { MEMBERS, AREA_LEADS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, TIME_ENTRIES };
+
+const PHASES = [
+  ['KV', 'KV1', '기획·설계',   -90, -18, 1],
+  ['KV', 'KV2', '개발',        -25, +12, 2],
+  ['KV', 'KV3', '검증·오픈',   +10, +35, 3],
+
+  ['CP', 'CP1', '라인업 기획', -30,  +4, 1],
+  ['CP', 'CP2', '제작·외주',   -22, +14, 2],
+  ['CP', 'CP3', '검수·등록',    +2, +20, 3],
+
+  ['GP', 'GP1', '시장 조사',   -40,  +8, 1],
+  ['GP', 'GP2', '파일럿 준비',   0, +25, 2],
+
+  ['BD', 'BD1', '3분기 사업개발', null, null, 1], // 날짜 없음 — 업무에서 유도
+];
+
+
+const TASK_PHASE = {
+  '관찰·평가 UX 개선': 'KV1',
+  '아이 프로필 화면 리뉴얼': 'KV1',
+  '교사 온보딩 문구 개편': 'KV1',
+  '2분기 회고 및 로드맵 확정': 'KV1',
+  '관찰 기록 API 개발': 'KV2',
+  '관찰 기록 화면 UI 디자인': 'KV2',
+  '알림 발송 인프라 정비': 'KV2',
+  '데이터 마이그레이션 검증': 'KV2',
+  '운영 정책 v2 정리': 'KV3',
+  '고객 문의 대응 프로세스': 'KV3',
+
+  '9월 콘텐츠 라인업 기획': 'CP1',
+  '8월 콘텐츠 성과 정리': 'CP1',
+  '활동지 디자인 제작': 'CP2',
+  '누리과정 연계표 제작': 'CP2',
+  '영상 콘텐츠 자막 번역': 'CP2',
+  '활동지 표지 디자인 시안': 'CP2',
+  '교사 워크북 인쇄': 'CP3',
+  '콘텐츠 등록 및 검수': 'CP3',
+  '스티커 리소스 1차 검수': 'CP3',
+
+  '해외 파일럿 기관 리스트업': 'GP1',
+  '다국어 지원 기술 검토': 'GP1',
+  '영문 제안자료 제작': 'GP2',
+  '파일럿 운영 매뉴얼 초안': 'GP2',
+
+  '3분기 사업계획 보고': 'BD1',
+  '투자사 미팅 자료 업데이트': 'BD1',
+  '외주 계약서 검토': 'BD1',
+};
+
+
+const MILESTONES = [
+  ['KV', 'KV1', '기획 확정',          -18, -20],
+  ['KV', 'KV2', '교사 앱 베타 오픈',  +14, null],
+  ['KV', 'KV3', '정식 릴리즈',        +35, null],
+
+  ['CP', 'CP1', '9월 라인업 확정',     +4, null],
+  ['CP', 'CP2', '외주 납품 마감',      -1, null], // 기한 지남 — 지연 마일스톤
+  ['CP', 'CP3', '콘텐츠 등록 완료',   +20, null],
+
+  ['GP', 'GP2', '파일럿 기관 3곳 확정', +25, null],
+
+  ['BD', null,  '투자사 IR 미팅',       +9, null],
+];
+
+
+const EXPENSES = [
+  ['KV', '관찰 기록 API 개발',     'U02PARK', -12, 'SOFTWARE',  49_000,  'API 모니터링 도구 월 구독'],
+  ['KV', '관찰·평가 UX 개선',      'U01KIM',   -9, 'TRANSPORT', 18_400,  '파일럿 어린이집 방문 인터뷰'],
+  ['KV', '관찰 기록 화면 UI 디자인','U05JUNG',  -6, 'SOFTWARE',  22_000,  '아이콘 라이선스'],
+  ['KV', null,                     'U01KIM',   -4, 'MEAL',      86_000,  '스프린트 회고 팀 식사'],
+
+  ['CP', '활동지 디자인 제작',      'U01KIM',  -11, 'MATERIAL', 134_000,  '활동지 시안 출력 및 제본'],
+  ['CP', '교사 워크북 인쇄',        'U03LEE',   -5, 'TRANSPORT', 32_600,  '인쇄소 현장 확인'],
+  ['CP', '누리과정 연계표 제작',    'U05JUNG',  -3, 'MATERIAL',  47_500,  '검수용 자료 인쇄'],
+  ['CP', null,                     'U04CHOI',  -2, 'ETC',       15_000,  '택배 발송비'],
+
+  ['GP', '영문 제안자료 제작',      'U03LEE',   -8, 'SOFTWARE',  38_000,  '영문 교정 서비스'],
+  ['GP', '해외 파일럿 기관 리스트업','U03LEE',  -7, 'ETC',       59_000,  '해외 기관 DB 열람'],
+
+  ['BD', '투자사 미팅 자료 업데이트','U03LEE',  -1, 'TRANSPORT', 26_800,  '투자사 미팅 이동'],
+  ['BD', '3분기 사업계획 보고',     'U03LEE',   -6, 'MEAL',      64_000,  '자문 미팅'],
+];
+
+
+const SEED = { MEMBERS, AREA_LEADS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, TIME_ENTRIES,
+  PHASES, TASK_PHASE, MILESTONES, EXPENSES };
 
 /* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */
 
@@ -1259,7 +1447,7 @@ function parseCapture(text, ctx) {
 // 데이터는 localStorage 에 저장된다. 서버도 DB도 없다.
 
 // 업무 영역 개편(v3)으로 이전 데이터의 area 값이 더는 유효하지 않다 — 키를 올려 새로 만든다
-const LS_KEY = 'kf.demo.v5';
+const LS_KEY = 'kf.demo.v6';
 
 // ── 날짜 ────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');
@@ -1319,6 +1507,18 @@ function buildSeed() {
     return v.id;
   };
 
+  const phaseId = {};
+  const phases = (SEED.PHASES ?? []).map(([pk, key, name, start, end, order]) => {
+    const id = uid();
+    phaseId[key] = id;
+    return {
+      id, project_id: projectId[pk], name,
+      start_date: start == null ? null : d(start),
+      end_date: end == null ? null : d(end),
+      sort_order: order, created_at: nowISO(), updated_at: nowISO(),
+    };
+  });
+
   const tasks = [];
   const collaborators = [];
   const outsourcing = [];
@@ -1332,7 +1532,8 @@ function buildSeed() {
     const created = at(d(Math.max(dueOffset - 14, -60)), '01');
     const taskOwner = leadOfArea[area] ?? owner;   // 담당자 = 영역 리드
     tasks.push({
-      id, project_id: projectId[pk], title, area, owner_slack_user_id: taskOwner, status, priority,
+      id, project_id: projectId[pk], phase_id: phaseId[(SEED.TASK_PHASE ?? {})[title]] ?? null,
+      title, area, owner_slack_user_id: taskOwner, status, priority,
       start_date: d(dueOffset - 10), due_date: due, description: null,
       completed_at: status === 'DONE' ? at(due, '08') : null,
       created_by: 'U01KIM', created_at: created, updated_at: created, deleted_at: null,
@@ -1389,9 +1590,24 @@ function buildSeed() {
     } : null;
   }).filter(Boolean);
 
+  const milestones = (SEED.MILESTONES ?? []).map(([pk, phaseKey, name, dueOffset, doneOffset]) => ({
+    id: uid(), project_id: projectId[pk], phase_id: phaseKey ? phaseId[phaseKey] ?? null : null,
+    name, due_date: d(dueOffset),
+    done_at: doneOffset == null ? null : at(d(doneOffset), '07'),
+    created_at: nowISO(), updated_at: nowISO(),
+  }));
+
+  const expenses = (SEED.EXPENSES ?? []).map(([pk, taskTitle, who, dayOffset, category, amount, memo]) => ({
+    id: uid(), project_id: projectId[pk],
+    task_id: taskTitle ? taskIdByTitle[taskTitle] ?? null : null,
+    slack_user_id: who, spent_on: d(dayOffset), category, amount, memo,
+    created_at: nowISO(), updated_at: nowISO(),
+  }));
+
   return {
     anchor: T, members, projects, vendors, tasks, collaborators, outsourcing, issues, events,
     area_leads: areaLeadRows, time_entries: timeRows, notifications: [], weekly_reports: [],
+    phases, milestones, expenses,
   };
 }
 
@@ -1438,6 +1654,7 @@ function hydrate(t, ref = today()) {
     ...t,
     project_name: p?.name ?? '-', project_code: p?.code ?? null,
     project_channel: p?.slack_channel_id ?? null, project_lead: p?.lead_slack_user_id ?? null,
+    phase_name: DB.phases?.find((ph) => ph.id === t.phase_id)?.name ?? null,
     owner_name: m?.display_name ?? t.owner_slack_user_id,
     owner_avatar: m?.avatar_url ?? null, owner_active: Boolean(m?.is_active),
     vendor_id: o?.vendor_id ?? null, vendor_name: v?.name ?? null,
@@ -1690,8 +1907,8 @@ function createTask(input, actor) {
   if (input.start_date && input.start_date > due) throw new DemoError('시작일은 마감일보다 늦을 수 없습니다.');
 
   const t = {
-    id: uid(), project_id: input.project_id, title: input.title.trim(), area,
-    owner_slack_user_id: owner, status,
+    id: uid(), project_id: input.project_id, phase_id: input.phase_id || null,
+    title: input.title.trim(), area, owner_slack_user_id: owner, status,
     priority: input.priority || 'NORMAL',
     start_date: input.start_date || null, due_date: due,
     description: input.description || null,
@@ -1725,6 +1942,7 @@ function updateTask(id, input, actor) {
 
   Object.assign(t, {
     project_id: input.project_id ?? t.project_id,
+    phase_id: input.phase_id === undefined ? t.phase_id : (input.phase_id || null),
     title: (input.title ?? t.title).trim(),
     area, owner_slack_user_id: owner, status,
     priority: input.priority ?? t.priority,
@@ -2239,6 +2457,212 @@ const listParam = (sp, name) => {
   return raw.length ? raw : undefined;
 };
 
+// ── 페이즈 · 마일스톤 · 타임라인 ────────────────────────
+// server/repo.js 의 phases · milestones · timeline() 과 같은 규칙이다.
+
+const phasesOf = (projectId) => (DB.phases ?? [])
+  .filter((ph) => !projectId || ph.project_id === projectId)
+  .map((ph) => {
+    const own = DB.tasks.filter((t) => !t.deleted_at && t.phase_id === ph.id);
+    return {
+      ...ph,
+      task_count: own.length,
+      done_count: own.filter((t) => t.status === 'DONE').length,
+    };
+  })
+  .sort((a, b) => (a.project_id === b.project_id
+    ? a.sort_order - b.sort_order
+    : a.project_id.localeCompare(b.project_id)));
+
+const milestonesOf = (projectId) => (DB.milestones ?? [])
+  .filter((m) => !projectId || m.project_id === projectId)
+  .map((m) => ({
+    ...m,
+    phase_name: (DB.phases ?? []).find((ph) => ph.id === m.phase_id)?.name ?? null,
+    project_name: project(m.project_id)?.name ?? '-',
+  }))
+  .sort((a, b) => a.due_date.localeCompare(b.due_date));
+
+function createPhase(input) {
+  if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
+  if (!input.name?.trim()) throw new DemoError('페이즈 이름을 입력해 주세요.');
+  if (input.start_date && input.end_date && input.start_date > input.end_date) {
+    throw new DemoError('시작일이 종료일보다 늦습니다.');
+  }
+  const same = (DB.phases ?? []).filter((ph) => ph.project_id === input.project_id);
+  const ph = {
+    id: uid(), project_id: input.project_id, name: input.name.trim(),
+    start_date: input.start_date || null, end_date: input.end_date || null,
+    sort_order: input.sort_order ?? same.reduce((n, x) => Math.max(n, x.sort_order), 0) + 1,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+  DB.phases.push(ph);
+  save();
+  return ph;
+}
+
+function updatePhase(id, input) {
+  const ph = (DB.phases ?? []).find((x) => x.id === id);
+  if (!ph) throw new DemoError('페이즈를 찾을 수 없습니다.');
+  const start = input.start_date === undefined ? ph.start_date : (input.start_date || null);
+  const end = input.end_date === undefined ? ph.end_date : (input.end_date || null);
+  if (start && end && start > end) throw new DemoError('시작일이 종료일보다 늦습니다.');
+  Object.assign(ph, {
+    name: (input.name ?? ph.name).trim(), start_date: start, end_date: end,
+    sort_order: input.sort_order ?? ph.sort_order, updated_at: nowISO(),
+  });
+  save();
+  return ph;
+}
+
+function removePhase(id) {
+  // 업무는 남기고 연결만 끊는다
+  for (const t of DB.tasks) if (t.phase_id === id) t.phase_id = null;
+  for (const m of (DB.milestones ?? [])) if (m.phase_id === id) m.phase_id = null;
+  DB.phases = (DB.phases ?? []).filter((ph) => ph.id !== id);
+  save();
+  return { ok: true };
+}
+
+function createMilestone(input) {
+  if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
+  if (!input.name?.trim()) throw new DemoError('마일스톤 이름을 입력해 주세요.');
+  if (!input.due_date) throw new DemoError('날짜를 입력해 주세요.');
+  const m = {
+    id: uid(), project_id: input.project_id, phase_id: input.phase_id || null,
+    name: input.name.trim(), due_date: input.due_date, done_at: null,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+  DB.milestones.push(m);
+  save();
+  return m;
+}
+
+function updateMilestone(id, input) {
+  const m = (DB.milestones ?? []).find((x) => x.id === id);
+  if (!m) throw new DemoError('마일스톤을 찾을 수 없습니다.');
+  Object.assign(m, {
+    name: (input.name ?? m.name).trim(),
+    due_date: input.due_date ?? m.due_date,
+    phase_id: input.phase_id === undefined ? m.phase_id : (input.phase_id || null),
+    done_at: input.done === undefined ? m.done_at : (input.done ? (m.done_at || `${today()}T00:00:00.000Z`) : null),
+    updated_at: nowISO(),
+  });
+  save();
+  return m;
+}
+
+function removeMilestone(id) {
+  DB.milestones = (DB.milestones ?? []).filter((m) => m.id !== id);
+  save();
+  return { ok: true };
+}
+
+function timelineRows() {
+  const allPhases = phasesOf();
+  const allMilestones = milestonesOf();
+  return DB.projects
+    .filter((p) => !p.is_archived)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((p) => {
+      const ps = allPhases.filter((ph) => ph.project_id === p.id).map((ph) => ({
+        ...ph,
+        progress: ph.task_count ? Math.round((ph.done_count / ph.task_count) * 100) : null,
+      }));
+      const rowTasks = DB.tasks.filter((t) => !t.deleted_at && t.project_id === p.id);
+      // 기간이 없는 페이즈는 그 페이즈 업무의 일정으로 채운다
+      for (const ph of ps) {
+        if (ph.start_date && ph.end_date) continue;
+        const own = rowTasks.filter((t) => t.phase_id === ph.id);
+        if (!own.length) continue;
+        const ds = own.flatMap((t) => [t.start_date, t.due_date]).filter(Boolean).sort();
+        ph.start_date ??= ds[0] ?? null;
+        ph.end_date ??= ds[ds.length - 1] ?? null;
+        ph.derived = true;
+      }
+      const ds = [
+        ...ps.flatMap((ph) => [ph.start_date, ph.end_date]),
+        ...rowTasks.flatMap((t) => [t.start_date, t.due_date]),
+        p.start_date, p.end_date,
+      ].filter(Boolean).sort();
+      return {
+        id: p.id, name: p.name, code: p.code, status: p.status,
+        start_date: ds[0] ?? null, end_date: ds[ds.length - 1] ?? null,
+        phases: ps,
+        milestones: allMilestones.filter((m) => m.project_id === p.id),
+        unphased: rowTasks.filter((t) => !t.phase_id).length,
+      };
+    });
+}
+
+// ── 경비 ────────────────────────────────────────────────
+const EXPENSE_CATEGORIES = [
+  { code: 'TRANSPORT', label: '교통' },
+  { code: 'MATERIAL',  label: '자재·인쇄' },
+  { code: 'MEAL',      label: '식대' },
+  { code: 'SOFTWARE',  label: '소프트웨어' },
+  { code: 'ETC',       label: '기타' },
+];
+
+function expenseRows({ from, to, project: pid, member: who } = {}) {
+  return (DB.expenses ?? [])
+    .filter((e) => (!from || e.spent_on >= from) && (!to || e.spent_on <= to)
+      && (!pid || e.project_id === pid) && (!who || e.slack_user_id === who))
+    .map((e) => ({
+      ...e,
+      project_name: project(e.project_id)?.name ?? '-',
+      task_title: DB.tasks.find((t) => t.id === e.task_id)?.title ?? null,
+      display_name: member(e.slack_user_id)?.display_name ?? e.slack_user_id,
+    }))
+    .sort((a, b) => b.spent_on.localeCompare(a.spent_on));
+}
+
+function expenseSummary(range) {
+  const rows = expenseRows(range);
+  const group = (keyFn, labelFn) => {
+    const map = new Map();
+    for (const r of rows) {
+      const k = keyFn(r);
+      if (!map.has(k)) map.set(k, { key: k, label: labelFn(r), amount: 0, count: 0 });
+      const g = map.get(k);
+      g.amount += r.amount;
+      g.count += 1;
+    }
+    return [...map.values()].sort((a, b) => b.amount - a.amount);
+  };
+  return {
+    total: rows.reduce((n, r) => n + r.amount, 0),
+    count: rows.length,
+    projects: group((r) => r.project_id, (r) => r.project_name),
+    categories: group((r) => r.category,
+      (r) => EXPENSE_CATEGORIES.find((c) => c.code === r.category)?.label ?? r.category),
+  };
+}
+
+function createExpense(input, actor) {
+  if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
+  if (!input.spent_on) throw new DemoError('사용일을 입력해 주세요.');
+  const amount = Math.round(Number(input.amount));
+  if (!Number.isFinite(amount) || amount <= 0) throw new DemoError('금액을 0보다 큰 숫자로 입력해 주세요.');
+  const category = input.category || 'ETC';
+  if (!EXPENSE_CATEGORIES.some((c) => c.code === category)) throw new DemoError('없는 분류입니다.');
+  const e = {
+    id: uid(), project_id: input.project_id, task_id: input.task_id || null,
+    slack_user_id: input.slack_user_id || actor, spent_on: input.spent_on,
+    category, amount, memo: input.memo || null,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+  DB.expenses.push(e);
+  save();
+  return expenseRows().find((r) => r.id === e.id) ?? e;
+}
+
+function removeExpense(id) {
+  DB.expenses = (DB.expenses ?? []).filter((e) => e.id !== id);
+  save();
+  return { ok: true };
+}
+
 function handle(method, path, body) {
   const url = new URL(path, 'http://demo.local');
   const sp = url.searchParams;
@@ -2256,6 +2680,7 @@ function handle(method, path, body) {
         areas: AREAS, normal_statuses: NORMAL_STATUSES, out_statuses: OUT_STATUSES,
         review_statuses: REVIEW_STATUSES, issue_statuses: ISSUE_STATUSES,
         priorities: PRIORITIES, project_statuses: PROJECT_STATUSES, progress_weight: PROGRESS_WEIGHT,
+        expense_categories: EXPENSE_CATEGORIES,
       },
     };
   }
@@ -2400,6 +2825,34 @@ function handle(method, path, body) {
     return parseCapture(body.text, { members: c.members, projects: c.projects, today: c.today });
   }
 
+  if (p === '/api/timeline' && method === 'GET') return timelineRows();
+
+  if (p === '/api/phases' && method === 'GET') return phasesOf(sp.get('project') || undefined);
+  if (p === '/api/phases' && method === 'POST') return createPhase(body);
+  if (seg[1] === 'phases' && seg[2]) {
+    if (method === 'PATCH') return updatePhase(seg[2], body);
+    if (method === 'DELETE') return removePhase(seg[2]);
+  }
+
+  if (p === '/api/milestones' && method === 'GET') return milestonesOf(sp.get('project') || undefined);
+  if (p === '/api/milestones' && method === 'POST') return createMilestone(body);
+  if (seg[1] === 'milestones' && seg[2]) {
+    if (method === 'PATCH') return updateMilestone(seg[2], body);
+    if (method === 'DELETE') return removeMilestone(seg[2]);
+  }
+
+  if (p === '/api/expenses' && method === 'GET') {
+    const who = sp.get('member');
+    const range = {
+      from: sp.get('from') || undefined, to: sp.get('to') || undefined,
+      project: sp.get('project') || undefined,
+      member: who === 'me' ? me : (who || undefined),
+    };
+    return { rows: expenseRows(range), summary: expenseSummary(range) };
+  }
+  if (p === '/api/expenses' && method === 'POST') return createExpense(body, me);
+  if (seg[1] === 'expenses' && seg[2] && method === 'DELETE') return removeExpense(seg[2]);
+
   if (p === '/api/time/week' && method === 'GET') {
     const who = sp.get('member');
     return timeWeek(!who || who === 'me' ? me : who, weekStart(sp.get('week') || today()));
@@ -2521,9 +2974,14 @@ const dDay = (n) => {
 };
 
 // ── 프로젝트 색 ─────────────────────────────────────────
-// 팔레트에서 id 로 고정 배정한다. 순서가 바뀌어도 색이 따라 바뀌지 않는다.
-const PROJECT_TONES = 6;
+// 색은 프로젝트에 고정된다. 필터로 목록이 줄어도 남은 프로젝트의 색은 그대로다.
+// 기준은 프로젝트가 이미 가진 정렬 순서(sort_order)다 — 목록 안에서의 등수가 아니라
+// 프로젝트 자체의 값이라, 프로젝트를 새로 만들어도 기존 프로젝트 색이 바뀌지 않는다.
+// 순서를 모르는 값(합계 행의 임의 키 등)은 id 해시로 떨어뜨린다.
+const PROJECT_TONES = 4;
 const projectTone = (id) => {
+  const order = state.projects.find((p) => p.id === id)?.sort_order;
+  if (Number.isInteger(order) && order > 0) return (order - 1) % PROJECT_TONES;
   let h = 0;
   for (const ch of String(id ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return h % PROJECT_TONES;
@@ -2792,6 +3250,11 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
             <input type="date" name="start_date" value="${esc(task?.start_date ?? '')}">
           </label>
           <label class="field">
+            <span class="lab">페이즈</span>
+            <select name="phase_id"><option value="">지정 안 함</option></select>
+            <span class="hint">프로젝트를 고르면 채워집니다 · 타임라인에서 묶이는 단위</span>
+          </label>
+          <label class="field">
             <span class="lab">우선순위</span>
             <select name="priority">${opts(state.meta.priorities, task?.priority ?? 'NORMAL')}</select>
           </label>
@@ -2883,6 +3346,24 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
       areaSel.addEventListener('change', () => { syncArea(); syncLead(); });
       syncArea();
       syncLead();
+
+      // 페이즈는 프로젝트에 딸린 값이라 프로젝트가 바뀔 때마다 다시 불러온다
+      const projectSel = form.querySelector('[name=project_id]');
+      const phaseSel = form.querySelector('[name=phase_id]');
+      const syncPhases = async () => {
+        const pid = projectSel.value;
+        const want = phaseSel.dataset.want ?? task?.phase_id ?? '';
+        phaseSel.innerHTML = '<option value="">지정 안 함</option>';
+        if (!pid) return;
+        try {
+          const list = await api.get(`/api/phases?project=${encodeURIComponent(pid)}`);
+          phaseSel.insertAdjacentHTML('beforeend',
+            list.map((ph) => `<option value="${esc(ph.id)}">${esc(ph.name)}</option>`).join(''));
+          if (want && list.some((ph) => ph.id === want)) phaseSel.value = want;
+        } catch { /* 페이즈를 못 불러와도 업무는 저장할 수 있다 */ }
+      };
+      projectSel.addEventListener('change', () => { delete phaseSel.dataset.want; syncPhases(); });
+      syncPhases();
 
       // 납품 예정일을 넣으면 마감일 기본값으로 채운다
       deliveryInput.addEventListener('change', () => {
@@ -3178,6 +3659,224 @@ function areaLeadsForm({ onSaved }) {
         } catch (err) {
           toast(err.message, true);
         }
+      });
+    },
+  });
+}
+
+// ── 페이즈 ──────────────────────────────────────────────
+// 기간을 비워 두면 그 페이즈에 속한 업무 일정에서 자동으로 유도된다.
+function phaseForm({ phase = null, projectId, onSaved }) {
+  const editing = Boolean(phase);
+  const body = `
+    <form id="phase-form">
+      <div class="form-grid">
+        <label class="field span2">
+          <span class="lab">페이즈 이름<span class="req">*</span></span>
+          <input type="text" name="name" required maxlength="60" value="${esc(phase?.name ?? '')}"
+                 placeholder="예: 기획·설계">
+        </label>
+        <label class="field">
+          <span class="lab">시작일</span>
+          <input type="date" name="start_date" value="${esc(phase?.start_date ?? '')}">
+        </label>
+        <label class="field">
+          <span class="lab">종료일</span>
+          <input type="date" name="end_date" value="${esc(phase?.end_date ?? '')}">
+        </label>
+        <p class="hint span2">기간을 비워 두면 이 페이즈에 속한 업무의 시작·마감으로 자동 계산합니다.</p>
+      </div>
+    </form>`;
+
+  modal({
+    title: editing ? '페이즈 수정' : '페이즈 추가',
+    body,
+    footer: `<div class="right">
+      ${editing ? '<button class="btn btn-danger" data-remove>삭제</button>' : ''}
+      <button class="btn" data-close>취소</button>
+      <button class="btn btn-primary" data-save>${editing ? '저장' : '추가'}</button></div>`,
+    onMount({ root, close }) {
+      const form = root.querySelector('#phase-form');
+      root.querySelector('[data-remove]')?.addEventListener('click', async () => {
+        const ok = await confirmModal('페이즈를 삭제하면 속한 업무는 남고 연결만 끊어집니다. 계속할까요?', { danger: true });
+        if (!ok) return;
+        try {
+          await api.del(`/api/phases/${phase.id}`);
+          toast('페이즈를 삭제했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
+      });
+      root.querySelector('[data-save]').addEventListener('click', async () => {
+        const fd = new FormData(form);
+        const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
+        if (!payload.name?.trim()) return toast('페이즈 이름을 입력해 주세요.', true);
+        payload.project_id = projectId ?? phase?.project_id;
+        try {
+          await (editing ? api.patch(`/api/phases/${phase.id}`, payload) : api.post('/api/phases', payload));
+          toast(editing ? '페이즈를 저장했습니다.' : '페이즈를 추가했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
+      });
+    },
+  });
+}
+
+// ── 마일스톤 ────────────────────────────────────────────
+function milestoneForm({ milestone = null, projectId, phases = [], onSaved }) {
+  const editing = Boolean(milestone);
+  const pid = projectId ?? milestone?.project_id;
+  const mine = phases.filter((p) => p.project_id === pid);
+  const body = `
+    <form id="milestone-form">
+      <div class="form-grid">
+        <label class="field span2">
+          <span class="lab">마일스톤<span class="req">*</span></span>
+          <input type="text" name="name" required maxlength="80" value="${esc(milestone?.name ?? '')}"
+                 placeholder="예: 교사 앱 베타 오픈">
+        </label>
+        <label class="field">
+          <span class="lab">날짜<span class="req">*</span></span>
+          <input type="date" name="due_date" required value="${esc(milestone?.due_date ?? '')}">
+        </label>
+        <label class="field">
+          <span class="lab">페이즈</span>
+          <select name="phase_id">
+            <option value="">지정 안 함</option>
+            ${mine.map((p) => `<option value="${esc(p.id)}"${p.id === milestone?.phase_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
+          </select>
+        </label>
+        ${editing ? `
+        <label class="field span2 check">
+          <input type="checkbox" name="done"${milestone.done_at ? ' checked' : ''}>
+          <span>달성함</span>
+        </label>` : ''}
+      </div>
+    </form>`;
+
+  modal({
+    title: editing ? '마일스톤 수정' : '마일스톤 추가',
+    body,
+    footer: `<div class="right">
+      ${editing ? '<button class="btn btn-danger" data-remove>삭제</button>' : ''}
+      <button class="btn" data-close>취소</button>
+      <button class="btn btn-primary" data-save>${editing ? '저장' : '추가'}</button></div>`,
+    onMount({ root, close }) {
+      const form = root.querySelector('#milestone-form');
+      root.querySelector('[data-remove]')?.addEventListener('click', async () => {
+        const ok = await confirmModal('마일스톤을 삭제할까요?', { danger: true });
+        if (!ok) return;
+        try {
+          await api.del(`/api/milestones/${milestone.id}`);
+          toast('마일스톤을 삭제했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
+      });
+      root.querySelector('[data-save]').addEventListener('click', async () => {
+        const fd = new FormData(form);
+        const payload = {
+          name: fd.get('name'),
+          due_date: fd.get('due_date') || null,
+          phase_id: fd.get('phase_id') || null,
+          project_id: pid,
+        };
+        if (editing) payload.done = form.querySelector('[name=done]').checked;
+        if (!payload.name?.trim()) return toast('마일스톤 이름을 입력해 주세요.', true);
+        if (!payload.due_date) return toast('날짜를 입력해 주세요.', true);
+        try {
+          await (editing ? api.patch(`/api/milestones/${milestone.id}`, payload) : api.post('/api/milestones', payload));
+          toast(editing ? '마일스톤을 저장했습니다.' : '마일스톤을 추가했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
+      });
+    },
+  });
+}
+
+// ── 경비 ────────────────────────────────────────────────
+// 실비만 다룬다. 요율·인건비는 넣지 않는다 (docs/13-time-invoice-spec.md).
+function expenseForm({ defaults = {}, onSaved }) {
+  const cats = state.meta?.expense_categories ?? [];
+  const body = `
+    <form id="expense-form">
+      <div class="form-grid">
+        <label class="field">
+          <span class="lab">프로젝트<span class="req">*</span></span>
+          <select name="project_id" required>
+            <option value="">선택</option>
+            ${opts(activeProjects(), defaults.project_id, { value: 'id', label: 'name' })}
+          </select>
+        </label>
+        <label class="field">
+          <span class="lab">사용일<span class="req">*</span></span>
+          <input type="date" name="spent_on" required value="${esc(defaults.spent_on ?? state.today ?? '')}">
+        </label>
+        <label class="field">
+          <span class="lab">분류<span class="req">*</span></span>
+          <select name="category" required>${opts(cats, defaults.category ?? 'TRANSPORT')}</select>
+        </label>
+        <label class="field">
+          <span class="lab">금액(원)<span class="req">*</span></span>
+          <input type="text" name="amount" inputmode="numeric" required placeholder="예: 18400">
+        </label>
+        <label class="field span2">
+          <span class="lab">연결 업무</span>
+          <select name="task_id"><option value="">지정 안 함</option></select>
+          <span class="hint">프로젝트를 고르면 내 업무 목록이 채워집니다.</span>
+        </label>
+        <label class="field span2">
+          <span class="lab">메모</span>
+          <input type="text" name="memo" maxlength="120" placeholder="예: 파일럿 어린이집 방문 인터뷰">
+        </label>
+      </div>
+    </form>`;
+
+  modal({
+    title: '경비 등록',
+    body,
+    footer: `<div class="right">
+      <button class="btn" data-close>취소</button>
+      <button class="btn btn-primary" data-save>등록</button></div>`,
+    onMount({ root, close }) {
+      const form = root.querySelector('#expense-form');
+      const taskSel = form.querySelector('[name=task_id]');
+
+      const loadTasks = async () => {
+        const pid = form.querySelector('[name=project_id]').value;
+        taskSel.innerHTML = '<option value="">지정 안 함</option>';
+        if (!pid) return;
+        try {
+          const rows = await api.get(`/api/tasks?project=${encodeURIComponent(pid)}&done=1`);
+          taskSel.insertAdjacentHTML('beforeend',
+            rows.map((t) => `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join(''));
+          if (defaults.task_id) taskSel.value = defaults.task_id;
+        } catch { /* 업무를 못 불러와도 경비는 등록할 수 있다 */ }
+      };
+      form.querySelector('[name=project_id]').addEventListener('change', loadTasks);
+      loadTasks();
+
+      root.querySelector('[data-save]').addEventListener('click', async () => {
+        const fd = new FormData(form);
+        const amount = Number(String(fd.get('amount')).replace(/[,\s원]/g, ''));
+        if (!fd.get('project_id')) return toast('프로젝트를 선택해 주세요.', true);
+        if (!fd.get('spent_on')) return toast('사용일을 입력해 주세요.', true);
+        if (!Number.isFinite(amount) || amount <= 0) return toast('금액을 0보다 큰 숫자로 입력해 주세요.', true);
+        try {
+          await api.post('/api/expenses', {
+            project_id: fd.get('project_id'),
+            task_id: fd.get('task_id') || null,
+            spent_on: fd.get('spent_on'),
+            category: fd.get('category'),
+            amount,
+            memo: fd.get('memo') || null,
+          });
+          toast('경비를 등록했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
       });
     },
   });
@@ -3642,6 +4341,7 @@ async function renderTaskDetail(root, id) {
             <dt>협업자</dt><dd>${t.collaborators.length
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
+            ${t.phase_name ? `<dt>페이즈</dt><dd>${esc(t.phase_name)}</dd>` : ''}
             <dt>일정</dt><dd>${t.start_date ? `${shortDate(t.start_date)} → ` : ''}${shortDate(t.due_date)}
               <span style="color:${t.is_delayed ? 'var(--s-delay)' : 'var(--muted)'};font-size:.8rem">
                 ${t.status === 'DONE' ? '' : dDay(t.d_day)}</span></dd>
@@ -4271,6 +4971,303 @@ async function renderNotifications(root) {
 
 
 
+
+// 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
+// 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 상태는 상태색으로 나눈다.
+// 막대에는 늘 이름이 붙는다 — 색만으로 구분되는 곳은 없다.
+
+const TL_DAY = 86_400_000;
+const tlParse = (iso) => Date.parse(`${String(iso).slice(0, 10)}T00:00:00Z`);
+const tlAdd = (iso, n) => new Date(tlParse(iso) + n * TL_DAY).toISOString().slice(0, 10);
+const tlDiff = (a, b) => Math.round((tlParse(b) - tlParse(a)) / TL_DAY);
+const tlMonthStart = (iso) => `${iso.slice(0, 7)}-01`;
+const tlMonthNext = (iso) => {
+  const y = Number(iso.slice(0, 4));
+  const m = Number(iso.slice(5, 7));
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+};
+
+/** 창(window) 안에서의 위치를 % 로. 밖으로 나가면 잘라 낸다. */
+const tlSpan = (win, start, end) => {
+  const total = tlDiff(win.start, win.end) || 1;
+  const s = Math.max(0, tlDiff(win.start, start));
+  const e = Math.min(total, tlDiff(win.start, end) + 1);
+  if (e <= s) return null;
+  return { left: (s / total) * 100, width: ((e - s) / total) * 100 };
+};
+const tlPoint = (win, date) => {
+  const total = tlDiff(win.start, win.end) || 1;
+  const d = tlDiff(win.start, date);
+  if (d < 0 || d > total) return null;
+  return ((d + 0.5) / total) * 100;
+};
+
+const tlMilestoneState = (m) => {
+  if (m.done_at) return { key: 'done', label: '달성', mark: '✓' };
+  if (m.due_date < state.today) return { key: 'late', label: '지연', mark: '!' };
+  return { key: 'plan', label: '예정', mark: '' };
+};
+
+async function renderTimeline(root) {
+  root.innerHTML = loading();
+
+  let rows;
+  try {
+    rows = await api.get('/api/timeline');
+  } catch (err) {
+    root.innerHTML = errorBox(err.message);
+    return;
+  }
+
+  const live = rows.filter((r) => r.phases.length || r.milestones.length || r.start_date);
+  if (!live.length) {
+    root.innerHTML = `${tlHead()}${empty({
+      title: '일정이 없습니다',
+      hint: '프로젝트에 페이즈를 추가하면 여기에 기간이 그려집니다.',
+    })}`;
+    return;
+  }
+
+  // 창 = 모든 날짜를 감싸는 달 경계. 최소 3개월은 확보한다.
+  const all = live.flatMap((r) => [
+    r.start_date, r.end_date,
+    ...r.phases.flatMap((p) => [p.start_date, p.end_date]),
+    ...r.milestones.map((m) => m.due_date),
+    state.today,
+  ]).filter(Boolean).sort();
+  let winStart = tlMonthStart(all[0]);
+  let winEnd = tlAdd(tlMonthNext(all[all.length - 1]), -1);
+  while (tlDiff(winStart, winEnd) < 89) winEnd = tlAdd(tlMonthNext(winEnd), -1);
+  const win = { start: winStart, end: winEnd };
+
+  const months = [];
+  for (let m = winStart; tlParse(m) <= tlParse(winEnd); m = tlMonthNext(m)) {
+    const next = tlMonthNext(m);
+    const end = tlAdd(next, -1);
+    months.push({ start: m, ...tlSpan(win, m, end > winEnd ? winEnd : end) });
+  }
+  const todayAt = tlPoint(win, state.today);
+
+  const phaseRow = (r, ph) => {
+    const box = ph.start_date && ph.end_date ? tlSpan(win, ph.start_date, ph.end_date) : null;
+    const pct = ph.progress;
+    const range = ph.start_date ? `${shortDate(ph.start_date)} ~ ${shortDate(ph.end_date)}` : '기간 미정';
+    const tip = [
+      `<b>${esc(ph.name)}</b>`,
+      `${esc(r.name)} · ${esc(range)}${ph.derived ? ' (업무에서 계산)' : ''}`,
+      `업무 ${ph.task_count}건 · 완료 ${ph.done_count}건${pct === null ? '' : ` · ${pct}%`}`,
+    ].join('<br>');
+    return `
+      <div class="tl-row">
+        <div class="tl-label">
+          <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 수정">${esc(ph.name)}</button>
+          <span class="tl-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
+            pct === null ? '' : ` · ${pct}%`}</span>
+        </div>
+        <div class="tl-track">
+          ${months.map((m) => `<i class="tl-grid" style="left:${m.left}%"></i>`).join('')}
+          ${box ? `
+            <div class="tl-bar${ph.derived ? ' is-derived' : ''}" style="left:${box.left}%;width:${box.width}%"
+                 data-phase="${esc(ph.id)}" data-tip="${esc(tip)}" tabindex="0"
+                 role="button" aria-label="${esc(`${ph.name} ${range}`)}">
+              <span class="tl-fill" style="width:${pct ?? 0}%"></span>
+            </div>
+            ${box.left + box.width < 84 ? `
+              <span class="tl-range" style="left:${box.left + box.width}%">${esc(range)}</span>` : ''}
+          ` : `<span class="tl-nodate">기간 미정</span>`}
+        </div>
+      </div>`;
+  };
+
+  const milestoneLane = (r) => {
+    if (!r.milestones.length) return '';
+    return `
+      <div class="tl-row tl-row-ms">
+        <div class="tl-label"><span class="tl-meta">마일스톤 ${r.milestones.length}</span></div>
+        <div class="tl-track">
+          ${months.map((m) => `<i class="tl-grid" style="left:${m.left}%"></i>`).join('')}
+          ${r.milestones.map((m) => {
+            const at = tlPoint(win, m.due_date);
+            if (at === null) return '';
+            const st = tlMilestoneState(m);
+            const tip = `<b>${esc(m.name)}</b><br>${esc(shortDate(m.due_date))} · ${esc(st.label)}${
+              m.phase_name ? `<br>페이즈 ${esc(m.phase_name)}` : ''}`;
+            return `<button class="tl-ms is-${st.key}" style="left:${at}%"
+                      data-milestone="${esc(m.id)}" data-tip="${esc(tip)}"
+                      aria-label="${esc(`${m.name} ${m.due_date} ${st.label}`)}"><i></i></button>`;
+          }).join('')}
+        </div>
+      </div>`;
+  };
+
+  root.innerHTML = `
+    ${tlHead()}
+
+    <div class="tl-legend">
+      <span class="tl-key"><i class="k-bar"></i>페이즈 기간 — 진한 부분이 완료 비율</span>
+      <span class="tl-key"><i class="k-ms plan"></i>마일스톤 예정</span>
+      <span class="tl-key"><i class="k-ms late"></i>지연</span>
+      <span class="tl-key"><i class="k-ms done"></i>달성</span>
+      <span class="tl-key"><i class="k-today"></i>오늘</span>
+    </div>
+
+    <div class="tl-wrap">
+      <div class="tl-chart">
+        <div class="tl-row tl-axis">
+          <div class="tl-label"></div>
+          <div class="tl-track">
+            ${months.map((m) => `
+              <span class="tl-month" style="left:${m.left}%;width:${m.width}%">
+                ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}
+              </span>`).join('')}
+            ${todayAt === null ? '' : `<i class="tl-today-cap" style="left:${todayAt}%">오늘</i>`}
+          </div>
+        </div>
+
+        ${live.map((r) => `
+          <section class="tl-group" style="${projectStyle(r.id)}">
+            <div class="tl-group-head">
+              <h2>${projectName(r.id, r.name)}</h2>
+              <span class="tl-meta">${r.start_date ? `${shortDate(r.start_date)} ~ ${shortDate(r.end_date)}` : '일정 없음'}${
+                r.unphased ? ` · 페이즈 미지정 업무 ${r.unphased}` : ''}</span>
+              <span class="tl-group-actions">
+                <button class="btn btn-ghost sm" data-add-phase="${esc(r.id)}">+ 페이즈</button>
+                <button class="btn btn-ghost sm" data-add-milestone="${esc(r.id)}">+ 마일스톤</button>
+              </span>
+            </div>
+            ${r.phases.length
+              ? r.phases.map((ph) => phaseRow(r, ph)).join('')
+              : `<div class="tl-row"><div class="tl-label"><span class="tl-meta">페이즈 없음</span></div>
+                 <div class="tl-track">${months.map((m) => `<i class="tl-grid" style="left:${m.left}%"></i>`).join('')}
+                 <span class="tl-nodate">페이즈를 추가하면 기간이 그려집니다</span></div></div>`}
+            ${milestoneLane(r)}
+          </section>`).join('')}
+
+        ${todayAt === null ? '' : `<i class="tl-today" style="left:calc(var(--tl-label) + (100% - var(--tl-label)) * ${todayAt / 100})"></i>`}
+      </div>
+    </div>
+
+    <details class="tl-table">
+      <summary>표로 보기</summary>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>프로젝트</th><th>페이즈</th><th>시작</th><th>종료</th><th class="num">업무</th><th class="num">진행</th></tr></thead>
+          <tbody>
+            ${live.flatMap((r) => r.phases.map((ph) => `
+              <tr>
+                <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
+                <td data-label="페이즈">${esc(ph.name)}${ph.derived ? ' <span class="hint">(계산)</span>' : ''}</td>
+                <td data-label="시작">${shortDate(ph.start_date)}</td>
+                <td data-label="종료">${shortDate(ph.end_date)}</td>
+                <td data-label="업무" class="num">${ph.task_count}</td>
+                <td data-label="진행" class="num">${ph.progress === null ? '-' : `${ph.progress}%`}</td>
+              </tr>`)).join('') || '<tr><td colspan="6">페이즈가 없습니다.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>마일스톤</h2>
+        <span class="meta">기한이 가까운 순</span>
+      </div>
+      ${live.flatMap((r) => r.milestones.map((m) => ({ ...m, project: r }))).length ? `
+        <div class="table-wrap">
+          <table class="list">
+            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>상태</th></tr></thead>
+            <tbody>
+              ${live.flatMap((r) => r.milestones.map((m) => ({ m, r })))
+                .sort((a, b) => a.m.due_date.localeCompare(b.m.due_date))
+                .map(({ m, r }) => {
+                  const st = tlMilestoneState(m);
+                  return `
+                    <tr class="row-click" data-milestone-row="${esc(m.id)}">
+                      <td data-label="마일스톤"><b>${esc(m.name)}</b></td>
+                      <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
+                      <td data-label="페이즈">${m.phase_name ? esc(m.phase_name) : '-'}</td>
+                      <td data-label="날짜">${shortDate(m.due_date)}
+                        <span class="dday">${m.done_at ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
+                      <td data-label="상태"><span class="chip ms-${st.key}">${st.mark ? `${st.mark} ` : ''}${st.label}</span></td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+          </table>
+        </div>` : '<p class="hint">등록된 마일스톤이 없습니다.</p>'}
+    </section>
+
+    <div class="tl-tip" hidden></div>`;
+
+  // ── 호버 툴팁 ─────────────────────────────────────────
+  const tip = root.querySelector('.tl-tip');
+  const showTip = (el) => {
+    tip.innerHTML = el.dataset.tip;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const host = root.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    const left = Math.min(Math.max(r.left - host.left + r.width / 2 - w / 2, 4), host.width - w - 4);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${r.top - host.top - tip.offsetHeight - 8}px`;
+  };
+  const hideTip = () => { tip.hidden = true; };
+  root.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el) showTip(el); else hideTip();
+  });
+  root.addEventListener('mouseleave', hideTip);
+  root.addEventListener('focusin', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el) showTip(el);
+  });
+  root.addEventListener('focusout', hideTip);
+  root.addEventListener('scroll', hideTip, true);
+
+  // ── 편집 ──────────────────────────────────────────────
+  const reload = () => window.dispatchEvent(new Event('kf:reload'));
+  const allPhases = live.flatMap((r) => r.phases);
+
+  root.addEventListener('click', (e) => {
+    const addP = e.target.closest('[data-add-phase]');
+    if (addP) return phaseForm({ projectId: addP.dataset.addPhase, onSaved: reload });
+
+    const addM = e.target.closest('[data-add-milestone]');
+    if (addM) return milestoneForm({ projectId: addM.dataset.addMilestone, phases: allPhases, onSaved: reload });
+
+    const ph = e.target.closest('[data-phase]');
+    if (ph) {
+      const found = allPhases.find((p) => p.id === ph.dataset.phase);
+      if (found) return phaseForm({ phase: found, projectId: found.project_id, onSaved: reload });
+    }
+
+    const ms = e.target.closest('[data-milestone], [data-milestone-row]');
+    if (ms) {
+      const id = ms.dataset.milestone || ms.dataset.milestoneRow;
+      const found = live.flatMap((r) => r.milestones).find((m) => m.id === id);
+      if (found) return milestoneForm({ milestone: found, projectId: found.project_id, phases: allPhases, onSaved: reload });
+    }
+    return undefined;
+  });
+}
+
+function tlHead() {
+  return `
+    <div class="page-head">
+      <div>
+        <h1>타임라인</h1>
+        <div class="sub">프로젝트 · 페이즈 기간과 마일스톤을 한 화면에서 봅니다.</div>
+      </div>
+    </div>`;
+}
+
+
+
+
+
+
+
+const won = (n) => `${Number(n || 0).toLocaleString('ko-KR')}원`;
+
 const WEEK_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
 const dayShift = (iso, n) =>
   new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -4285,12 +5282,16 @@ async function renderTime(root, query) {
   let sheet;
   let summary;
   let myTasks;
+  let spend;
   try {
     [sheet, myTasks] = await Promise.all([
       api.get(`/api/time/week${week ? `?week=${encodeURIComponent(week)}` : ''}`),
       api.get('/api/tasks?owner=me&done=1'),
     ]);
-    summary = await api.get(`/api/time/summary?from=${sheet.period.start}&to=${sheet.period.end}`);
+    [summary, spend] = await Promise.all([
+      api.get(`/api/time/summary?from=${sheet.period.start}&to=${sheet.period.end}`),
+      api.get(`/api/expenses?from=${sheet.period.start}&to=${sheet.period.end}`),
+    ]);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
@@ -4308,6 +5309,7 @@ async function renderTime(root, query) {
         <div class="sub">${mmdd(sheet.period.start)} ~ ${mmdd(sheet.period.end)} · 이번 주 <b>${fmtHours(sheet.total) || 0}시간</b></div>
       </div>
       <div class="page-actions">
+        <button class="btn" data-new-expense>+ 경비</button>
         <button class="btn" data-week="${esc(dayShift(sheet.period.start, -7))}">◀ 지난주</button>
         <button class="btn" data-week="${esc(dayShift(sheet.period.start, 7))}">다음주 ▶</button>
       </div>
@@ -4383,7 +5385,7 @@ async function renderTime(root, query) {
           <h3 class="mini-head">프로젝트별</h3>
           <div class="bars">
             ${summary.projects.length ? summary.projects.map((r) => `
-              <div class="bar" style="cursor:default;--pc:var(--p${tone(r.key)})">
+              <div class="bar" style="cursor:default;--pc:var(--p${projectTone(r.key)})">
                 <span class="name">${esc(r.label)}</span>
                 ${progressBar(summary.total ? Math.round((r.hours / summary.total) * 100) : 0)}
                 <span class="pct">${fmtHours(r.hours)}h</span>
@@ -4402,13 +5404,45 @@ async function renderTime(root, query) {
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>이번 주 경비</h2>
+        <span class="meta">실비만 기록합니다 · 요율·인건비는 다루지 않습니다</span>
+      </div>
+      <div class="exp-head">
+        <span class="exp-total">${won(spend.summary.total)}</span>
+        <span class="hint">${spend.summary.count}건</span>
+      </div>
+      ${spend.summary.categories.length ? `
+        <div class="exp-cats">
+          ${spend.summary.categories.map((c) => `
+            <span class="exp-cat">${esc(c.label)} <b>${won(c.amount)}</b></span>`).join('')}
+        </div>` : ''}
+      ${spend.rows.length ? `
+        <div class="table-wrap">
+          <table class="list">
+            <thead><tr><th>사용일</th><th>프로젝트</th><th>분류</th><th>내용</th><th>지출자</th><th class="num">금액</th><th></th></tr></thead>
+            <tbody>
+              ${spend.rows.map((r) => `
+                <tr>
+                  <td data-label="사용일" class="nowrap">${shortDate(r.spent_on)}</td>
+                  <td data-label="프로젝트">${projectName(r.project_id, r.project_name)}</td>
+                  <td data-label="분류">${esc(catLabel(r.category))}</td>
+                  <td data-label="내용">${esc(r.memo || '-')}${
+                    r.task_title ? `<span class="hint"> · ${esc(r.task_title)}</span>` : ''}</td>
+                  <td data-label="지출자">${esc(r.display_name)}</td>
+                  <td data-label="금액" class="num nowrap">${won(r.amount)}</td>
+                  <td class="num"><button class="btn btn-ghost sm" data-del-expense="${esc(r.id)}">삭제</button></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<p class="hint">이번 주에 등록된 경비가 없습니다.</p>'}
     </section>`;
 
-  // 프로젝트 색은 Overview 와 같은 규칙을 쓴다
-  function tone(id) {
-    let h = 0;
-    for (const ch of String(id ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    return h % 6;
+  function catLabel(code) {
+    return (state.meta?.expense_categories ?? []).find((c) => c.code === code)?.label ?? code;
   }
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
@@ -4454,9 +5488,25 @@ async function renderTime(root, query) {
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.closest('.hcell')) { e.preventDefault(); e.target.blur(); }
   });
-  root.addEventListener('click', (e) => {
+  root.addEventListener('click', async (e) => {
     const w = e.target.closest('[data-week]');
-    if (w) go(`#/time?week=${w.dataset.week}`);
+    if (w) return go(`#/time?week=${w.dataset.week}`);
+
+    if (e.target.closest('[data-new-expense]')) {
+      return expenseForm({ defaults: { spent_on: state.today }, onSaved: reload });
+    }
+
+    const del = e.target.closest('[data-del-expense]');
+    if (del) {
+      const ok = await confirmModal('이 경비 기록을 삭제할까요?', { danger: true });
+      if (!ok) return undefined;
+      try {
+        await api.del(`/api/expenses/${del.dataset.delExpense}`);
+        toast('경비를 삭제했습니다.');
+        reload();
+      } catch (err) { toast(err.message, true); }
+    }
+    return undefined;
   });
   void pctText;
 }
@@ -4480,8 +5530,12 @@ async function renderInvoice(root, query) {
   root.innerHTML = loading();
 
   let data;
+  let spend;
   try {
-    data = await api.get(`/api/payments?${p.toString()}`);
+    [data, spend] = await Promise.all([
+      api.get(`/api/payments?${p.toString()}`),
+      api.get('/api/expenses'),
+    ]);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
@@ -4493,7 +5547,7 @@ async function renderInvoice(root, query) {
     <div class="page-head">
       <div>
         <h1>인보이싱</h1>
-        <div class="sub">외주 업체에 지급할 건을 검수 상태와 함께 관리합니다</div>
+        <div class="sub">외주 업체에 지급할 건과 프로젝트에 쌓인 경비를 함께 봅니다</div>
       </div>
     </div>
 
@@ -4559,7 +5613,32 @@ async function renderInvoice(root, query) {
 
     <p class="hint" style="margin-top:16px">
       검수가 <b>승인</b>되지 않은 건은 지급 완료로 바꿀 수 없습니다. 업무 상세에서 검수를 먼저 처리해 주세요.
-    </p>`;
+    </p>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>프로젝트 경비</h2>
+        <span class="meta">외주 지급과 별개로 쌓인 실비 · 등록은 타임트래킹에서</span>
+      </div>
+      <div class="exp-head">
+        <span class="exp-total">${wonText(spend.summary.total)}</span>
+        <span class="hint">${spend.summary.count}건</span>
+      </div>
+      ${spend.summary.categories.length ? `
+        <div class="exp-cats">
+          ${spend.summary.categories.map((c) => `
+            <span class="exp-cat">${esc(c.label)} <b>${wonText(c.amount)}</b></span>`).join('')}
+        </div>` : ''}
+      ${spend.summary.projects.length ? `
+        <div class="bars" style="margin-top:12px">
+          ${spend.summary.projects.map((r) => `
+            <div class="bar" style="cursor:default">
+              <span class="name">${projectName(r.key, r.label)}</span>
+              ${progressBar(spend.summary.total ? Math.round((r.amount / spend.summary.total) * 100) : 0)}
+              <span class="pct">${wonText(r.amount)}</span>
+            </div>`).join('')}
+        </div>` : '<p class="hint">등록된 경비가 없습니다.</p>'}
+    </section>`;
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
   const patch = async (taskId, body, el) => {
@@ -4602,12 +5681,14 @@ async function renderInvoice(root, query) {
 
 
 
+
 const view = document.getElementById('view');
 
 // 프로젝트 매니징 아래의 화면들
 const PROJECT_TABS = [
   { key: 'overview', label: '현황' },
   { key: 'tasks',    label: '업무' },
+  { key: 'timeline', label: '타임라인' },
   { key: 'issues',   label: '이슈' },
   { key: 'weekly',   label: '주간 리포트' },
 ];
@@ -4654,6 +5735,7 @@ async function render() {
       fresh.appendChild(host);
       if (sub === 'overview') await renderOverview(host);
       else if (sub === 'tasks') { if (id) await renderTaskDetail(host, id); else await renderTasks(host, query); }
+      else if (sub === 'timeline') await renderTimeline(host);
       else if (sub === 'issues') { if (id) await renderIssueDetail(host, id); else await renderIssues(host, query); }
       else await renderWeekly(host, query);
       return;

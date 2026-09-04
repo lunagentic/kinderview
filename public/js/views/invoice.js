@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state } from '../state.js';
-import { esc, loading, errorBox, empty, toast, shortDate, go, projectName } from '../ui.js';
+import { esc, loading, errorBox, empty, toast, shortDate, go, projectName, progressBar } from '../ui.js';
 
 const PAY = [
   { code: 'PLANNED',   label: '지급 예정', tone: 'wait' },
@@ -16,8 +16,12 @@ export async function renderInvoice(root, query) {
   root.innerHTML = loading();
 
   let data;
+  let spend;
   try {
-    data = await api.get(`/api/payments?${p.toString()}`);
+    [data, spend] = await Promise.all([
+      api.get(`/api/payments?${p.toString()}`),
+      api.get('/api/expenses'),
+    ]);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
@@ -29,7 +33,7 @@ export async function renderInvoice(root, query) {
     <div class="page-head">
       <div>
         <h1>인보이싱</h1>
-        <div class="sub">외주 업체에 지급할 건을 검수 상태와 함께 관리합니다</div>
+        <div class="sub">외주 업체에 지급할 건과 프로젝트에 쌓인 경비를 함께 봅니다</div>
       </div>
     </div>
 
@@ -95,7 +99,32 @@ export async function renderInvoice(root, query) {
 
     <p class="hint" style="margin-top:16px">
       검수가 <b>승인</b>되지 않은 건은 지급 완료로 바꿀 수 없습니다. 업무 상세에서 검수를 먼저 처리해 주세요.
-    </p>`;
+    </p>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>프로젝트 경비</h2>
+        <span class="meta">외주 지급과 별개로 쌓인 실비 · 등록은 타임트래킹에서</span>
+      </div>
+      <div class="exp-head">
+        <span class="exp-total">${wonText(spend.summary.total)}</span>
+        <span class="hint">${spend.summary.count}건</span>
+      </div>
+      ${spend.summary.categories.length ? `
+        <div class="exp-cats">
+          ${spend.summary.categories.map((c) => `
+            <span class="exp-cat">${esc(c.label)} <b>${wonText(c.amount)}</b></span>`).join('')}
+        </div>` : ''}
+      ${spend.summary.projects.length ? `
+        <div class="bars" style="margin-top:12px">
+          ${spend.summary.projects.map((r) => `
+            <div class="bar" style="cursor:default">
+              <span class="name">${projectName(r.key, r.label)}</span>
+              ${progressBar(spend.summary.total ? Math.round((r.amount / spend.summary.total) * 100) : 0)}
+              <span class="pct">${wonText(r.amount)}</span>
+            </div>`).join('')}
+        </div>` : '<p class="hint">등록된 경비가 없습니다.</p>'}
+    </section>`;
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
   const patch = async (taskId, body, el) => {

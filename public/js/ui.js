@@ -23,9 +23,14 @@ export const dDay = (n) => {
 };
 
 // ── 프로젝트 색 ─────────────────────────────────────────
-// 팔레트에서 id 로 고정 배정한다. 순서가 바뀌어도 색이 따라 바뀌지 않는다.
-const PROJECT_TONES = 6;
+// 색은 프로젝트에 고정된다. 필터로 목록이 줄어도 남은 프로젝트의 색은 그대로다.
+// 기준은 프로젝트가 이미 가진 정렬 순서(sort_order)다 — 목록 안에서의 등수가 아니라
+// 프로젝트 자체의 값이라, 프로젝트를 새로 만들어도 기존 프로젝트 색이 바뀌지 않는다.
+// 순서를 모르는 값(합계 행의 임의 키 등)은 id 해시로 떨어뜨린다.
+const PROJECT_TONES = 4;
 export const projectTone = (id) => {
+  const order = state.projects.find((p) => p.id === id)?.sort_order;
+  if (Number.isInteger(order) && order > 0) return (order - 1) % PROJECT_TONES;
   let h = 0;
   for (const ch of String(id ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return h % PROJECT_TONES;

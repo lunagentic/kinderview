@@ -145,6 +145,209 @@ export const projects = {
   },
 };
 
+// ── 페이즈 · 마일스톤 ───────────────────────────────────
+// 프로젝트를 기간으로 나눈 단계. 업무를 페이즈에 묶으면 시간·경비도 함께 묶인다.
+
+export const phases = {
+  list(projectId) {
+    return all(
+      `SELECT ph.*,
+              (SELECT COUNT(*) FROM task t WHERE t.phase_id = ph.id AND t.deleted_at IS NULL) AS task_count,
+              (SELECT COUNT(*) FROM task t WHERE t.phase_id = ph.id AND t.deleted_at IS NULL AND t.status = 'DONE') AS done_count
+       FROM phase ph
+       ${projectId ? 'WHERE ph.project_id = :pid' : ''}
+       ORDER BY ph.project_id, ph.sort_order, ph.start_date`,
+      projectId ? { pid: projectId } : {},
+    );
+  },
+  create(input) {
+    if (!input.project_id) throw new HttpError(400, '프로젝트를 선택해 주세요.');
+    if (!input.name?.trim()) throw new HttpError(400, '페이즈 이름을 입력해 주세요.');
+    if (input.start_date && input.end_date && input.start_date > input.end_date) {
+      throw new HttpError(400, '시작일이 종료일보다 늦습니다.');
+    }
+    const id = uid();
+    const at = nowISO();
+    const next = one('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM phase WHERE project_id = :p',
+      { p: input.project_id }).n;
+    run(`INSERT INTO phase (id, project_id, name, start_date, end_date, sort_order, created_at, updated_at)
+         VALUES (:id, :p, :name, :s, :e, :o, :at, :at)`,
+      { id, p: input.project_id, name: input.name.trim(),
+        s: input.start_date || null, e: input.end_date || null,
+        o: input.sort_order ?? next, at });
+    return one('SELECT * FROM phase WHERE id = :id', { id });
+  },
+  update(id, input) {
+    const cur = one('SELECT * FROM phase WHERE id = :id', { id });
+    if (!cur) throw new HttpError(404, '페이즈를 찾을 수 없습니다.');
+    const start = input.start_date === undefined ? cur.start_date : (input.start_date || null);
+    const end = input.end_date === undefined ? cur.end_date : (input.end_date || null);
+    if (start && end && start > end) throw new HttpError(400, '시작일이 종료일보다 늦습니다.');
+    run(`UPDATE phase SET name = :name, start_date = :s, end_date = :e,
+            sort_order = :o, updated_at = :at WHERE id = :id`,
+      { id, name: (input.name ?? cur.name).trim(), s: start, e: end,
+        o: input.sort_order ?? cur.sort_order, at: nowISO() });
+    return one('SELECT * FROM phase WHERE id = :id', { id });
+  },
+  remove(id) {
+    // 업무는 남기고 페이즈 연결만 끊는다
+    run('UPDATE task SET phase_id = NULL WHERE phase_id = :id', { id });
+    run('DELETE FROM phase WHERE id = :id', { id });
+    return { ok: true };
+  },
+};
+
+export const milestones = {
+  list(projectId) {
+    return all(
+      `SELECT m.*, ph.name AS phase_name, p.name AS project_name
+       FROM milestone m
+       JOIN project p       ON p.id = m.project_id
+       LEFT JOIN phase ph   ON ph.id = m.phase_id
+       ${projectId ? 'WHERE m.project_id = :pid' : ''}
+       ORDER BY m.due_date`,
+      projectId ? { pid: projectId } : {},
+    );
+  },
+  create(input) {
+    if (!input.project_id) throw new HttpError(400, '프로젝트를 선택해 주세요.');
+    if (!input.name?.trim()) throw new HttpError(400, '마일스톤 이름을 입력해 주세요.');
+    if (!input.due_date) throw new HttpError(400, '날짜를 입력해 주세요.');
+    const id = uid();
+    const at = nowISO();
+    run(`INSERT INTO milestone (id, project_id, phase_id, name, due_date, done_at, created_at, updated_at)
+         VALUES (:id, :p, :ph, :name, :due, NULL, :at, :at)`,
+      { id, p: input.project_id, ph: input.phase_id || null,
+        name: input.name.trim(), due: input.due_date, at });
+    return one('SELECT * FROM milestone WHERE id = :id', { id });
+  },
+  update(id, input) {
+    const cur = one('SELECT * FROM milestone WHERE id = :id', { id });
+    if (!cur) throw new HttpError(404, '마일스톤을 찾을 수 없습니다.');
+    run(`UPDATE milestone SET name = :name, due_date = :due, phase_id = :ph,
+            done_at = :done, updated_at = :at WHERE id = :id`,
+      { id, name: (input.name ?? cur.name).trim(), due: input.due_date ?? cur.due_date,
+        ph: input.phase_id === undefined ? cur.phase_id : (input.phase_id || null),
+        done: input.done === undefined ? cur.done_at : (input.done ? (cur.done_at || today()) : null),
+        at: nowISO() });
+    return one('SELECT * FROM milestone WHERE id = :id', { id });
+  },
+  remove(id) {
+    run('DELETE FROM milestone WHERE id = :id', { id });
+    return { ok: true };
+  },
+};
+
+/** 간트용 — 프로젝트 · 페이즈 · 마일스톤을 기간과 함께 한 번에 */
+export function timeline() {
+  const projectRows = projects.list();
+  const phaseRows = phases.list();
+  const milestoneRows = milestones.list();
+  const openTasks = tasks.list({ includeDone: true });
+
+  return projectRows.map((p) => {
+    const ps = phaseRows.filter((ph) => ph.project_id === p.id).map((ph) => ({
+      ...ph,
+      progress: ph.task_count ? Math.round((ph.done_count / ph.task_count) * 100) : null,
+    }));
+    const rowTasks = openTasks.filter((t) => t.project_id === p.id);
+    // 페이즈에 기간이 없으면 그 페이즈 업무의 일정으로 채운다
+    for (const ph of ps) {
+      if (ph.start_date && ph.end_date) continue;
+      const own = rowTasks.filter((t) => t.phase_id === ph.id);
+      if (!own.length) continue;
+      const dates = own.flatMap((t) => [t.start_date, t.due_date]).filter(Boolean).sort();
+      ph.start_date ??= dates[0] ?? null;
+      ph.end_date ??= dates[dates.length - 1] ?? null;
+      ph.derived = true;
+    }
+    const dates = [
+      ...ps.flatMap((ph) => [ph.start_date, ph.end_date]),
+      ...rowTasks.flatMap((t) => [t.start_date, t.due_date]),
+      p.start_date, p.end_date,
+    ].filter(Boolean).sort();
+    return {
+      id: p.id, name: p.name, code: p.code, status: p.status,
+      start_date: dates[0] ?? null, end_date: dates[dates.length - 1] ?? null,
+      phases: ps,
+      milestones: milestoneRows.filter((m) => m.project_id === p.id),
+      unphased: rowTasks.filter((t) => !t.phase_id).length,
+    };
+  });
+}
+
+// ── 경비 ────────────────────────────────────────────────
+// 시간과 함께 프로젝트에 쌓이는 실비. 요율·인건비는 다루지 않는다.
+
+export const EXPENSE_CATEGORIES = [
+  { code: 'TRANSPORT', label: '교통' },
+  { code: 'MATERIAL',  label: '자재·인쇄' },
+  { code: 'MEAL',      label: '식대' },
+  { code: 'SOFTWARE',  label: '소프트웨어' },
+  { code: 'ETC',       label: '기타' },
+];
+
+export const expenses = {
+  list({ from, to, project, member: who } = {}) {
+    const params = {};
+    const where = [];
+    if (from) { params.from = from; where.push('e.spent_on >= :from'); }
+    if (to) { params.to = to; where.push('e.spent_on <= :to'); }
+    if (project) { params.project = project; where.push('e.project_id = :project'); }
+    if (who) { params.who = who; where.push('e.slack_user_id = :who'); }
+    return all(
+      `SELECT e.*, p.name AS project_name, t.title AS task_title, m.display_name
+       FROM expense e
+       JOIN project p ON p.id = e.project_id
+       JOIN member m  ON m.slack_user_id = e.slack_user_id
+       LEFT JOIN task t ON t.id = e.task_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY e.spent_on DESC, e.created_at DESC`,
+      params,
+    );
+  },
+  create(input, actor) {
+    if (!input.project_id) throw new HttpError(400, '프로젝트를 선택해 주세요.');
+    if (!input.spent_on) throw new HttpError(400, '사용일을 입력해 주세요.');
+    const amount = Math.round(Number(input.amount));
+    if (!Number.isFinite(amount) || amount <= 0) throw new HttpError(400, '금액을 0보다 큰 숫자로 입력해 주세요.');
+    const category = input.category || 'ETC';
+    if (!EXPENSE_CATEGORIES.some((c) => c.code === category)) throw new HttpError(400, '없는 분류입니다.');
+    const id = uid();
+    const at = nowISO();
+    run(`INSERT INTO expense (id, project_id, task_id, slack_user_id, spent_on, category, amount, memo, created_at, updated_at)
+         VALUES (:id, :p, :t, :u, :d, :c, :a, :memo, :at, :at)`,
+      { id, p: input.project_id, t: input.task_id || null,
+        u: input.slack_user_id || actor, d: input.spent_on,
+        c: category, a: amount, memo: input.memo || null, at });
+    return expenses.list().find((e) => e.id === id) ?? null;
+  },
+  remove(id) {
+    run('DELETE FROM expense WHERE id = :id', { id });
+    return { ok: true };
+  },
+  summary(range = {}) {
+    const rows = expenses.list(range);
+    const group = (keyFn, labelFn) => {
+      const map = new Map();
+      for (const r of rows) {
+        const k = keyFn(r);
+        if (!map.has(k)) map.set(k, { key: k, label: labelFn(r), amount: 0, count: 0 });
+        const g = map.get(k);
+        g.amount += r.amount;
+        g.count += 1;
+      }
+      return [...map.values()].sort((a, b) => b.amount - a.amount);
+    };
+    return {
+      total: rows.reduce((n, r) => n + r.amount, 0),
+      count: rows.length,
+      projects: group((r) => r.project_id, (r) => r.project_name),
+      categories: group((r) => r.category, (r) => EXPENSE_CATEGORIES.find((c) => c.code === r.category)?.label ?? r.category),
+    };
+  },
+};
+
 // ── 외주 업체 ───────────────────────────────────────────
 
 export const vendors = {
@@ -227,6 +430,7 @@ export class HttpError extends Error {
 const TASK_SELECT = `
   SELECT t.*,
          p.name AS project_name, p.code AS project_code, p.slack_channel_id AS project_channel,
+         ph.name AS phase_name,
          p.lead_slack_user_id AS project_lead,
          m.display_name AS owner_name, m.avatar_url AS owner_avatar, m.is_active AS owner_active,
          o.vendor_id, ven.name AS vendor_name, o.vendor_worker_name, o.vendor_worker_contact,
@@ -238,6 +442,7 @@ const TASK_SELECT = `
          ${CASE_WEIGHT} AS progress_weight
   FROM task t
   JOIN project p   ON p.id = t.project_id
+  LEFT JOIN phase ph ON ph.id = t.phase_id
   JOIN member m    ON m.slack_user_id = t.owner_slack_user_id
   LEFT JOIN outsourcing o ON o.task_id = t.id
   LEFT JOIN vendor ven    ON ven.id = o.vendor_id
@@ -269,6 +474,7 @@ export const tasks = {
     if (!filter.includeArchivedProjects) where.push('p.is_archived = 0');
     if (filter.project?.length) where.push(`t.project_id IN ${inClause('pj', filter.project, params)}`);
     if (filter.area?.length) where.push(`t.area IN ${inClause('ar', filter.area, params)}`);
+    if (filter.phase?.length) where.push(`t.phase_id IN ${inClause('phz', filter.phase, params)}`);
     if (filter.owner?.length) where.push(`t.owner_slack_user_id IN ${inClause('ow', filter.owner, params)}`);
     if (filter.status?.length) where.push(`t.status IN ${inClause('st', filter.status, params)}`);
     if (filter.stage === 'IN_PROGRESS') where.push(`t.status IN ${inClause('sg', IN_PROGRESS_STATUSES, params)}`);
@@ -324,13 +530,14 @@ export const tasks = {
       const id = uid();
       const at = nowISO();
       run(
-        `INSERT INTO task (id, project_id, title, area, owner_slack_user_id, status, priority,
+        `INSERT INTO task (id, project_id, phase_id, title, area, owner_slack_user_id, status, priority,
                            start_date, due_date, description, completed_at, created_by, created_at, updated_at)
-         VALUES (:id, :project_id, :title, :area, :owner, :status, :priority,
+         VALUES (:id, :project_id, :phase_id, :title, :area, :owner, :status, :priority,
                  :start_date, :due_date, :description, :completed_at, :actor, :at, :at)`,
         {
           id,
           project_id: input.project_id,
+          phase_id: input.phase_id || null,
           title: input.title.trim(),
           area,
           owner,
@@ -378,7 +585,7 @@ export const tasks = {
       const completedAt = status === 'DONE' ? (cur.completed_at || at) : null;
 
       run(
-        `UPDATE task SET project_id = :project_id, title = :title, area = :area,
+        `UPDATE task SET project_id = :project_id, phase_id = :phase_id, title = :title, area = :area,
            owner_slack_user_id = :owner, status = :status, priority = :priority,
            start_date = :start_date, due_date = :due_date, description = :description,
            completed_at = :completed_at, updated_at = :at
@@ -386,6 +593,7 @@ export const tasks = {
         {
           id,
           project_id: input.project_id ?? cur.project_id,
+          phase_id: input.phase_id === undefined ? cur.phase_id : (input.phase_id || null),
           title: (input.title ?? cur.title).trim(),
           area,
           owner,

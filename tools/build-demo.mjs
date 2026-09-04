@@ -34,7 +34,8 @@ const parts = [
   dedupeDomain(flatten(read('server/domain.js'))),
   '/* ── 예시 데이터 (server/seed-data.js) ──────────────── */',
   seed,
-  'const SEED = { MEMBERS, AREA_LEADS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, TIME_ENTRIES };',
+  'const SEED = { MEMBERS, AREA_LEADS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, TIME_ENTRIES,\n'
+  + '  PHASES, TASK_PHASE, MILESTONES, EXPENSES };',
   '/* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */',
   flatten(read('server/ai/rules.js')),
   '/* ── 브라우저 저장소 (demo/store.js) ────────────────── */',
@@ -50,6 +51,7 @@ const parts = [
   flatten(read('public/js/views/issues.js')),
   flatten(read('public/js/views/weekly.js')),
   flatten(read('public/js/views/notifications.js')),
+  flatten(read('public/js/views/timeline.js')),
   flatten(read('public/js/views/time.js')),
   flatten(read('public/js/views/invoice.js')),
   // 동적 import 는 번들에서 직접 호출로 바꾼다

@@ -62,6 +62,7 @@ export async function renderTaskDetail(root, id) {
             <dt>협업자</dt><dd>${t.collaborators.length
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
+            ${t.phase_name ? `<dt>페이즈</dt><dd>${esc(t.phase_name)}</dd>` : ''}
             <dt>일정</dt><dd>${t.start_date ? `${shortDate(t.start_date)} → ` : ''}${shortDate(t.due_date)}
               <span style="color:${t.is_delayed ? 'var(--s-delay)' : 'var(--muted)'};font-size:.8rem">
                 ${t.status === 'DONE' ? '' : dDay(t.d_day)}</span></dd>

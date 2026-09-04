@@ -10,6 +10,12 @@ erDiagram
     MEMBER ||--o{ ISSUE : "담당"
     PROJECT ||--o{ TASK : "포함"
     PROJECT ||--o{ ISSUE : "포함"
+    PROJECT ||--o{ PHASE : "기간 단위"
+    PROJECT ||--o{ MILESTONE : "약속"
+    PROJECT ||--o{ EXPENSE : "실비"
+    PHASE ||--o{ TASK : "묶음"
+    PHASE ||--o{ MILESTONE : "소속"
+    TASK ||--o{ EXPENSE : "연결"
     TASK ||--o| OUTSOURCING : "확장(1:1)"
     TASK ||--o{ TASK_COLLABORATOR : "협업자"
     TASK ||--o{ ISSUE : "연결"
@@ -142,12 +148,43 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 | `sort_order` | int | | Overview 정렬 순서 |
 | `is_archived` | bool | ✔ | 기본 `false`. 아카이브 시 목록·집계에서 제외 |
 
+### PHASE — 페이즈 (프로젝트의 기간 단위)
+
+업무를 묶어 타임라인(간트)의 한 줄이 된다. 상세는 [14-타임라인](14-timeline-spec.md).
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `id` | uuid | ✔ | PK |
+| `project_id` | uuid FK | ✔ | 소속 프로젝트 |
+| `name` | text | ✔ | 페이즈 이름 (예: 기획·설계) |
+| `start_date` / `end_date` | date | | **비워도 된다.** 비면 소속 업무 일정에서 계산한다 |
+| `sort_order` | int | ✔ | 프로젝트 안의 순서 |
+
+- 기간을 비운 페이즈의 계산 결과는 **저장하지 않는다** (원칙 6·7).
+- 페이즈를 삭제해도 업무는 남는다 — 연결만 끊긴다.
+
+### MILESTONE — 마일스톤
+
+기간이 아니라 **날짜 하나**로 표시되는 약속.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `id` | uuid | ✔ | PK |
+| `project_id` | uuid FK | ✔ | |
+| `phase_id` | uuid FK | | 페이즈에 붙이거나, 프로젝트에 직접 달거나 |
+| `name` | text | ✔ | |
+| `due_date` | date | ✔ | |
+| `done_at` | timestamptz | | 달성 시각. 비어 있으면 미달성 |
+
+달성/지연/예정은 저장하지 않고 `done_at` 과 오늘 날짜로 계산한다.
+
 ### TASK — 업무 (기본 관리 단위)
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `id` | uuid | ✔ | PK |
 | `project_id` | uuid FK | ✔ | 소속 프로젝트 |
+| `phase_id` | uuid FK | | 소속 페이즈. **선택** — 없어도 앱은 그대로 동작한다 |
 | `title` | text | ✔ | 업무명 |
 | `area` | enum | ✔ | 업무 영역 (`PLAN`/`DESIGN`/`DEV`/`CONTENT`/`MKT`/`BIZ`/`OPS`/`OUT`/`ETC`). **담당자를 결정한다** |
 | `owner_slack_user_id` | text FK | ✔ | **담당자. 단일 값.** 사람을 고르지 않고 `area_lead` 에서 채워진다 |
@@ -264,6 +301,23 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 - 값을 비우면 행을 삭제한다. "0시간"은 저장하지 않는다.
 - 시간 기록은 **선택**이다. 적지 않아도 업무·진행·리포트는 그대로 동작한다.
 
+### EXPENSE — 경비 (실비)
+
+프로젝트에 쌓이는 실비. **요율·인건비는 다루지 않는다** — 시간 기록에서 급여가 역산되기 때문이다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `id` | uuid | ✔ | PK |
+| `project_id` | uuid FK | ✔ | |
+| `task_id` | uuid FK | | 업무에 연결하거나, 프로젝트에만 달거나 |
+| `slack_user_id` | text FK | ✔ | 지출자 |
+| `spent_on` | date | ✔ | 사용일 |
+| `category` | enum | ✔ | `TRANSPORT` / `MATERIAL` / `MEAL` / `SOFTWARE` / `ETC` |
+| `amount` | int | ✔ | 금액(원). **0 초과** |
+| `memo` | text | | 무엇에 썼나 |
+
+- 승인 절차·영수증 첨부는 두지 않는다 ([13 §13.2.1](13-time-invoice-spec.md)).
+
 ### TASK_EVENT — 업무 이력
 
 Weekly Report의 "이번 주 변화"를 사람 입력 없이 계산하기 위한 최소 이력이다. (원칙 8)
@@ -346,6 +400,9 @@ OPEN → CHECKING(확인중) → RESOLVED(해결)
 | `d_day` | `due_date - CURRENT_DATE` (음수면 지연 일수) |
 | `is_outsourcing` | `area = 'OUT'` |
 | `delivery_delayed` | 외주: `status ≠ DONE AND delivery_due_date < CURRENT_DATE` |
+| 페이즈 기간 | `start_date`/`end_date` 가 비면 소속 업무의 `min(start_date)` ~ `max(due_date)` |
+| 페이즈 진행률 | `완료 업무 수 / 소속 업무 수` (업무 0건이면 `-`) |
+| 마일스톤 상태 | `done_at` 있음 → 달성 / `due_date < 오늘` → 지연 / 그 밖 → 예정 |
 
 ## 3.5 진행률 산식
 
@@ -379,3 +436,6 @@ MVP는 모든 업무를 동일 비중으로 본다.
 | 이슈 | 소프트 삭제 |
 | 구성원 | 삭제하지 않음. `is_active = false` 처리 |
 | 외주 상세 | 업무의 영역이 `OUT`이 아니게 바뀌면 함께 제거 (사전 확인 필요) |
+| 페이즈 | 하드 삭제. 소속 업무의 `phase_id` 는 `NULL` 로 풀린다 (업무는 남는다) |
+| 마일스톤 | 하드 삭제. 이력을 남길 대상이 아니다 |
+| 경비 | 하드 삭제. 잘못 적은 금액은 지우는 게 맞다 |

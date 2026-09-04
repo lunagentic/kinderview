@@ -5,7 +5,7 @@
 // 데이터는 localStorage 에 저장된다. 서버도 DB도 없다.
 
 // 업무 영역 개편(v3)으로 이전 데이터의 area 값이 더는 유효하지 않다 — 키를 올려 새로 만든다
-const LS_KEY = 'kf.demo.v5';
+const LS_KEY = 'kf.demo.v6';
 
 // ── 날짜 ────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');
@@ -65,6 +65,18 @@ function buildSeed() {
     return v.id;
   };
 
+  const phaseId = {};
+  const phases = (SEED.PHASES ?? []).map(([pk, key, name, start, end, order]) => {
+    const id = uid();
+    phaseId[key] = id;
+    return {
+      id, project_id: projectId[pk], name,
+      start_date: start == null ? null : d(start),
+      end_date: end == null ? null : d(end),
+      sort_order: order, created_at: nowISO(), updated_at: nowISO(),
+    };
+  });
+
   const tasks = [];
   const collaborators = [];
   const outsourcing = [];
@@ -78,7 +90,8 @@ function buildSeed() {
     const created = at(d(Math.max(dueOffset - 14, -60)), '01');
     const taskOwner = leadOfArea[area] ?? owner;   // 담당자 = 영역 리드
     tasks.push({
-      id, project_id: projectId[pk], title, area, owner_slack_user_id: taskOwner, status, priority,
+      id, project_id: projectId[pk], phase_id: phaseId[(SEED.TASK_PHASE ?? {})[title]] ?? null,
+      title, area, owner_slack_user_id: taskOwner, status, priority,
       start_date: d(dueOffset - 10), due_date: due, description: null,
       completed_at: status === 'DONE' ? at(due, '08') : null,
       created_by: 'U01KIM', created_at: created, updated_at: created, deleted_at: null,
@@ -135,9 +148,24 @@ function buildSeed() {
     } : null;
   }).filter(Boolean);
 
+  const milestones = (SEED.MILESTONES ?? []).map(([pk, phaseKey, name, dueOffset, doneOffset]) => ({
+    id: uid(), project_id: projectId[pk], phase_id: phaseKey ? phaseId[phaseKey] ?? null : null,
+    name, due_date: d(dueOffset),
+    done_at: doneOffset == null ? null : at(d(doneOffset), '07'),
+    created_at: nowISO(), updated_at: nowISO(),
+  }));
+
+  const expenses = (SEED.EXPENSES ?? []).map(([pk, taskTitle, who, dayOffset, category, amount, memo]) => ({
+    id: uid(), project_id: projectId[pk],
+    task_id: taskTitle ? taskIdByTitle[taskTitle] ?? null : null,
+    slack_user_id: who, spent_on: d(dayOffset), category, amount, memo,
+    created_at: nowISO(), updated_at: nowISO(),
+  }));
+
   return {
     anchor: T, members, projects, vendors, tasks, collaborators, outsourcing, issues, events,
     area_leads: areaLeadRows, time_entries: timeRows, notifications: [], weekly_reports: [],
+    phases, milestones, expenses,
   };
 }
 
@@ -184,6 +212,7 @@ function hydrate(t, ref = today()) {
     ...t,
     project_name: p?.name ?? '-', project_code: p?.code ?? null,
     project_channel: p?.slack_channel_id ?? null, project_lead: p?.lead_slack_user_id ?? null,
+    phase_name: DB.phases?.find((ph) => ph.id === t.phase_id)?.name ?? null,
     owner_name: m?.display_name ?? t.owner_slack_user_id,
     owner_avatar: m?.avatar_url ?? null, owner_active: Boolean(m?.is_active),
     vendor_id: o?.vendor_id ?? null, vendor_name: v?.name ?? null,
@@ -436,8 +465,8 @@ function createTask(input, actor) {
   if (input.start_date && input.start_date > due) throw new DemoError('시작일은 마감일보다 늦을 수 없습니다.');
 
   const t = {
-    id: uid(), project_id: input.project_id, title: input.title.trim(), area,
-    owner_slack_user_id: owner, status,
+    id: uid(), project_id: input.project_id, phase_id: input.phase_id || null,
+    title: input.title.trim(), area, owner_slack_user_id: owner, status,
     priority: input.priority || 'NORMAL',
     start_date: input.start_date || null, due_date: due,
     description: input.description || null,
@@ -471,6 +500,7 @@ function updateTask(id, input, actor) {
 
   Object.assign(t, {
     project_id: input.project_id ?? t.project_id,
+    phase_id: input.phase_id === undefined ? t.phase_id : (input.phase_id || null),
     title: (input.title ?? t.title).trim(),
     area, owner_slack_user_id: owner, status,
     priority: input.priority ?? t.priority,
@@ -985,6 +1015,212 @@ const listParam = (sp, name) => {
   return raw.length ? raw : undefined;
 };
 
+// ── 페이즈 · 마일스톤 · 타임라인 ────────────────────────
+// server/repo.js 의 phases · milestones · timeline() 과 같은 규칙이다.
+
+const phasesOf = (projectId) => (DB.phases ?? [])
+  .filter((ph) => !projectId || ph.project_id === projectId)
+  .map((ph) => {
+    const own = DB.tasks.filter((t) => !t.deleted_at && t.phase_id === ph.id);
+    return {
+      ...ph,
+      task_count: own.length,
+      done_count: own.filter((t) => t.status === 'DONE').length,
+    };
+  })
+  .sort((a, b) => (a.project_id === b.project_id
+    ? a.sort_order - b.sort_order
+    : a.project_id.localeCompare(b.project_id)));
+
+const milestonesOf = (projectId) => (DB.milestones ?? [])
+  .filter((m) => !projectId || m.project_id === projectId)
+  .map((m) => ({
+    ...m,
+    phase_name: (DB.phases ?? []).find((ph) => ph.id === m.phase_id)?.name ?? null,
+    project_name: project(m.project_id)?.name ?? '-',
+  }))
+  .sort((a, b) => a.due_date.localeCompare(b.due_date));
+
+function createPhase(input) {
+  if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
+  if (!input.name?.trim()) throw new DemoError('페이즈 이름을 입력해 주세요.');
+  if (input.start_date && input.end_date && input.start_date > input.end_date) {
+    throw new DemoError('시작일이 종료일보다 늦습니다.');
+  }
+  const same = (DB.phases ?? []).filter((ph) => ph.project_id === input.project_id);
+  const ph = {
+    id: uid(), project_id: input.project_id, name: input.name.trim(),
+    start_date: input.start_date || null, end_date: input.end_date || null,
+    sort_order: input.sort_order ?? same.reduce((n, x) => Math.max(n, x.sort_order), 0) + 1,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+  DB.phases.push(ph);
+  save();
+  return ph;
+}
+
+function updatePhase(id, input) {
+  const ph = (DB.phases ?? []).find((x) => x.id === id);
+  if (!ph) throw new DemoError('페이즈를 찾을 수 없습니다.');
+  const start = input.start_date === undefined ? ph.start_date : (input.start_date || null);
+  const end = input.end_date === undefined ? ph.end_date : (input.end_date || null);
+  if (start && end && start > end) throw new DemoError('시작일이 종료일보다 늦습니다.');
+  Object.assign(ph, {
+    name: (input.name ?? ph.name).trim(), start_date: start, end_date: end,
+    sort_order: input.sort_order ?? ph.sort_order, updated_at: nowISO(),
+  });
+  save();
+  return ph;
+}
+
+function removePhase(id) {
+  // 업무는 남기고 연결만 끊는다
+  for (const t of DB.tasks) if (t.phase_id === id) t.phase_id = null;
+  for (const m of (DB.milestones ?? [])) if (m.phase_id === id) m.phase_id = null;
+  DB.phases = (DB.phases ?? []).filter((ph) => ph.id !== id);
+  save();
+  return { ok: true };
+}
+
+function createMilestone(input) {
+  if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
+  if (!input.name?.trim()) throw new DemoError('마일스톤 이름을 입력해 주세요.');
+  if (!input.due_date) throw new DemoError('날짜를 입력해 주세요.');
+  const m = {
+    id: uid(), project_id: input.project_id, phase_id: input.phase_id || null,
+    name: input.name.trim(), due_date: input.due_date, done_at: null,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+  DB.milestones.push(m);
+  save();
+  return m;
+}
+
+function updateMilestone(id, input) {
+  const m = (DB.milestones ?? []).find((x) => x.id === id);
+  if (!m) throw new DemoError('마일스톤을 찾을 수 없습니다.');
+  Object.assign(m, {
+    name: (input.name ?? m.name).trim(),
+    due_date: input.due_date ?? m.due_date,
+    phase_id: input.phase_id === undefined ? m.phase_id : (input.phase_id || null),
+    done_at: input.done === undefined ? m.done_at : (input.done ? (m.done_at || `${today()}T00:00:00.000Z`) : null),
+    updated_at: nowISO(),
+  });
+  save();
+  return m;
+}
+
+function removeMilestone(id) {
+  DB.milestones = (DB.milestones ?? []).filter((m) => m.id !== id);
+  save();
+  return { ok: true };
+}
+
+function timelineRows() {
+  const allPhases = phasesOf();
+  const allMilestones = milestonesOf();
+  return DB.projects
+    .filter((p) => !p.is_archived)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((p) => {
+      const ps = allPhases.filter((ph) => ph.project_id === p.id).map((ph) => ({
+        ...ph,
+        progress: ph.task_count ? Math.round((ph.done_count / ph.task_count) * 100) : null,
+      }));
+      const rowTasks = DB.tasks.filter((t) => !t.deleted_at && t.project_id === p.id);
+      // 기간이 없는 페이즈는 그 페이즈 업무의 일정으로 채운다
+      for (const ph of ps) {
+        if (ph.start_date && ph.end_date) continue;
+        const own = rowTasks.filter((t) => t.phase_id === ph.id);
+        if (!own.length) continue;
+        const ds = own.flatMap((t) => [t.start_date, t.due_date]).filter(Boolean).sort();
+        ph.start_date ??= ds[0] ?? null;
+        ph.end_date ??= ds[ds.length - 1] ?? null;
+        ph.derived = true;
+      }
+      const ds = [
+        ...ps.flatMap((ph) => [ph.start_date, ph.end_date]),
+        ...rowTasks.flatMap((t) => [t.start_date, t.due_date]),
+        p.start_date, p.end_date,
+      ].filter(Boolean).sort();
+      return {
+        id: p.id, name: p.name, code: p.code, status: p.status,
+        start_date: ds[0] ?? null, end_date: ds[ds.length - 1] ?? null,
+        phases: ps,
+        milestones: allMilestones.filter((m) => m.project_id === p.id),
+        unphased: rowTasks.filter((t) => !t.phase_id).length,
+      };
+    });
+}
+
+// ── 경비 ────────────────────────────────────────────────
+const EXPENSE_CATEGORIES = [
+  { code: 'TRANSPORT', label: '교통' },
+  { code: 'MATERIAL',  label: '자재·인쇄' },
+  { code: 'MEAL',      label: '식대' },
+  { code: 'SOFTWARE',  label: '소프트웨어' },
+  { code: 'ETC',       label: '기타' },
+];
+
+function expenseRows({ from, to, project: pid, member: who } = {}) {
+  return (DB.expenses ?? [])
+    .filter((e) => (!from || e.spent_on >= from) && (!to || e.spent_on <= to)
+      && (!pid || e.project_id === pid) && (!who || e.slack_user_id === who))
+    .map((e) => ({
+      ...e,
+      project_name: project(e.project_id)?.name ?? '-',
+      task_title: DB.tasks.find((t) => t.id === e.task_id)?.title ?? null,
+      display_name: member(e.slack_user_id)?.display_name ?? e.slack_user_id,
+    }))
+    .sort((a, b) => b.spent_on.localeCompare(a.spent_on));
+}
+
+function expenseSummary(range) {
+  const rows = expenseRows(range);
+  const group = (keyFn, labelFn) => {
+    const map = new Map();
+    for (const r of rows) {
+      const k = keyFn(r);
+      if (!map.has(k)) map.set(k, { key: k, label: labelFn(r), amount: 0, count: 0 });
+      const g = map.get(k);
+      g.amount += r.amount;
+      g.count += 1;
+    }
+    return [...map.values()].sort((a, b) => b.amount - a.amount);
+  };
+  return {
+    total: rows.reduce((n, r) => n + r.amount, 0),
+    count: rows.length,
+    projects: group((r) => r.project_id, (r) => r.project_name),
+    categories: group((r) => r.category,
+      (r) => EXPENSE_CATEGORIES.find((c) => c.code === r.category)?.label ?? r.category),
+  };
+}
+
+function createExpense(input, actor) {
+  if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
+  if (!input.spent_on) throw new DemoError('사용일을 입력해 주세요.');
+  const amount = Math.round(Number(input.amount));
+  if (!Number.isFinite(amount) || amount <= 0) throw new DemoError('금액을 0보다 큰 숫자로 입력해 주세요.');
+  const category = input.category || 'ETC';
+  if (!EXPENSE_CATEGORIES.some((c) => c.code === category)) throw new DemoError('없는 분류입니다.');
+  const e = {
+    id: uid(), project_id: input.project_id, task_id: input.task_id || null,
+    slack_user_id: input.slack_user_id || actor, spent_on: input.spent_on,
+    category, amount, memo: input.memo || null,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+  DB.expenses.push(e);
+  save();
+  return expenseRows().find((r) => r.id === e.id) ?? e;
+}
+
+function removeExpense(id) {
+  DB.expenses = (DB.expenses ?? []).filter((e) => e.id !== id);
+  save();
+  return { ok: true };
+}
+
 function handle(method, path, body) {
   const url = new URL(path, 'http://demo.local');
   const sp = url.searchParams;
@@ -1002,6 +1238,7 @@ function handle(method, path, body) {
         areas: AREAS, normal_statuses: NORMAL_STATUSES, out_statuses: OUT_STATUSES,
         review_statuses: REVIEW_STATUSES, issue_statuses: ISSUE_STATUSES,
         priorities: PRIORITIES, project_statuses: PROJECT_STATUSES, progress_weight: PROGRESS_WEIGHT,
+        expense_categories: EXPENSE_CATEGORIES,
       },
     };
   }
@@ -1145,6 +1382,34 @@ function handle(method, path, body) {
     const c = aiCtx();
     return parseCapture(body.text, { members: c.members, projects: c.projects, today: c.today });
   }
+
+  if (p === '/api/timeline' && method === 'GET') return timelineRows();
+
+  if (p === '/api/phases' && method === 'GET') return phasesOf(sp.get('project') || undefined);
+  if (p === '/api/phases' && method === 'POST') return createPhase(body);
+  if (seg[1] === 'phases' && seg[2]) {
+    if (method === 'PATCH') return updatePhase(seg[2], body);
+    if (method === 'DELETE') return removePhase(seg[2]);
+  }
+
+  if (p === '/api/milestones' && method === 'GET') return milestonesOf(sp.get('project') || undefined);
+  if (p === '/api/milestones' && method === 'POST') return createMilestone(body);
+  if (seg[1] === 'milestones' && seg[2]) {
+    if (method === 'PATCH') return updateMilestone(seg[2], body);
+    if (method === 'DELETE') return removeMilestone(seg[2]);
+  }
+
+  if (p === '/api/expenses' && method === 'GET') {
+    const who = sp.get('member');
+    const range = {
+      from: sp.get('from') || undefined, to: sp.get('to') || undefined,
+      project: sp.get('project') || undefined,
+      member: who === 'me' ? me : (who || undefined),
+    };
+    return { rows: expenseRows(range), summary: expenseSummary(range) };
+  }
+  if (p === '/api/expenses' && method === 'POST') return createExpense(body, me);
+  if (seg[1] === 'expenses' && seg[2] && method === 'DELETE') return removeExpense(seg[2]);
 
   if (p === '/api/time/week' && method === 'GET') {
     const who = sp.get('member');

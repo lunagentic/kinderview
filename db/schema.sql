@@ -27,6 +27,8 @@ CREATE TYPE issue_status AS ENUM ('OPEN', 'CHECKING', 'RESOLVED');
 
 CREATE TYPE payment_status AS ENUM ('PLANNED', 'REQUESTED', 'PAID');
 
+CREATE TYPE expense_category AS ENUM ('TRANSPORT', 'MATERIAL', 'MEAL', 'SOFTWARE', 'ETC');
+
 CREATE TYPE task_event_type AS ENUM (
   'CREATED', 'STATUS_CHANGED', 'OWNER_CHANGED', 'DUE_CHANGED', 'REVIEW_STATUS_CHANGED'
 );
@@ -84,12 +86,51 @@ CREATE TABLE vendor (
 );
 
 -- ─────────────────────────────────────────────
+-- PHASE — 프로젝트의 기간 단위
+-- 업무를 묶어 타임라인(간트)의 한 줄이 된다.
+-- 기간을 비워 두면 소속 업무의 시작·마감에서 계산한다 (저장하지 않는다).
+-- ─────────────────────────────────────────────
+
+CREATE TABLE phase (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES project (id) ON DELETE CASCADE,
+  name       text NOT NULL,
+  start_date date,
+  end_date   date,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT phase_period_valid CHECK (end_date IS NULL OR start_date IS NULL OR start_date <= end_date)
+);
+
+CREATE INDEX idx_phase_project ON phase (project_id, sort_order);
+
+-- ─────────────────────────────────────────────
+-- MILESTONE — 날짜 하나로 표시되는 약속
+-- 페이즈에 붙일 수도, 프로젝트에 직접 붙일 수도 있다.
+-- ─────────────────────────────────────────────
+
+CREATE TABLE milestone (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES project (id) ON DELETE CASCADE,
+  phase_id   uuid REFERENCES phase (id) ON DELETE SET NULL,
+  name       text NOT NULL,
+  due_date   date NOT NULL,
+  done_at    timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_milestone_project ON milestone (project_id, due_date);
+
+-- ─────────────────────────────────────────────
 -- TASK — 기본 관리 단위
 -- ─────────────────────────────────────────────
 
 CREATE TABLE task (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id          uuid NOT NULL REFERENCES project (id),
+  phase_id            uuid REFERENCES phase (id) ON DELETE SET NULL,
   title               text NOT NULL,
   area                task_area NOT NULL,
   -- 담당자: 필수, 단일 값 (원칙 1)
@@ -117,6 +158,7 @@ CREATE TABLE task (
 );
 
 CREATE INDEX idx_task_project   ON task (project_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_task_phase     ON task (phase_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_task_owner     ON task (owner_slack_user_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_task_area      ON task (area) WHERE deleted_at IS NULL;
 CREATE INDEX idx_task_due       ON task (due_date) WHERE deleted_at IS NULL;
@@ -253,6 +295,28 @@ CREATE TABLE time_entry (
 );
 
 CREATE INDEX idx_time_user_date ON time_entry (slack_user_id, work_date);
+
+-- ─────────────────────────────────────────────
+-- EXPENSE — 프로젝트에 쌓이는 실비
+-- 요율·인건비는 다루지 않는다. 시간 기록에서 인건비를 역산할 수 있게 되면
+-- 급여가 드러나기 때문이다 (docs/13-time-invoice-spec.md).
+-- ─────────────────────────────────────────────
+
+CREATE TABLE expense (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    uuid NOT NULL REFERENCES project (id),
+  task_id       uuid REFERENCES task (id) ON DELETE SET NULL,
+  slack_user_id text NOT NULL REFERENCES member (slack_user_id),
+  spent_on      date NOT NULL,
+  category      expense_category NOT NULL,
+  amount        integer NOT NULL CHECK (amount > 0),
+  memo          text,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_expense_project ON expense (project_id, spent_on DESC);
+CREATE INDEX idx_expense_user    ON expense (slack_user_id, spent_on DESC);
 
 -- ─────────────────────────────────────────────
 -- WEEKLY_REPORT — 생성 시점 스냅샷
