@@ -45,7 +45,7 @@ export async function renderTasks(root, query) {
       if (v === null || v === undefined || v === '') next.delete(k);
       else next.set(k, v);
     }
-    go(`#/tasks?${next.toString()}`);
+    go(`#/project/tasks?${next.toString()}`);
   };
 
   const projectOptions = activeProjects()
@@ -156,11 +156,11 @@ export async function renderTasks(root, query) {
     const quick = e.target.closest('[data-quick]');
     if (quick) {
       const q = QUICK.find((x) => x.key === quick.dataset.quick);
-      go(`#/tasks?${new URLSearchParams(q.params).toString()}`);
+      go(`#/project/tasks?${new URLSearchParams(q.params).toString()}`);
       return;
     }
-    if (e.target.closest('[data-reset]')) { go('#/tasks'); return; }
+    if (e.target.closest('[data-reset]')) { go('#/project/tasks'); return; }
     const row = e.target.closest('[data-open]');
-    if (row) go(`#/tasks/${row.dataset.open}`);
+    if (row) go(`#/project/tasks/${row.dataset.open}`);
   });
 }

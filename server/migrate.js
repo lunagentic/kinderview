@@ -62,9 +62,19 @@ function migrateAreas() {
   return '업무 영역 개편: 콘텐츠·디자인 추가 (기존 업무의 영역 값은 그대로)';
 }
 
+/** 외주 지급 정보 — 컬럼 추가는 테이블 재생성이 필요 없다 */
+function addOutsourcingPayment() {
+  const sql = tableSql('outsourcing');
+  if (!sql || sql.includes('payment_status')) return null;
+  db.exec(`ALTER TABLE outsourcing ADD COLUMN amount INTEGER`);
+  db.exec(`ALTER TABLE outsourcing ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'PLANNED'`);
+  db.exec(`ALTER TABLE outsourcing ADD COLUMN paid_at TEXT`);
+  return '외주 지급 컬럼 추가 (amount · payment_status · paid_at)';
+}
+
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
-  const notes = [migrateAreas()].filter(Boolean);
+  const notes = [migrateAreas(), addOutsourcingPayment()].filter(Boolean);
   for (const note of notes) console.log(`[migrate] ${note}`);
   return notes;
 }

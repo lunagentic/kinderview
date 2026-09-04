@@ -23,7 +23,7 @@ export async function renderIssues(root, query) {
     for (const [k, v] of Object.entries(patch)) {
       if (!v) next.delete(k); else next.set(k, v);
     }
-    go(`#/issues?${next.toString()}`);
+    go(`#/project/issues?${next.toString()}`);
   };
   const on = (k, v) => (p.get(k) === v ? 'on' : '');
 
@@ -94,18 +94,18 @@ export async function renderIssues(root, query) {
     const q = e.target.closest('[data-q]')?.dataset.q;
     if (q) {
       const map = {
-        clear: '#/issues',
-        mine: '#/issues?owner=me',
-        open: '#/issues?status=OPEN',
-        checking: '#/issues?status=CHECKING',
-        high: '#/issues?severity=HIGH',
-        resolved: '#/issues?resolved=1',
+        clear: '#/project/issues',
+        mine: '#/project/issues?owner=me',
+        open: '#/project/issues?status=OPEN',
+        checking: '#/project/issues?status=CHECKING',
+        high: '#/project/issues?severity=HIGH',
+        resolved: '#/project/issues?resolved=1',
       };
       go(map[q]);
       return;
     }
     const row = e.target.closest('[data-open]');
-    if (row) go(`#/issues/${row.dataset.open}`);
+    if (row) go(`#/project/issues/${row.dataset.open}`);
   });
 }
 
@@ -123,7 +123,7 @@ export async function renderIssueDetail(root, id) {
   root.innerHTML = `
     <div class="page-head">
       <div>
-        <div class="sub"><a href="#/issues" style="text-decoration:underline">Issues</a> · ${esc(i.project_name)}</div>
+        <div class="sub"><a href="#/project/issues" style="text-decoration:underline">Issues</a> · ${esc(i.project_name)}</div>
         <h1>${esc(i.title)}</h1>
         <div class="sub" style="margin-top:8px">${issueChip(i.status)} 중요도 ${esc(severityLabel(i.severity))}</div>
       </div>
@@ -147,7 +147,7 @@ export async function renderIssueDetail(root, id) {
         <dl class="kv">
           <dt>담당자</dt><dd>${person(i.owner_slack_user_id, i.owner_name)}</dd>
           <dt>관련 업무</dt><dd>${i.task_id
-            ? `<a href="#/tasks/${esc(i.task_id)}" style="text-decoration:underline">${esc(i.task_title)}</a>`
+            ? `<a href="#/project/tasks/${esc(i.task_id)}" style="text-decoration:underline">${esc(i.task_title)}</a>`
             : '<span style="color:var(--muted)">연결 안 함</span>'}</dd>
           ${i.vendor_name ? `<dt>외주 업체</dt><dd>${esc(i.vendor_name)}${i.vendor_worker_name ? ` · ${esc(i.vendor_worker_name)}` : ''}</dd>` : ''}
           <dt>목표일</dt><dd class="num">${shortDate(i.target_resolve_date)}</dd>

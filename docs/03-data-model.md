@@ -219,6 +219,9 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 | `delivery_due_date` | date | ✔ | 납품 예정일 |
 | `delivered_at` | date | | 실제 납품일 |
 | `review_status` | enum | ✔ | `NOT_STARTED` 미검수 / `IN_REVIEW` 검수중 / `APPROVED` 승인 / `REJECTED` 반려. 기본 `NOT_STARTED` |
+| `amount` | integer | | 계약 금액(원). 비어 있어도 되며 합계에서 제외된다 |
+| `payment_status` | enum | ✔ | `PLANNED` 지급 예정 / `REQUESTED` 청구 접수 / `PAID` 지급 완료 |
+| `paid_at` | date | | 지급 완료 처리일 |
 
 - **내부 담당자 = `task.owner_slack_user_id`** 이다. 별도 필드를 두지 않는다.
   (외주도 "이 업무를 누가 담당하는가"의 답은 내부 담당자다 — 원칙 1·5)
@@ -244,6 +247,22 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 
 - `task_id`가 지정되면 해당 업무에 🔥 이슈 플래그가 표시된다.
 - 외주 관련 이슈도 동일 테이블에서 관리한다. 외주 업체 정보는 연결된 업무에서 조회한다.
+
+### TIME_ENTRY — 시간 기록
+
+**하루·한 업무·한 사람당 한 줄**(UNIQUE). 주간 격자 입력이 곧 upsert 가 된다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `id` | uuid | ✔ | PK |
+| `task_id` | uuid FK | ✔ | |
+| `slack_user_id` | text FK | ✔ | 담당자가 아니어도 기록할 수 있다 |
+| `work_date` | date | ✔ | |
+| `hours` | numeric | ✔ | 0 초과 24 이하 |
+| `note` | text | | |
+
+- 값을 비우면 행을 삭제한다. "0시간"은 저장하지 않는다.
+- 시간 기록은 **선택**이다. 적지 않아도 업무·진행·리포트는 그대로 동작한다.
 
 ### TASK_EVENT — 업무 이력
 

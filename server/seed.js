@@ -5,7 +5,7 @@
 //   npm run reset         모두 지우고 다시 채운다
 
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
-import { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS } from './seed-data.js';
+import { MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, TIME_ENTRIES } from './seed-data.js';
 import { runMigrations } from './migrate.js';
 
 if (runMigrations().length) (await import('./db.js')).applySchema();
@@ -86,11 +86,16 @@ tx(() => {
 
     if (out) {
       run(`INSERT INTO outsourcing (task_id, vendor_id, vendor_worker_name, vendor_worker_contact, work_scope,
-                                    requested_at, delivery_due_date, delivered_at, review_status, created_at, updated_at)
-           VALUES (:t, :v, :worker, NULL, :scope, :req, :due, NULL, :review, :at, :at)`,
+                                    requested_at, delivery_due_date, delivered_at, review_status,
+                                    amount, payment_status, paid_at, created_at, updated_at)
+           VALUES (:t, :v, :worker, NULL, :scope, :req, :due, NULL, :review,
+                   :amount, :pay, NULL, :at, :at)`,
         {
           t: id, v: vendorId(out.vendor), worker: out.worker, scope: out.scope,
-          req: d(out.requested), due: d(out.delivery), review: out.review, at: created,
+          req: d(out.requested), due: d(out.delivery), review: out.review,
+          amount: out.amount ?? null,
+          pay: out.review === 'IN_REVIEW' ? 'REQUESTED' : 'PLANNED',
+          at: created,
         });
     }
 
@@ -116,6 +121,15 @@ tx(() => {
     run(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
          VALUES (:id, :t, :type, :from, :to, 'U01KIM', :at)`,
       { id: uid(), t: taskId, type, from: val(from), to: val(to), at: ts(d(-daysAgo), '04') });
+  }
+
+  for (const [title, member, dayOffset, hours] of TIME_ENTRIES) {
+    const taskId = taskIdByTitle[title];
+    if (!taskId) continue;
+    run(`INSERT INTO time_entry (id, task_id, slack_user_id, work_date, hours, note, created_at, updated_at)
+         VALUES (:id, :t, :u, :d, :h, NULL, :at, :at)
+         ON CONFLICT(task_id, slack_user_id, work_date) DO UPDATE SET hours = excluded.hours`,
+      { id: uid(), t: taskId, u: member, d: d(dayOffset), h: hours, at });
   }
 
   for (const [pk, taskTitle, title, content, owner, severity, status, targetOffset, impact] of ISSUES) {

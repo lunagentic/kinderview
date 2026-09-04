@@ -3,9 +3,12 @@ import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dbFile, today, applySchema } from './db.js';
+import { dbFile, today, applySchema, weekStart, addDays } from './db.js';
 import { runMigrations } from './migrate.js';
-import { members, projects, vendors, tasks, issues, overview, areaLeads, HttpError } from './repo.js';
+import {
+  members, projects, vendors, tasks, issues, overview, areaLeads,
+  timeEntries, payments, HttpError,
+} from './repo.js';
 import * as weekly from './weekly.js';
 import * as notify from './notify.js';
 import * as slack from './slack.js';
@@ -214,6 +217,38 @@ route('POST', '/api/slack/sync', async () => {
   const list = await slack.fetchMembers();
   return members.syncAll(list);
 });
+
+// ── 타임트래킹 ──────────────────────────────────────────
+
+route('GET', '/api/time/week', (ctx) => {
+  const anchor = ctx.url.searchParams.get('week') || today();
+  const who = ctx.url.searchParams.get('member');
+  return timeEntries.week(!who || who === 'me' ? ctx.me : who, weekStart(anchor));
+});
+
+route('POST', '/api/time', (ctx) => {
+  const who = ctx.body.slack_user_id && ctx.body.slack_user_id !== 'me' ? ctx.body.slack_user_id : ctx.me;
+  return timeEntries.set({ ...ctx.body, slack_user_id: who });
+});
+
+route('GET', '/api/time/summary', (ctx) => {
+  const to = ctx.url.searchParams.get('to') || today();
+  const from = ctx.url.searchParams.get('from') || addDays(to, -6);
+  return timeEntries.summary({ from, to });
+});
+
+// ── 인보이싱 (외주 지급) ────────────────────────────────
+
+route('GET', '/api/payments', (ctx) => ({
+  rows: payments.list({
+    from: ctx.url.searchParams.get('from') || undefined,
+    to: ctx.url.searchParams.get('to') || undefined,
+    status: ctx.url.searchParams.get('status') || undefined,
+  }),
+  summary: payments.summary(),
+}));
+
+route('PATCH', '/api/payments/:taskId', (ctx) => payments.update(ctx.params.taskId, ctx.body, ctx.me));
 
 // ── AI ──────────────────────────────────────────────────
 // 규칙 기반이 기본이고 LLM 은 선택이다 (docs/12-ai-spec.md).

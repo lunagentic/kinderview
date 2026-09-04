@@ -70,6 +70,16 @@
 | `APPROVED` | 승인 |
 | `REJECTED` | 반려 |
 
+### 지급 상태 (`outsourcing.payment_status`)
+
+| 코드 | 표기 |
+|---|---|
+| `PLANNED` | 지급 예정 |
+| `REQUESTED` | 청구 접수 |
+| `PAID` | 지급 완료 |
+
+> 인보이싱은 **외주 업체에 지급**하는 방향이다. 고객 청구가 아니다.
+
 ### 이슈 상태 (`issue.status`)
 
 | 코드 | 표기 |

@@ -36,7 +36,7 @@ export async function renderTaskDetail(root, id) {
   root.innerHTML = `
     <div class="page-head">
       <div>
-        <div class="sub"><a href="#/tasks" style="text-decoration:underline">Tasks</a> · ${esc(t.project_name)}</div>
+        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${esc(t.project_name)}</div>
         <h1>${esc(t.title)}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           ${areaChip(t.area)}
@@ -100,7 +100,7 @@ export async function renderTaskDetail(root, id) {
           ${t.issues.length ? t.issues.map((i) => `
             <div class="issue-mini">
               <span class="sev-bar ${esc(i.severity)}"></span>
-              <a href="#/issues/${esc(i.id)}" style="flex:1;text-decoration:underline">${esc(i.title)}</a>
+              <a href="#/project/issues/${esc(i.id)}" style="flex:1;text-decoration:underline">${esc(i.title)}</a>
               <span class="chip ${i.status === 'RESOLVED' ? 'done' : i.status === 'CHECKING' ? 'issue' : 'delay'}">
                 ${esc(state.meta.issue_statuses.find((s) => s.code === i.status)?.label ?? i.status)}</span>
             </div>`).join('')
@@ -166,7 +166,7 @@ export async function renderTaskDetail(root, id) {
       if (!ok) return;
       await api.del(`/api/tasks/${t.id}`);
       toast('업무를 삭제했습니다.');
-      go('#/tasks');
+      go('#/project/tasks');
     }
   });
 }

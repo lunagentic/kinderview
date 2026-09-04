@@ -5,7 +5,7 @@
 // 데이터는 localStorage 에 저장된다. 서버도 DB도 없다.
 
 // 업무 영역 개편(v3)으로 이전 데이터의 area 값이 더는 유효하지 않다 — 키를 올려 새로 만든다
-const LS_KEY = 'kf.demo.v4';
+const LS_KEY = 'kf.demo.v5';
 
 // ── 날짜 ────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');
@@ -91,6 +91,9 @@ function buildSeed() {
         task_id: id, vendor_id: vendorId(out.vendor), vendor_worker_name: out.worker,
         vendor_worker_contact: null, work_scope: out.scope, requested_at: d(out.requested),
         delivery_due_date: d(out.delivery), delivered_at: null, review_status: out.review,
+        amount: out.amount ?? null,
+        payment_status: out.review === 'IN_REVIEW' ? 'REQUESTED' : 'PLANNED',
+        paid_at: null,
         created_at: created, updated_at: created,
       });
     }
@@ -124,9 +127,17 @@ function buildSeed() {
     created_by: 'U01KIM', created_at: at(d(-4), '03'), updated_at: at(d(-4), '03'), deleted_at: null,
   }));
 
+  const timeRows = (SEED.TIME_ENTRIES ?? []).map(([title, member, dayOffset, hours]) => {
+    const taskId = taskIdByTitle[title];
+    return taskId ? {
+      id: uid(), task_id: taskId, slack_user_id: member, work_date: d(dayOffset),
+      hours, note: null, created_at: nowISO(), updated_at: nowISO(),
+    } : null;
+  }).filter(Boolean);
+
   return {
     anchor: T, members, projects, vendors, tasks, collaborators, outsourcing, issues, events,
-    area_leads: areaLeadRows, notifications: [], weekly_reports: [],
+    area_leads: areaLeadRows, time_entries: timeRows, notifications: [], weekly_reports: [],
   };
 }
 
@@ -529,6 +540,135 @@ function updateIssue(id, input) {
   });
   save();
   return hydrateIssue(i);
+}
+
+// ── 시간 기록 ───────────────────────────────────────────
+const timeWeek = (slackUserId, ws) => {
+  const end = addDays(ws, 6);
+  const rows = (DB.time_entries ?? []).filter((e) =>
+    e.slack_user_id === slackUserId && e.work_date >= ws && e.work_date <= end);
+  const byTask = new Map();
+  for (const e of rows) {
+    const t = DB.tasks.find((x) => x.id === e.task_id && !x.deleted_at);
+    if (!t) continue;
+    if (!byTask.has(t.id)) {
+      byTask.set(t.id, {
+        task_id: t.id, title: t.title, area: t.area, project_id: t.project_id,
+        project_name: project(t.project_id)?.name ?? '-', days: {}, total: 0,
+      });
+    }
+    const row = byTask.get(t.id);
+    row.days[e.work_date] = { hours: e.hours, note: e.note };
+    row.total += e.hours;
+  }
+  const list = [...byTask.values()];
+  return { period: { start: ws, end }, rows: list, total: list.reduce((n, r) => n + r.total, 0) };
+};
+
+function setTime({ task_id, slack_user_id, work_date, hours }) {
+  if (!task_id) throw new DemoError('업무를 선택해 주세요.');
+  const h = Number(hours);
+  if (!Number.isFinite(h)) throw new DemoError('시간을 숫자로 입력해 주세요.');
+  if (h > 24) throw new DemoError('하루 24시간을 넘을 수 없습니다.');
+  DB.time_entries ??= [];
+  const idx = DB.time_entries.findIndex((e) =>
+    e.task_id === task_id && e.slack_user_id === slack_user_id && e.work_date === work_date);
+  if (h <= 0) {
+    if (idx >= 0) DB.time_entries.splice(idx, 1);
+    save();
+    return { removed: true };
+  }
+  if (idx >= 0) { DB.time_entries[idx].hours = h; DB.time_entries[idx].updated_at = nowISO(); }
+  else {
+    DB.time_entries.push({ id: uid(), task_id, slack_user_id, work_date, hours: h,
+      note: null, created_at: nowISO(), updated_at: nowISO() });
+  }
+  save();
+  return { hours: h };
+}
+
+function timeSummary(from, to) {
+  const rows = (DB.time_entries ?? []).filter((e) => e.work_date >= from && e.work_date <= to)
+    .map((e) => {
+      const t = DB.tasks.find((x) => x.id === e.task_id && !x.deleted_at);
+      const p = t ? project(t.project_id) : null;
+      return t && p && !p.is_archived
+        ? { hours: e.hours, slack_user_id: e.slack_user_id, area: t.area,
+            project_id: t.project_id, project_name: p.name,
+            display_name: member(e.slack_user_id)?.display_name ?? e.slack_user_id }
+        : null;
+    }).filter(Boolean);
+  const group = (keyFn, labelFn) => {
+    const map = new Map();
+    for (const r of rows) {
+      const k = keyFn(r);
+      if (!map.has(k)) map.set(k, { key: k, label: labelFn(r), hours: 0 });
+      map.get(k).hours += r.hours;
+    }
+    return [...map.values()].sort((a, b) => b.hours - a.hours);
+  };
+  return {
+    period: { from, to },
+    total: rows.reduce((n, r) => n + r.hours, 0),
+    projects: group((r) => r.project_id, (r) => r.project_name),
+    areas: group((r) => r.area, (r) => AREA_MAP[r.area]?.full ?? r.area),
+    members: group((r) => r.slack_user_id, (r) => r.display_name),
+  };
+}
+
+// ── 외주 지급 ───────────────────────────────────────────
+const paymentRows = (filter = {}) => DB.tasks
+  .filter((t) => t.area === 'OUT' && !t.deleted_at)
+  .map((t) => {
+    const o = outOf(t.id);
+    if (!o) return null;
+    const p = project(t.project_id);
+    const v = vendor(o.vendor_id);
+    return {
+      task_id: t.id, title: t.title, status: t.status, project_id: t.project_id,
+      project_name: p?.name ?? '-', vendor_name: v?.name ?? '-',
+      vendor_worker_name: o.vendor_worker_name,
+      delivery_due_date: o.delivery_due_date, delivered_at: o.delivered_at,
+      review_status: o.review_status, amount: o.amount ?? null,
+      payment_status: o.payment_status ?? 'PLANNED', paid_at: o.paid_at ?? null,
+      owner_name: member(t.owner_slack_user_id)?.display_name ?? t.owner_slack_user_id,
+      owner_slack_user_id: t.owner_slack_user_id,
+    };
+  })
+  .filter(Boolean)
+  .filter((r) => (!filter.status || r.payment_status === filter.status))
+  .sort((a, b) => String(a.delivery_due_date).localeCompare(String(b.delivery_due_date)));
+
+function paymentSummary() {
+  const rows = paymentRows();
+  const bucket = (s) => {
+    const list = rows.filter((r) => r.payment_status === s);
+    return { count: list.length, amount: list.reduce((n, r) => n + (r.amount ?? 0), 0) };
+  };
+  return {
+    planned: bucket('PLANNED'), requested: bucket('REQUESTED'), paid: bucket('PAID'),
+    total_amount: rows.reduce((n, r) => n + (r.amount ?? 0), 0),
+    missing_amount: rows.filter((r) => r.amount === null).length,
+    ready: rows.filter((r) => r.review_status === 'APPROVED' && r.payment_status !== 'PAID').length,
+  };
+}
+
+function updatePayment(taskId, input) {
+  const o = outOf(taskId);
+  if (!o) throw new DemoError('외주 정보를 찾을 수 없습니다.');
+  const status = input.payment_status ?? o.payment_status ?? 'PLANNED';
+  if (!['PLANNED', 'REQUESTED', 'PAID'].includes(status)) throw new DemoError('없는 지급 상태입니다.');
+  if (status === 'PAID' && o.review_status !== 'APPROVED') {
+    throw new DemoError('검수가 승인되지 않았습니다. 검수를 먼저 승인해 주세요.');
+  }
+  if (input.amount !== undefined) {
+    o.amount = input.amount === null || input.amount === '' ? null : Math.round(Number(input.amount));
+  }
+  o.payment_status = status;
+  o.paid_at = status === 'PAID' ? (o.paid_at || today()) : null;
+  o.updated_at = nowISO();
+  save();
+  return paymentRows().find((r) => r.task_id === taskId) ?? null;
 }
 
 // ── 알림 ────────────────────────────────────────────────
@@ -1005,6 +1145,23 @@ function handle(method, path, body) {
     const c = aiCtx();
     return parseCapture(body.text, { members: c.members, projects: c.projects, today: c.today });
   }
+
+  if (p === '/api/time/week' && method === 'GET') {
+    const who = sp.get('member');
+    return timeWeek(!who || who === 'me' ? me : who, weekStart(sp.get('week') || today()));
+  }
+  if (p === '/api/time' && method === 'POST') {
+    const who = body.slack_user_id && body.slack_user_id !== 'me' ? body.slack_user_id : me;
+    return setTime({ ...body, slack_user_id: who });
+  }
+  if (p === '/api/time/summary' && method === 'GET') {
+    const to = sp.get('to') || today();
+    return timeSummary(sp.get('from') || addDays(to, -6), to);
+  }
+  if (p === '/api/payments' && method === 'GET') {
+    return { rows: paymentRows({ status: sp.get('status') || undefined }), summary: paymentSummary() };
+  }
+  if (seg[1] === 'payments' && seg[2] && method === 'PATCH') return updatePayment(seg[2], body);
 
   if (p === '/api/notifications' && method === 'GET') {
     return { slack_configured: false, rows: DB.notifications.slice(0, 200) };

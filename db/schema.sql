@@ -25,6 +25,8 @@ CREATE TYPE review_status AS ENUM ('NOT_STARTED', 'IN_REVIEW', 'APPROVED', 'REJE
 
 CREATE TYPE issue_status AS ENUM ('OPEN', 'CHECKING', 'RESOLVED');
 
+CREATE TYPE payment_status AS ENUM ('PLANNED', 'REQUESTED', 'PAID');
+
 CREATE TYPE task_event_type AS ENUM (
   'CREATED', 'STATUS_CHANGED', 'OWNER_CHANGED', 'DUE_CHANGED', 'REVIEW_STATUS_CHANGED'
 );
@@ -177,6 +179,9 @@ CREATE TABLE outsourcing (
   delivery_due_date     date NOT NULL,
   delivered_at          date,
   review_status         review_status NOT NULL DEFAULT 'NOT_STARTED',
+  amount                integer,
+  payment_status        payment_status NOT NULL DEFAULT 'PLANNED',
+  paid_at               date,
   created_at            timestamptz NOT NULL DEFAULT now(),
   updated_at            timestamptz NOT NULL DEFAULT now()
 );
@@ -230,6 +235,24 @@ CREATE TABLE task_event (
 
 CREATE INDEX idx_task_event_task ON task_event (task_id, occurred_at DESC);
 CREATE INDEX idx_task_event_time ON task_event (occurred_at);
+
+-- ─────────────────────────────────────────────
+-- TIME_ENTRY — 시간 기록 (하루·한 업무당 한 줄)
+-- ─────────────────────────────────────────────
+
+CREATE TABLE time_entry (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id       uuid NOT NULL REFERENCES task (id) ON DELETE CASCADE,
+  slack_user_id text NOT NULL REFERENCES member (slack_user_id),
+  work_date     date NOT NULL,
+  hours         numeric(4,2) NOT NULL CHECK (hours > 0 AND hours <= 24),
+  note          text,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (task_id, slack_user_id, work_date)
+);
+
+CREATE INDEX idx_time_user_date ON time_entry (slack_user_id, work_date);
 
 -- ─────────────────────────────────────────────
 -- WEEKLY_REPORT — 생성 시점 스냅샷

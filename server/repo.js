@@ -594,6 +594,170 @@ export const issues = {
   },
 };
 
+// ── 시간 기록 ───────────────────────────────────────────
+// 하루·한 업무당 한 줄. 격자에서 값을 지우면 행이 사라진다.
+
+export const timeEntries = {
+  /** 한 사람의 한 주 타임시트 */
+  week(slackUserId, weekStartDate) {
+    const end = addDays(weekStartDate, 6);
+    const rows = all(
+      `SELECT e.*, t.title, t.area, t.project_id, p.name AS project_name
+       FROM time_entry e
+       JOIN task t    ON t.id = e.task_id AND t.deleted_at IS NULL
+       JOIN project p ON p.id = t.project_id
+       WHERE e.slack_user_id = :u AND e.work_date BETWEEN :from AND :to
+       ORDER BY p.sort_order, t.title, e.work_date`,
+      { u: slackUserId, from: weekStartDate, to: end },
+    );
+    const byTask = new Map();
+    for (const r of rows) {
+      if (!byTask.has(r.task_id)) {
+        byTask.set(r.task_id, {
+          task_id: r.task_id, title: r.title, area: r.area,
+          project_id: r.project_id, project_name: r.project_name,
+          days: {}, total: 0,
+        });
+      }
+      const t = byTask.get(r.task_id);
+      t.days[r.work_date] = { hours: r.hours, note: r.note };
+      t.total += r.hours;
+    }
+    const tasksRows = [...byTask.values()];
+    return {
+      period: { start: weekStartDate, end },
+      rows: tasksRows,
+      total: tasksRows.reduce((n, t) => n + t.total, 0),
+    };
+  },
+
+  /** 값이 0 이하면 지운다 — 격자에서 비우는 동작과 같다 */
+  set({ task_id, slack_user_id, work_date, hours, note }) {
+    if (!task_id) throw new HttpError(400, '업무를 선택해 주세요.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(work_date || '')) throw new HttpError(400, '날짜 형식이 올바르지 않습니다.');
+    const h = Number(hours);
+    if (!Number.isFinite(h)) throw new HttpError(400, '시간을 숫자로 입력해 주세요.');
+    if (h > 24) throw new HttpError(400, '하루 24시간을 넘을 수 없습니다.');
+
+    if (h <= 0) {
+      run('DELETE FROM time_entry WHERE task_id = :t AND slack_user_id = :u AND work_date = :d',
+        { t: task_id, u: slack_user_id, d: work_date });
+      return { removed: true };
+    }
+    const at = nowISO();
+    run(
+      `INSERT INTO time_entry (id, task_id, slack_user_id, work_date, hours, note, created_at, updated_at)
+       VALUES (:id, :t, :u, :d, :h, :note, :at, :at)
+       ON CONFLICT(task_id, slack_user_id, work_date) DO UPDATE SET
+         hours = excluded.hours, note = excluded.note, updated_at = excluded.updated_at`,
+      { id: uid(), t: task_id, u: slack_user_id, d: work_date, h, note: note || null, at },
+    );
+    return { hours: h };
+  },
+
+  /** 기간 집계 — 프로젝트별·영역별·구성원별 */
+  summary({ from, to }) {
+    const rows = all(
+      `SELECT e.hours, e.slack_user_id, t.area, t.project_id,
+              p.name AS project_name, m.display_name
+       FROM time_entry e
+       JOIN task t    ON t.id = e.task_id AND t.deleted_at IS NULL
+       JOIN project p ON p.id = t.project_id AND p.is_archived = 0
+       JOIN member m  ON m.slack_user_id = e.slack_user_id
+       WHERE e.work_date BETWEEN :from AND :to`,
+      { from, to },
+    );
+    const group = (keyFn, labelFn) => {
+      const map = new Map();
+      for (const r of rows) {
+        const k = keyFn(r);
+        if (!map.has(k)) map.set(k, { key: k, label: labelFn(r), hours: 0 });
+        map.get(k).hours += r.hours;
+      }
+      return [...map.values()].sort((a, b) => b.hours - a.hours);
+    };
+    return {
+      period: { from, to },
+      total: rows.reduce((n, r) => n + r.hours, 0),
+      projects: group((r) => r.project_id, (r) => r.project_name),
+      areas: group((r) => r.area, (r) => AREAS.find((a) => a.code === r.area)?.full ?? r.area),
+      members: group((r) => r.slack_user_id, (r) => r.display_name),
+    };
+  },
+};
+
+// ── 외주 지급 (인보이싱) ────────────────────────────────
+// 외주는 우리가 돈을 내는 쪽이다. 청구서를 받아 검수하고 지급한다.
+
+export const payments = {
+  list({ from, to, status } = {}) {
+    const params = {};
+    const where = ["t.area = 'OUT'", 't.deleted_at IS NULL'];
+    if (from) { params.from = from; where.push('o.delivery_due_date >= :from'); }
+    if (to) { params.to = to; where.push('o.delivery_due_date <= :to'); }
+    if (status) { params.status = status; where.push('o.payment_status = :status'); }
+    return all(
+      `SELECT t.id AS task_id, t.title, t.status, t.project_id, p.name AS project_name,
+              v.name AS vendor_name, o.vendor_worker_name,
+              o.delivery_due_date, o.delivered_at, o.review_status,
+              o.amount, o.payment_status, o.paid_at,
+              m.display_name AS owner_name, t.owner_slack_user_id
+       FROM task t
+       JOIN outsourcing o ON o.task_id = t.id
+       JOIN project p     ON p.id = t.project_id
+       JOIN vendor v      ON v.id = o.vendor_id
+       JOIN member m      ON m.slack_user_id = t.owner_slack_user_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY o.delivery_due_date`,
+      params,
+    );
+  },
+
+  update(taskId, input, actor) {
+    const row = one('SELECT * FROM outsourcing WHERE task_id = :id', { id: taskId });
+    if (!row) throw new HttpError(404, '외주 정보를 찾을 수 없습니다.');
+    const status = input.payment_status ?? row.payment_status;
+    if (!['PLANNED', 'REQUESTED', 'PAID'].includes(status)) throw new HttpError(400, '없는 지급 상태입니다.');
+    const amount = input.amount === undefined ? row.amount
+      : (input.amount === null || input.amount === '' ? null : Math.round(Number(input.amount)));
+    if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
+      throw new HttpError(400, '금액을 0 이상의 숫자로 입력해 주세요.');
+    }
+    // 승인되지 않은 건을 지급 완료로 넘기지 않는다
+    if (status === 'PAID' && row.review_status !== 'APPROVED') {
+      throw new HttpError(400, '검수가 승인되지 않았습니다. 검수를 먼저 승인해 주세요.');
+    }
+    run(
+      `UPDATE outsourcing SET amount = :amount, payment_status = :status,
+              paid_at = :paid, updated_at = :at WHERE task_id = :id`,
+      {
+        id: taskId, amount, status,
+        paid: status === 'PAID' ? (row.paid_at || today()) : null,
+        at: nowISO(),
+      },
+    );
+    void actor;
+    return payments.list().find((r) => r.task_id === taskId) ?? null;
+  },
+
+  /** 인보이싱 요약 — 상태별 건수와 금액 */
+  summary(range = {}) {
+    const rows = payments.list(range);
+    const bucket = (s) => {
+      const list = rows.filter((r) => r.payment_status === s);
+      return { count: list.length, amount: list.reduce((n, r) => n + (r.amount ?? 0), 0) };
+    };
+    return {
+      planned: bucket('PLANNED'),
+      requested: bucket('REQUESTED'),
+      paid: bucket('PAID'),
+      total_amount: rows.reduce((n, r) => n + (r.amount ?? 0), 0),
+      missing_amount: rows.filter((r) => r.amount === null).length,
+      ready: rows.filter((r) => r.review_status === 'APPROVED' && r.payment_status !== 'PAID').length,
+    };
+  },
+};
+
 // ── 집계 ────────────────────────────────────────────────
 // 진행률·현황은 저장하지 않고 조회 시 계산한다 (원칙 7).
 

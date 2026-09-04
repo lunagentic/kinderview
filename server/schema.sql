@@ -107,6 +107,11 @@ CREATE TABLE IF NOT EXISTS outsourcing (
   delivered_at          TEXT,
   review_status         TEXT NOT NULL DEFAULT 'NOT_STARTED'
                         CHECK (review_status IN ('NOT_STARTED','IN_REVIEW','APPROVED','REJECTED')),
+  -- 지급 (인보이싱) — 외주는 우리가 돈을 "내는" 쪽이다
+  amount                INTEGER,
+  payment_status        TEXT NOT NULL DEFAULT 'PLANNED'
+                        CHECK (payment_status IN ('PLANNED','REQUESTED','PAID')),
+  paid_at               TEXT,
   created_at            TEXT NOT NULL,
   updated_at            TEXT NOT NULL
 );
@@ -148,6 +153,22 @@ CREATE TABLE IF NOT EXISTS task_event (
 );
 
 CREATE INDEX IF NOT EXISTS idx_task_event_time ON task_event(occurred_at);
+
+-- 시간 기록 — 하루·한 업무당 한 줄. 타임시트 격자가 곧 upsert 가 된다.
+CREATE TABLE IF NOT EXISTS time_entry (
+  id            TEXT PRIMARY KEY,
+  task_id       TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+  slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
+  work_date     TEXT NOT NULL,
+  hours         REAL NOT NULL CHECK (hours > 0 AND hours <= 24),
+  note          TEXT,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  UNIQUE (task_id, slack_user_id, work_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_time_user_date ON time_entry(slack_user_id, work_date);
+CREATE INDEX IF NOT EXISTS idx_time_date      ON time_entry(work_date);
 
 CREATE TABLE IF NOT EXISTS weekly_report (
   id           TEXT PRIMARY KEY,

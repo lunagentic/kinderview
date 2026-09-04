@@ -12,7 +12,7 @@ const deltaTag = (d) => {
 };
 
 const taskLine = (t, extra = '') => `
-  <li><a href="#/tasks/${esc(t.id)}" style="text-decoration:underline">${esc(t.title)}</a>
+  <li><a href="#/project/tasks/${esc(t.id)}" style="text-decoration:underline">${esc(t.title)}</a>
     <span style="color:var(--muted)">· ${esc(t.project_name)} · ${esc(t.owner_name)} · ${esc(t.status_label)}${extra}</span></li>`;
 
 export async function renderWeekly(root, query) {
@@ -121,7 +121,7 @@ export async function renderWeekly(root, query) {
           <div class="pill ${s.outsourcing.delivery_delayed ? 'bad' : ''}"><div class="k">납품 지연</div><div class="v">${s.outsourcing.delivery_delayed}</div></div>
         </div>
         ${s.outsourcing.delayed_rows.length ? `<ul style="margin-top:12px">
-          ${s.outsourcing.delayed_rows.map((r) => `<li><a href="#/tasks/${esc(r.id)}" style="text-decoration:underline">${esc(r.title)}</a>
+          ${s.outsourcing.delayed_rows.map((r) => `<li><a href="#/project/tasks/${esc(r.id)}" style="text-decoration:underline">${esc(r.title)}</a>
             <span style="color:var(--muted)">· ${esc(r.vendor_name ?? '-')} · ${esc(r.owner_name)} ·
             <b style="color:var(--s-delay)">${r.days_late}일 지연</b></span></li>`).join('')}
         </ul>` : ''}`)}
@@ -129,7 +129,7 @@ export async function renderWeekly(root, query) {
       ${sec('⑦', '주요 이슈', `
         <p class="hint" style="margin-bottom:10px">미해결 ${s.issues.open_count}건 · 이번 주 신규 ${s.issues.new_this_week}건 · 해결 ${s.issues.resolved_this_week}건</p>
         ${s.issues.rows.length ? `<ul>${s.issues.rows.map((i) => `
-          <li><a href="#/issues/${esc(i.id)}" style="text-decoration:underline">${esc(i.title)}</a>
+          <li><a href="#/project/issues/${esc(i.id)}" style="text-decoration:underline">${esc(i.title)}</a>
             <span style="color:var(--muted)">· ${esc(i.project_name)} · ${esc(i.owner_name)} ·
             ${i.severity === 'HIGH' ? '<b style="color:var(--s-delay)">높음</b>' : i.severity === 'LOW' ? '낮음' : '보통'}
             ${i.impact ? ` · ${esc(i.impact)}` : ''}</span></li>`).join('')}</ul>`
@@ -163,7 +163,7 @@ export async function renderWeekly(root, query) {
 
   root.addEventListener('click', async (e) => {
     const wk = e.target.closest('[data-week]');
-    if (wk) return go(`#/weekly?week=${wk.dataset.week}`);
+    if (wk) return go(`#/project/weekly?week=${wk.dataset.week}`);
 
     if (e.target.closest('[data-generate]')) {
       try {

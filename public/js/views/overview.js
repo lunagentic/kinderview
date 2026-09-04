@@ -72,7 +72,7 @@ export async function renderOverview(root) {
           ${ov.projects.map((p) => barRow(
             p.name, p.progress,
             `업무 ${p.count} · 완료 ${p.done}${p.delayed ? ` · 지연 ${p.delayed}` : ''}${p.issue ? ` · 이슈 ${p.issue}` : ''}`,
-            `#/tasks?project=${encodeURIComponent(p.id)}&done=1`,
+            `#/project/tasks?project=${encodeURIComponent(p.id)}&done=1`,
             projectStyle(p.id),
           )).join('')}
         </div>
@@ -90,7 +90,7 @@ export async function renderOverview(root) {
             return barRow(
               a.label, a.progress,
               a.count ? `${who} · 업무 ${a.count} · 완료 ${a.done}${a.delayed ? ` · 지연 ${a.delayed}` : ''}` : `${who} · 등록된 업무 없음`,
-              `#/tasks?area=${encodeURIComponent(a.code)}&done=1`,
+              `#/project/tasks?area=${encodeURIComponent(a.code)}&done=1`,
             );
           }).join('')}
         </div>
@@ -100,7 +100,7 @@ export async function renderOverview(root) {
     <section class="section">
       <div class="section-head">
         <h2>외주 진행 현황</h2>
-        <span class="meta"><a href="#/tasks?area=OUT&done=1" style="color:var(--muted);text-decoration:underline">외주 업무 전체 보기</a></span>
+        <span class="meta"><a href="#/project/tasks?area=OUT&done=1" style="color:var(--muted);text-decoration:underline">외주 업무 전체 보기</a></span>
       </div>
       <div class="pill-row">
         <div class="pill"><div class="k">요청 예정</div><div class="v">${ov.outsourcing.planned}</div></div>
@@ -116,7 +116,7 @@ export async function renderOverview(root) {
             <thead><tr><th>업무</th><th>외주 업체</th><th>내부 담당</th><th class="nowrap">납품 예정</th><th class="nowrap">지연</th></tr></thead>
             <tbody>
               ${ov.outsourcing.delayed_rows.map((r) => `
-                <tr class="row-click" data-jump="#/tasks/${esc(r.id)}">
+                <tr class="row-click" data-jump="#/project/tasks/${esc(r.id)}">
                   <td class="title-cell">${esc(r.title)}</td>
                   <td>${esc(r.vendor_name ?? '-')}</td>
                   <td>${esc(r.owner_name)}</td>
@@ -129,12 +129,12 @@ export async function renderOverview(root) {
     </section>`;
 
   const jumps = {
-    all: '#/tasks?done=1',
-    progress: '#/tasks?stage=IN_PROGRESS',
-    review: '#/tasks?stage=REVIEW',
-    done: '#/tasks?stage=DONE&done=1',
-    delayed: '#/tasks?delayed=1',
-    issues: '#/issues',
+    all: '#/project/tasks?done=1',
+    progress: '#/project/tasks?stage=IN_PROGRESS',
+    review: '#/project/tasks?stage=REVIEW',
+    done: '#/project/tasks?stage=DONE&done=1',
+    delayed: '#/project/tasks?delayed=1',
+    issues: '#/project/issues',
   };
 
   root.addEventListener('click', (e) => {

@@ -37,11 +37,11 @@ export function riskSection(rows, { source = 'rules' } = {}) {
                 <span class="lbl">${esc(i.label)}</span>
                 <span class="sub">${esc(i.sub ?? '')}</span>
                 <span class="note">${esc(i.note ?? '')}</span>`;
-              const target = i.kind === 'task' ? `#/tasks/${i.id}`
-                : i.kind === 'issue' ? `#/issues/${i.id}`
-                : i.kind === 'owner' ? `#/tasks?owner=${encodeURIComponent(i.id)}&done=1`
-                : i.kind === 'project' ? `#/tasks?project=${encodeURIComponent(i.id)}&done=1`
-                : i.kind === 'area' ? `#/tasks?area=${encodeURIComponent(i.id)}&done=1`
+              const target = i.kind === 'task' ? `#/project/tasks/${i.id}`
+                : i.kind === 'issue' ? `#/project/issues/${i.id}`
+                : i.kind === 'owner' ? `#/project/tasks?owner=${encodeURIComponent(i.id)}&done=1`
+                : i.kind === 'project' ? `#/project/tasks?project=${encodeURIComponent(i.id)}&done=1`
+                : i.kind === 'area' ? `#/project/tasks?area=${encodeURIComponent(i.id)}&done=1`
                 : null;
               return `<li>${target
                 ? `<button type="button" data-jump="${esc(target)}">${inner}</button>`
