@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { state, activeProjects } from '../state.js';
 import {
   esc, statusChip, areaChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
+  projectName,
 } from '../ui.js';
 import { taskForm } from '../forms.js';
 
@@ -100,7 +101,7 @@ export async function renderTasks(root, query) {
             ${rows.map((t) => `
               <tr class="row-click" data-open="${esc(t.id)}">
                 <td class="title-cell">${esc(t.title)} ${flags(t)}</td>
-                <td data-label="프로젝트">${esc(t.project_name)}</td>
+                <td data-label="프로젝트">${projectName(t.project_id, t.project_name)}</td>
                 <td data-label="영역">${areaChip(t.area)}</td>
                 <td data-label="담당">${person(t.owner_slack_user_id, t.owner_name)}</td>
                 <td data-label="마감" class="nowrap num due ${t.is_delayed ? 'late' : ''}">

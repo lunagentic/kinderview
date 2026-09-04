@@ -4,48 +4,87 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* KinderFlow — 화면 스타일
-   색은 의미를 가질 때만 쓴다. 구조는 무채색, 색은 상태(대기/진행/검토/완료/지연/이슈)에만. */
+   레퍼런스: 짙은 네이비 크롬 + 밝은 회색 바탕 위 흰 카드,
+   인디고·오키드·앰버 팔레트, 끝이 완전히 둥근 알약형 바.
+
+   색 규칙
+   · 프로젝트  = 정체성 색 (팔레트에서 id 로 고정 배정)
+   · 상태      = 의미 색 (대기·진행·검토·완료·지연·이슈)
+   · 앰버      = 강조 하나 (활성 메뉴 밑줄, 이슈)
+   구조 자체는 여전히 무채색이다. 색이 붙는 곳은 위 세 가지뿐. */
 
 :root{
-  --ground:#F4F6F8;
+  /* 바탕과 면 */
+  --ground:#F4F5F8;
   --surface:#FFFFFF;
-  --surface-2:#EAEDF2;
-  --line:#DCE1E9;
-  --line-soft:#E7EAF0;
-  --ink:#101728;
-  --ink-2:#39435A;
-  --muted:#6A7488;
-  --focus:#2A5FCB;
+  --surface-2:#EEEFF4;
+  --line:#E4E6ED;
+  --line-soft:#EDEEF3;
+  --ink:#151A2D;
+  --ink-2:#3B4256;
+  --muted:#727A90;
 
-  --s-wait:#78829A;
-  --s-prog:#2A5FCB;
-  --s-review:#6A47BF;
-  --s-done:#16794F;
-  --s-delay:#BE3A31;
-  --s-issue:#B96A15;
+  /* 크롬 (상단바) */
+  --chrome:#1E2440;
+  --chrome-2:#2A3157;
+  --on-chrome:#EDEFF7;
+  --on-chrome-muted:#9AA2C0;
 
-  --radius:4px;
-  --shadow:0 1px 2px rgba(16,23,40,.05), 0 8px 24px rgba(16,23,40,.06);
+  /* 브랜드 */
+  --indigo:#4B3FE4;
+  --orchid:#D24FD8;
+  --amber:#F5B02E;
+  --teal:#14B8A6;
+  --purple:#7A4FD4;
+  --rose:#E5455F;
+  --focus:var(--indigo);
+
+  /* 프로젝트 색 — id 로 고정 배정된다 (ui.js projectTone).
+     로즈는 넣지 않는다. 지연(빨강)과 섞여 경고로 읽힌다. */
+  --p0:var(--indigo); --p1:var(--orchid); --p2:var(--teal);
+  --p3:var(--amber);  --p4:var(--purple); --p5:#2E7DF6;
+
+  /* 상태 */
+  --s-wait:#858CA6;
+  --s-prog:#4B3FE4;
+  --s-review:#7A4FD4;
+  --s-done:#0E9F8F;
+  --s-delay:#DB3A52;
+  --s-issue:#C9820A;
+
+  --radius:8px;
+  --radius-sm:6px;
+  --shadow:0 1px 2px rgba(21,26,45,.05), 0 10px 28px rgba(21,26,45,.07);
   --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   --display:"Gothic A1","Apple SD Gothic Neo",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,"D2Coding",monospace;
 }
+
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --ground:#0D1119; --surface:#141A25; --surface-2:#1B2230;
-    --line:#28313F; --line-soft:#212836;
-    --ink:#E4E9F1; --ink-2:#B4BECF; --muted:#8A94A8; --focus:#6E9CF5;
-    --s-wait:#96A0B5; --s-prog:#6E9CF5; --s-review:#A88EF0;
-    --s-done:#48BE8B; --s-delay:#F0776D; --s-issue:#E0A050;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --ground:#0E1120; --surface:#171B2E; --surface-2:#1F2438;
+    --line:#2B3149; --line-soft:#242940;
+    --ink:#E7E9F4; --ink-2:#B7BDD2; --muted:#8990A8;
+    --chrome:#12162A; --chrome-2:#1D2340;
+    --on-chrome:#E7E9F4; --on-chrome-muted:#8A92B2;
+    --indigo:#7C72F5; --orchid:#E27BE8; --amber:#F5BE55;
+    --teal:#2DD4BF; --purple:#A188EC; --rose:#F2697F;
+    --s-wait:#949BB4; --s-prog:#7C72F5; --s-review:#A188EC;
+    --s-done:#2DD4BF; --s-delay:#F2697F; --s-issue:#E0A83E;
+    --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
   }
 }
 :root[data-theme="dark"]{
-  --ground:#0D1119; --surface:#141A25; --surface-2:#1B2230;
-  --line:#28313F; --line-soft:#212836;
-  --ink:#E4E9F1; --ink-2:#B4BECF; --muted:#8A94A8; --focus:#6E9CF5;
-  --s-wait:#96A0B5; --s-prog:#6E9CF5; --s-review:#A88EF0;
-  --s-done:#48BE8B; --s-delay:#F0776D; --s-issue:#E0A050;
+  --ground:#0E1120; --surface:#171B2E; --surface-2:#1F2438;
+  --line:#2B3149; --line-soft:#242940;
+  --ink:#E7E9F4; --ink-2:#B7BDD2; --muted:#8990A8;
+  --chrome:#12162A; --chrome-2:#1D2340;
+  --on-chrome:#E7E9F4; --on-chrome-muted:#8A92B2;
+  --indigo:#7C72F5; --orchid:#E27BE8; --amber:#F5BE55;
+  --teal:#2DD4BF; --purple:#A188EC; --rose:#F2697F;
+  --s-wait:#949BB4; --s-prog:#7C72F5; --s-review:#A188EC;
+  --s-done:#2DD4BF; --s-delay:#F2697F; --s-issue:#E0A83E;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
 }
 
 *{box-sizing:border-box}
@@ -69,25 +108,30 @@ button,input,select,textarea{font:inherit;color:inherit}
 .topbar{
   position:sticky;top:0;z-index:30;
   display:flex;align-items:center;gap:28px;flex-wrap:wrap;
-  padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--line);
+  padding:12px 24px;background:var(--chrome);color:var(--on-chrome);border-bottom:none;
 }
 .brand{display:flex;flex-direction:column;line-height:1.2}
 .brand-mark{font-family:var(--display);font-weight:800;font-size:1.12rem;letter-spacing:-.03em}
-.brand-sub{font-size:.68rem;color:var(--muted);letter-spacing:.02em}
+.brand-sub{font-size:.68rem;color:var(--on-chrome-muted);letter-spacing:.02em}
 .gnb{display:flex;gap:4px;flex:1;flex-wrap:wrap}
 .gnb a{
-  padding:7px 13px;border-radius:var(--radius);color:var(--muted);
-  font-weight:500;font-size:.9rem;border:1px solid transparent;
+  position:relative;padding:9px 13px 10px;color:var(--on-chrome-muted);
+  font-weight:500;font-size:.9rem;border-bottom:2px solid transparent;
 }
-.gnb a:hover{color:var(--ink);background:var(--surface-2)}
-.gnb a.active{color:var(--ink);background:var(--surface-2);border-color:var(--line)}
+.gnb a:hover{color:var(--on-chrome)}
+.gnb a.active{color:var(--on-chrome);border-bottom-color:var(--amber)}
 .topbar-right{display:flex;align-items:center;gap:12px}
 .me-picker{display:flex;align-items:center;gap:7px}
-.me-label{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.me-label{font-size:.72rem;color:var(--on-chrome-muted);white-space:nowrap}
 
 /* ── 폼 요소 ────────────────────────────── */
+.topbar select{background:var(--chrome-2);border-color:var(--chrome-2);color:var(--on-chrome)}
+.topbar select:hover{border-color:var(--on-chrome-muted)}
+.topbar .btn-primary{background:var(--amber);color:#25200A;border-color:var(--amber)}
+.topbar .btn-primary:hover{filter:brightness(1.06);opacity:1}
+
 select,input[type=text],input[type=date],input[type=search],textarea{
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:7px 10px;min-width:0;
 }
 select:hover,input:hover,textarea:hover{border-color:var(--muted)}
@@ -98,11 +142,11 @@ label.field > span.lab .req{color:var(--s-delay);margin-left:2px}
 .hint{font-size:.76rem;color:var(--muted)}
 
 .btn{
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:7px 14px;font-weight:500;font-size:.88rem;cursor:pointer;white-space:nowrap;
 }
 .btn:hover{border-color:var(--muted)}
-.btn-primary{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn-primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
 .btn-primary:hover{opacity:.88}
 .btn-ghost{background:transparent;border-color:transparent;color:var(--muted);padding:5px 8px}
 .btn-ghost:hover{color:var(--ink);background:var(--surface-2)}
@@ -112,13 +156,13 @@ label.field > span.lab .req{color:var(--s-delay);margin-left:2px}
 /* ── 레이아웃 ───────────────────────────── */
 .view{max-width:1320px;margin:0 auto;padding:28px 24px 80px}
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:22px}
-.page-head h1{font-size:1.5rem;font-weight:800}
+.page-head h1{font-size:1.6rem;font-weight:800;letter-spacing:-.03em}
 .page-head .sub{font-size:.84rem;color:var(--muted);margin-top:4px}
 .page-actions{display:flex;gap:8px;flex-wrap:wrap}
 .section{margin-top:34px}
 .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
   padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:16px}
-.section-head h2{font-size:1.02rem;font-weight:700}
+.section-head h2{font-size:1.06rem;font-weight:800;letter-spacing:-.02em}
 .section-head .meta{font-size:.78rem;color:var(--muted)}
 .scroller{overflow-x:auto}
 .grid-2{display:grid;gap:26px;grid-template-columns:1fr}
@@ -127,10 +171,10 @@ label.field > span.lab .req{color:var(--s-delay);margin-left:2px}
 /* ── 요약 카드 ──────────────────────────── */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:1px;
   background:var(--line-soft);border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden}
-.stat{background:var(--surface);padding:15px 16px;border:none;text-align:left;cursor:pointer;display:block;width:100%}
+.stat{background:var(--surface);padding:16px 17px;border:none;text-align:left;cursor:pointer;display:block;width:100%}
 .stat:hover{background:var(--surface-2)}
 .stat .k{font-size:.76rem;color:var(--muted);margin-bottom:3px}
-.stat .v{font-family:var(--mono);font-size:1.6rem;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.15}
+.stat .v{font-family:var(--display);font-size:1.85rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;letter-spacing:-.02em}
 .stat.alert .v{color:var(--s-delay)}
 .stat.warn .v{color:var(--s-issue)}
 .stat.zero .v{color:var(--muted)}
@@ -141,8 +185,8 @@ label.field > span.lab .req{color:var(--s-delay);margin-left:2px}
   font-size:.87rem;background:none;border:none;padding:5px 4px;cursor:pointer;text-align:left;width:100%;border-radius:var(--radius)}
 .bar:hover{background:var(--surface-2)}
 .bar .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar .track{height:7px;background:var(--surface-2);border-radius:2px;position:relative;overflow:hidden}
-.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--s-prog);border-radius:2px}
+.bar .track{height:9px;background:var(--surface-2);border-radius:999px;position:relative;overflow:hidden}
+.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--pc,var(--indigo));border-radius:999px}
 .bar .fill.none{background:var(--line)}
 .bar .pct{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;color:var(--ink-2);font-size:.84rem}
 .bar .sub{grid-column:1/-1;font-size:.74rem;color:var(--muted);padding-left:2px}
@@ -168,13 +212,17 @@ label.field > span.lab .req{color:var(--s-delay);margin-left:2px}
 .person .inactive{font-size:.7rem;color:var(--muted)}
 
 /* ── 칩 ─────────────────────────────────── */
-.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid currentColor;border-radius:999px;
-  padding:1px 9px 1px 7px;font-size:.76rem;font-weight:500;line-height:1.6;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:5px;border:1.5px solid currentColor;border-radius:999px;
+  padding:1px 10px 1px 8px;font-size:.76rem;font-weight:600;line-height:1.65;white-space:nowrap}
 .chip::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
 .chip.plain::before{display:none}
 .chip.wait{color:var(--s-wait)} .chip.prog{color:var(--s-prog)} .chip.review{color:var(--s-review)}
 .chip.done{color:var(--s-done)} .chip.delay{color:var(--s-delay)} .chip.issue{color:var(--s-issue)}
 .chip.area{color:var(--muted);border-style:dashed}
+.pdot{display:inline-block;width:8px;height:8px;border-radius:999px;
+  background:var(--pc,var(--muted));flex:none;margin-right:7px;vertical-align:0}
+.pname{display:inline-flex;align-items:center;white-space:nowrap}
+
 .flags{display:inline-flex;gap:5px;align-items:center}
 .flag{font-size:.78rem;cursor:default}
 .flag.delay{color:var(--s-delay)} .flag.issue{color:var(--s-issue)}
@@ -260,7 +308,7 @@ details.more[open] > summary{color:var(--ink)}
 .kv{display:grid;grid-template-columns:88px 1fr;gap:8px 14px;font-size:.88rem;align-items:baseline}
 .kv dt{color:var(--muted);font-size:.8rem}
 .kv dd{margin:0}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
 .panel h3{font-size:.92rem;font-weight:700;margin-bottom:11px}
 .timeline{display:flex;flex-direction:column;gap:9px;font-size:.82rem}
 .timeline .ev{display:grid;grid-template-columns:96px 1fr;gap:10px;color:var(--ink-2)}
@@ -280,9 +328,9 @@ details.more[open] > summary{color:var(--ink)}
 .report .delta{font-family:var(--mono);font-size:.78rem}
 .delta.up{color:var(--s-done)} .delta.down{color:var(--s-delay)} .delta.flat{color:var(--muted)}
 .pill-row{display:flex;flex-wrap:wrap;gap:9px}
-.pill{border:1px solid var(--line);border-radius:var(--radius);padding:9px 13px;min-width:98px;background:var(--surface)}
+.pill{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;min-width:98px;background:var(--surface)}
 .pill .k{font-size:.74rem;color:var(--muted)}
-.pill .v{font-family:var(--mono);font-size:1.15rem;font-variant-numeric:tabular-nums}
+.pill .v{font-family:var(--display);font-weight:800;font-size:1.25rem;font-variant-numeric:tabular-nums}
 .pill.bad .v{color:var(--s-delay)}
 .report .bars .bar{grid-template-columns:minmax(90px,160px) minmax(0,520px) 46px;cursor:default}
 
@@ -2241,6 +2289,20 @@ const dDay = (n) => {
   return n > 0 ? `D-${n}` : `${n}일`;
 };
 
+// ── 프로젝트 색 ─────────────────────────────────────────
+// 팔레트에서 id 로 고정 배정한다. 순서가 바뀌어도 색이 따라 바뀌지 않는다.
+const PROJECT_TONES = 6;
+const projectTone = (id) => {
+  let h = 0;
+  for (const ch of String(id ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % PROJECT_TONES;
+};
+/** 인라인 스타일로 넘길 프로젝트 색 변수 */
+const projectStyle = (id) => `--pc:var(--p${projectTone(id)})`;
+/** 색 점 + 이름 */
+const projectName = (id, name) =>
+  `<span class="pname" style="${projectStyle(id)}"><i class="pdot"></i>${esc(name ?? '')}</span>`;
+
 // ── 조각 ────────────────────────────────────────────────
 const avatar = (member, cls = '') => {
   if (!member) return `<span class="avatar ${cls}">?</span>`;
@@ -2997,8 +3059,8 @@ async function renderOverview(root) {
       <div class="k">${esc(label)}</div><div class="v">${value}</div>
     </button>`;
 
-  const barRow = (name, pct, sub, jump) => `
-    <button class="bar" data-jump="${esc(jump)}">
+  const barRow = (name, pct, sub, jump, style = '') => `
+    <button class="bar" data-jump="${esc(jump)}" style="${style}">
       <span class="name">${esc(name)}</span>
       ${progressBar(pct)}
       <span class="pct">${pctText(pct)}</span>
@@ -3036,6 +3098,7 @@ async function renderOverview(root) {
             p.name, p.progress,
             `업무 ${p.count} · 완료 ${p.done}${p.delayed ? ` · 지연 ${p.delayed}` : ''}${p.issue ? ` · 이슈 ${p.issue}` : ''}`,
             `#/tasks?project=${encodeURIComponent(p.id)}&done=1`,
+            projectStyle(p.id),
           )).join('')}
         </div>
       </section>
@@ -3221,7 +3284,7 @@ async function renderTasks(root, query) {
             ${rows.map((t) => `
               <tr class="row-click" data-open="${esc(t.id)}">
                 <td class="title-cell">${esc(t.title)} ${flags(t)}</td>
-                <td data-label="프로젝트">${esc(t.project_name)}</td>
+                <td data-label="프로젝트">${projectName(t.project_id, t.project_name)}</td>
                 <td data-label="영역">${areaChip(t.area)}</td>
                 <td data-label="담당">${person(t.owner_slack_user_id, t.owner_name)}</td>
                 <td data-label="마감" class="nowrap num due ${t.is_delayed ? 'late' : ''}">
@@ -3710,7 +3773,7 @@ async function renderWeekly(root, query) {
       ${sec('②', '프로젝트별 진행', `
         <div class="bars">
           ${s.projects.map((pr) => `
-            <div class="bar" style="cursor:default">
+            <div class="bar" style="cursor:default;${projectStyle(pr.id)}">
               <span class="name">${esc(pr.name)}</span>
               ${progressBar(pr.progress)}
               <span class="pct">${pctText(pr.progress)}</span>

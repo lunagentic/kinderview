@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state, leadOf } from '../state.js';
-import { esc, avatar, progressBar, pctText, loading, errorBox, empty, shortDate, go } from '../ui.js';
+import { esc, avatar, progressBar, pctText, loading, errorBox, empty, shortDate, go, projectStyle, projectName } from '../ui.js';
 import { projectForm, areaLeadsForm } from '../forms.js';
 import { riskSection } from './risks.js';
 
@@ -34,8 +34,8 @@ export async function renderOverview(root) {
       <div class="k">${esc(label)}</div><div class="v">${value}</div>
     </button>`;
 
-  const barRow = (name, pct, sub, jump) => `
-    <button class="bar" data-jump="${esc(jump)}">
+  const barRow = (name, pct, sub, jump, style = '') => `
+    <button class="bar" data-jump="${esc(jump)}" style="${style}">
       <span class="name">${esc(name)}</span>
       ${progressBar(pct)}
       <span class="pct">${pctText(pct)}</span>
@@ -73,6 +73,7 @@ export async function renderOverview(root) {
             p.name, p.progress,
             `업무 ${p.count} · 완료 ${p.done}${p.delayed ? ` · 지연 ${p.delayed}` : ''}${p.issue ? ` · 이슈 ${p.issue}` : ''}`,
             `#/tasks?project=${encodeURIComponent(p.id)}&done=1`,
+            projectStyle(p.id),
           )).join('')}
         </div>
       </section>

@@ -22,6 +22,20 @@ export const dDay = (n) => {
   return n > 0 ? `D-${n}` : `${n}일`;
 };
 
+// ── 프로젝트 색 ─────────────────────────────────────────
+// 팔레트에서 id 로 고정 배정한다. 순서가 바뀌어도 색이 따라 바뀌지 않는다.
+const PROJECT_TONES = 6;
+export const projectTone = (id) => {
+  let h = 0;
+  for (const ch of String(id ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % PROJECT_TONES;
+};
+/** 인라인 스타일로 넘길 프로젝트 색 변수 */
+export const projectStyle = (id) => `--pc:var(--p${projectTone(id)})`;
+/** 색 점 + 이름 */
+export const projectName = (id, name) =>
+  `<span class="pname" style="${projectStyle(id)}"><i class="pdot"></i>${esc(name ?? '')}</span>`;
+
 // ── 조각 ────────────────────────────────────────────────
 export const avatar = (member, cls = '') => {
   if (!member) return `<span class="avatar ${cls}">?</span>`;

@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state } from '../state.js';
-import { esc, shortDate, dateTime, person, loading, errorBox, toast, pctText, progressBar, go } from '../ui.js';
+import { esc, shortDate, dateTime, person, loading, errorBox, toast, pctText, progressBar, go, projectStyle } from '../ui.js';
 
 const sec = (n, title, inner) => `
   <section class="rsec"><h3><span class="n">${n}</span>${esc(title)}</h3>${inner}</section>`;
@@ -79,7 +79,7 @@ export async function renderWeekly(root, query) {
       ${sec('②', '프로젝트별 진행', `
         <div class="bars">
           ${s.projects.map((pr) => `
-            <div class="bar" style="cursor:default">
+            <div class="bar" style="cursor:default;${projectStyle(pr.id)}">
               <span class="name">${esc(pr.name)}</span>
               ${progressBar(pr.progress)}
               <span class="pct">${pctText(pr.progress)}</span>
