@@ -8,7 +8,7 @@ import { runMigrations } from './migrate.js';
 import {
   members, projects, vendors, tasks, issues, overview, areaLeads,
   timeEntries, payments, phases, milestones, timeline, expenses,
-  EXPENSE_CATEGORIES, HttpError,
+  taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
 import * as weekly from './weekly.js';
 import * as notify from './notify.js';
@@ -106,6 +106,7 @@ route('GET', '/api/tasks', (ctx) => {
   return tasks.list({
     project: listParam(u, 'project'),
     phase: u.searchParams.get('phase') || undefined,
+    month: u.searchParams.get('month') || undefined,
     area: listParam(u, 'area'),
     owner,
     status: listParam(u, 'status'),
@@ -118,6 +119,8 @@ route('GET', '/api/tasks', (ctx) => {
     q: u.searchParams.get('q') || undefined,
   });
 });
+
+route('GET', '/api/task-months', () => taskMonths());
 
 route('POST', '/api/tasks', async (ctx) => {
   const task = tasks.create(ctx.body, ctx.me);

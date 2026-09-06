@@ -5,7 +5,7 @@
 // 데이터는 localStorage 에 저장된다. 서버도 DB도 없다.
 
 // 업무 영역 개편(v3)으로 이전 데이터의 area 값이 더는 유효하지 않다 — 키를 올려 새로 만든다
-const LS_KEY = 'kf.demo.v6';
+const LS_KEY = 'kf.real.v1';
 
 // ── 날짜 ────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');
@@ -50,9 +50,9 @@ function buildSeed() {
     projectId[p.key] = id;
     return {
       id, name: p.name, code: p.code, description: null, status: 'ACTIVE',
-      start_date: d(-90), end_date: null, lead_slack_user_id: p.lead,
+      start_date: p.start ?? null, end_date: p.end ?? null, lead_slack_user_id: p.lead,
       slack_channel_id: p.channel, sort_order: p.order, is_archived: 0,
-      created_at: at(d(-90)), updated_at: at(d(-90)),
+      created_at: at(p.start ?? T), updated_at: at(p.start ?? T),
     };
   });
 
@@ -71,8 +71,8 @@ function buildSeed() {
     phaseId[key] = id;
     return {
       id, project_id: projectId[pk], name,
-      start_date: start == null ? null : d(start),
-      end_date: end == null ? null : d(end),
+      start_date: start ?? null,
+      end_date: end ?? null,
       sort_order: order, created_at: nowISO(), updated_at: nowISO(),
     };
   });
@@ -83,45 +83,23 @@ function buildSeed() {
   const events = [];
   const taskIdByTitle = {};
 
-  for (const [pk, title, area, owner, status, dueOffset, priority, collabs, out] of SEED.TASKS) {
+  const taskTitle = (group, detail) => (detail ? `${group} · ${detail}` : group);
+
+  for (const [pk, phaseKey, group, detail, area, due, priority, note] of SEED.TASKS) {
     const id = uid();
+    const title = taskTitle(group, detail);
     taskIdByTitle[title] = id;
-    const due = d(dueOffset);
-    const created = at(d(Math.max(dueOffset - 14, -60)), '01');
-    const taskOwner = leadOfArea[area] ?? owner;   // 담당자 = 영역 리드
+    const owner = leadOfArea[area];
+    const created = at(addDays(due, -21), '01');
     tasks.push({
-      id, project_id: projectId[pk], phase_id: phaseId[(SEED.TASK_PHASE ?? {})[title]] ?? null,
-      title, area, owner_slack_user_id: taskOwner, status, priority,
-      start_date: d(dueOffset - 10), due_date: due, description: null,
-      completed_at: status === 'DONE' ? at(due, '08') : null,
-      created_by: 'U01KIM', created_at: created, updated_at: created, deleted_at: null,
+      id, project_id: projectId[pk], phase_id: phaseId[phaseKey] ?? null,
+      title, area, owner_slack_user_id: owner, status: 'TODO', priority,
+      start_date: null, due_date: due, description: note || null,
+      completed_at: null, created_by: 'U01KIM',
+      created_at: created, updated_at: created, deleted_at: null,
     });
-    for (const c of new Set(collabs.filter((c) => c !== taskOwner))) {
-      collaborators.push({ task_id: id, slack_user_id: c, added_at: created });
-    }
-    if (out) {
-      outsourcing.push({
-        task_id: id, vendor_id: vendorId(out.vendor), vendor_worker_name: out.worker,
-        vendor_worker_contact: null, work_scope: out.scope, requested_at: d(out.requested),
-        delivery_due_date: d(out.delivery), delivered_at: null, review_status: out.review,
-        amount: out.amount ?? null,
-        payment_status: out.review === 'IN_REVIEW' ? 'REQUESTED' : 'PLANNED',
-        paid_at: null,
-        created_at: created, updated_at: created,
-      });
-    }
-    events.push({ id: uid(), task_id: id, event_type: 'CREATED', from_value: null, to_value: status,
+    events.push({ id: uid(), task_id: id, event_type: 'CREATED', from_value: null, to_value: 'TODO',
       actor_slack_user_id: 'U01KIM', occurred_at: created });
-    const hasExplicitStatusEvent = (SEED.EXTRA_EVENTS ?? [])
-      .some(([t, type]) => t === title && type === 'STATUS_CHANGED');
-    if (!hasExplicitStatusEvent && status !== 'TODO' && status !== 'REQUEST_PLANNED') {
-      events.push({
-        id: uid(), task_id: id, event_type: 'STATUS_CHANGED',
-        from_value: area === 'OUT' ? 'REQUEST_PLANNED' : 'TODO', to_value: status,
-        actor_slack_user_id: taskOwner,
-        occurred_at: status === 'DONE' ? at(due, '08') : at(d(Math.min(dueOffset - 3, 0)), '05'),
-      });
-    }
   }
 
   for (const [title, type, from, to, daysAgo] of (SEED.EXTRA_EVENTS ?? [])) {
@@ -132,33 +110,33 @@ function buildSeed() {
       to_value: val(to), actor_slack_user_id: 'U01KIM', occurred_at: at(d(-daysAgo), '04') });
   }
 
-  const issues = SEED.ISSUES.map(([pk, taskTitle, title, content, owner, severity, status, targetOffset, impact]) => ({
-    id: uid(), project_id: projectId[pk], task_id: taskTitle ? taskIdByTitle[taskTitle] : null,
+  const issues = SEED.ISSUES.map(([pk, linkedTitle, title, content, owner, severity, status, targetDate, impact]) => ({
+    id: uid(), project_id: projectId[pk], task_id: linkedTitle ? taskIdByTitle[linkedTitle] ?? null : null,
     title, content, owner_slack_user_id: owner, severity, status,
-    target_resolve_date: d(targetOffset), impact,
-    resolved_at: status === 'RESOLVED' ? at(d(-1), '06') : null,
-    created_by: 'U01KIM', created_at: at(d(-4), '03'), updated_at: at(d(-4), '03'), deleted_at: null,
+    target_resolve_date: targetDate, impact,
+    resolved_at: status === 'RESOLVED' ? at(T, '06') : null,
+    created_by: 'U01KIM', created_at: at(T, '03'), updated_at: at(T, '03'), deleted_at: null,
   }));
 
-  const timeRows = (SEED.TIME_ENTRIES ?? []).map(([title, member, dayOffset, hours]) => {
+  const timeRows = (SEED.TIME_ENTRIES ?? []).map(([title, member, workDate, hours]) => {
     const taskId = taskIdByTitle[title];
     return taskId ? {
-      id: uid(), task_id: taskId, slack_user_id: member, work_date: d(dayOffset),
+      id: uid(), task_id: taskId, slack_user_id: member, work_date: workDate,
       hours, note: null, created_at: nowISO(), updated_at: nowISO(),
     } : null;
   }).filter(Boolean);
 
-  const milestones = (SEED.MILESTONES ?? []).map(([pk, phaseKey, name, dueOffset, doneOffset]) => ({
+  const milestones = (SEED.MILESTONES ?? []).map(([pk, phaseKey, name, dueDate, doneDate]) => ({
     id: uid(), project_id: projectId[pk], phase_id: phaseKey ? phaseId[phaseKey] ?? null : null,
-    name, due_date: d(dueOffset),
-    done_at: doneOffset == null ? null : at(d(doneOffset), '07'),
+    name, due_date: dueDate,
+    done_at: doneDate == null ? null : at(doneDate, '07'),
     created_at: nowISO(), updated_at: nowISO(),
   }));
 
-  const expenses = (SEED.EXPENSES ?? []).map(([pk, taskTitle, who, dayOffset, category, amount, memo]) => ({
+  const expenses = (SEED.EXPENSES ?? []).map(([pk, linkedTitle, who, spentOn, category, amount, memo]) => ({
     id: uid(), project_id: projectId[pk],
-    task_id: taskTitle ? taskIdByTitle[taskTitle] ?? null : null,
-    slack_user_id: who, spent_on: d(dayOffset), category, amount, memo,
+    task_id: linkedTitle ? taskIdByTitle[linkedTitle] ?? null : null,
+    slack_user_id: who, spent_on: spentOn, category, amount, memo,
     created_at: nowISO(), updated_at: nowISO(),
   }));
 
@@ -176,8 +154,8 @@ function load() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // 오래 지난 데모 데이터는 오늘 기준으로 다시 만든다 (전부 지연으로 보이지 않도록)
-      if (parsed.anchor && Math.abs(daysBetween(parsed.anchor, today())) <= 14) return parsed;
+      // 실제 일정이라 날짜가 따라 움직이면 안 된다 — 저장된 것을 그대로 쓴다
+      if (parsed.anchor) return parsed;
     }
   } catch { /* 저장된 데이터가 깨졌으면 새로 만든다 */ }
   const fresh = buildSeed();

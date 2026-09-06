@@ -7,7 +7,7 @@
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
 import {
   MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, TIME_ENTRIES,
-  PHASES, TASK_PHASE, MILESTONES, EXPENSES,
+  PHASES, MILESTONES, EXPENSES,
 } from './seed-data.js';
 import { runMigrations } from './migrate.js';
 
@@ -15,7 +15,6 @@ if (runMigrations().length) (await import('./db.js')).applySchema();
 
 const RESET = process.argv.includes('--reset');
 const T = today();
-const d = (n) => addDays(T, n);
 const ts = (isoDate, hh = '10', mm = '00') => `${isoDate}T${hh}:${mm}:00.000Z`;
 
 if (RESET) {
@@ -31,7 +30,10 @@ if (one('SELECT COUNT(*) AS n FROM task').n > 0) {
   process.exit(0);
 }
 
-// [프로젝트, 업무명, 영역, 담당, 상태, 마감(오늘 기준 오프셋), 우선순위, 협업자, 외주정보]
+/** 업무명 = 결과 · 상세업무명 */
+const taskTitle = (group, detail) => (detail ? `${group} · ${detail}` : group);
+/** 마감에서 며칠 앞을 등록 시각으로 잡는다 (이력의 시작점) */
+const before = (isoDate, days) => ts(addDays(isoDate, -days), '01');
 
 tx(() => {
   const at = nowISO();
@@ -53,8 +55,9 @@ tx(() => {
     projectId[p.key] = id;
     run(`INSERT INTO project (id, name, code, description, status, start_date, end_date,
                               lead_slack_user_id, slack_channel_id, sort_order, is_archived, created_at, updated_at)
-         VALUES (:id, :name, :code, NULL, 'ACTIVE', :start, NULL, :lead, :channel, :order, 0, :at, :at)`,
-      { id, name: p.name, code: p.code, start: d(-90), lead: p.lead, channel: p.channel, order: p.order, at });
+         VALUES (:id, :name, :code, NULL, 'ACTIVE', :start, :end, :lead, :channel, :order, 0, :at, :at)`,
+      { id, name: p.name, code: p.code, start: p.start ?? null, end: p.end ?? null,
+        lead: p.lead, channel: p.channel, order: p.order, at });
   }
 
   const vendorId = (name) => {
@@ -72,61 +75,31 @@ tx(() => {
     phaseId[key] = id;
     run(`INSERT INTO phase (id, project_id, name, start_date, end_date, sort_order, created_at, updated_at)
          VALUES (:id, :pid, :name, :start, :end, :order, :at, :at)`,
-      { id, pid: projectId[pk], name, start: start == null ? null : d(start), end: end == null ? null : d(end), order, at });
+      { id, pid: projectId[pk], name, start: start ?? null, end: end ?? null, order, at });
   }
 
   const leadOf = Object.fromEntries(AREA_LEADS);
   const taskIdByTitle = {};
-  for (const [pk, title, area, owner, status, dueOffset, priority, collabs, out] of TASKS) {
+  for (const [pk, phaseKey, group, detail, area, due, priority, note] of TASKS) {
     const id = uid();
+    const title = taskTitle(group, detail);
     taskIdByTitle[title] = id;
-    const taskOwner = leadOf[area] ?? owner;   // 담당자 = 영역 리드
-    const due = d(dueOffset);
-    const created = ts(d(dueOffset - 14 < -60 ? -60 : dueOffset - 14), '01');
-    const completed = status === 'DONE' ? ts(due, '08') : null;
+    const owner = leadOf[area];   // 담당자 = 영역 리드
+    if (!owner) throw new Error(`'${area}' 영역의 리드가 없습니다 — AREA_LEADS 를 확인하세요.`);
+    const created = before(due, 21);
+
     run(`INSERT INTO task (id, project_id, phase_id, title, area, owner_slack_user_id, status, priority,
                            start_date, due_date, description, completed_at, created_by, created_at, updated_at)
-         VALUES (:id, :pid, :phase, :title, :area, :owner, :status, :priority,
-                 :start, :due, :desc, :completed, :by, :created, :created)`,
+         VALUES (:id, :pid, :phase, :title, :area, :owner, 'TODO', :priority,
+                 NULL, :due, :desc, NULL, :by, :created, :created)`,
       {
-        id, pid: projectId[pk], phase: phaseId[TASK_PHASE[title]] ?? null,
-        title, area, owner: taskOwner, status, priority,
-        start: d(dueOffset - 10), due, desc: null, completed, by: 'U01KIM', created,
+        id, pid: projectId[pk], phase: phaseId[phaseKey] ?? null,
+        title, area, owner, priority, due, desc: note || null, by: 'U01KIM', created,
       });
 
-    for (const c of new Set(collabs.filter((c) => c !== taskOwner))) {
-      run('INSERT INTO task_collaborator (task_id, slack_user_id, added_at) VALUES (:t, :u, :at)',
-        { t: id, u: c, at: created });
-    }
-
-    if (out) {
-      run(`INSERT INTO outsourcing (task_id, vendor_id, vendor_worker_name, vendor_worker_contact, work_scope,
-                                    requested_at, delivery_due_date, delivered_at, review_status,
-                                    amount, payment_status, paid_at, created_at, updated_at)
-           VALUES (:t, :v, :worker, NULL, :scope, :req, :due, NULL, :review,
-                   :amount, :pay, NULL, :at, :at)`,
-        {
-          t: id, v: vendorId(out.vendor), worker: out.worker, scope: out.scope,
-          req: d(out.requested), due: d(out.delivery), review: out.review,
-          amount: out.amount ?? null,
-          pay: out.review === 'IN_REVIEW' ? 'REQUESTED' : 'PLANNED',
-          at: created,
-        });
-    }
-
     run(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
-         VALUES (:id, :t, 'CREATED', NULL, :to, :actor, :at)`,
-      { id: uid(), t: id, to: status, actor: 'U01KIM', at: created });
-
-    const hasExplicitStatusEvent = EXTRA_EVENTS.some(([t, type]) => t === title && type === 'STATUS_CHANGED');
-    if (!hasExplicitStatusEvent && status !== 'TODO' && status !== 'REQUEST_PLANNED') {
-      run(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
-           VALUES (:id, :t, 'STATUS_CHANGED', :from, :to, :actor, :at)`,
-        {
-          id: uid(), t: id, from: area === 'OUT' ? 'REQUEST_PLANNED' : 'TODO', to: status,
-          actor: taskOwner, at: completed || ts(d(Math.min(dueOffset - 3, 0)), '05'),
-        });
-    }
+         VALUES (:id, :t, 'CREATED', NULL, 'TODO', :actor, :at)`,
+      { id: uid(), t: id, actor: 'U01KIM', at: created });
   }
 
   for (const [title, type, from, to, daysAgo] of EXTRA_EVENTS) {
@@ -138,44 +111,44 @@ tx(() => {
       { id: uid(), t: taskId, type, from: val(from), to: val(to), at: ts(d(-daysAgo), '04') });
   }
 
-  for (const [title, member, dayOffset, hours] of TIME_ENTRIES) {
+  for (const [title, member, workDate, hours] of TIME_ENTRIES) {
     const taskId = taskIdByTitle[title];
     if (!taskId) continue;
     run(`INSERT INTO time_entry (id, task_id, slack_user_id, work_date, hours, note, created_at, updated_at)
          VALUES (:id, :t, :u, :d, :h, NULL, :at, :at)
          ON CONFLICT(task_id, slack_user_id, work_date) DO UPDATE SET hours = excluded.hours`,
-      { id: uid(), t: taskId, u: member, d: d(dayOffset), h: hours, at });
+      { id: uid(), t: taskId, u: member, d: workDate, h: hours, at });
   }
 
-  for (const [pk, phaseKey, name, dueOffset, doneOffset] of MILESTONES) {
+  for (const [pk, phaseKey, name, dueDate, doneDate] of MILESTONES) {
     run(`INSERT INTO milestone (id, project_id, phase_id, name, due_date, done_at, created_at, updated_at)
          VALUES (:id, :pid, :phase, :name, :due, :done, :at, :at)`,
       {
         id: uid(), pid: projectId[pk], phase: phaseKey ? phaseId[phaseKey] : null, name,
-        due: d(dueOffset), done: doneOffset == null ? null : ts(d(doneOffset), '07'), at,
+        due: dueDate, done: doneDate == null ? null : ts(doneDate, '07'), at,
       });
   }
 
-  for (const [pk, taskTitle, member, dayOffset, category, amount, memo] of EXPENSES) {
+  for (const [pk, linkedTitle, member, spentOn, category, amount, memo] of EXPENSES) {
     run(`INSERT INTO expense (id, project_id, task_id, slack_user_id, spent_on, category, amount, memo, created_at, updated_at)
          VALUES (:id, :pid, :tid, :u, :on, :cat, :amount, :memo, :at, :at)`,
       {
-        id: uid(), pid: projectId[pk], tid: taskTitle ? taskIdByTitle[taskTitle] ?? null : null,
-        u: member, on: d(dayOffset), cat: category, amount, memo, at,
+        id: uid(), pid: projectId[pk], tid: linkedTitle ? taskIdByTitle[linkedTitle] ?? null : null,
+        u: member, on: spentOn, cat: category, amount, memo, at,
       });
   }
 
-  for (const [pk, taskTitle, title, content, owner, severity, status, targetOffset, impact] of ISSUES) {
+  for (const [pk, linkedTitle, title, content, owner, severity, status, targetDate, impact] of ISSUES) {
     const id = uid();
-    const created = ts(d(-4), '03');
+    const created = ts(today(), '03');
     run(`INSERT INTO issue (id, project_id, task_id, title, content, owner_slack_user_id, severity, status,
                             target_resolve_date, impact, resolved_at, created_by, created_at, updated_at)
          VALUES (:id, :pid, :tid, :title, :content, :owner, :sev, :status, :target, :impact, :resolved, :by, :at, :at)`,
       {
-        id, pid: projectId[pk], tid: taskTitle ? taskIdByTitle[taskTitle] : null,
+        id, pid: projectId[pk], tid: linkedTitle ? taskIdByTitle[linkedTitle] ?? null : null,
         title, content, owner, sev: severity, status,
-        target: d(targetOffset), impact,
-        resolved: status === 'RESOLVED' ? ts(d(-1), '06') : null,
+        target: targetDate, impact,
+        resolved: status === 'RESOLVED' ? ts(today(), '06') : null,
         by: 'U01KIM', at: created,
       });
   }
@@ -185,7 +158,6 @@ const counts = {
   구성원: one('SELECT COUNT(*) AS n FROM member').n,
   프로젝트: one('SELECT COUNT(*) AS n FROM project').n,
   업무: one('SELECT COUNT(*) AS n FROM task').n,
-  외주: one('SELECT COUNT(*) AS n FROM outsourcing').n,
   이슈: one('SELECT COUNT(*) AS n FROM issue').n,
   페이즈: one('SELECT COUNT(*) AS n FROM phase').n,
   마일스톤: one('SELECT COUNT(*) AS n FROM milestone').n,

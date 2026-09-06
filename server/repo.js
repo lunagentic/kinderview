@@ -427,6 +427,28 @@ export class HttpError extends Error {
 
 // ── 업무 ────────────────────────────────────────────────
 
+/** 'YYYY-MM' 의 마지막 날. 다음 달 0일이 이번 달 말일이다. */
+const monthEnd = (month) => {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+};
+
+/** 업무가 걸려 있는 달 목록 — 업무 화면의 월 필터가 쓴다 */
+export function taskMonths(ref = today()) {
+  return all(
+    `SELECT substr(t.due_date, 1, 7) AS month,
+            COUNT(*) AS count,
+            SUM(CASE WHEN t.status <> 'DONE' AND t.due_date < :today THEN 1 ELSE 0 END) AS delayed,
+            SUM(CASE WHEN t.status = 'DONE' THEN 1 ELSE 0 END) AS done
+     FROM task t
+     JOIN project p ON p.id = t.project_id
+     WHERE t.deleted_at IS NULL AND p.is_archived = 0 AND t.due_date IS NOT NULL
+     GROUP BY month
+     ORDER BY month`,
+    { today: ref },
+  );
+}
+
 const TASK_SELECT = `
   SELECT t.*,
          p.name AS project_name, p.code AS project_code, p.slack_channel_id AS project_channel,
@@ -487,6 +509,12 @@ export const tasks = {
     }
     if (!filter.includeDone && !filter.status?.length && filter.stage !== 'DONE') {
       where.push("t.status <> 'DONE'");
+    }
+    if (filter.month) {
+      // 'YYYY-MM' 한 달 — 마감일 기준이다
+      params.mFrom = `${filter.month}-01`;
+      params.mTo = monthEnd(filter.month);
+      where.push('t.due_date BETWEEN :mFrom AND :mTo');
     }
     if (filter.dueFrom) { params.dueFrom = filter.dueFrom; where.push('t.due_date >= :dueFrom'); }
     if (filter.dueTo) { params.dueTo = filter.dueTo; where.push('t.due_date <= :dueTo'); }

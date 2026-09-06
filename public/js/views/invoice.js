@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { state } from '../state.js';
 import { esc, loading, errorBox, empty, toast, shortDate, go, projectName, progressBar } from '../ui.js';
+import { expenseForm } from '../forms.js';
 
 const PAY = [
   { code: 'PLANNED',   label: '지급 예정', tone: 'wait' },
@@ -34,6 +35,9 @@ export async function renderInvoice(root, query) {
       <div>
         <h1>인보이싱</h1>
         <div class="sub">외주 업체에 지급할 건과 프로젝트에 쌓인 경비를 함께 봅니다</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" data-new-expense>+ 경비 등록</button>
       </div>
     </div>
 
@@ -104,7 +108,7 @@ export async function renderInvoice(root, query) {
     <section class="section">
       <div class="section-head">
         <h2>프로젝트 경비</h2>
-        <span class="meta">외주 지급과 별개로 쌓인 실비 · 등록은 타임트래킹에서</span>
+        <span class="meta">외주 지급과 별개로 쌓인 실비</span>
       </div>
       <div class="exp-head">
         <span class="exp-total">${wonText(spend.summary.total)}</span>
@@ -148,8 +152,12 @@ export async function renderInvoice(root, query) {
     if (pay) return patch(pay.dataset.pay, { payment_status: pay.value }, pay);
   });
   root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-new-expense]')) {
+      return expenseForm({ onSaved: reload });
+    }
     const b = e.target.closest('[data-status]');
     if (b) go(b.dataset.status ? `#/invoice?status=${b.dataset.status}` : '#/invoice');
+    return undefined;
   });
   void payLabel;
 }

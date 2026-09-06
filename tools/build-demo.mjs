@@ -35,7 +35,7 @@ const parts = [
   '/* ── 예시 데이터 (server/seed-data.js) ──────────────── */',
   seed,
   'const SEED = { MEMBERS, AREA_LEADS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, TIME_ENTRIES,\n'
-  + '  PHASES, TASK_PHASE, MILESTONES, EXPENSES };',
+  + '  PHASES, MILESTONES, EXPENSES };',
   '/* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */',
   flatten(read('server/ai/rules.js')),
   '/* ── 브라우저 저장소 (demo/store.js) ────────────────── */',

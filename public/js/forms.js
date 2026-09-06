@@ -122,7 +122,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
 
         <label class="field">
           <span class="lab">마감일<span class="req">*</span></span>
-          <input type="date" name="due_date" required value="${esc(task?.due_date ?? '')}">
+          <input type="date" name="due_date" required value="${esc(task?.due_date ?? defaults.due_date ?? '')}">
         </label>
 
         <label class="field span2">
