@@ -14,16 +14,37 @@ KinderFlow 는 두 가지 모드로 나뉜다. **지금 바로 배포되는 것�
 
 ## 1. 브라우저 모드 — Vercel 배포
 
+### 방법 A — GitHub 연결 (권장)
+
+Vercel 대시보드 → **Add New → Project** → 이 저장소를 고른다.
+
+| 설정 | 값 |
+|---|---|
+| Framework Preset | `Other` |
+| Root Directory | 그대로 (저장소 루트) |
+| Build / Output | **건드리지 않는다** — `vercel.json` 이 이미 정한다 |
+| Production Branch | 배포할 브랜치 (기본 브랜치가 아니면 Settings → Git 에서 바꾼다) |
+
+한 번 연결하면 푸시할 때마다 자동 배포된다. 환경변수는 필요 없다.
+
+### 방법 B — 로컬에서 한 줄
+
 ```bash
 npx vercel            # 미리보기 배포
 npx vercel --prod     # 운영 배포
 ```
 
-`vercel.json` 이 이미 들어 있다. Vercel 이 `node tools/build-demo.mjs` 를 실행해
-`dist/index.html` 한 파일을 만들고 그것을 서빙한다. 빌드에 설치할 패키지가 없다.
+처음 한 번 `vercel login` 을 거친다.
 
-GitHub 저장소를 Vercel 에 연결하면 푸시할 때마다 자동 배포된다.
-Vercel 대시보드에서 별도로 설정할 항목은 없다 — Framework Preset 은 `Other`.
+`vercel.json` 이 이미 들어 있다. Vercel 이 `node tools/build-demo.mjs` 를 실행해
+`dist/index.html` 한 파일을 만들고 그것을 서빙한다. 빌드에 설치할 패키지가 없고,
+외부에서 불러오는 스크립트도 없다(글꼴만 Google Fonts).
+
+### 배포 전에 한 번 볼 것 — 이 페이지는 기본적으로 공개다
+
+`dist/index.html` 에는 **실제 킨더버스 업무 32건이 그대로 들어 있다.** 예시 데이터가
+아니다. Vercel 배포 URL 은 주소를 아는 사람이면 누구나 열 수 있으므로, 내부용이면
+**Settings → Deployment Protection** 에서 Vercel Authentication 이나 비밀번호를 켠다.
 
 **이 모드에서 알아야 할 것**
 
