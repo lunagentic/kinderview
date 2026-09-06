@@ -242,6 +242,11 @@ function listTasks(f = {}) {
   rows = rows.filter((t) => !archived.has(t.project_id));
 
   if (f.project?.length) rows = rows.filter((t) => f.project.includes(t.project_id));
+  if (f.phase?.length) rows = rows.filter((t) => f.phase.includes(t.phase_id));
+  if (f.month) {
+    // 'YYYY-MM' 한 달 — 마감일 기준
+    rows = rows.filter((t) => (t.due_date ?? '').slice(0, 7) === f.month);
+  }
   if (f.area?.length) rows = rows.filter((t) => f.area.includes(t.area));
   if (f.owner?.length) rows = rows.filter((t) => f.owner.includes(t.owner_slack_user_id));
   if (f.status?.length) rows = rows.filter((t) => f.status.includes(t.status));
@@ -1243,6 +1248,7 @@ function handle(method, path, body) {
   if (p === '/api/tasks' && method === 'GET') {
     return listTasks({
       project: listParam(sp, 'project'), area: listParam(sp, 'area'),
+      phase: listParam(sp, 'phase'), month: sp.get('month') || undefined,
       owner: listParam(sp, 'owner')?.map((o) => (o === 'me' ? me : o)),
       status: listParam(sp, 'status'), stage: sp.get('stage') || undefined,
       delayed: sp.get('delayed') === '1', hasIssue: sp.get('issue') === '1',
@@ -1377,6 +1383,23 @@ function handle(method, path, body) {
     if (!body.text?.trim()) throw new DemoError('문장을 입력해 주세요.');
     const c = aiCtx();
     return parseCapture(body.text, { members: c.members, projects: c.projects, today: c.today });
+  }
+
+  if (p === '/api/task-months' && method === 'GET') {
+    const ref = today();
+    const map = new Map();
+    for (const t of DB.tasks) {
+      if (t.deleted_at || !t.due_date) continue;
+      const pr = project(t.project_id);
+      if (!pr || pr.is_archived) continue;
+      const key = t.due_date.slice(0, 7);
+      if (!map.has(key)) map.set(key, { month: key, count: 0, delayed: 0, done: 0 });
+      const g = map.get(key);
+      g.count += 1;
+      if (t.status === 'DONE') g.done += 1;
+      else if (t.due_date < ref) g.delayed += 1;
+    }
+    return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
   }
 
   if (p === '/api/timeline' && method === 'GET') return timelineRows();

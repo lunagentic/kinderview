@@ -836,3 +836,47 @@ details.more[open] > summary{color:var(--ink)}
   .tk-issue:empty{display:none}
   .tk-project-head .n{margin-left:0}
 }
+
+/* ── 타임라인: 페이즈 업무 패널 ──────────────
+   막대를 누르면 그 페이즈 업무가 영역별로 아래에 열린다.
+   막대는 '보기', 왼쪽 이름은 '수정' — 하는 일을 나눴다. */
+.tl-hint{margin-left:auto;color:var(--muted)}
+.tl-bar.on{box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--pc)}
+
+.tl-detail{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  margin-top:12px;overflow:hidden}
+.tld-head{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;
+  padding:13px 16px;border-bottom:2px solid var(--pc,var(--line))}
+.tld-head h3{font-size:1rem;font-weight:800;display:inline-flex;align-items:center;gap:7px}
+.tld-head h3 .sep{color:var(--muted);font-weight:400}
+.tld-head .meta{font-size:.78rem;color:var(--muted)}
+.tld-head .acts{margin-left:auto;display:flex;gap:4px}
+
+.tld-areas{display:grid;grid-template-columns:1fr;gap:1px;background:var(--line-soft)}
+@media (min-width:900px){.tld-areas{grid-template-columns:1fr 1fr}}
+.tld-area{background:var(--surface);padding:12px 16px 14px;min-width:0}
+.tld-area-head{display:flex;align-items:baseline;gap:9px;padding-bottom:7px;margin-bottom:4px;
+  border-bottom:1px solid var(--line-soft)}
+.tld-area-head .lab{font-size:.85rem;font-weight:700;color:var(--ink)}
+.tld-area-head .n{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+.tld-area-head .lead{font-size:.75rem;color:var(--muted);margin-left:auto}
+
+.tld-task{display:grid;grid-template-columns:74px minmax(0,1fr) auto;gap:10px;align-items:center;
+  width:100%;text-align:left;background:none;border:none;cursor:pointer;
+  padding:7px 4px;border-radius:var(--radius-sm);font:inherit}
+.tld-task:hover{background:var(--surface-2)}
+.tld-task .due{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.8rem;
+  display:flex;flex-direction:column;line-height:1.3;color:var(--ink-2)}
+.tld-task .due i{font-style:normal;font-size:.7rem;color:var(--muted)}
+.tld-task .due.late,.tld-task .due.late i{color:var(--s-delay)}
+.tld-task .ttl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.87rem}
+.tld-task .st{justify-self:end}
+
+@media (max-width:860px){
+  .tl-hint{margin-left:0;flex-basis:100%}
+  .tld-head{padding:12px 14px}
+  .tld-head .acts{margin-left:0;width:100%}
+  .tld-area{padding:11px 14px 12px}
+  .tld-task{grid-template-columns:64px minmax(0,1fr);gap:6px 9px}
+  .tld-task .st{grid-column:2/3;justify-self:start}
+}

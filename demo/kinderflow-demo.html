@@ -842,6 +842,50 @@ details.more[open] > summary{color:var(--ink)}
   .tk-project-head .n{margin-left:0}
 }
 
+/* ── 타임라인: 페이즈 업무 패널 ──────────────
+   막대를 누르면 그 페이즈 업무가 영역별로 아래에 열린다.
+   막대는 '보기', 왼쪽 이름은 '수정' — 하는 일을 나눴다. */
+.tl-hint{margin-left:auto;color:var(--muted)}
+.tl-bar.on{box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--pc)}
+
+.tl-detail{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  margin-top:12px;overflow:hidden}
+.tld-head{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;
+  padding:13px 16px;border-bottom:2px solid var(--pc,var(--line))}
+.tld-head h3{font-size:1rem;font-weight:800;display:inline-flex;align-items:center;gap:7px}
+.tld-head h3 .sep{color:var(--muted);font-weight:400}
+.tld-head .meta{font-size:.78rem;color:var(--muted)}
+.tld-head .acts{margin-left:auto;display:flex;gap:4px}
+
+.tld-areas{display:grid;grid-template-columns:1fr;gap:1px;background:var(--line-soft)}
+@media (min-width:900px){.tld-areas{grid-template-columns:1fr 1fr}}
+.tld-area{background:var(--surface);padding:12px 16px 14px;min-width:0}
+.tld-area-head{display:flex;align-items:baseline;gap:9px;padding-bottom:7px;margin-bottom:4px;
+  border-bottom:1px solid var(--line-soft)}
+.tld-area-head .lab{font-size:.85rem;font-weight:700;color:var(--ink)}
+.tld-area-head .n{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+.tld-area-head .lead{font-size:.75rem;color:var(--muted);margin-left:auto}
+
+.tld-task{display:grid;grid-template-columns:74px minmax(0,1fr) auto;gap:10px;align-items:center;
+  width:100%;text-align:left;background:none;border:none;cursor:pointer;
+  padding:7px 4px;border-radius:var(--radius-sm);font:inherit}
+.tld-task:hover{background:var(--surface-2)}
+.tld-task .due{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.8rem;
+  display:flex;flex-direction:column;line-height:1.3;color:var(--ink-2)}
+.tld-task .due i{font-style:normal;font-size:.7rem;color:var(--muted)}
+.tld-task .due.late,.tld-task .due.late i{color:var(--s-delay)}
+.tld-task .ttl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.87rem}
+.tld-task .st{justify-self:end}
+
+@media (max-width:860px){
+  .tl-hint{margin-left:0;flex-basis:100%}
+  .tld-head{padding:12px 14px}
+  .tld-head .acts{margin-left:0;width:100%}
+  .tld-area{padding:11px 14px 12px}
+  .tld-task{grid-template-columns:64px minmax(0,1fr);gap:6px 9px}
+  .tld-task .st{grid-column:2/3;justify-self:start}
+}
+
 
 /* 데모 안내 (빌드에서만 추가) */
 .demo-note{max-width:1320px;margin:16px auto 0;padding:11px 16px;display:flex;gap:10px;
@@ -1755,6 +1799,11 @@ function listTasks(f = {}) {
   rows = rows.filter((t) => !archived.has(t.project_id));
 
   if (f.project?.length) rows = rows.filter((t) => f.project.includes(t.project_id));
+  if (f.phase?.length) rows = rows.filter((t) => f.phase.includes(t.phase_id));
+  if (f.month) {
+    // 'YYYY-MM' 한 달 — 마감일 기준
+    rows = rows.filter((t) => (t.due_date ?? '').slice(0, 7) === f.month);
+  }
   if (f.area?.length) rows = rows.filter((t) => f.area.includes(t.area));
   if (f.owner?.length) rows = rows.filter((t) => f.owner.includes(t.owner_slack_user_id));
   if (f.status?.length) rows = rows.filter((t) => f.status.includes(t.status));
@@ -2756,6 +2805,7 @@ function handle(method, path, body) {
   if (p === '/api/tasks' && method === 'GET') {
     return listTasks({
       project: listParam(sp, 'project'), area: listParam(sp, 'area'),
+      phase: listParam(sp, 'phase'), month: sp.get('month') || undefined,
       owner: listParam(sp, 'owner')?.map((o) => (o === 'me' ? me : o)),
       status: listParam(sp, 'status'), stage: sp.get('stage') || undefined,
       delayed: sp.get('delayed') === '1', hasIssue: sp.get('issue') === '1',
@@ -2890,6 +2940,23 @@ function handle(method, path, body) {
     if (!body.text?.trim()) throw new DemoError('문장을 입력해 주세요.');
     const c = aiCtx();
     return parseCapture(body.text, { members: c.members, projects: c.projects, today: c.today });
+  }
+
+  if (p === '/api/task-months' && method === 'GET') {
+    const ref = today();
+    const map = new Map();
+    for (const t of DB.tasks) {
+      if (t.deleted_at || !t.due_date) continue;
+      const pr = project(t.project_id);
+      if (!pr || pr.is_archived) continue;
+      const key = t.due_date.slice(0, 7);
+      if (!map.has(key)) map.set(key, { month: key, count: 0, delayed: 0, done: 0 });
+      const g = map.get(key);
+      g.count += 1;
+      if (t.status === 'DONE') g.done += 1;
+      else if (t.due_date < ref) g.delayed += 1;
+    }
+    return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
   }
 
   if (p === '/api/timeline' && method === 'GET') return timelineRows();
@@ -5302,7 +5369,7 @@ async function renderTimeline(root) {
     return `
       <div class="tl-row">
         <div class="tl-label">
-          <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 수정">${esc(ph.name)}</button>
+          <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
           <span class="tl-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
             pct === null ? '' : ` · ${pct}%`}</span>
         </div>
@@ -5310,8 +5377,9 @@ async function renderTimeline(root) {
           ${months.map((m) => `<i class="tl-grid" style="left:${m.left}%"></i>`).join('')}
           ${box ? `
             <div class="tl-bar${ph.derived ? ' is-derived' : ''}" style="left:${box.left}%;width:${box.width}%"
-                 data-phase="${esc(ph.id)}" data-tip="${esc(tip)}" tabindex="0"
-                 role="button" aria-label="${esc(`${ph.name} ${range}`)}">
+                 data-open-phase="${esc(ph.id)}" data-tip="${esc(tip)}" tabindex="0"
+                 role="button" aria-expanded="false"
+                 aria-label="${esc(`${ph.name} ${range} — 업무 보기`)}">
               <span class="tl-fill" style="width:${pct ?? 0}%"></span>
             </div>
             ${box.left + box.width < 84 ? `
@@ -5351,6 +5419,7 @@ async function renderTimeline(root) {
       <span class="tl-key"><i class="k-ms late"></i>지연</span>
       <span class="tl-key"><i class="k-ms done"></i>달성</span>
       <span class="tl-key"><i class="k-today"></i>오늘</span>
+      <span class="tl-hint">막대를 누르면 그 페이즈 업무가 아래에 영역별로 열립니다</span>
     </div>
 
     <div class="tl-wrap">
@@ -5388,6 +5457,8 @@ async function renderTimeline(root) {
         ${todayAt === null ? '' : `<i class="tl-today" style="left:calc(var(--tl-label) + (100% - var(--tl-label)) * ${todayAt / 100})"></i>`}
       </div>
     </div>
+
+    <div class="tl-detail" id="tl-detail" hidden></div>
 
     <details class="tl-table">
       <summary>표로 보기</summary>
@@ -5445,6 +5516,82 @@ async function renderTimeline(root) {
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
   const allPhases = live.flatMap((r) => r.phases);
 
+  // ── 페이즈 업무 패널 ──────────────────────────────────
+  // 막대를 누르면 그 페이즈의 업무를 영역별로 묶어 아래에 편다.
+  // 영역이 곧 담당이라, 이 묶음이 "누가 무엇을 언제까지"가 된다.
+  const detail = root.querySelector('#tl-detail');
+  let openId = null;
+
+  const closeDetail = () => {
+    openId = null;
+    detail.hidden = true;
+    detail.innerHTML = '';
+    root.querySelectorAll('.tl-bar.on').forEach((b) => {
+      b.classList.remove('on');
+      b.setAttribute('aria-expanded', 'false');
+    });
+  };
+
+  async function togglePhase(phaseId) {
+    if (openId === phaseId) return closeDetail();
+    closeDetail();
+    openId = phaseId;
+
+    const row = live.find((r) => r.phases.some((p) => p.id === phaseId));
+    const ph = row?.phases.find((p) => p.id === phaseId);
+    if (!ph) return undefined;
+
+    const bar = root.querySelector(`.tl-bar[data-open-phase="${phaseId}"]`);
+    bar?.classList.add('on');
+    bar?.setAttribute('aria-expanded', 'true');
+
+    detail.hidden = false;
+    detail.innerHTML = `<div class="loading">불러오는 중…</div>`;
+
+    let rows;
+    try {
+      rows = await api.get(`/api/tasks?phase=${encodeURIComponent(phaseId)}&done=1`);
+    } catch (err) {
+      detail.innerHTML = errorBox(err.message);
+      return undefined;
+    }
+    if (openId !== phaseId) return undefined;   // 그새 다른 걸 눌렀으면 버린다
+
+    const areas = (state.meta?.areas ?? [])
+      .map((a) => ({ area: a, rows: rows.filter((t) => t.area === a.code) }))
+      .filter((g) => g.rows.length);
+
+    const range = ph.start_date ? `${shortDate(ph.start_date)} ~ ${shortDate(ph.end_date)}` : '기간 미정';
+
+    detail.innerHTML = `
+      <div class="tld-head" style="${projectStyle(row.id)}">
+        <h3>${projectName(row.id, row.name)}<span class="sep">·</span>${esc(ph.name)}</h3>
+        <span class="meta">${esc(range)}${ph.derived ? ' (업무에서 계산)' : ''} · 업무 ${rows.length}건${
+          ph.progress === null ? '' : ` · 진행 ${ph.progress}%`}</span>
+        <span class="acts">
+          <button class="btn btn-ghost sm" data-phase="${esc(ph.id)}">페이즈 수정</button>
+          <button class="btn btn-ghost sm" data-close-detail aria-label="닫기">닫기 ✕</button>
+        </span>
+      </div>
+      ${areas.length ? `<div class="tld-areas">${areas.map((g) => `
+        <section class="tld-area">
+          <div class="tld-area-head">
+            <span class="lab">${esc(g.area.full)}</span>
+            <span class="n">${g.rows.length}건</span>
+            <span class="lead">${esc((state.areaLeads.find((l) => l.area === g.area.code) ?? {}).display_name ?? '리드 미지정')}</span>
+          </div>
+          ${g.rows.map((t) => `
+            <button class="tld-task" data-task="${esc(t.id)}">
+              <span class="due num ${t.is_delayed ? 'late' : ''}">${shortDate(t.due_date)}<i>${
+                t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i></span>
+              <span class="ttl">${esc(t.title)}</span>
+              <span class="st">${statusChip(t.status)}</span>
+            </button>`).join('')}
+        </section>`).join('')}</div>`
+        : '<p class="hint" style="padding:14px 2px">이 페이즈에 배정된 업무가 없습니다.</p>'}`;
+    return undefined;
+  }
+
   root.addEventListener('click', (e) => {
     const addP = e.target.closest('[data-add-phase]');
     if (addP) return phaseForm({ projectId: addP.dataset.addPhase, onSaved: reload });
@@ -5457,6 +5604,14 @@ async function renderTimeline(root) {
       const found = allPhases.find((p) => p.id === ph.dataset.phase);
       if (found) return phaseForm({ phase: found, projectId: found.project_id, onSaved: reload });
     }
+
+    const openPh = e.target.closest('[data-open-phase]');
+    if (openPh) return togglePhase(openPh.dataset.openPhase);
+
+    if (e.target.closest('[data-close-detail]')) return closeDetail();
+
+    const task = e.target.closest('[data-task]');
+    if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
     const ms = e.target.closest('[data-milestone], [data-milestone-row]');
     if (ms) {

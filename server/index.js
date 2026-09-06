@@ -105,7 +105,7 @@ route('GET', '/api/tasks', (ctx) => {
   const owner = listParam(u, 'owner')?.map((o) => (o === 'me' ? ctx.me : o));
   return tasks.list({
     project: listParam(u, 'project'),
-    phase: u.searchParams.get('phase') || undefined,
+    phase: listParam(u, 'phase'),
     month: u.searchParams.get('month') || undefined,
     area: listParam(u, 'area'),
     owner,

@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { state } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
+  statusChip, go,
 } from '../ui.js';
 import { phaseForm, milestoneForm } from '../forms.js';
 
@@ -93,7 +94,7 @@ export async function renderTimeline(root) {
     return `
       <div class="tl-row">
         <div class="tl-label">
-          <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 수정">${esc(ph.name)}</button>
+          <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
           <span class="tl-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
             pct === null ? '' : ` · ${pct}%`}</span>
         </div>
@@ -101,8 +102,9 @@ export async function renderTimeline(root) {
           ${months.map((m) => `<i class="tl-grid" style="left:${m.left}%"></i>`).join('')}
           ${box ? `
             <div class="tl-bar${ph.derived ? ' is-derived' : ''}" style="left:${box.left}%;width:${box.width}%"
-                 data-phase="${esc(ph.id)}" data-tip="${esc(tip)}" tabindex="0"
-                 role="button" aria-label="${esc(`${ph.name} ${range}`)}">
+                 data-open-phase="${esc(ph.id)}" data-tip="${esc(tip)}" tabindex="0"
+                 role="button" aria-expanded="false"
+                 aria-label="${esc(`${ph.name} ${range} — 업무 보기`)}">
               <span class="tl-fill" style="width:${pct ?? 0}%"></span>
             </div>
             ${box.left + box.width < 84 ? `
@@ -142,6 +144,7 @@ export async function renderTimeline(root) {
       <span class="tl-key"><i class="k-ms late"></i>지연</span>
       <span class="tl-key"><i class="k-ms done"></i>달성</span>
       <span class="tl-key"><i class="k-today"></i>오늘</span>
+      <span class="tl-hint">막대를 누르면 그 페이즈 업무가 아래에 영역별로 열립니다</span>
     </div>
 
     <div class="tl-wrap">
@@ -179,6 +182,8 @@ export async function renderTimeline(root) {
         ${todayAt === null ? '' : `<i class="tl-today" style="left:calc(var(--tl-label) + (100% - var(--tl-label)) * ${todayAt / 100})"></i>`}
       </div>
     </div>
+
+    <div class="tl-detail" id="tl-detail" hidden></div>
 
     <details class="tl-table">
       <summary>표로 보기</summary>
@@ -236,6 +241,82 @@ export async function renderTimeline(root) {
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
   const allPhases = live.flatMap((r) => r.phases);
 
+  // ── 페이즈 업무 패널 ──────────────────────────────────
+  // 막대를 누르면 그 페이즈의 업무를 영역별로 묶어 아래에 편다.
+  // 영역이 곧 담당이라, 이 묶음이 "누가 무엇을 언제까지"가 된다.
+  const detail = root.querySelector('#tl-detail');
+  let openId = null;
+
+  const closeDetail = () => {
+    openId = null;
+    detail.hidden = true;
+    detail.innerHTML = '';
+    root.querySelectorAll('.tl-bar.on').forEach((b) => {
+      b.classList.remove('on');
+      b.setAttribute('aria-expanded', 'false');
+    });
+  };
+
+  async function togglePhase(phaseId) {
+    if (openId === phaseId) return closeDetail();
+    closeDetail();
+    openId = phaseId;
+
+    const row = live.find((r) => r.phases.some((p) => p.id === phaseId));
+    const ph = row?.phases.find((p) => p.id === phaseId);
+    if (!ph) return undefined;
+
+    const bar = root.querySelector(`.tl-bar[data-open-phase="${phaseId}"]`);
+    bar?.classList.add('on');
+    bar?.setAttribute('aria-expanded', 'true');
+
+    detail.hidden = false;
+    detail.innerHTML = `<div class="loading">불러오는 중…</div>`;
+
+    let rows;
+    try {
+      rows = await api.get(`/api/tasks?phase=${encodeURIComponent(phaseId)}&done=1`);
+    } catch (err) {
+      detail.innerHTML = errorBox(err.message);
+      return undefined;
+    }
+    if (openId !== phaseId) return undefined;   // 그새 다른 걸 눌렀으면 버린다
+
+    const areas = (state.meta?.areas ?? [])
+      .map((a) => ({ area: a, rows: rows.filter((t) => t.area === a.code) }))
+      .filter((g) => g.rows.length);
+
+    const range = ph.start_date ? `${shortDate(ph.start_date)} ~ ${shortDate(ph.end_date)}` : '기간 미정';
+
+    detail.innerHTML = `
+      <div class="tld-head" style="${projectStyle(row.id)}">
+        <h3>${projectName(row.id, row.name)}<span class="sep">·</span>${esc(ph.name)}</h3>
+        <span class="meta">${esc(range)}${ph.derived ? ' (업무에서 계산)' : ''} · 업무 ${rows.length}건${
+          ph.progress === null ? '' : ` · 진행 ${ph.progress}%`}</span>
+        <span class="acts">
+          <button class="btn btn-ghost sm" data-phase="${esc(ph.id)}">페이즈 수정</button>
+          <button class="btn btn-ghost sm" data-close-detail aria-label="닫기">닫기 ✕</button>
+        </span>
+      </div>
+      ${areas.length ? `<div class="tld-areas">${areas.map((g) => `
+        <section class="tld-area">
+          <div class="tld-area-head">
+            <span class="lab">${esc(g.area.full)}</span>
+            <span class="n">${g.rows.length}건</span>
+            <span class="lead">${esc((state.areaLeads.find((l) => l.area === g.area.code) ?? {}).display_name ?? '리드 미지정')}</span>
+          </div>
+          ${g.rows.map((t) => `
+            <button class="tld-task" data-task="${esc(t.id)}">
+              <span class="due num ${t.is_delayed ? 'late' : ''}">${shortDate(t.due_date)}<i>${
+                t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i></span>
+              <span class="ttl">${esc(t.title)}</span>
+              <span class="st">${statusChip(t.status)}</span>
+            </button>`).join('')}
+        </section>`).join('')}</div>`
+        : '<p class="hint" style="padding:14px 2px">이 페이즈에 배정된 업무가 없습니다.</p>'}`;
+    return undefined;
+  }
+
   root.addEventListener('click', (e) => {
     const addP = e.target.closest('[data-add-phase]');
     if (addP) return phaseForm({ projectId: addP.dataset.addPhase, onSaved: reload });
@@ -248,6 +329,14 @@ export async function renderTimeline(root) {
       const found = allPhases.find((p) => p.id === ph.dataset.phase);
       if (found) return phaseForm({ phase: found, projectId: found.project_id, onSaved: reload });
     }
+
+    const openPh = e.target.closest('[data-open-phase]');
+    if (openPh) return togglePhase(openPh.dataset.openPhase);
+
+    if (e.target.closest('[data-close-detail]')) return closeDetail();
+
+    const task = e.target.closest('[data-task]');
+    if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
     const ms = e.target.closest('[data-milestone], [data-milestone-row]');
     if (ms) {
