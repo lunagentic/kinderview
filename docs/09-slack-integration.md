@@ -208,7 +208,7 @@ KinderFlow
 ```yaml
 display_information:
   name: KinderFlow
-  description: 업무의 담당을 명확히, 전체 흐름은 한눈에
+  description: 문서보고 간소화 — 전체 흐름은 한눈에
 features:
   bot_user:
     display_name: KinderFlow

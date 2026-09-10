@@ -1,5 +1,5 @@
 import { state, loadBootstrap, setMe } from './state.js';
-import { esc, toast, errorBox, loading } from './ui.js';
+import { esc, toast, errorBox, loading, readPref, writePref } from './ui.js';
 import { taskForm } from './forms.js';
 import { renderOverview } from './views/overview.js';
 import { renderTasks } from './views/tasks.js';
@@ -25,9 +25,6 @@ const PROJECT_TABS = [
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
 // 저장이 막힌 환경에서도 기본 순서로 그대로 동작해야 한다.
 const TAB_KEY = 'kf.tabs';
-const readPref = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
-const writePref = (k, v) => { try { localStorage.setItem(k, v); } catch { /* 이번 세션만 유지 */ } };
-
 const DEFAULT_ORDER = PROJECT_TABS.map((t) => t.key);
 let tabOrder = (() => {
   const saved = (readPref(TAB_KEY) || '').split(',').filter((k) => DEFAULT_ORDER.includes(k));

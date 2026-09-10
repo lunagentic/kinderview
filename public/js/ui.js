@@ -22,6 +22,12 @@ export const dDay = (n) => {
   return n > 0 ? `D-${n}` : `${n}일`;
 };
 
+// ── 화면 취향값 ─────────────────────────────────────────
+// 탭 순서·프로젝트 순서처럼 "보는 사람" 것인 값. 이 브라우저에만 남는다.
+// 저장이 막힌 환경(사생활 보호 창 등)에서도 화면은 기본값으로 그대로 돈다.
+export const readPref = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+export const writePref = (k, v) => { try { localStorage.setItem(k, v); } catch { /* 이번 세션만 유지 */ } };
+
 // ── 프로젝트 색 ─────────────────────────────────────────
 // 색은 프로젝트에 고정된다. 필터로 목록이 줄어도 남은 프로젝트의 색은 그대로다.
 // 기준은 프로젝트가 이미 가진 정렬 순서(sort_order)다 — 목록 안에서의 등수가 아니라

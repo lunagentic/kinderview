@@ -2,9 +2,9 @@ import { api } from '../api.js';
 import { state, activeProjects, areaMeta } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
-  projectStyle, projectName,
+  projectStyle, projectName, readPref, writePref,
 } from '../ui.js';
-import { taskForm } from '../forms.js';
+import { taskForm, projectForm } from '../forms.js';
 
 // 업무 화면은 "언제까지 무엇을" 보는 곳이다.
 // 그래서 마감이 맨 앞이고, 기본 정렬도 마감일 순이다.
@@ -20,6 +20,12 @@ const QUICK = [
 ];
 
 const PR_TONE = { HIGH: 'pr-high', NORMAL: 'pr-normal', LOW: 'pr-low' };
+
+// 프로젝트를 보여 주는 순서. 이 브라우저에만 남는다 —
+// 서버의 sort_order 는 건드리지 않는다. 그 값이 프로젝트 색을 정하기 때문에,
+// 여기서 순서를 바꿔도 색은 그대로다 (색은 프로젝트를 따라가지 등수를 따라가지 않는다).
+const PROJ_KEY = 'kf.projOrder';
+const readProjOrder = () => (readPref(PROJ_KEY) || '').split(',').filter(Boolean);
 const monthLabel = (m) => `${Number(m.slice(5, 7))}월`;
 const monthEndDay = (m) => {
   const [y, mm] = m.split('-').map(Number);
@@ -70,8 +76,15 @@ export async function renderTasks(root, query) {
   };
 
   // 프로젝트 › 영역 순으로 묶는다. 각 묶음 안은 서버가 준 마감일 순 그대로.
+  // 프로젝트 차례는 저장해 둔 순서를 먼저 따르고, 모르는 것은 서버 순서로 뒤에 붙인다.
+  const saved = readProjOrder();
+  const ordered = [
+    ...saved.map((id) => state.projects.find((pr) => pr.id === id)).filter(Boolean),
+    ...state.projects.filter((pr) => !saved.includes(pr.id)),
+  ];
+
   const groups = [];
-  for (const pr of state.projects) {
+  for (const pr of ordered) {
     const mine = rows.filter((t) => t.project_id === pr.id);
     if (!mine.length) continue;
     const areas = [];
@@ -116,6 +129,7 @@ export async function renderTasks(root, query) {
         <div class="sub">${month ? `${monthLabel(month)} ` : ''}${rows.length}건 · 마감일 순 · 담당은 업무 영역의 리드가 맡습니다</div>
       </div>
       <div class="page-actions">
+        <button class="btn" data-new-project>+ 프로젝트</button>
         <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
       </div>
     </div>
@@ -144,8 +158,9 @@ export async function renderTasks(root, query) {
     </div>
 
     ${groups.length ? groups.map((g) => `
-      <section class="tk-project" style="${projectStyle(g.project.id)}">
-        <div class="tk-project-head">
+      <section class="tk-project" data-project="${esc(g.project.id)}" style="${projectStyle(g.project.id)}">
+        <div class="tk-project-head" title="끌어서 프로젝트 차례를 바꿉니다">
+          <span class="grip" aria-hidden="true">⠿</span>
           <h2>${projectName(g.project.id, g.project.name)}</h2>
           <span class="n">${g.count}건</span>
         </div>
@@ -166,6 +181,59 @@ export async function renderTasks(root, query) {
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
 
+  // ── 프로젝트 차례 바꾸기 ──────────────────────────────
+  // 머리를 잡고 위아래로 끈다. 마우스·터치 같은 코드로 받는다.
+  (function enableProjectDrag() {
+    let key = null;
+    let moved = false;
+    let startY = 0;
+    const sections = () => [...root.querySelectorAll('.tk-project')];
+    const order = () => sections().map((el) => el.dataset.project);
+
+    root.addEventListener('pointerdown', (e) => {
+      const head = e.target.closest('.tk-project-head');
+      if (!head || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      key = head.closest('.tk-project').dataset.project;
+      moved = false;
+      startY = e.clientY;
+      head.setPointerCapture?.(e.pointerId);
+    });
+
+    root.addEventListener('pointermove', (e) => {
+      if (!key) return;
+      if (!moved && Math.abs(e.clientY - startY) < 8) return;
+      moved = true;
+      const el = root.querySelector(`.tk-project[data-project="${key}"]`);
+      if (!el) return;
+      el.classList.add('dragging');
+      // 커서가 올라간 다른 프로젝트와 자리를 맞바꾼다. 다시 그리면 끌기가 끊기므로 DOM 만 옮긴다.
+      const over = sections().find((n) => {
+        if (n === el) return false;
+        const r = n.getBoundingClientRect();
+        return e.clientY >= r.top && e.clientY <= r.bottom;
+      });
+      if (!over) return;
+      const mid = over.getBoundingClientRect().top + over.getBoundingClientRect().height / 2;
+      if (e.clientY < mid) over.before(el); else over.after(el);
+    });
+
+    const end = () => {
+      if (!key) return;
+      root.querySelector(`.tk-project[data-project="${key}"]`)?.classList.remove('dragging');
+      if (moved) {
+        writePref(PROJ_KEY, order().join(','));
+        toast('프로젝트 차례를 저장했습니다.');
+      }
+      key = null;
+    };
+    root.addEventListener('pointerup', end);
+    root.addEventListener('pointercancel', end);
+    // 끌어서 놓은 것이면 눌린 것으로 치지 않는다
+    root.addEventListener('click', (e) => {
+      if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; }
+    }, true);
+  }());
+
   root.addEventListener('click', (e) => {
     const m = e.target.closest('[data-month]');
     if (m) return setParam({ month: m.dataset.month });
@@ -183,6 +251,10 @@ export async function renderTasks(root, query) {
       owner: '', stage: '', delayed: '', issue: '', area: '', project: '', q: '', done: '',
       month: rawMonth || 'all',   // 달은 그대로 두되 빈 주소로는 만들지 않는다
     });
+
+    if (e.target.closest('[data-new-project]')) {
+      return projectForm({ onSaved: reload });
+    }
 
     if (e.target.closest('[data-new-task]')) {
       return taskForm({

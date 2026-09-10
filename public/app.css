@@ -788,7 +788,15 @@ details.more[open] > summary{color:var(--ink)}
 
 .tk-project{margin-bottom:26px}
 .tk-project-head{display:flex;align-items:baseline;gap:10px;
-  padding-bottom:8px;border-bottom:2px solid var(--pc,var(--line));margin-bottom:2px}
+  padding-bottom:8px;border-bottom:2px solid var(--pc,var(--line));margin-bottom:2px;
+  /* 세로 스크롤은 살리고, 머리를 잡았을 때만 우리가 받는다 */
+  cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.tk-project-head:active{cursor:grabbing}
+.tk-project-head .grip{color:var(--line);font-size:.9rem;line-height:1;align-self:center;
+  letter-spacing:-.1em}
+.tk-project-head:hover .grip{color:var(--muted)}
+.tk-project.dragging{opacity:.6}
+.tk-project.dragging .tk-project-head{cursor:grabbing}
 .tk-project-head h2{font-size:1.02rem;font-weight:800}
 .tk-project-head .n{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-left:auto}
 
