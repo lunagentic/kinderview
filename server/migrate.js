@@ -7,13 +7,15 @@ const tableSql = (name) =>
   one("SELECT sql FROM sqlite_master WHERE type='table' AND name = :name", { name })?.sql ?? '';
 
 /**
- * 업무 영역 개편: 콘텐츠·디자인 신설.
- * 기존 코드(PLAN/DEV/MKT/BIZ/OPS/OUT/ETC)는 모두 그대로 유효하므로 값을 옮기지 않는다.
- * 제약만 넓히면 되지만, SQLite 의 CHECK 는 테이블 정의에 들어 있어 재생성이 필요하다.
+ * 업무 영역 개편 — 영역 값 집합이 바뀔 때마다 task 를 다시 만든다.
+ * 기존 코드는 모두 그대로 유효하므로 값은 옮기지 않고 제약만 넓힌다.
+ * SQLite 의 CHECK 는 테이블 정의에 들어 있어 재생성 말고는 넓힐 방법이 없다.
  */
 function migrateAreas() {
   const sql = tableSql('task');
-  if (!sql || sql.includes("'DESIGN'")) return null;
+  // 가장 최근에 더한 영역이 CHECK 에 있으면 이미 옮긴 것이다.
+  // 영역을 새로 더할 때 아래 CHECK 와 이 이름을 함께 바꾼다.
+  if (!sql || sql.includes("'KBOARD'")) return null;
 
   db.exec('PRAGMA foreign_keys = OFF');
   db.exec('BEGIN');
@@ -22,8 +24,9 @@ function migrateAreas() {
       CREATE TABLE task_migrated (
         id                  TEXT PRIMARY KEY,
         project_id          TEXT NOT NULL REFERENCES project(id),
+        phase_id            TEXT REFERENCES phase(id) ON DELETE SET NULL,
         title               TEXT NOT NULL,
-        area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','ETC')),
+        area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
         owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
         status              TEXT NOT NULL,
         priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),
@@ -47,10 +50,32 @@ function migrateAreas() {
         )
       )`);
 
-    db.exec('INSERT INTO task_migrated SELECT * FROM task');
+    // 옛 DB 는 버전마다 컬럼이 다르다(phase_id 는 나중에 붙었다).
+    // 새 표는 현재 스키마 그대로 만들고, 옮기는 값은 양쪽에 다 있는 컬럼만 고른다.
+    const have = new Set(db.prepare('PRAGMA table_info(task)').all().map((c) => c.name));
+    const cols = db
+      .prepare('PRAGMA table_info(task_migrated)')
+      .all()
+      .map((c) => c.name)
+      .filter((name) => have.has(name))
+      .join(', ');
+    db.exec(`INSERT INTO task_migrated (${cols}) SELECT ${cols} FROM task`);
 
     db.exec('DROP TABLE task');
     db.exec('ALTER TABLE task_migrated RENAME TO task');
+
+    // 영역 리드 표도 같은 CHECK 를 들고 있다. 여기를 빠뜨리면 새 영역에 리드를 못 세운다.
+    db.exec(`
+      CREATE TABLE area_lead_migrated (
+        area          TEXT PRIMARY KEY
+                      CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
+        slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
+        updated_at    TEXT NOT NULL
+      )`);
+    db.exec('INSERT INTO area_lead_migrated SELECT area, slack_user_id, updated_at FROM area_lead');
+    db.exec('DROP TABLE area_lead');
+    db.exec('ALTER TABLE area_lead_migrated RENAME TO area_lead');
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
@@ -59,7 +84,7 @@ function migrateAreas() {
   }
   db.exec('PRAGMA foreign_keys = ON');
 
-  return '업무 영역 개편: 콘텐츠·디자인 추가 (기존 업무의 영역 값은 그대로)';
+  return '업무 영역 개편: KinderBoard 추가 (기존 업무의 영역 값은 그대로)';
 }
 
 /** 외주 지급 정보 — 컬럼 추가는 테이블 재생성이 필요 없다 */

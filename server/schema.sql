@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS task (
   project_id          TEXT NOT NULL REFERENCES project(id),
   phase_id            TEXT REFERENCES phase(id) ON DELETE SET NULL,
   title               TEXT NOT NULL,
-  area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','ETC')),
+  area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
   owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
   status              TEXT NOT NULL,
   priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),
@@ -131,7 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_task_open    ON task(due_date) WHERE deleted_at I
 -- 업무의 담당자는 사람을 따로 고르지 않고 이 표에서 결정된다.
 CREATE TABLE IF NOT EXISTS area_lead (
   area          TEXT PRIMARY KEY
-                CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','ETC')),
+                CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
   slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
   updated_at    TEXT NOT NULL
 );

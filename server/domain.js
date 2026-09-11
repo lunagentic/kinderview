@@ -12,6 +12,7 @@ export const AREAS = [
   { code: 'BIZ',     label: '사업전략',   full: '사업전략' },
   { code: 'OPS',     label: '운영',       full: '운영' },
   { code: 'OUT',     label: '외주',       full: '외주 작업' },
+  { code: 'KBOARD',  label: 'KinderBoard', full: 'KinderBoard' },
   { code: 'ETC',     label: '기타',       full: '기타' },
 ];
 

@@ -25,6 +25,7 @@ export const AREA_LEADS = [
   ['BIZ',     'U03LEE'],
   ['OPS',     'U04CHOI'],
   ['OUT',     'U01KIM'],
+  ['KBOARD',  'U01KIM'],   // 임시 — 킨더보드 리드가 정해지면 바꾼다
   ['ETC',     'U01KIM'],
 ];
 
