@@ -809,7 +809,14 @@ details.more[open] > summary{color:var(--ink)}
 .tk-rows{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
 .tk-row{display:grid;align-items:center;gap:12px;padding:9px 14px;cursor:pointer;
   border-bottom:1px solid var(--line-soft);
-  grid-template-columns:104px minmax(0,1fr) 52px 132px 126px 44px}
+  grid-template-columns:16px 104px minmax(0,1fr) 52px 132px 126px 44px}
+/* 손잡이에서만 끌기를 받는다 — 줄 전체로 받으면 손가락으로 훑을 때 목록이 안 굴러간다 */
+.tk-grip{color:transparent;font-size:.9rem;line-height:1;letter-spacing:-.1em;
+  cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.tk-row:hover .tk-grip{color:var(--line)}
+.tk-grip:hover,.tk-grip:active{color:var(--muted)}
+.tk-grip:active{cursor:grabbing}
+.tk-row.dragging{opacity:.6;background:var(--surface-2)}
 .tk-row:last-child{border-bottom:none}
 .tk-row:hover{background:var(--surface-2)}
 .tk-row:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
@@ -833,14 +840,17 @@ details.more[open] > summary{color:var(--ink)}
   .months{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -14px 12px;padding:0 14px 2px}
   .months::-webkit-scrollbar{display:none}
   .months button{flex:0 0 auto;min-height:36px}
-  .tk-row{grid-template-columns:88px minmax(0,1fr) auto;gap:6px 10px;padding:11px 13px}
+  .tk-row{grid-template-columns:22px 88px minmax(0,1fr) auto;gap:6px 10px;padding:11px 13px}
+  /* 손가락으로 잡을 만큼은 돼야 한다 — 두 줄 높이를 다 쓴다 */
+  .tk-grip{grid-row:span 2;color:var(--line);align-self:stretch;
+    display:flex;align-items:center;justify-content:center}
   .tk-due{grid-row:span 2}
   .tk-title{white-space:normal;font-size:.92rem}
   .tk-pr{justify-self:end}
-  .tk-owner{grid-column:2/3;font-size:.79rem}
-  .tk-status{grid-column:3/4;justify-self:end}
+  .tk-owner{grid-column:3/4;font-size:.79rem}
+  .tk-status{grid-column:4/5;justify-self:end}
   .tk-status select{min-width:104px;min-height:34px}
-  .tk-issue{grid-column:2/-1;text-align:left}
+  .tk-issue{grid-column:3/-1;text-align:left}
   .tk-issue:empty{display:none}
   .tk-project-head .n{margin-left:0}
 }

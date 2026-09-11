@@ -26,6 +26,11 @@ const PR_TONE = { HIGH: 'pr-high', NORMAL: 'pr-normal', LOW: 'pr-low' };
 // 여기서 순서를 바꿔도 색은 그대로다 (색은 프로젝트를 따라가지 등수를 따라가지 않는다).
 const PROJ_KEY = 'kf.projOrder';
 const readProjOrder = () => (readPref(PROJ_KEY) || '').split(',').filter(Boolean);
+
+// 업무 차례도 같은 규칙이다. 기본은 마감일 순이고, 끌어서 바꾼 것만 기억한다.
+// 한 번도 안 끈 업무는 마감일 순 그대로 뒤에 붙는다 — 새 업무가 끼어들어도 제자리를 찾는다.
+const TASK_KEY = 'kf.taskOrder';
+const readTaskOrder = () => (readPref(TASK_KEY) || '').split(',').filter(Boolean);
 const monthLabel = (m) => `${Number(m.slice(5, 7))}월`;
 const monthEndDay = (m) => {
   const [y, mm] = m.split('-').map(Number);
@@ -83,6 +88,15 @@ export async function renderTasks(root, query) {
     ...state.projects.filter((pr) => !saved.includes(pr.id)),
   ];
 
+  const savedTasks = readTaskOrder();
+  const rank = new Map(savedTasks.map((id, i) => [id, i]));
+  // 정한 차례가 먼저, 나머지는 받은 순서(마감일 순) 그대로. sort 가 안정적이라 뒤쪽은 안 흔들린다.
+  const byRank = (a, b) => {
+    const ra = rank.has(a.id) ? rank.get(a.id) : Infinity;
+    const rb = rank.has(b.id) ? rank.get(b.id) : Infinity;
+    return ra === rb ? 0 : ra - rb;
+  };
+
   const groups = [];
   for (const pr of ordered) {
     const mine = rows.filter((t) => t.project_id === pr.id);
@@ -90,10 +104,11 @@ export async function renderTasks(root, query) {
     const areas = [];
     for (const a of state.meta.areas) {
       const inArea = mine.filter((t) => t.area === a.code);
-      if (inArea.length) areas.push({ area: a, rows: inArea });
+      if (inArea.length) areas.push({ area: a, rows: rank.size ? inArea.sort(byRank) : inArea });
     }
     groups.push({ project: pr, count: mine.length, areas });
   }
+  const manual = rows.some((t) => rank.has(t.id));
 
   const projectOptions = activeProjects()
     .map((pr) => `<option value="${esc(pr.id)}"${p.get('project') === pr.id ? ' selected' : ''}>${esc(pr.name)}</option>`).join('');
@@ -104,6 +119,7 @@ export async function renderTasks(root, query) {
 
   const taskRow = (t) => `
     <div class="tk-row" data-open="${esc(t.id)}" tabindex="0" role="button">
+      <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">
         ${shortDate(t.due_date)}
         <i class="dday">${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
@@ -126,7 +142,8 @@ export async function renderTasks(root, query) {
     <div class="page-head">
       <div>
         <h1>업무</h1>
-        <div class="sub">${month ? `${monthLabel(month)} ` : ''}${rows.length}건 · 마감일 순 · 담당은 업무 영역의 리드가 맡습니다</div>
+        <div class="sub">${month ? `${monthLabel(month)} ` : ''}${rows.length}건 · ${
+          manual ? '직접 정한 차례' : '마감일 순'} · 담당은 업무 영역의 리드가 맡습니다</div>
       </div>
       <div class="page-actions">
         <button class="btn" data-new-project>+ 프로젝트</button>
@@ -155,6 +172,7 @@ export async function renderTasks(root, query) {
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label class="chk"><input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함</label>
       <button class="btn btn-ghost" data-reset>필터 초기화</button>
+      ${manual ? '<button class="btn btn-ghost" data-order-reset>마감일 순으로</button>' : ''}
     </div>
 
     ${groups.length ? groups.map((g) => `
@@ -234,6 +252,65 @@ export async function renderTasks(root, query) {
     }, true);
   }());
 
+  // ── 업무 차례 바꾸기 ──────────────────────────────────
+  // 손잡이를 잡고 위아래로 끈다. 같은 영역 안에서만 움직인다 —
+  // 영역을 넘기면 담당이 바뀌는 것이라, 그건 끌기가 아니라 수정으로 해야 한다.
+  (function enableTaskDrag() {
+    let id = null;
+    let box = null;
+    let moved = false;
+    let startY = 0;
+    const rowsOf = () => [...box.querySelectorAll(':scope > .tk-row')];
+
+    root.addEventListener('pointerdown', (e) => {
+      const grip = e.target.closest('.tk-grip');
+      if (!grip || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const row = grip.closest('.tk-row');
+      id = row.dataset.open;
+      box = row.parentElement;
+      moved = false;
+      startY = e.clientY;
+      grip.setPointerCapture?.(e.pointerId);
+    });
+
+    root.addEventListener('pointermove', (e) => {
+      if (!id) return;
+      if (!moved && Math.abs(e.clientY - startY) < 8) return;
+      moved = true;
+      const el = box.querySelector(`.tk-row[data-open="${id}"]`);
+      if (!el) return;
+      el.classList.add('dragging');
+      // 다시 그리면 끌기가 끊긴다 — DOM 만 옮기고 저장은 놓을 때 한 번 한다
+      const over = rowsOf().find((n) => {
+        if (n === el) return false;
+        const r = n.getBoundingClientRect();
+        return e.clientY >= r.top && e.clientY <= r.bottom;
+      });
+      if (!over) return;
+      const r = over.getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) over.before(el); else over.after(el);
+    });
+
+    const end = () => {
+      if (!id) return;
+      box.querySelector(`.tk-row[data-open="${id}"]`)?.classList.remove('dragging');
+      if (moved) {
+        // 이 영역의 차례만 새로 쓴다. 다른 영역에서 정해 둔 차례는 그대로 둔다.
+        const here = rowsOf().map((n) => n.dataset.open);
+        const rest = readTaskOrder().filter((x) => !here.includes(x));
+        writePref(TASK_KEY, [...rest, ...here].join(','));
+        toast('업무 차례를 저장했습니다.');
+      }
+      id = null;
+      box = null;
+    };
+    root.addEventListener('pointerup', end);
+    root.addEventListener('pointercancel', end);
+    root.addEventListener('click', (e) => {
+      if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; }
+    }, true);
+  }());
+
   root.addEventListener('click', (e) => {
     const m = e.target.closest('[data-month]');
     if (m) return setParam({ month: m.dataset.month });
@@ -267,8 +344,16 @@ export async function renderTasks(root, query) {
       });
     }
 
+    if (e.target.closest('[data-order-reset]')) {
+      writePref(TASK_KEY, '');
+      toast('마감일 순으로 되돌렸습니다.');
+      return reload();
+    }
+
     const row = e.target.closest('[data-open]');
-    if (row && !e.target.closest('select')) go(`#/project/tasks/${row.dataset.open}`);
+    if (row && !e.target.closest('select') && !e.target.closest('.tk-grip')) {
+      go(`#/project/tasks/${row.dataset.open}`);
+    }
     return undefined;
   });
 
