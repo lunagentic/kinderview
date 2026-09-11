@@ -149,13 +149,55 @@ function buildSeed() {
 
 let DB = load();
 
+// 이름이 바뀐 프로젝트 — 옛 이름 그대로일 때만 갈아 끼운다
+const RENAMED_PROJECTS = { '콘텐츠 패키지': '상위 기획 및 리소스' };
+
+/**
+ * 저장된 데이터는 그대로 두고, 시드에서만 오는 참조 자료만 맞춘다.
+ * 키를 올려 새로 만들면 그동안 등록한 업무가 다 날아가므로 이렇게 한다.
+ * 구성원과 영역 리드는 화면에서 만들 수 없는 값이라 시드를 따라가도 잃을 것이 없다.
+ */
+function reconcile(db) {
+  let changed = false;
+
+  for (const m of SEED.MEMBERS ?? []) {
+    const row = (db.members ?? []).find((x) => x.slack_user_id === m.id);
+    if (row && row.display_name !== m.name) {
+      row.display_name = m.name;
+      row.real_name = m.name;
+      changed = true;
+    }
+  }
+
+  // 새로 생긴 영역은 리드가 비어 있다. 리드가 없으면 그 영역에 업무를 넣을 수 없다.
+  for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
+    if (!(db.area_leads ?? []).some((l) => l.area === area)) {
+      (db.area_leads ??= []).push({ area, slack_user_id, updated_at: nowISO() });
+      changed = true;
+    }
+  }
+
+  // 프로젝트 이름은 화면에서도 고칠 수 있다 — 직접 바꾼 이름은 건드리지 않는다
+  for (const p of db.projects ?? []) {
+    if (RENAMED_PROJECTS[p.name]) {
+      p.name = RENAMED_PROJECTS[p.name];
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       // 실제 일정이라 날짜가 따라 움직이면 안 된다 — 저장된 것을 그대로 쓴다
-      if (parsed.anchor) return parsed;
+      if (parsed.anchor) {
+        if (reconcile(parsed)) save(parsed);
+        return parsed;
+      }
     }
   } catch { /* 저장된 데이터가 깨졌으면 새로 만든다 */ }
   const fresh = buildSeed();

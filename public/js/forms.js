@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { state, activeMembers, activeProjects, statusesFor, memberOf, leadOf } from './state.js';
+import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, leadOf } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal } from './ui.js';
 
 // ── Slack 멤버 검색 선택기 ──────────────────────────────
@@ -88,7 +88,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
     ${editing ? '' : `
     <div class="capture">
       <div class="crow">
-        <input type="text" id="capture-input" placeholder="예: 9/15까지 김OO 활동지 디자인 외주 검수, 콘텐츠 패키지">
+        <input type="text" id="capture-input" placeholder="예: 9/15까지 활동지 디자인 외주 검수, 상위 기획 및 리소스">
         <button type="button" class="btn" data-capture>채우기</button>
       </div>
       <div class="chint">한 줄로 쓰면 아래 항목을 채워 줍니다. 채운 값은 그대로 고칠 수 있고, 저장은 직접 누릅니다.</div>
@@ -106,7 +106,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           <span class="lab">프로젝트<span class="req">*</span></span>
           <select name="project_id" required>
             <option value="">선택</option>
-            ${opts(activeProjects(), task?.project_id ?? defaults.project_id, { value: 'id', label: 'name' })}
+            ${opts(activeProjects(), task?.project_id ?? defaults.project_id ?? defaultProjectId(), { value: 'id', label: 'name' })}
           </select>
         </label>
 
@@ -330,7 +330,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
 // ── 이슈 등록 / 수정 ────────────────────────────────────
 export function issueForm({ issue = null, defaults = {}, onSaved }) {
   const editing = Boolean(issue);
-  const projectId = issue?.project_id ?? defaults.project_id ?? '';
+  const projectId = issue?.project_id ?? defaults.project_id ?? defaultProjectId();
 
   const body = `
     <form id="issue-form">
@@ -697,7 +697,7 @@ export function expenseForm({ defaults = {}, onSaved }) {
           <span class="lab">프로젝트<span class="req">*</span></span>
           <select name="project_id" required>
             <option value="">선택</option>
-            ${opts(activeProjects(), defaults.project_id, { value: 'id', label: 'name' })}
+            ${opts(activeProjects(), defaults.project_id ?? defaultProjectId(), { value: 'id', label: 'name' })}
           </select>
         </label>
         <label class="field">

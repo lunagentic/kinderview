@@ -1058,9 +1058,10 @@ const domainAreaLabel = (code) => AREA_MAP[code]?.label ?? code;
 
 
 
+
 const MEMBERS = [
-  { id: 'U01KIM',  name: '김OO', handle: 'kim',  active: 1 },
-  { id: 'U02PARK', name: '박OO', handle: 'park', active: 1 },
+  { id: 'U01KIM',  name: '혁',   handle: 'hyuk', active: 1 },   // 서비스기획 리드
+  { id: 'U02PARK', name: '정',   handle: 'jeong', active: 1 },  // 개발 리드
   { id: 'U03LEE',  name: '이OO', handle: 'lee',  active: 1 },
   { id: 'U04CHOI', name: '최OO', handle: 'choi', active: 1 },
   { id: 'U05JUNG', name: '정OO', handle: 'jung', active: 1 },
@@ -1083,7 +1084,7 @@ const AREA_LEADS = [
 const PROJECTS = [
   { key: 'KV', name: 'Kinderverse',   code: 'KV', lead: 'U01KIM', order: 1, channel: '#킨더버스_시연-준비',
     start: '2026-09-01', end: '2026-09-30' },
-  { key: 'CP', name: '콘텐츠 패키지', code: 'CP', lead: 'U05JUNG', order: 2, channel: '#킨더버스_시연-준비',
+  { key: 'CP', name: '상위 기획 및 리소스', code: 'CP', lead: 'U05JUNG', order: 2, channel: '#킨더버스_시연-준비',
     start: '2026-09-01', end: '2026-11-27' },
 ];
 
@@ -1117,7 +1118,7 @@ const TASKS = [
   ['KV', 'KV9', '킨더보드 에이전트', '프롬프트 기능 연동', 'DEV', '2026-09-25', 'HIGH',
     '지금 킨더버스가 프롬프트로 처리하는 기능을 킨더보드 에이전트가 맡도록 연동 · 캔버스 강조 표시'],
 
-  // ── 콘텐츠 패키지 · 9월 (편집 디자인) ────────────────
+  // ── 상위 기획 및 리소스 · 9월 (편집 디자인) ────────────────
   ['CP', 'CP9', '활동자료·활동지',   '편집 디자인',      'DESIGN',  '2026-09-18', 'NORMAL',   ''],
   ['CP', 'CP9', '환경구성',          '편집 디자인',      'DESIGN',  '2026-09-18', 'NORMAL', ''],
   ['CP', 'CP9', '도안',              '편집 디자인',      'DESIGN',  '2026-09-18', 'NORMAL',   ''],
@@ -1125,7 +1126,7 @@ const TASKS = [
   ['CP', 'CP9', '가정통신문·안내문', '편집 디자인 1차',  'DESIGN',  '2026-09-18', 'NORMAL',
     '반반씩 나눈 앞쪽 — 2차는 11월'],
 
-  // ── 콘텐츠 패키지 · 9월 (문서 유형) ──────────────────
+  // ── 상위 기획 및 리소스 · 9월 (문서 유형) ──────────────────
   ['CP', 'CP9', '놀이계획',        '일안·보육일지',     'CONTENT', '2026-09-25', 'LOW',   ''],
   ['CP', 'CP9', '놀이계획',        '주안·보육일지',     'CONTENT', '2026-09-25', 'LOW',   ''],
   ['CP', 'CP9', '놀이계획',        '월안',              'CONTENT', '2026-09-25', 'LOW',   ''],
@@ -1140,7 +1141,7 @@ const TASKS = [
   ['CP', 'CP9', '행사계획안',      '연간',              'CONTENT', '2026-09-30', 'LOW',
     '슬랙에만 있던 항목'],
 
-  // ── 콘텐츠 패키지 · 9~10월 (리소스 제작) ─────────────
+  // ── 상위 기획 및 리소스 · 9~10월 (리소스 제작) ─────────────
   ['CP', 'CP910', '문서 꾸미기 리소스',     '주제별 제작',      'DESIGN',  '2026-10-09', 'NORMAL',   ''],
   ['CP', 'CP910', '교수자료 이미지 리소스', '제작',             'CONTENT', '2026-10-09', 'NORMAL',
     '프롬프팅·자료 포함'],
@@ -1151,7 +1152,7 @@ const TASKS = [
   ['CP', 'CP910', '환경구성',               '리소스 제작',      'DESIGN',  '2026-10-16', 'NORMAL',   ''],
   ['CP', 'CP910', '도안',                   '칼선 포함 리소스', 'DESIGN',  '2026-10-16', 'NORMAL',   ''],
 
-  // ── 콘텐츠 패키지 · 11월 ─────────────────────────────
+  // ── 상위 기획 및 리소스 · 11월 ─────────────────────────────
   ['CP', 'CP11', '가정통신문·안내문', '편집 디자인 2차',        'DESIGN',  '2026-11-13', 'NORMAL', ''],
   ['CP', 'CP11', '오감놀이 패키지',   '구성',                   'CONTENT', '2026-11-20', 'NORMAL', ''],
   ['CP', 'CP11', '안전교육 패키지',   '구성',                   'CONTENT', '2026-11-20', 'NORMAL', ''],
@@ -1733,13 +1734,55 @@ function buildSeed() {
 
 let DB = load();
 
+// 이름이 바뀐 프로젝트 — 옛 이름 그대로일 때만 갈아 끼운다
+const RENAMED_PROJECTS = { '콘텐츠 패키지': '상위 기획 및 리소스' };
+
+/**
+ * 저장된 데이터는 그대로 두고, 시드에서만 오는 참조 자료만 맞춘다.
+ * 키를 올려 새로 만들면 그동안 등록한 업무가 다 날아가므로 이렇게 한다.
+ * 구성원과 영역 리드는 화면에서 만들 수 없는 값이라 시드를 따라가도 잃을 것이 없다.
+ */
+function reconcile(db) {
+  let changed = false;
+
+  for (const m of SEED.MEMBERS ?? []) {
+    const row = (db.members ?? []).find((x) => x.slack_user_id === m.id);
+    if (row && row.display_name !== m.name) {
+      row.display_name = m.name;
+      row.real_name = m.name;
+      changed = true;
+    }
+  }
+
+  // 새로 생긴 영역은 리드가 비어 있다. 리드가 없으면 그 영역에 업무를 넣을 수 없다.
+  for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
+    if (!(db.area_leads ?? []).some((l) => l.area === area)) {
+      (db.area_leads ??= []).push({ area, slack_user_id, updated_at: nowISO() });
+      changed = true;
+    }
+  }
+
+  // 프로젝트 이름은 화면에서도 고칠 수 있다 — 직접 바꾼 이름은 건드리지 않는다
+  for (const p of db.projects ?? []) {
+    if (RENAMED_PROJECTS[p.name]) {
+      p.name = RENAMED_PROJECTS[p.name];
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       // 실제 일정이라 날짜가 따라 움직이면 안 된다 — 저장된 것을 그대로 쓴다
-      if (parsed.anchor) return parsed;
+      if (parsed.anchor) {
+        if (reconcile(parsed)) save(parsed);
+        return parsed;
+      }
     }
   } catch { /* 저장된 데이터가 깨졌으면 새로 만든다 */ }
   const fresh = buildSeed();
@@ -3095,6 +3138,10 @@ const activeMembers = () => state.members.filter((m) => m.is_active);
 const activeProjects = () =>
   state.projects.filter((p) => !p.is_archived && ['ACTIVE', 'PLANNED'].includes(p.status));
 
+// 프로젝트 선택의 기본값 — 차례가 가장 앞선 진행 프로젝트(지금은 킨더버스).
+// 이름으로 박지 않는다. 차례는 프로젝트 관리에서 바꾸면 기본값도 따라 바뀐다.
+const defaultProjectId = () => activeProjects()[0]?.id ?? '';
+
 const statusMeta = (code) => {
   const all = [...(state.meta?.normal_statuses || []), ...(state.meta?.out_statuses || [])];
   return all.find((s) => s.code === code) || { code, label: code, tone: 'wait' };
@@ -3404,7 +3451,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
     ${editing ? '' : `
     <div class="capture">
       <div class="crow">
-        <input type="text" id="capture-input" placeholder="예: 9/15까지 김OO 활동지 디자인 외주 검수, 콘텐츠 패키지">
+        <input type="text" id="capture-input" placeholder="예: 9/15까지 활동지 디자인 외주 검수, 상위 기획 및 리소스">
         <button type="button" class="btn" data-capture>채우기</button>
       </div>
       <div class="chint">한 줄로 쓰면 아래 항목을 채워 줍니다. 채운 값은 그대로 고칠 수 있고, 저장은 직접 누릅니다.</div>
@@ -3422,7 +3469,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
           <span class="lab">프로젝트<span class="req">*</span></span>
           <select name="project_id" required>
             <option value="">선택</option>
-            ${opts(activeProjects(), task?.project_id ?? defaults.project_id, { value: 'id', label: 'name' })}
+            ${opts(activeProjects(), task?.project_id ?? defaults.project_id ?? defaultProjectId(), { value: 'id', label: 'name' })}
           </select>
         </label>
 
@@ -3646,7 +3693,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
 // ── 이슈 등록 / 수정 ────────────────────────────────────
 function issueForm({ issue = null, defaults = {}, onSaved }) {
   const editing = Boolean(issue);
-  const projectId = issue?.project_id ?? defaults.project_id ?? '';
+  const projectId = issue?.project_id ?? defaults.project_id ?? defaultProjectId();
 
   const body = `
     <form id="issue-form">
@@ -4013,7 +4060,7 @@ function expenseForm({ defaults = {}, onSaved }) {
           <span class="lab">프로젝트<span class="req">*</span></span>
           <select name="project_id" required>
             <option value="">선택</option>
-            ${opts(activeProjects(), defaults.project_id, { value: 'id', label: 'name' })}
+            ${opts(activeProjects(), defaults.project_id ?? defaultProjectId(), { value: 'id', label: 'name' })}
           </select>
         </label>
         <label class="field">

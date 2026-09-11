@@ -22,6 +22,7 @@ if (RESET) {
            DELETE FROM issue; DELETE FROM outsourcing; DELETE FROM task_collaborator;
            DELETE FROM time_entry; DELETE FROM expense; DELETE FROM milestone;
            DELETE FROM task; DELETE FROM phase; DELETE FROM vendor;
+           DELETE FROM area_lead;
            DELETE FROM project; DELETE FROM member;`);
 }
 

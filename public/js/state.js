@@ -40,6 +40,10 @@ export const activeMembers = () => state.members.filter((m) => m.is_active);
 export const activeProjects = () =>
   state.projects.filter((p) => !p.is_archived && ['ACTIVE', 'PLANNED'].includes(p.status));
 
+// 프로젝트 선택의 기본값 — 차례가 가장 앞선 진행 프로젝트(지금은 킨더버스).
+// 이름으로 박지 않는다. 차례는 프로젝트 관리에서 바꾸면 기본값도 따라 바뀐다.
+export const defaultProjectId = () => activeProjects()[0]?.id ?? '';
+
 export const statusMeta = (code) => {
   const all = [...(state.meta?.normal_statuses || []), ...(state.meta?.out_statuses || [])];
   return all.find((s) => s.code === code) || { code, label: code, tone: 'wait' };
