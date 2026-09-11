@@ -894,6 +894,13 @@ details.more[open] > summary{color:var(--ink)}
   .tld-task .st{grid-column:2/3;justify-self:start}
 }
 
+/* ── 주간 리포트: 진행 사항만 ─────────────
+   주간보고에 옮겨 적는 건 진행 사항이다. 나머지는 배경 자료라 접는다.
+   접었을 때는 번호도 감춘다 — ①④⑤⑨ 처럼 띄엄띄엄 남으면 빠진 것처럼 읽힌다. */
+.report.brief .rsec.extra{display:none}
+.report.brief .rsec h3 .n{display:none}
+.btn.on{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+
 
 /* 데모 안내 (빌드에서만 추가) */
 .demo-note{max-width:1320px;margin:16px auto 0;padding:11px 16px;display:flex;gap:10px;
@@ -1083,7 +1090,7 @@ const PHASES = [
   ['KV', 'KV9',   '9월',    '2026-09-01', '2026-09-30', 1],
 
   ['CP', 'CP9',   '9월',    '2026-09-01', '2026-09-30', 1],
-  ['CP', 'CP910', '9~10월', '2026-09-15', '2026-10-16', 2],
+  ['CP', 'CP910', '9~10월', '2026-09-28', '2026-10-16', 2],
   ['CP', 'CP11',  '11월',   '2026-11-01', '2026-11-27', 3],
 ];
 
@@ -1091,38 +1098,38 @@ const PHASES = [
 
 const TASKS = [
   // ── Kinderverse · 9월 (기획·개발) ────────────────────
-  ['KV', 'KV9', '갤러리',           '소셜화',           'PLAN', '2026-09-30', 'HIGH',   ''],
-  ['KV', 'KV9', '원아',             '일괄 등록',        'PLAN', '2026-09-30', 'HIGH',   ''],
-  ['KV', 'KV9', '원아',             '프로필',           'PLAN', '2026-09-30', 'HIGH',   ''],
-  ['KV', 'KV9', '개인 자료 연동',   'PPT·HWP',          'PLAN', '2026-09-30', 'HIGH',   ''],
-  ['KV', 'KV9', '즐겨찾기',         '기능 정상화',      'PLAN', '2026-09-30', 'HIGH',   ''],
-  ['KV', 'KV9', '유튜브 동영상',    '광고 차단 검토',   'DEV',  '2026-09-30', 'HIGH',   ''],
-  ['KV', 'KV9', '리소스 생성 파이프라인', '문서 내 사용 리소스', 'DEV', '2026-09-30', 'HIGH',
+  ['KV', 'KV9', '갤러리',           '소셜화',           'PLAN', '2026-09-11', 'HIGH',   ''],
+  ['KV', 'KV9', '원아',             '일괄 등록',        'PLAN', '2026-09-11', 'HIGH',   ''],
+  ['KV', 'KV9', '원아',             '프로필',           'PLAN', '2026-09-11', 'HIGH',   ''],
+  ['KV', 'KV9', '개인 자료 연동',   'PPT·HWP',          'PLAN', '2026-09-18', 'HIGH',   ''],
+  ['KV', 'KV9', '즐겨찾기',         '기능 정상화',      'PLAN', '2026-09-18', 'HIGH',   ''],
+  ['KV', 'KV9', '유튜브 동영상',    '광고 차단 검토',   'DEV',  '2026-09-18', 'HIGH',   ''],
+  ['KV', 'KV9', '리소스 생성 파이프라인', '문서 내 사용 리소스', 'DEV', '2026-09-18', 'HIGH',
     '프롬프트로 킨더버스에 필요한 이미지를 생성해 옮겨진 인프라에 저장하고, 차후 킨더버스 서비스에서 쓸 리소스로 남긴다'],
-  ['KV', 'KV9', '인프라',           '운영 인프라 전환', 'DEV',  '2026-09-30', 'HIGH',
+  ['KV', 'KV9', '인프라',           '운영 인프라 전환', 'DEV',  '2026-09-25', 'HIGH',
     '캔버스 원문: "인프라 (Supabase에서 운영을 위한 인프라로) 전환" · 캔버스 강조 표시'],
-  ['KV', 'KV9', '회원가입',         '인증 시스템 추가', 'DEV',  '2026-09-30', 'HIGH',
+  ['KV', 'KV9', '회원가입',         '인증 시스템 추가', 'DEV',  '2026-09-25', 'HIGH',
     '캔버스 강조 표시'],
-  ['KV', 'KV9', '리소스 마이그레이션', '기존 킨더버스 생성분', 'DEV', '2026-09-30', 'HIGH',
+  ['KV', 'KV9', '리소스 마이그레이션', '기존 킨더버스 생성분', 'DEV', '2026-09-25', 'HIGH',
     '기존 킨더버스에서 생성된 리소스를 옮긴다'],
-  ['KV', 'KV9', '킨더보드 에이전트', '프롬프트 기능 연동', 'DEV', '2026-09-30', 'HIGH',
+  ['KV', 'KV9', '킨더보드 에이전트', '프롬프트 기능 연동', 'DEV', '2026-09-25', 'HIGH',
     '지금 킨더버스가 프롬프트로 처리하는 기능을 킨더보드 에이전트가 맡도록 연동 · 캔버스 강조 표시'],
 
   // ── 콘텐츠 패키지 · 9월 (편집 디자인) ────────────────
-  ['CP', 'CP9', '활동자료·활동지',   '편집 디자인',      'DESIGN',  '2026-09-30', 'NORMAL',   ''],
-  ['CP', 'CP9', '환경구성',          '편집 디자인',      'DESIGN',  '2026-09-30', 'NORMAL', ''],
-  ['CP', 'CP9', '도안',              '편집 디자인',      'DESIGN',  '2026-09-30', 'NORMAL',   ''],
-  ['CP', 'CP9', '슬라이드 기능',     '편집 디자인',      'DESIGN',  '2026-09-30', 'NORMAL',   ''],
-  ['CP', 'CP9', '가정통신문·안내문', '편집 디자인 1차',  'DESIGN',  '2026-09-30', 'NORMAL',
+  ['CP', 'CP9', '활동자료·활동지',   '편집 디자인',      'DESIGN',  '2026-09-18', 'NORMAL',   ''],
+  ['CP', 'CP9', '환경구성',          '편집 디자인',      'DESIGN',  '2026-09-18', 'NORMAL', ''],
+  ['CP', 'CP9', '도안',              '편집 디자인',      'DESIGN',  '2026-09-18', 'NORMAL',   ''],
+  ['CP', 'CP9', '슬라이드 기능',     '편집 디자인',      'DESIGN',  '2026-09-18', 'NORMAL',   ''],
+  ['CP', 'CP9', '가정통신문·안내문', '편집 디자인 1차',  'DESIGN',  '2026-09-18', 'NORMAL',
     '반반씩 나눈 앞쪽 — 2차는 11월'],
 
   // ── 콘텐츠 패키지 · 9월 (문서 유형) ──────────────────
-  ['CP', 'CP9', '놀이계획',        '일안·보육일지',     'CONTENT', '2026-09-30', 'LOW',   ''],
-  ['CP', 'CP9', '놀이계획',        '주안·보육일지',     'CONTENT', '2026-09-30', 'LOW',   ''],
-  ['CP', 'CP9', '놀이계획',        '월안',              'CONTENT', '2026-09-30', 'LOW',   ''],
-  ['CP', 'CP9', '관찰',            '관찰일지 활동영역', 'CONTENT', '2026-09-30', 'LOW',   ''],
-  ['CP', 'CP9', '관찰',            '관찰일지 발달영역', 'CONTENT', '2026-09-30', 'LOW',   ''],
-  ['CP', 'CP9', '관찰',            '관찰기록 연계',     'CONTENT', '2026-09-30', 'LOW',
+  ['CP', 'CP9', '놀이계획',        '일안·보육일지',     'CONTENT', '2026-09-25', 'LOW',   ''],
+  ['CP', 'CP9', '놀이계획',        '주안·보육일지',     'CONTENT', '2026-09-25', 'LOW',   ''],
+  ['CP', 'CP9', '놀이계획',        '월안',              'CONTENT', '2026-09-25', 'LOW',   ''],
+  ['CP', 'CP9', '관찰',            '관찰일지 활동영역', 'CONTENT', '2026-09-25', 'LOW',   ''],
+  ['CP', 'CP9', '관찰',            '관찰일지 발달영역', 'CONTENT', '2026-09-25', 'LOW',   ''],
+  ['CP', 'CP9', '관찰',            '관찰기록 연계',     'CONTENT', '2026-09-25', 'LOW',
     '기존 관찰기록에 붙인다'],
   ['CP', 'CP9', '놀이기록',        '',                  'CONTENT', '2026-09-30', 'LOW',
     '슬랙 「9월까지 해야하는거」에만 있던 항목 — 캔버스 범위에는 없다'],
@@ -1132,21 +1139,21 @@ const TASKS = [
     '슬랙에만 있던 항목'],
 
   // ── 콘텐츠 패키지 · 9~10월 (리소스 제작) ─────────────
-  ['CP', 'CP910', '문서 꾸미기 리소스',     '주제별 제작',      'DESIGN',  '2026-09-30', 'NORMAL',   ''],
-  ['CP', 'CP910', '교수자료 이미지 리소스', '제작',             'CONTENT', '2026-09-30', 'NORMAL',
+  ['CP', 'CP910', '문서 꾸미기 리소스',     '주제별 제작',      'DESIGN',  '2026-10-09', 'NORMAL',   ''],
+  ['CP', 'CP910', '교수자료 이미지 리소스', '제작',             'CONTENT', '2026-10-09', 'NORMAL',
     '프롬프팅·자료 포함'],
-  ['CP', 'CP910', '리소스 발주 규격',       '발주 양식 확정',   'OPS',     '2026-09-30', 'NORMAL',
+  ['CP', 'CP910', '리소스 발주 규격',       '발주 양식 확정',   'OPS',     '2026-10-02', 'NORMAL',
     '발주 시 함께 넘길 4종: 생성된 프롬프트 · 생성에 쓴 모델명 · 이미지·동영상 리소스 · 분류 정보 시트'],
-  ['CP', 'CP910', '슬라이드 기능',          '배경 리소스',      'DESIGN',  '2026-09-30', 'NORMAL',   ''],
-  ['CP', 'CP910', '슬라이드 기능',          '꾸미기 리소스',    'DESIGN',  '2026-09-30', 'NORMAL', ''],
-  ['CP', 'CP910', '환경구성',               '리소스 제작',      'DESIGN',  '2026-09-30', 'NORMAL',   ''],
-  ['CP', 'CP910', '도안',                   '칼선 포함 리소스', 'DESIGN',  '2026-09-30', 'NORMAL',   ''],
+  ['CP', 'CP910', '슬라이드 기능',          '배경 리소스',      'DESIGN',  '2026-10-09', 'NORMAL',   ''],
+  ['CP', 'CP910', '슬라이드 기능',          '꾸미기 리소스',    'DESIGN',  '2026-10-16', 'NORMAL', ''],
+  ['CP', 'CP910', '환경구성',               '리소스 제작',      'DESIGN',  '2026-10-16', 'NORMAL',   ''],
+  ['CP', 'CP910', '도안',                   '칼선 포함 리소스', 'DESIGN',  '2026-10-16', 'NORMAL',   ''],
 
   // ── 콘텐츠 패키지 · 11월 ─────────────────────────────
-  ['CP', 'CP11', '가정통신문·안내문', '편집 디자인 2차',        'DESIGN',  '2026-09-30', 'NORMAL', ''],
-  ['CP', 'CP11', '오감놀이 패키지',   '구성',                   'CONTENT', '2026-09-30', 'NORMAL', ''],
-  ['CP', 'CP11', '안전교육 패키지',   '구성',                   'CONTENT', '2026-09-30', 'NORMAL', ''],
-  ['CP', 'CP11', '스토리북',          '고도화 (아이·작품 사진)', 'CONTENT', '2026-09-30', 'NORMAL', ''],
+  ['CP', 'CP11', '가정통신문·안내문', '편집 디자인 2차',        'DESIGN',  '2026-11-13', 'NORMAL', ''],
+  ['CP', 'CP11', '오감놀이 패키지',   '구성',                   'CONTENT', '2026-11-20', 'NORMAL', ''],
+  ['CP', 'CP11', '안전교육 패키지',   '구성',                   'CONTENT', '2026-11-20', 'NORMAL', ''],
+  ['CP', 'CP11', '스토리북',          '고도화 (아이·작품 사진)', 'CONTENT', '2026-11-27', 'NORMAL', ''],
 ];
 
 
@@ -5032,8 +5039,15 @@ async function renderIssueDetail(root, id) {
 
 
 
-const sec = (n, title, inner) => `
-  <section class="rsec"><h3><span class="n">${n}</span>${esc(title)}</h3>${inner}</section>`;
+// 주간보고에 옮겨 적는 건 "진행 사항"이다 — 이번 주 완료 / 진행·지연 / 다음 주.
+// 나머지 섹션(프로젝트별·영역별·외주·이슈·리드별)은 배경 자료라 접어 둔다.
+// 복사도 이 설정을 따라간다. 붙여넣을 때 안 쓸 것까지 따라오면 다시 지워야 한다.
+const BRIEF_KEY = 'kf.weeklyBrief';
+const BRIEF_SECTIONS = ['summary', 'completed', 'progressing', 'next'];
+
+const sec = (n, title, inner, key) => `
+  <section class="rsec${BRIEF_SECTIONS.includes(key) ? ' core' : ' extra'}">
+    <h3><span class="n">${n}</span>${esc(title)}</h3>${inner}</section>`;
 
 const deltaTag = (d) => {
   if (d === null || d === undefined) return '<span class="delta flat">-</span>';
@@ -5046,6 +5060,7 @@ const taskLine = (t, extra = '') => `
     <span style="color:var(--muted)">· ${esc(t.project_name)} · ${esc(t.owner_name)} · ${esc(t.status_label)}${extra}</span></li>`;
 
 async function renderWeekly(root, query) {
+  let brief = readPref(BRIEF_KEY) !== 'off';   // 기본은 진행 사항만
   const p = new URLSearchParams(query);
   const week = p.get('week') || '';
   root.innerHTML = loading();
@@ -5078,6 +5093,7 @@ async function renderWeekly(root, query) {
         <button class="btn" data-week="${esc(nextWeek)}">다음 주 ▶</button>
         <button class="btn" data-generate>${report.saved ? '다시 생성' : '리포트 생성'}</button>
         ${report.saved ? '<button class="btn" data-share>Slack 공유</button>' : ''}
+        <button class="btn ${brief ? 'on' : ''}" data-brief aria-pressed="${brief}">진행 사항만</button>
         <button class="btn" data-copy>텍스트 복사</button>
       </div>
     </div>
@@ -5091,7 +5107,7 @@ async function renderWeekly(root, query) {
       <p class="sum" style="color:var(--muted)">아직 생성하지 않았습니다.</p>
     </div>
 
-    <div class="report">
+    <div class="report${brief ? ' brief' : ''}">
       <h2>KinderFlow Weekly Report</h2>
       <div class="sub" style="color:var(--muted);font-size:.84rem">
         업무·이슈 데이터에서 자동 생성됩니다. 리포트를 위해 따로 입력하는 항목은 없습니다.</div>
@@ -5104,7 +5120,7 @@ async function renderWeekly(root, query) {
           <div class="pill ${s.summary.delayed ? 'bad' : ''}"><div class="k">지연</div><div class="v">${s.summary.delayed}</div></div>
           <div class="pill"><div class="k">신규 등록</div><div class="v">${s.summary.created_this_week}</div></div>
           <div class="pill"><div class="k">전체 진행률</div><div class="v">${pctText(s.summary.progress)}</div></div>
-        </div>`)}
+        </div>`, 'summary')}
 
       ${sec('②', '프로젝트별 진행', `
         <div class="bars">
@@ -5115,7 +5131,7 @@ async function renderWeekly(root, query) {
               <span class="pct">${pctText(pr.progress)}</span>
               <span class="sub">${deltaTag(pr.delta)} · 이번 주 완료 ${pr.completed_this_week}건${pr.delayed ? ` · 지연 ${pr.delayed}건` : ''}</span>
             </div>`).join('')}
-        </div>`)}
+        </div>`, 'projects')}
 
       ${sec('③', '업무 영역별 진행', `
         <div class="bars">
@@ -5126,12 +5142,12 @@ async function renderWeekly(root, query) {
               <span class="pct">${pctText(a.progress)}</span>
               <span class="sub">업무 ${a.count}건 · 이번 주 완료 ${a.completed_this_week}건</span>
             </div>`).join('')}
-        </div>`)}
+        </div>`, 'areas')}
 
       ${sec('④', '주요 완료 업무', s.completed.rows.length
         ? `<ul>${s.completed.rows.map((t) => taskLine(t)).join('')}</ul>
            ${s.completed.more ? `<p class="hint" style="margin-top:8px">외 ${s.completed.more}건</p>` : ''}`
-        : '<p class="hint">이번 주 완료된 업무가 없습니다.</p>')}
+        : '<p class="hint">이번 주 완료된 업무가 없습니다.</p>', 'completed')}
 
       ${sec('⑤', '진행 및 지연 업무', `
         <h4 style="font-size:.85rem;color:var(--muted);margin-bottom:7px">진행중 · 검토 ${s.progressing.in_progress.length}건</h4>
@@ -5141,7 +5157,7 @@ async function renderWeekly(root, query) {
         <h4 style="font-size:.85rem;color:var(--s-delay);margin:16px 0 7px">지연 ${s.progressing.delayed.length}건</h4>
         ${s.progressing.delayed.length
           ? `<ul>${s.progressing.delayed.map((t) => taskLine(t, ` · <b style="color:var(--s-delay)">${t.days_late}일 지연</b>`)).join('')}</ul>`
-          : '<p class="hint">지연된 업무가 없습니다.</p>'}`)}
+          : '<p class="hint">지연된 업무가 없습니다.</p>'}`, 'progressing')}
 
       ${sec('⑥', '외주 진행 현황', `
         <div class="pill-row">
@@ -5154,7 +5170,7 @@ async function renderWeekly(root, query) {
           ${s.outsourcing.delayed_rows.map((r) => `<li><a href="#/project/tasks/${esc(r.id)}" style="text-decoration:underline">${esc(r.title)}</a>
             <span style="color:var(--muted)">· ${esc(r.vendor_name ?? '-')} · ${esc(r.owner_name)} ·
             <b style="color:var(--s-delay)">${r.days_late}일 지연</b></span></li>`).join('')}
-        </ul>` : ''}`)}
+        </ul>` : ''}`, 'outsourcing')}
 
       ${sec('⑦', '주요 이슈', `
         <p class="hint" style="margin-bottom:10px">미해결 ${s.issues.open_count}건 · 이번 주 신규 ${s.issues.new_this_week}건 · 해결 ${s.issues.resolved_this_week}건</p>
@@ -5163,7 +5179,7 @@ async function renderWeekly(root, query) {
             <span style="color:var(--muted)">· ${esc(i.project_name)} · ${esc(i.owner_name)} ·
             ${i.severity === 'HIGH' ? '<b style="color:var(--s-delay)">높음</b>' : i.severity === 'LOW' ? '낮음' : '보통'}
             ${i.impact ? ` · ${esc(i.impact)}` : ''}</span></li>`).join('')}</ul>`
-          : '<p class="hint">미해결 이슈가 없습니다.</p>'}`)}
+          : '<p class="hint">미해결 이슈가 없습니다.</p>'}`, 'issues')}
 
       ${sec('⑧', '리드별 현황', `
         <div class="table-wrap">
@@ -5180,7 +5196,7 @@ async function renderWeekly(root, query) {
             </tbody>
           </table>
         </div>
-        ${s.handover.length ? `<p class="hint" style="margin-top:10px">인수인계 필요 — ${esc(s.handover.map((h) => `${h.display_name} ${h.open}건`).join(' · '))}</p>` : ''}`)}
+        ${s.handover.length ? `<p class="hint" style="margin-top:10px">인수인계 필요 — ${esc(s.handover.map((h) => `${h.display_name} ${h.open}건`).join(' · '))}</p>` : ''}`, 'owners')}
 
       ${sec('⑨', '다음 주 주요 업무', `
         <h4 style="font-size:.85rem;color:var(--muted);margin-bottom:7px">마감 예정 ${s.next_week.due.length}건 (${shortDate(s.next_week.period.start)} ~ ${shortDate(s.next_week.period.end)})</h4>
@@ -5188,7 +5204,7 @@ async function renderWeekly(root, query) {
         ${s.next_week.delivery.length ? `
           <h4 style="font-size:.85rem;color:var(--muted);margin:16px 0 7px">외주 납품 예정 ${s.next_week.delivery.length}건</h4>
           <ul>${s.next_week.delivery.map((t) => `<li>${esc(t.title)}
-            <span style="color:var(--muted)">· ${esc(t.vendor_name ?? '-')} · ${shortDate(t.delivery_due_date)}</span></li>`).join('')}</ul>` : ''}`)}
+            <span style="color:var(--muted)">· ${esc(t.vendor_name ?? '-')} · ${shortDate(t.delivery_due_date)}</span></li>`).join('')}</ul>` : ''}`, 'next')}
     </div>`;
 
   root.addEventListener('click', async (e) => {
@@ -5229,11 +5245,22 @@ async function renderWeekly(root, query) {
       }
       return;
     }
+    const briefBtn = e.target.closest('[data-brief]');
+    if (briefBtn) {
+      brief = !brief;
+      writePref(BRIEF_KEY, brief ? 'on' : 'off');
+      root.querySelector('.report').classList.toggle('brief', brief);
+      briefBtn.classList.toggle('on', brief);
+      briefBtn.setAttribute('aria-pressed', String(brief));
+      briefBtn.textContent = brief ? '진행 사항만' : '전체 보기';
+      return;
+    }
+
     if (e.target.closest('[data-copy]')) {
-      const text = toMarkdown(report);
+      const text = toMarkdown(report, brief);
       try {
         await navigator.clipboard.writeText(text);
-        toast('마크다운으로 복사했습니다.');
+        toast(brief ? '진행 사항만 복사했습니다.' : '전체를 마크다운으로 복사했습니다.');
       } catch {
         toast('복사에 실패했습니다. 브라우저 권한을 확인해 주세요.', true);
       }
@@ -5261,12 +5288,38 @@ function shiftWeek(iso, days) {
   return d.toISOString().slice(0, 10);
 }
 
-function toMarkdown(report) {
+function toMarkdown(report, brief = false) {
   const s = report.snapshot;
   const L = [];
   L.push(`# KinderFlow Weekly Report (${report.period_start} ~ ${report.period_end})`, '');
-  L.push('## ① 전체 업무 현황');
+  L.push(brief ? '## 전체 현황' : '## ① 전체 업무 현황');
   L.push(`- 이번 주 완료 ${s.summary.completed_this_week} · 진행중 ${s.summary.in_progress} · 검토 ${s.summary.review} · 지연 ${s.summary.delayed} · 신규 ${s.summary.created_this_week}`, '');
+
+  if (brief) {
+    L.push('## 이번 주 완료');
+    if (s.completed.rows.length) {
+      for (const t of s.completed.rows) L.push(`- ${t.title} (${t.project_name} · ${t.owner_name})`);
+      if (s.completed.more) L.push(`- 외 ${s.completed.more}건`);
+    } else L.push('- 없음');
+    L.push('', '## 진행중 · 검토');
+    if (s.progressing.in_progress.length) {
+      for (const t of s.progressing.in_progress) {
+        L.push(`- ${t.title} (${t.project_name} · ${t.owner_name} · ${t.status_label} · 마감 ${t.due_date})`);
+      }
+    } else L.push('- 없음');
+    L.push('', '## 지연');
+    if (s.progressing.delayed.length) {
+      for (const t of s.progressing.delayed) {
+        L.push(`- [${t.days_late}일 지연] ${t.title} (${t.project_name} · ${t.owner_name})`);
+      }
+    } else L.push('- 없음');
+    L.push('', `## 다음 주 (${s.next_week.period.start} ~ ${s.next_week.period.end})`);
+    if (s.next_week.due.length) {
+      for (const t of s.next_week.due) L.push(`- ${t.title} (${t.project_name} · ${t.owner_name} · 마감 ${t.due_date})`);
+    } else L.push('- 없음');
+    return L.join('\n');
+  }
+
   L.push('## ② 프로젝트별 진행');
   for (const p of s.projects) {
     const d = p.delta === null ? '-' : `${p.delta > 0 ? '+' : ''}${p.delta}%p`;

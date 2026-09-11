@@ -888,3 +888,10 @@ details.more[open] > summary{color:var(--ink)}
   .tld-task{grid-template-columns:64px minmax(0,1fr);gap:6px 9px}
   .tld-task .st{grid-column:2/3;justify-self:start}
 }
+
+/* ── 주간 리포트: 진행 사항만 ─────────────
+   주간보고에 옮겨 적는 건 진행 사항이다. 나머지는 배경 자료라 접는다.
+   접었을 때는 번호도 감춘다 — ①④⑤⑨ 처럼 띄엄띄엄 남으면 빠진 것처럼 읽힌다. */
+.report.brief .rsec.extra{display:none}
+.report.brief .rsec h3 .n{display:none}
+.btn.on{background:var(--ink);color:var(--ground);border-color:var(--ink)}

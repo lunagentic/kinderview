@@ -1,9 +1,19 @@
 import { api } from '../api.js';
 import { state } from '../state.js';
-import { esc, shortDate, dateTime, person, loading, errorBox, toast, pctText, progressBar, go, projectStyle } from '../ui.js';
+import {
+  esc, shortDate, dateTime, person, loading, errorBox, toast, pctText, progressBar, go,
+  projectStyle, readPref, writePref,
+} from '../ui.js';
 
-const sec = (n, title, inner) => `
-  <section class="rsec"><h3><span class="n">${n}</span>${esc(title)}</h3>${inner}</section>`;
+// 주간보고에 옮겨 적는 건 "진행 사항"이다 — 이번 주 완료 / 진행·지연 / 다음 주.
+// 나머지 섹션(프로젝트별·영역별·외주·이슈·리드별)은 배경 자료라 접어 둔다.
+// 복사도 이 설정을 따라간다. 붙여넣을 때 안 쓸 것까지 따라오면 다시 지워야 한다.
+const BRIEF_KEY = 'kf.weeklyBrief';
+const BRIEF_SECTIONS = ['summary', 'completed', 'progressing', 'next'];
+
+const sec = (n, title, inner, key) => `
+  <section class="rsec${BRIEF_SECTIONS.includes(key) ? ' core' : ' extra'}">
+    <h3><span class="n">${n}</span>${esc(title)}</h3>${inner}</section>`;
 
 const deltaTag = (d) => {
   if (d === null || d === undefined) return '<span class="delta flat">-</span>';
@@ -16,6 +26,7 @@ const taskLine = (t, extra = '') => `
     <span style="color:var(--muted)">· ${esc(t.project_name)} · ${esc(t.owner_name)} · ${esc(t.status_label)}${extra}</span></li>`;
 
 export async function renderWeekly(root, query) {
+  let brief = readPref(BRIEF_KEY) !== 'off';   // 기본은 진행 사항만
   const p = new URLSearchParams(query);
   const week = p.get('week') || '';
   root.innerHTML = loading();
@@ -48,6 +59,7 @@ export async function renderWeekly(root, query) {
         <button class="btn" data-week="${esc(nextWeek)}">다음 주 ▶</button>
         <button class="btn" data-generate>${report.saved ? '다시 생성' : '리포트 생성'}</button>
         ${report.saved ? '<button class="btn" data-share>Slack 공유</button>' : ''}
+        <button class="btn ${brief ? 'on' : ''}" data-brief aria-pressed="${brief}">진행 사항만</button>
         <button class="btn" data-copy>텍스트 복사</button>
       </div>
     </div>
@@ -61,7 +73,7 @@ export async function renderWeekly(root, query) {
       <p class="sum" style="color:var(--muted)">아직 생성하지 않았습니다.</p>
     </div>
 
-    <div class="report">
+    <div class="report${brief ? ' brief' : ''}">
       <h2>KinderFlow Weekly Report</h2>
       <div class="sub" style="color:var(--muted);font-size:.84rem">
         업무·이슈 데이터에서 자동 생성됩니다. 리포트를 위해 따로 입력하는 항목은 없습니다.</div>
@@ -74,7 +86,7 @@ export async function renderWeekly(root, query) {
           <div class="pill ${s.summary.delayed ? 'bad' : ''}"><div class="k">지연</div><div class="v">${s.summary.delayed}</div></div>
           <div class="pill"><div class="k">신규 등록</div><div class="v">${s.summary.created_this_week}</div></div>
           <div class="pill"><div class="k">전체 진행률</div><div class="v">${pctText(s.summary.progress)}</div></div>
-        </div>`)}
+        </div>`, 'summary')}
 
       ${sec('②', '프로젝트별 진행', `
         <div class="bars">
@@ -85,7 +97,7 @@ export async function renderWeekly(root, query) {
               <span class="pct">${pctText(pr.progress)}</span>
               <span class="sub">${deltaTag(pr.delta)} · 이번 주 완료 ${pr.completed_this_week}건${pr.delayed ? ` · 지연 ${pr.delayed}건` : ''}</span>
             </div>`).join('')}
-        </div>`)}
+        </div>`, 'projects')}
 
       ${sec('③', '업무 영역별 진행', `
         <div class="bars">
@@ -96,12 +108,12 @@ export async function renderWeekly(root, query) {
               <span class="pct">${pctText(a.progress)}</span>
               <span class="sub">업무 ${a.count}건 · 이번 주 완료 ${a.completed_this_week}건</span>
             </div>`).join('')}
-        </div>`)}
+        </div>`, 'areas')}
 
       ${sec('④', '주요 완료 업무', s.completed.rows.length
         ? `<ul>${s.completed.rows.map((t) => taskLine(t)).join('')}</ul>
            ${s.completed.more ? `<p class="hint" style="margin-top:8px">외 ${s.completed.more}건</p>` : ''}`
-        : '<p class="hint">이번 주 완료된 업무가 없습니다.</p>')}
+        : '<p class="hint">이번 주 완료된 업무가 없습니다.</p>', 'completed')}
 
       ${sec('⑤', '진행 및 지연 업무', `
         <h4 style="font-size:.85rem;color:var(--muted);margin-bottom:7px">진행중 · 검토 ${s.progressing.in_progress.length}건</h4>
@@ -111,7 +123,7 @@ export async function renderWeekly(root, query) {
         <h4 style="font-size:.85rem;color:var(--s-delay);margin:16px 0 7px">지연 ${s.progressing.delayed.length}건</h4>
         ${s.progressing.delayed.length
           ? `<ul>${s.progressing.delayed.map((t) => taskLine(t, ` · <b style="color:var(--s-delay)">${t.days_late}일 지연</b>`)).join('')}</ul>`
-          : '<p class="hint">지연된 업무가 없습니다.</p>'}`)}
+          : '<p class="hint">지연된 업무가 없습니다.</p>'}`, 'progressing')}
 
       ${sec('⑥', '외주 진행 현황', `
         <div class="pill-row">
@@ -124,7 +136,7 @@ export async function renderWeekly(root, query) {
           ${s.outsourcing.delayed_rows.map((r) => `<li><a href="#/project/tasks/${esc(r.id)}" style="text-decoration:underline">${esc(r.title)}</a>
             <span style="color:var(--muted)">· ${esc(r.vendor_name ?? '-')} · ${esc(r.owner_name)} ·
             <b style="color:var(--s-delay)">${r.days_late}일 지연</b></span></li>`).join('')}
-        </ul>` : ''}`)}
+        </ul>` : ''}`, 'outsourcing')}
 
       ${sec('⑦', '주요 이슈', `
         <p class="hint" style="margin-bottom:10px">미해결 ${s.issues.open_count}건 · 이번 주 신규 ${s.issues.new_this_week}건 · 해결 ${s.issues.resolved_this_week}건</p>
@@ -133,7 +145,7 @@ export async function renderWeekly(root, query) {
             <span style="color:var(--muted)">· ${esc(i.project_name)} · ${esc(i.owner_name)} ·
             ${i.severity === 'HIGH' ? '<b style="color:var(--s-delay)">높음</b>' : i.severity === 'LOW' ? '낮음' : '보통'}
             ${i.impact ? ` · ${esc(i.impact)}` : ''}</span></li>`).join('')}</ul>`
-          : '<p class="hint">미해결 이슈가 없습니다.</p>'}`)}
+          : '<p class="hint">미해결 이슈가 없습니다.</p>'}`, 'issues')}
 
       ${sec('⑧', '리드별 현황', `
         <div class="table-wrap">
@@ -150,7 +162,7 @@ export async function renderWeekly(root, query) {
             </tbody>
           </table>
         </div>
-        ${s.handover.length ? `<p class="hint" style="margin-top:10px">인수인계 필요 — ${esc(s.handover.map((h) => `${h.display_name} ${h.open}건`).join(' · '))}</p>` : ''}`)}
+        ${s.handover.length ? `<p class="hint" style="margin-top:10px">인수인계 필요 — ${esc(s.handover.map((h) => `${h.display_name} ${h.open}건`).join(' · '))}</p>` : ''}`, 'owners')}
 
       ${sec('⑨', '다음 주 주요 업무', `
         <h4 style="font-size:.85rem;color:var(--muted);margin-bottom:7px">마감 예정 ${s.next_week.due.length}건 (${shortDate(s.next_week.period.start)} ~ ${shortDate(s.next_week.period.end)})</h4>
@@ -158,7 +170,7 @@ export async function renderWeekly(root, query) {
         ${s.next_week.delivery.length ? `
           <h4 style="font-size:.85rem;color:var(--muted);margin:16px 0 7px">외주 납품 예정 ${s.next_week.delivery.length}건</h4>
           <ul>${s.next_week.delivery.map((t) => `<li>${esc(t.title)}
-            <span style="color:var(--muted)">· ${esc(t.vendor_name ?? '-')} · ${shortDate(t.delivery_due_date)}</span></li>`).join('')}</ul>` : ''}`)}
+            <span style="color:var(--muted)">· ${esc(t.vendor_name ?? '-')} · ${shortDate(t.delivery_due_date)}</span></li>`).join('')}</ul>` : ''}`, 'next')}
     </div>`;
 
   root.addEventListener('click', async (e) => {
@@ -199,11 +211,22 @@ export async function renderWeekly(root, query) {
       }
       return;
     }
+    const briefBtn = e.target.closest('[data-brief]');
+    if (briefBtn) {
+      brief = !brief;
+      writePref(BRIEF_KEY, brief ? 'on' : 'off');
+      root.querySelector('.report').classList.toggle('brief', brief);
+      briefBtn.classList.toggle('on', brief);
+      briefBtn.setAttribute('aria-pressed', String(brief));
+      briefBtn.textContent = brief ? '진행 사항만' : '전체 보기';
+      return;
+    }
+
     if (e.target.closest('[data-copy]')) {
-      const text = toMarkdown(report);
+      const text = toMarkdown(report, brief);
       try {
         await navigator.clipboard.writeText(text);
-        toast('마크다운으로 복사했습니다.');
+        toast(brief ? '진행 사항만 복사했습니다.' : '전체를 마크다운으로 복사했습니다.');
       } catch {
         toast('복사에 실패했습니다. 브라우저 권한을 확인해 주세요.', true);
       }
@@ -231,12 +254,38 @@ function shiftWeek(iso, days) {
   return d.toISOString().slice(0, 10);
 }
 
-function toMarkdown(report) {
+function toMarkdown(report, brief = false) {
   const s = report.snapshot;
   const L = [];
   L.push(`# KinderFlow Weekly Report (${report.period_start} ~ ${report.period_end})`, '');
-  L.push('## ① 전체 업무 현황');
+  L.push(brief ? '## 전체 현황' : '## ① 전체 업무 현황');
   L.push(`- 이번 주 완료 ${s.summary.completed_this_week} · 진행중 ${s.summary.in_progress} · 검토 ${s.summary.review} · 지연 ${s.summary.delayed} · 신규 ${s.summary.created_this_week}`, '');
+
+  if (brief) {
+    L.push('## 이번 주 완료');
+    if (s.completed.rows.length) {
+      for (const t of s.completed.rows) L.push(`- ${t.title} (${t.project_name} · ${t.owner_name})`);
+      if (s.completed.more) L.push(`- 외 ${s.completed.more}건`);
+    } else L.push('- 없음');
+    L.push('', '## 진행중 · 검토');
+    if (s.progressing.in_progress.length) {
+      for (const t of s.progressing.in_progress) {
+        L.push(`- ${t.title} (${t.project_name} · ${t.owner_name} · ${t.status_label} · 마감 ${t.due_date})`);
+      }
+    } else L.push('- 없음');
+    L.push('', '## 지연');
+    if (s.progressing.delayed.length) {
+      for (const t of s.progressing.delayed) {
+        L.push(`- [${t.days_late}일 지연] ${t.title} (${t.project_name} · ${t.owner_name})`);
+      }
+    } else L.push('- 없음');
+    L.push('', `## 다음 주 (${s.next_week.period.start} ~ ${s.next_week.period.end})`);
+    if (s.next_week.due.length) {
+      for (const t of s.next_week.due) L.push(`- ${t.title} (${t.project_name} · ${t.owner_name} · 마감 ${t.due_date})`);
+    } else L.push('- 없음');
+    return L.join('\n');
+  }
+
   L.push('## ② 프로젝트별 진행');
   for (const p of s.projects) {
     const d = p.delta === null ? '-' : `${p.delta > 0 ? '+' : ''}${p.delta}%p`;
