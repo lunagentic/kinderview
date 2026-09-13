@@ -6195,6 +6195,10 @@ const tlMilestoneState = (m) => {
   return { key: 'plan', label: '예정', mark: '' };
 };
 
+// 열어 둔 페이즈를 기억한다. 화면을 다시 그릴 때마다 패널이 닫히면
+// 페이즈를 고치거나 업무 하나를 손볼 때마다 아래 표가 사라진다.
+let lastOpenPhase = null;
+
 async function renderTimeline(root) {
   root.innerHTML = loading();
 
@@ -6402,6 +6406,7 @@ async function renderTimeline(root) {
 
   const closeDetail = () => {
     openId = null;
+    lastOpenPhase = null;
     detail.hidden = true;
     detail.innerHTML = '';
     root.querySelectorAll('.tl-bar.on').forEach((b) => {
@@ -6414,6 +6419,7 @@ async function renderTimeline(root) {
     if (openId === phaseId) return closeDetail();
     closeDetail();
     openId = phaseId;
+    lastOpenPhase = phaseId;
 
     const row = live.find((r) => r.phases.some((p) => p.id === phaseId));
     const ph = row?.phases.find((p) => p.id === phaseId);
@@ -6541,6 +6547,16 @@ async function renderTimeline(root) {
     }
     return undefined;
   });
+
+  // 아까 열어 둔 페이즈가 아직 있으면 도로 펴 준다.
+  // 저장하고 나면 화면을 다시 그리는데, 그때마다 표가 사라지면 고칠 수가 없다.
+  if (lastOpenPhase && allPhases.some((p) => p.id === lastOpenPhase)) {
+    const want = lastOpenPhase;
+    lastOpenPhase = null;    // togglePhase 가 '같은 것을 또 눌렀다'로 보지 않게 한다
+    togglePhase(want);
+  } else {
+    lastOpenPhase = null;
+  }
 }
 
 function tlHead() {
