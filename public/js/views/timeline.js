@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
-  statusChip, go, toast,
+  statusChip, go, toast, dueCell, bindDueEdit,
 } from '../ui.js';
 import { phaseForm, milestoneForm } from '../forms.js';
 
@@ -314,11 +314,7 @@ export async function renderTimeline(root) {
           </div>
           ${g.rows.map((t) => `
             <div class="tld-task">
-              <span class="due num ${t.is_delayed ? 'late' : ''}">
-                <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}"
-                       data-due="${esc(t.id)}" aria-label="마감일 변경">
-                <i>${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
-              </span>
+              <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
               <span class="ttl">
                 <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
                        data-title="${esc(t.id)}" aria-label="업무명 수정">
@@ -345,17 +341,17 @@ export async function renderTimeline(root) {
       } catch (err) { toast(err.message, true); reload(); }
       return undefined;
     }
-    const due = e.target.closest('[data-due]');
-    if (due) {
-      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
-      try {
-        await api.patch(`/api/tasks/${due.dataset.due}`, { due_date: due.value });
-        toast('마감일을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      // 마감이 바뀌면 페이즈 기간·진행도 달라진다
-      return reload();
-    }
     return undefined;
+  });
+
+  // 마감일은 누를 때 입력칸이 된다. 바뀌면 페이즈 기간·진행도 달라지므로 다시 불러온다.
+  bindDueEdit(root, async (id, value) => {
+    if (!value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+    try {
+      await api.patch(`/api/tasks/${id}`, { due_date: value });
+      toast('마감일을 바꿨습니다.');
+    } catch (err) { toast(err.message, true); }
+    return reload();
   });
 
   root.addEventListener('keydown', (e) => {

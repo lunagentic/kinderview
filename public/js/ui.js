@@ -91,6 +91,44 @@ export const pctText = (v) => (v === null || v === undefined ? '-' : `${v}%`);
 // ── 호버 툴팁 ───────────────────────────────────────────
 // [data-tip] 을 가진 요소에 붙는다. 마우스와 키보드 포커스를 함께 받는다.
 // 차트 계열 화면(타임라인·보드 지도)이 같은 것을 쓴다.
+/**
+ * 마감일 칸 — 평소에는 글자, 누르면 그때 날짜 입력칸이 된다.
+ * 날짜 입력칸은 폭이 150px 가까이 필요해서, 늘 띄워 두면 좁은 칸에서 잘린다.
+ */
+export const dueCell = (t) => `
+  <button type="button" class="due-view" data-due="${esc(t.id)}" data-date="${esc(t.due_date ?? '')}"
+          title="눌러서 마감일 바꾸기">${shortDate(t.due_date)}<i class="dday">${
+    t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i></button>`;
+
+/** dueCell 을 실제로 고칠 수 있게 한다. save(id, 'YYYY-MM-DD') 를 부른다. */
+export function bindDueEdit(root, save) {
+  root.addEventListener('click', (e) => {
+    const btn = e.target.closest('.due-view');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.className = 'due-edit';
+    input.value = btn.dataset.date ?? '';
+    input.setAttribute('aria-label', '마감일 변경');
+    btn.replaceWith(input);
+    input.focus();
+    try { input.showPicker?.(); } catch { /* 손짓 없이 부르면 막히는 브라우저가 있다 */ }
+
+    let saved = false;
+    input.addEventListener('change', () => {
+      saved = true;
+      save(btn.dataset.due, input.value);
+    });
+    // 고치지 않고 나가면 원래 글자로 되돌린다 (고쳤으면 화면을 다시 그린다)
+    input.addEventListener('blur', () => {
+      if (!saved && input.isConnected) input.replaceWith(btn);
+    });
+  });
+}
+
 export function hoverTip(root) {
   // 툴팁 좌표는 root 기준이다 — root 가 배치 기준이 되어야 어긋나지 않는다
   if (getComputedStyle(root).position === 'static') root.style.position = 'relative';

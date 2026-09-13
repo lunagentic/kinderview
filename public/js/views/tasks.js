@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { state, activeProjects, areaMeta, leadNames } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
-  projectStyle, projectName, readPref, writePref, confirmModal,
+  projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
 } from '../ui.js';
 import { taskForm, projectForm } from '../forms.js';
 
@@ -120,11 +120,7 @@ export async function renderTasks(root, query) {
   const taskRow = (t) => `
     <div class="tk-row" data-open="${esc(t.id)}" tabindex="0" role="button">
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
-      <span class="tk-due num ${t.is_delayed ? 'late' : ''}">
-        <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}"
-               data-due="${esc(t.id)}" aria-label="마감일 변경">
-        <i class="dday">${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
-      </span>
+      <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
         <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
                data-title="${esc(t.id)}" aria-label="업무명 수정">
@@ -404,8 +400,8 @@ export async function renderTasks(root, query) {
 
     const row = e.target.closest('[data-open]');
     if (row && !e.target.closest('select') && !e.target.closest('.tk-grip')
-        && !e.target.closest('.due-edit') && !e.target.closest('.ttl-edit')
-        && !e.target.closest('.tk-del')) {
+        && !e.target.closest('.due-edit') && !e.target.closest('.due-view')
+        && !e.target.closest('.ttl-edit') && !e.target.closest('.tk-del')) {
       go(`#/project/tasks/${row.dataset.open}`);
     }
     return undefined;
@@ -426,6 +422,17 @@ export async function renderTasks(root, query) {
     }
   });
 
+  // 마감일은 누를 때 입력칸이 된다
+  bindDueEdit(root, async (id, value) => {
+    if (!value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+    try {
+      await api.patch(`/api/tasks/${id}`, { due_date: value });
+      toast('마감일을 바꿨습니다.');
+    } catch (err) { toast(err.message, true); }
+    // 마감일이 바뀌면 달·정렬·지연이 다 달라진다 — 다시 불러오는 게 맞다
+    return reload();
+  });
+
   root.addEventListener('change', async (e) => {
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
@@ -438,16 +445,6 @@ export async function renderTasks(root, query) {
         toast('업무명을 바꿨습니다.');
       } catch (err) { toast(err.message, true); reload(); }
       return undefined;
-    }
-    const due = e.target.closest('[data-due]');
-    if (due) {
-      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
-      try {
-        await api.patch(`/api/tasks/${due.dataset.due}`, { due_date: due.value });
-        toast('마감일을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      // 마감일이 바뀌면 달·정렬·지연이 다 달라진다 — 다시 불러오는 게 맞다
-      return reload();
     }
     const sel = e.target.closest('[data-status]');
     if (sel) {

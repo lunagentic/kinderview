@@ -885,12 +885,26 @@ details.more[open] > summary{color:var(--ink)}
 .tk-due{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.86rem;
   display:flex;flex-direction:column;line-height:1.35;white-space:nowrap}
 .tk-due .dday{font-style:normal;font-size:.72rem;color:var(--muted)}
-/* 마감일은 그 자리에서 고친다 — 평소에는 글자처럼 보이고, 손대면 입력칸이 된다 */
+/* 마감일은 그 자리에서 고친다 — 평소에는 글자, 누르면 그때 입력칸이 된다.
+   (날짜 입력칸은 150px 가까이 필요해 늘 띄워 두면 좁은 칸에서 잘린다) */
+.due-view{display:flex;flex-direction:column;align-items:flex-start;gap:0;
+  border:1px solid transparent;background:none;color:inherit;font:inherit;text-align:left;
+  padding:1px 4px;margin-left:-4px;border-radius:5px;cursor:pointer;line-height:1.35;white-space:nowrap}
+.due-view:hover{border-color:var(--line);background:var(--surface)}
+.due-view:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.due-view .dday{font-style:normal;font-size:.72rem;color:var(--muted)}
+.tk-due.late .due-view,.tk-due.late .due-view .dday{color:var(--s-delay)}
+.tld-task .due.late .due-view,.tld-task .due.late .due-view .dday{color:var(--s-delay)}
+.tld-task .due-view{font-size:.8rem}
+.tld-task .due-view .dday{font-size:.7rem}
 .due-edit{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.86rem;
   border:1px solid transparent;background:none;color:inherit;padding:1px 3px;margin-left:-3px;
   border-radius:5px;width:100%;min-width:0;cursor:pointer}
 .due-edit:hover{border-color:var(--line);background:var(--surface)}
 .due-edit:focus{border-color:var(--focus);background:var(--surface);outline:none;cursor:auto}
+/* 열린 입력칸은 제 폭을 지킨다 — 칸보다 넓으면 위로 떠서 보인다 */
+.tk-due .due-edit,.tld-task .due .due-edit{width:auto;min-width:150px;position:relative;z-index:3;
+  background:var(--surface);box-shadow:var(--shadow)}
 .tk-due.late .due-edit{color:var(--s-delay)}
 .due-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .due-cell .due-edit{width:auto;flex:none}
@@ -3592,6 +3606,44 @@ const pctText = (v) => (v === null || v === undefined ? '-' : `${v}%`);
 // ── 호버 툴팁 ───────────────────────────────────────────
 // [data-tip] 을 가진 요소에 붙는다. 마우스와 키보드 포커스를 함께 받는다.
 // 차트 계열 화면(타임라인·보드 지도)이 같은 것을 쓴다.
+/**
+ * 마감일 칸 — 평소에는 글자, 누르면 그때 날짜 입력칸이 된다.
+ * 날짜 입력칸은 폭이 150px 가까이 필요해서, 늘 띄워 두면 좁은 칸에서 잘린다.
+ */
+const dueCell = (t) => `
+  <button type="button" class="due-view" data-due="${esc(t.id)}" data-date="${esc(t.due_date ?? '')}"
+          title="눌러서 마감일 바꾸기">${shortDate(t.due_date)}<i class="dday">${
+    t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i></button>`;
+
+/** dueCell 을 실제로 고칠 수 있게 한다. save(id, 'YYYY-MM-DD') 를 부른다. */
+function bindDueEdit(root, save) {
+  root.addEventListener('click', (e) => {
+    const btn = e.target.closest('.due-view');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.className = 'due-edit';
+    input.value = btn.dataset.date ?? '';
+    input.setAttribute('aria-label', '마감일 변경');
+    btn.replaceWith(input);
+    input.focus();
+    try { input.showPicker?.(); } catch { /* 손짓 없이 부르면 막히는 브라우저가 있다 */ }
+
+    let saved = false;
+    input.addEventListener('change', () => {
+      saved = true;
+      save(btn.dataset.due, input.value);
+    });
+    // 고치지 않고 나가면 원래 글자로 되돌린다 (고쳤으면 화면을 다시 그린다)
+    input.addEventListener('blur', () => {
+      if (!saved && input.isConnected) input.replaceWith(btn);
+    });
+  });
+}
+
 function hoverTip(root) {
   // 툴팁 좌표는 root 기준이다 — root 가 배치 기준이 되어야 어긋나지 않는다
   if (getComputedStyle(root).position === 'static') root.style.position = 'relative';
@@ -4962,11 +5014,7 @@ async function renderTasks(root, query) {
   const taskRow = (t) => `
     <div class="tk-row" data-open="${esc(t.id)}" tabindex="0" role="button">
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
-      <span class="tk-due num ${t.is_delayed ? 'late' : ''}">
-        <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}"
-               data-due="${esc(t.id)}" aria-label="마감일 변경">
-        <i class="dday">${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
-      </span>
+      <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
         <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
                data-title="${esc(t.id)}" aria-label="업무명 수정">
@@ -5246,8 +5294,8 @@ async function renderTasks(root, query) {
 
     const row = e.target.closest('[data-open]');
     if (row && !e.target.closest('select') && !e.target.closest('.tk-grip')
-        && !e.target.closest('.due-edit') && !e.target.closest('.ttl-edit')
-        && !e.target.closest('.tk-del')) {
+        && !e.target.closest('.due-edit') && !e.target.closest('.due-view')
+        && !e.target.closest('.ttl-edit') && !e.target.closest('.tk-del')) {
       go(`#/project/tasks/${row.dataset.open}`);
     }
     return undefined;
@@ -5268,6 +5316,17 @@ async function renderTasks(root, query) {
     }
   });
 
+  // 마감일은 누를 때 입력칸이 된다
+  bindDueEdit(root, async (id, value) => {
+    if (!value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+    try {
+      await api.patch(`/api/tasks/${id}`, { due_date: value });
+      toast('마감일을 바꿨습니다.');
+    } catch (err) { toast(err.message, true); }
+    // 마감일이 바뀌면 달·정렬·지연이 다 달라진다 — 다시 불러오는 게 맞다
+    return reload();
+  });
+
   root.addEventListener('change', async (e) => {
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
@@ -5280,16 +5339,6 @@ async function renderTasks(root, query) {
         toast('업무명을 바꿨습니다.');
       } catch (err) { toast(err.message, true); reload(); }
       return undefined;
-    }
-    const due = e.target.closest('[data-due]');
-    if (due) {
-      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
-      try {
-        await api.patch(`/api/tasks/${due.dataset.due}`, { due_date: due.value });
-        toast('마감일을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      // 마감일이 바뀌면 달·정렬·지연이 다 달라진다 — 다시 불러오는 게 맞다
-      return reload();
     }
     const sel = e.target.closest('[data-status]');
     if (sel) {
@@ -6467,11 +6516,7 @@ async function renderTimeline(root) {
           </div>
           ${g.rows.map((t) => `
             <div class="tld-task">
-              <span class="due num ${t.is_delayed ? 'late' : ''}">
-                <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}"
-                       data-due="${esc(t.id)}" aria-label="마감일 변경">
-                <i>${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
-              </span>
+              <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
               <span class="ttl">
                 <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
                        data-title="${esc(t.id)}" aria-label="업무명 수정">
@@ -6498,17 +6543,17 @@ async function renderTimeline(root) {
       } catch (err) { toast(err.message, true); reload(); }
       return undefined;
     }
-    const due = e.target.closest('[data-due]');
-    if (due) {
-      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
-      try {
-        await api.patch(`/api/tasks/${due.dataset.due}`, { due_date: due.value });
-        toast('마감일을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      // 마감이 바뀌면 페이즈 기간·진행도 달라진다
-      return reload();
-    }
     return undefined;
+  });
+
+  // 마감일은 누를 때 입력칸이 된다. 바뀌면 페이즈 기간·진행도 달라지므로 다시 불러온다.
+  bindDueEdit(root, async (id, value) => {
+    if (!value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+    try {
+      await api.patch(`/api/tasks/${id}`, { due_date: value });
+      toast('마감일을 바꿨습니다.');
+    } catch (err) { toast(err.message, true); }
+    return reload();
   });
 
   root.addEventListener('keydown', (e) => {
