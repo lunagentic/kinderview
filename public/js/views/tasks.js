@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { state, activeProjects, areaMeta, leadNames } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
-  projectStyle, projectName, readPref, writePref,
+  projectStyle, projectName, readPref, writePref, confirmModal,
 } from '../ui.js';
 import { taskForm, projectForm } from '../forms.js';
 
@@ -121,11 +121,15 @@ export async function renderTasks(root, query) {
     <div class="tk-row" data-open="${esc(t.id)}" tabindex="0" role="button">
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">
-        ${shortDate(t.due_date)}
+        <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}"
+               data-due="${esc(t.id)}" aria-label="마감일 변경">
         <i class="dday">${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
       </span>
-      <span class="tk-title">${esc(t.title)} ${flags(t)}${t.subtask_total
-        ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
+      <span class="tk-title">
+        <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
+               data-title="${esc(t.id)}" aria-label="업무명 수정">
+        ${flags(t)}${t.subtask_total
+          ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
       <span class="tk-pr ${PR_TONE[t.priority] ?? ''}">${esc(
         (state.meta.priorities.find((x) => x.code === t.priority) ?? {}).label ?? t.priority)}</span>
       <span class="tk-owner">${person(t.owner_slack_user_id, t.owner_name)}</span>
@@ -137,6 +141,7 @@ export async function renderTasks(root, query) {
       </span>
       <span class="tk-issue">${t.has_open_issue
         ? `<span class="flag issue" title="이슈 ${t.open_issue_count}건">🔥 ${t.open_issue_count}</span>` : ''}</span>
+      <button class="tk-del" data-del="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
     </div>`;
 
   root.innerHTML = `
@@ -274,10 +279,32 @@ export async function renderTasks(root, query) {
       grip.setPointerCapture?.(e.pointerId);
     });
 
+    // 자리를 바꾼 줄들이 미끄러져 움직이게 한다.
+    // 옮기기 전 위치를 재 두고, 옮긴 뒤 그만큼 되돌려 놓았다가 원래 자리로 보낸다.
+    const slide = (move) => {
+      const rows = rowsOf();
+      const before = new Map(rows.map((n) => [n, n.getBoundingClientRect().top]));
+      move();
+      for (const n of rows) {
+        if (n.classList.contains('dragging')) continue;   // 잡고 있는 줄은 손가락을 따라간다
+        const delta = before.get(n) - n.getBoundingClientRect().top;
+        if (!delta) continue;
+        n.style.transition = 'none';
+        n.style.transform = `translateY(${delta}px)`;
+        void n.offsetHeight;   // 여기서 시작 위치를 확정한다. 다음 프레임을 기다리면
+                               // 화면이 멈춘 탭에서는 줄이 어긋난 채로 남는다.
+        n.style.transition = 'transform .16s ease';
+        n.style.transform = '';
+      }
+    };
+
     root.addEventListener('pointermove', (e) => {
       if (!id) return;
       if (!moved && Math.abs(e.clientY - startY) < 8) return;
-      moved = true;
+      if (!moved) {
+        moved = true;
+        box.classList.add('dragging-box');   // 끄는 동안 글자가 선택되지 않게
+      }
       const el = box.querySelector(`.tk-row[data-open="${id}"]`);
       if (!el) return;
       el.classList.add('dragging');
@@ -289,12 +316,22 @@ export async function renderTasks(root, query) {
       });
       if (!over) return;
       const r = over.getBoundingClientRect();
-      if (e.clientY < r.top + r.height / 2) over.before(el); else over.after(el);
+      const after = e.clientY >= r.top + r.height / 2;
+      // 이미 그 자리면 건드리지 않는다 (놔둬야 떨림이 없다)
+      if ((after ? over.nextElementSibling : over.previousElementSibling) === el) return;
+      slide(() => { if (after) over.after(el); else over.before(el); });
     });
 
     const end = () => {
       if (!id) return;
-      box.querySelector(`.tk-row[data-open="${id}"]`)?.classList.remove('dragging');
+      const el = box.querySelector(`.tk-row[data-open="${id}"]`);
+      el?.classList.remove('dragging');
+      box.classList.remove('dragging-box');
+      if (moved && el) {
+        // 어디에 놓였는지 한 번 짚어 준다
+        el.classList.add('landed');
+        setTimeout(() => el.classList.remove('landed'), 700);
+      }
       if (moved) {
         // 이 영역의 차례만 새로 쓴다. 다른 영역에서 정해 둔 차례는 그대로 둔다.
         const here = rowsOf().map((n) => n.dataset.open);
@@ -312,7 +349,7 @@ export async function renderTasks(root, query) {
     }, true);
   }());
 
-  root.addEventListener('click', (e) => {
+  root.addEventListener('click', async (e) => {
     const m = e.target.closest('[data-month]');
     if (m) return setParam({ month: m.dataset.month });
 
@@ -345,6 +382,19 @@ export async function renderTasks(root, query) {
       });
     }
 
+    const del = e.target.closest('[data-del]');
+    if (del) {
+      const title = del.closest('.tk-row')?.querySelector('.ttl-edit')?.value ?? '이 업무';
+      const ok = await confirmModal(`「${title}」을(를) 삭제할까요? 연결된 이슈는 남습니다.`,
+        { confirmLabel: '삭제', danger: true });
+      if (!ok) return undefined;
+      try {
+        await api.del(`/api/tasks/${del.dataset.del}`);
+        toast('업무를 삭제했습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
+
     if (e.target.closest('[data-order-reset]')) {
       writePref(TASK_KEY, '');
       toast('마감일 순으로 되돌렸습니다.');
@@ -352,18 +402,52 @@ export async function renderTasks(root, query) {
     }
 
     const row = e.target.closest('[data-open]');
-    if (row && !e.target.closest('select') && !e.target.closest('.tk-grip')) {
+    if (row && !e.target.closest('select') && !e.target.closest('.tk-grip')
+        && !e.target.closest('.due-edit') && !e.target.closest('.ttl-edit')
+        && !e.target.closest('.tk-del')) {
       go(`#/project/tasks/${row.dataset.open}`);
     }
     return undefined;
   });
 
   root.addEventListener('keydown', (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (ttl) {
+      // 엔터는 확정, Esc 는 되돌리기. 줄 전체의 엔터(상세로 가기)와 겹치지 않게 여기서 끊는다.
+      if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+      return;
+    }
     const row = e.target.closest('[data-open]');
-    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); go(`#/project/tasks/${row.dataset.open}`); }
+    if (row && (e.key === 'Enter' || e.key === ' ') && !e.target.closest('input, select')) {
+      e.preventDefault();
+      go(`#/project/tasks/${row.dataset.open}`);
+    }
   });
 
   root.addEventListener('change', async (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (ttl) {
+      const next = ttl.value.trim();
+      if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
+      if (next === ttl.defaultValue) return undefined;   // 손대기만 하고 그대로 둔 것
+      try {
+        await api.patch(`/api/tasks/${ttl.dataset.title}`, { title: next });
+        ttl.defaultValue = next;
+        toast('업무명을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); reload(); }
+      return undefined;
+    }
+    const due = e.target.closest('[data-due]');
+    if (due) {
+      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+      try {
+        await api.patch(`/api/tasks/${due.dataset.due}`, { due_date: due.value });
+        toast('마감일을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      // 마감일이 바뀌면 달·정렬·지연이 다 달라진다 — 다시 불러오는 게 맞다
+      return reload();
+    }
     const sel = e.target.closest('[data-status]');
     if (sel) {
       try {

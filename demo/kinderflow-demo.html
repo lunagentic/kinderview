@@ -849,14 +849,29 @@ details.more[open] > summary{color:var(--ink)}
 .tk-rows{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
 .tk-row{display:grid;align-items:center;gap:12px;padding:9px 14px;cursor:pointer;
   border-bottom:1px solid var(--line-soft);
-  grid-template-columns:16px 104px minmax(0,1fr) 52px 132px 126px 44px}
+  grid-template-columns:16px 104px minmax(0,1fr) 52px 132px 126px 44px 26px}
 /* 손잡이에서만 끌기를 받는다 — 줄 전체로 받으면 손가락으로 훑을 때 목록이 안 굴러간다 */
 .tk-grip{color:transparent;font-size:.9rem;line-height:1;letter-spacing:-.1em;
   cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .tk-row:hover .tk-grip{color:var(--line)}
 .tk-grip:hover,.tk-grip:active{color:var(--muted)}
 .tk-grip:active{cursor:grabbing}
-.tk-row.dragging{opacity:.6;background:var(--surface-2)}
+/* 끌고 있는 줄: 손에 들린 것처럼 띄운다. 자리를 내준 줄들은 미끄러져 비킨다. */
+.tk-row.dragging{background:var(--surface);box-shadow:var(--shadow);
+  border-radius:8px;border-bottom-color:transparent;position:relative;z-index:2;
+  outline:1px solid var(--line)}
+.tk-row.dragging .tk-grip{color:var(--ink-2)}
+.tk-rows.dragging-box{user-select:none;-webkit-user-select:none}
+.tk-rows.dragging-box .tk-row{cursor:grabbing}
+/* 놓인 자리를 잠깐 짚어 준다 */
+.tk-row.landed{animation:tk-landed .7s ease-out}
+@keyframes tk-landed{
+  0%{background:var(--surface-2);box-shadow:inset 2px 0 0 var(--focus)}
+  100%{background:transparent;box-shadow:inset 2px 0 0 transparent}
+}
+@media (prefers-reduced-motion:reduce){
+  .tk-row.landed{animation:none}
+}
 .tk-row:last-child{border-bottom:none}
 .tk-row:hover{background:var(--surface-2)}
 .tk-row:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
@@ -864,10 +879,27 @@ details.more[open] > summary{color:var(--ink)}
 .tk-due{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.86rem;
   display:flex;flex-direction:column;line-height:1.35;white-space:nowrap}
 .tk-due .dday{font-style:normal;font-size:.72rem;color:var(--muted)}
+/* 마감일은 그 자리에서 고친다 — 평소에는 글자처럼 보이고, 손대면 입력칸이 된다 */
+.due-edit{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.86rem;
+  border:1px solid transparent;background:none;color:inherit;padding:1px 3px;margin-left:-3px;
+  border-radius:5px;width:100%;min-width:0;cursor:pointer}
+.due-edit:hover{border-color:var(--line);background:var(--surface)}
+.due-edit:focus{border-color:var(--focus);background:var(--surface);outline:none;cursor:auto}
+.tk-due.late .due-edit{color:var(--s-delay)}
+.due-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.due-cell .due-edit{width:auto;flex:none}
+@media (max-width:860px){ .due-edit{min-height:32px} }
 .tk-due.late{color:var(--s-delay);font-weight:500}
 .tk-due.late .dday{color:var(--s-delay)}
 
-.tk-title{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk-title{font-weight:500;display:flex;align-items:center;gap:7px;min-width:0}
+/* 제목도 그 자리에서 고친다 — 평소에는 글자, 손대면 입력칸 */
+.ttl-edit{flex:1 1 auto;min-width:0;font:inherit;color:inherit;
+  border:1px solid transparent;background:none;border-radius:5px;
+  padding:2px 5px;margin-left:-5px;cursor:pointer;text-overflow:ellipsis}
+.ttl-edit:hover{border-color:var(--line);background:var(--surface)}
+.ttl-edit:focus{border-color:var(--focus);background:var(--surface);outline:none;cursor:auto}
+h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
 /* 하위 업무 진행 — 제목 옆에 붙는 작은 눈금 */
 .tk-sub{font-style:normal;font-family:var(--mono);font-size:.72rem;color:var(--muted);
   border:1px solid var(--line);border-radius:999px;padding:1px 6px;margin-left:6px;white-space:nowrap}
@@ -879,12 +911,20 @@ details.more[open] > summary{color:var(--ink)}
 .tk-owner{font-size:.83rem;overflow:hidden}
 .tk-status select{width:100%;font-size:.82rem;padding:5px 8px}
 .tk-issue{text-align:right;font-size:.8rem}
+/* 줄 삭제 — 평소에는 숨어 있다가 줄에 손이 가면 나타난다 */
+.tk-del{border:0;background:none;color:transparent;cursor:pointer;font-size:1.05rem;
+  line-height:1;padding:2px 5px;border-radius:6px}
+.tk-row:hover .tk-del{color:var(--line)}
+.tk-del:hover{color:var(--s-delay);background:var(--surface-2)}
+.tk-del:focus-visible{color:var(--muted);outline:2px solid var(--focus)}
 
 @media (max-width:860px){
   .months{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -14px 12px;padding:0 14px 2px}
   .months::-webkit-scrollbar{display:none}
   .months button{flex:0 0 auto;min-height:36px}
   .tk-row{grid-template-columns:22px 88px minmax(0,1fr) auto;gap:6px 10px;padding:11px 13px}
+  /* 좁은 화면에서는 늘 보인다 — 손가락에는 hover 가 없다 */
+  .tk-del{grid-column:4/5;justify-self:end;color:var(--line);min-height:32px;padding:4px 8px}
   /* 손가락으로 잡을 만큼은 돼야 한다 — 두 줄 높이를 다 쓴다 */
   .tk-grip{grid-row:span 2;color:var(--line);align-self:stretch;
     display:flex;align-items:center;justify-content:center}
@@ -894,7 +934,7 @@ details.more[open] > summary{color:var(--ink)}
   .tk-owner{grid-column:3/4;font-size:.79rem}
   .tk-status{grid-column:4/5;justify-self:end}
   .tk-status select{min-width:104px;min-height:34px}
-  .tk-issue{grid-column:3/-1;text-align:left}
+  .tk-issue{grid-column:3/4;text-align:left}
   .tk-issue:empty{display:none}
   .tk-project-head .n{margin-left:0}
 }
@@ -4858,11 +4898,15 @@ async function renderTasks(root, query) {
     <div class="tk-row" data-open="${esc(t.id)}" tabindex="0" role="button">
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">
-        ${shortDate(t.due_date)}
+        <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}"
+               data-due="${esc(t.id)}" aria-label="마감일 변경">
         <i class="dday">${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
       </span>
-      <span class="tk-title">${esc(t.title)} ${flags(t)}${t.subtask_total
-        ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
+      <span class="tk-title">
+        <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
+               data-title="${esc(t.id)}" aria-label="업무명 수정">
+        ${flags(t)}${t.subtask_total
+          ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
       <span class="tk-pr ${PR_TONE[t.priority] ?? ''}">${esc(
         (state.meta.priorities.find((x) => x.code === t.priority) ?? {}).label ?? t.priority)}</span>
       <span class="tk-owner">${person(t.owner_slack_user_id, t.owner_name)}</span>
@@ -4874,6 +4918,7 @@ async function renderTasks(root, query) {
       </span>
       <span class="tk-issue">${t.has_open_issue
         ? `<span class="flag issue" title="이슈 ${t.open_issue_count}건">🔥 ${t.open_issue_count}</span>` : ''}</span>
+      <button class="tk-del" data-del="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
     </div>`;
 
   root.innerHTML = `
@@ -5011,10 +5056,32 @@ async function renderTasks(root, query) {
       grip.setPointerCapture?.(e.pointerId);
     });
 
+    // 자리를 바꾼 줄들이 미끄러져 움직이게 한다.
+    // 옮기기 전 위치를 재 두고, 옮긴 뒤 그만큼 되돌려 놓았다가 원래 자리로 보낸다.
+    const slide = (move) => {
+      const rows = rowsOf();
+      const before = new Map(rows.map((n) => [n, n.getBoundingClientRect().top]));
+      move();
+      for (const n of rows) {
+        if (n.classList.contains('dragging')) continue;   // 잡고 있는 줄은 손가락을 따라간다
+        const delta = before.get(n) - n.getBoundingClientRect().top;
+        if (!delta) continue;
+        n.style.transition = 'none';
+        n.style.transform = `translateY(${delta}px)`;
+        void n.offsetHeight;   // 여기서 시작 위치를 확정한다. 다음 프레임을 기다리면
+                               // 화면이 멈춘 탭에서는 줄이 어긋난 채로 남는다.
+        n.style.transition = 'transform .16s ease';
+        n.style.transform = '';
+      }
+    };
+
     root.addEventListener('pointermove', (e) => {
       if (!id) return;
       if (!moved && Math.abs(e.clientY - startY) < 8) return;
-      moved = true;
+      if (!moved) {
+        moved = true;
+        box.classList.add('dragging-box');   // 끄는 동안 글자가 선택되지 않게
+      }
       const el = box.querySelector(`.tk-row[data-open="${id}"]`);
       if (!el) return;
       el.classList.add('dragging');
@@ -5026,12 +5093,22 @@ async function renderTasks(root, query) {
       });
       if (!over) return;
       const r = over.getBoundingClientRect();
-      if (e.clientY < r.top + r.height / 2) over.before(el); else over.after(el);
+      const after = e.clientY >= r.top + r.height / 2;
+      // 이미 그 자리면 건드리지 않는다 (놔둬야 떨림이 없다)
+      if ((after ? over.nextElementSibling : over.previousElementSibling) === el) return;
+      slide(() => { if (after) over.after(el); else over.before(el); });
     });
 
     const end = () => {
       if (!id) return;
-      box.querySelector(`.tk-row[data-open="${id}"]`)?.classList.remove('dragging');
+      const el = box.querySelector(`.tk-row[data-open="${id}"]`);
+      el?.classList.remove('dragging');
+      box.classList.remove('dragging-box');
+      if (moved && el) {
+        // 어디에 놓였는지 한 번 짚어 준다
+        el.classList.add('landed');
+        setTimeout(() => el.classList.remove('landed'), 700);
+      }
       if (moved) {
         // 이 영역의 차례만 새로 쓴다. 다른 영역에서 정해 둔 차례는 그대로 둔다.
         const here = rowsOf().map((n) => n.dataset.open);
@@ -5049,7 +5126,7 @@ async function renderTasks(root, query) {
     }, true);
   }());
 
-  root.addEventListener('click', (e) => {
+  root.addEventListener('click', async (e) => {
     const m = e.target.closest('[data-month]');
     if (m) return setParam({ month: m.dataset.month });
 
@@ -5082,6 +5159,19 @@ async function renderTasks(root, query) {
       });
     }
 
+    const del = e.target.closest('[data-del]');
+    if (del) {
+      const title = del.closest('.tk-row')?.querySelector('.ttl-edit')?.value ?? '이 업무';
+      const ok = await confirmModal(`「${title}」을(를) 삭제할까요? 연결된 이슈는 남습니다.`,
+        { confirmLabel: '삭제', danger: true });
+      if (!ok) return undefined;
+      try {
+        await api.del(`/api/tasks/${del.dataset.del}`);
+        toast('업무를 삭제했습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
+
     if (e.target.closest('[data-order-reset]')) {
       writePref(TASK_KEY, '');
       toast('마감일 순으로 되돌렸습니다.');
@@ -5089,18 +5179,52 @@ async function renderTasks(root, query) {
     }
 
     const row = e.target.closest('[data-open]');
-    if (row && !e.target.closest('select') && !e.target.closest('.tk-grip')) {
+    if (row && !e.target.closest('select') && !e.target.closest('.tk-grip')
+        && !e.target.closest('.due-edit') && !e.target.closest('.ttl-edit')
+        && !e.target.closest('.tk-del')) {
       go(`#/project/tasks/${row.dataset.open}`);
     }
     return undefined;
   });
 
   root.addEventListener('keydown', (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (ttl) {
+      // 엔터는 확정, Esc 는 되돌리기. 줄 전체의 엔터(상세로 가기)와 겹치지 않게 여기서 끊는다.
+      if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+      return;
+    }
     const row = e.target.closest('[data-open]');
-    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); go(`#/project/tasks/${row.dataset.open}`); }
+    if (row && (e.key === 'Enter' || e.key === ' ') && !e.target.closest('input, select')) {
+      e.preventDefault();
+      go(`#/project/tasks/${row.dataset.open}`);
+    }
   });
 
   root.addEventListener('change', async (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (ttl) {
+      const next = ttl.value.trim();
+      if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
+      if (next === ttl.defaultValue) return undefined;   // 손대기만 하고 그대로 둔 것
+      try {
+        await api.patch(`/api/tasks/${ttl.dataset.title}`, { title: next });
+        ttl.defaultValue = next;
+        toast('업무명을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); reload(); }
+      return undefined;
+    }
+    const due = e.target.closest('[data-due]');
+    if (due) {
+      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+      try {
+        await api.patch(`/api/tasks/${due.dataset.due}`, { due_date: due.value });
+        toast('마감일을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      // 마감일이 바뀌면 달·정렬·지연이 다 달라진다 — 다시 불러오는 게 맞다
+      return reload();
+    }
     const sel = e.target.closest('[data-status]');
     if (sel) {
       try {
@@ -5179,7 +5303,8 @@ async function renderTaskDetail(root, id) {
     <div class="page-head">
       <div>
         <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${esc(t.project_name)}</div>
-        <h1>${esc(t.title)}</h1>
+        <h1><input type="text" class="ttl-edit h1" maxlength="120" value="${esc(t.title)}"
+                   data-title aria-label="업무명 수정"></h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           ${areaChip(t.area)}
           ${t.is_delayed ? '<span class="chip delay">⚠ 지연</span>' : ''}
@@ -5207,7 +5332,8 @@ async function renderTaskDetail(root, id) {
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
             ${t.phase_name ? `<dt>페이즈</dt><dd>${esc(t.phase_name)}</dd>` : ''}
-            <dt>일정</dt><dd>${t.start_date ? `${shortDate(t.start_date)} → ` : ''}${shortDate(t.due_date)}
+            <dt>일정</dt><dd class="due-cell">${t.start_date ? `${shortDate(t.start_date)} → ` : ''}
+              <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}" data-due aria-label="마감일 변경">
               <span style="color:${t.is_delayed ? 'var(--s-delay)' : 'var(--muted)'};font-size:.8rem">
                 ${t.status === 'DONE' ? '' : dDay(t.d_day)}</span></dd>
             <dt>우선순위</dt><dd>${esc(priorityLabel(t.priority))}</dd>
@@ -5295,6 +5421,27 @@ async function renderTaskDetail(root, id) {
   };
 
   root.addEventListener('change', async (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (ttl) {
+      const next = ttl.value.trim();
+      if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
+      if (next === ttl.defaultValue) return undefined;
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { title: next });
+        ttl.defaultValue = next;
+        toast('업무명을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); reload(); }
+      return undefined;
+    }
+    const due = e.target.closest('[data-due]');
+    if (due) {
+      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { due_date: due.value });
+        toast('마감일을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
     const sub = e.target.closest('[data-sub]');
     if (sub) {
       try {
@@ -5347,6 +5494,13 @@ async function renderTaskDetail(root, id) {
       await reloadSubs();
       input.focus();   // 여러 개를 잇달아 넣는 일이 많다
     } catch (err) { toast(err.message, true); }
+  });
+
+  root.addEventListener('keydown', (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (!ttl) return;
+    if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
   });
 
   root.addEventListener('click', async (e) => {

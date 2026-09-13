@@ -844,14 +844,29 @@ details.more[open] > summary{color:var(--ink)}
 .tk-rows{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
 .tk-row{display:grid;align-items:center;gap:12px;padding:9px 14px;cursor:pointer;
   border-bottom:1px solid var(--line-soft);
-  grid-template-columns:16px 104px minmax(0,1fr) 52px 132px 126px 44px}
+  grid-template-columns:16px 104px minmax(0,1fr) 52px 132px 126px 44px 26px}
 /* 손잡이에서만 끌기를 받는다 — 줄 전체로 받으면 손가락으로 훑을 때 목록이 안 굴러간다 */
 .tk-grip{color:transparent;font-size:.9rem;line-height:1;letter-spacing:-.1em;
   cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .tk-row:hover .tk-grip{color:var(--line)}
 .tk-grip:hover,.tk-grip:active{color:var(--muted)}
 .tk-grip:active{cursor:grabbing}
-.tk-row.dragging{opacity:.6;background:var(--surface-2)}
+/* 끌고 있는 줄: 손에 들린 것처럼 띄운다. 자리를 내준 줄들은 미끄러져 비킨다. */
+.tk-row.dragging{background:var(--surface);box-shadow:var(--shadow);
+  border-radius:8px;border-bottom-color:transparent;position:relative;z-index:2;
+  outline:1px solid var(--line)}
+.tk-row.dragging .tk-grip{color:var(--ink-2)}
+.tk-rows.dragging-box{user-select:none;-webkit-user-select:none}
+.tk-rows.dragging-box .tk-row{cursor:grabbing}
+/* 놓인 자리를 잠깐 짚어 준다 */
+.tk-row.landed{animation:tk-landed .7s ease-out}
+@keyframes tk-landed{
+  0%{background:var(--surface-2);box-shadow:inset 2px 0 0 var(--focus)}
+  100%{background:transparent;box-shadow:inset 2px 0 0 transparent}
+}
+@media (prefers-reduced-motion:reduce){
+  .tk-row.landed{animation:none}
+}
 .tk-row:last-child{border-bottom:none}
 .tk-row:hover{background:var(--surface-2)}
 .tk-row:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
@@ -859,10 +874,27 @@ details.more[open] > summary{color:var(--ink)}
 .tk-due{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.86rem;
   display:flex;flex-direction:column;line-height:1.35;white-space:nowrap}
 .tk-due .dday{font-style:normal;font-size:.72rem;color:var(--muted)}
+/* 마감일은 그 자리에서 고친다 — 평소에는 글자처럼 보이고, 손대면 입력칸이 된다 */
+.due-edit{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.86rem;
+  border:1px solid transparent;background:none;color:inherit;padding:1px 3px;margin-left:-3px;
+  border-radius:5px;width:100%;min-width:0;cursor:pointer}
+.due-edit:hover{border-color:var(--line);background:var(--surface)}
+.due-edit:focus{border-color:var(--focus);background:var(--surface);outline:none;cursor:auto}
+.tk-due.late .due-edit{color:var(--s-delay)}
+.due-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.due-cell .due-edit{width:auto;flex:none}
+@media (max-width:860px){ .due-edit{min-height:32px} }
 .tk-due.late{color:var(--s-delay);font-weight:500}
 .tk-due.late .dday{color:var(--s-delay)}
 
-.tk-title{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk-title{font-weight:500;display:flex;align-items:center;gap:7px;min-width:0}
+/* 제목도 그 자리에서 고친다 — 평소에는 글자, 손대면 입력칸 */
+.ttl-edit{flex:1 1 auto;min-width:0;font:inherit;color:inherit;
+  border:1px solid transparent;background:none;border-radius:5px;
+  padding:2px 5px;margin-left:-5px;cursor:pointer;text-overflow:ellipsis}
+.ttl-edit:hover{border-color:var(--line);background:var(--surface)}
+.ttl-edit:focus{border-color:var(--focus);background:var(--surface);outline:none;cursor:auto}
+h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
 /* 하위 업무 진행 — 제목 옆에 붙는 작은 눈금 */
 .tk-sub{font-style:normal;font-family:var(--mono);font-size:.72rem;color:var(--muted);
   border:1px solid var(--line);border-radius:999px;padding:1px 6px;margin-left:6px;white-space:nowrap}
@@ -874,12 +906,20 @@ details.more[open] > summary{color:var(--ink)}
 .tk-owner{font-size:.83rem;overflow:hidden}
 .tk-status select{width:100%;font-size:.82rem;padding:5px 8px}
 .tk-issue{text-align:right;font-size:.8rem}
+/* 줄 삭제 — 평소에는 숨어 있다가 줄에 손이 가면 나타난다 */
+.tk-del{border:0;background:none;color:transparent;cursor:pointer;font-size:1.05rem;
+  line-height:1;padding:2px 5px;border-radius:6px}
+.tk-row:hover .tk-del{color:var(--line)}
+.tk-del:hover{color:var(--s-delay);background:var(--surface-2)}
+.tk-del:focus-visible{color:var(--muted);outline:2px solid var(--focus)}
 
 @media (max-width:860px){
   .months{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -14px 12px;padding:0 14px 2px}
   .months::-webkit-scrollbar{display:none}
   .months button{flex:0 0 auto;min-height:36px}
   .tk-row{grid-template-columns:22px 88px minmax(0,1fr) auto;gap:6px 10px;padding:11px 13px}
+  /* 좁은 화면에서는 늘 보인다 — 손가락에는 hover 가 없다 */
+  .tk-del{grid-column:4/5;justify-self:end;color:var(--line);min-height:32px;padding:4px 8px}
   /* 손가락으로 잡을 만큼은 돼야 한다 — 두 줄 높이를 다 쓴다 */
   .tk-grip{grid-row:span 2;color:var(--line);align-self:stretch;
     display:flex;align-items:center;justify-content:center}
@@ -889,7 +929,7 @@ details.more[open] > summary{color:var(--ink)}
   .tk-owner{grid-column:3/4;font-size:.79rem}
   .tk-status{grid-column:4/5;justify-self:end}
   .tk-status select{min-width:104px;min-height:34px}
-  .tk-issue{grid-column:3/-1;text-align:left}
+  .tk-issue{grid-column:3/4;text-align:left}
   .tk-issue:empty{display:none}
   .tk-project-head .n{margin-left:0}
 }

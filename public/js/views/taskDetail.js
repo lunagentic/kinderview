@@ -54,7 +54,8 @@ export async function renderTaskDetail(root, id) {
     <div class="page-head">
       <div>
         <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${esc(t.project_name)}</div>
-        <h1>${esc(t.title)}</h1>
+        <h1><input type="text" class="ttl-edit h1" maxlength="120" value="${esc(t.title)}"
+                   data-title aria-label="업무명 수정"></h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           ${areaChip(t.area)}
           ${t.is_delayed ? '<span class="chip delay">⚠ 지연</span>' : ''}
@@ -82,7 +83,8 @@ export async function renderTaskDetail(root, id) {
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
             ${t.phase_name ? `<dt>페이즈</dt><dd>${esc(t.phase_name)}</dd>` : ''}
-            <dt>일정</dt><dd>${t.start_date ? `${shortDate(t.start_date)} → ` : ''}${shortDate(t.due_date)}
+            <dt>일정</dt><dd class="due-cell">${t.start_date ? `${shortDate(t.start_date)} → ` : ''}
+              <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}" data-due aria-label="마감일 변경">
               <span style="color:${t.is_delayed ? 'var(--s-delay)' : 'var(--muted)'};font-size:.8rem">
                 ${t.status === 'DONE' ? '' : dDay(t.d_day)}</span></dd>
             <dt>우선순위</dt><dd>${esc(priorityLabel(t.priority))}</dd>
@@ -170,6 +172,27 @@ export async function renderTaskDetail(root, id) {
   };
 
   root.addEventListener('change', async (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (ttl) {
+      const next = ttl.value.trim();
+      if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
+      if (next === ttl.defaultValue) return undefined;
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { title: next });
+        ttl.defaultValue = next;
+        toast('업무명을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); reload(); }
+      return undefined;
+    }
+    const due = e.target.closest('[data-due]');
+    if (due) {
+      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { due_date: due.value });
+        toast('마감일을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
     const sub = e.target.closest('[data-sub]');
     if (sub) {
       try {
@@ -222,6 +245,13 @@ export async function renderTaskDetail(root, id) {
       await reloadSubs();
       input.focus();   // 여러 개를 잇달아 넣는 일이 많다
     } catch (err) { toast(err.message, true); }
+  });
+
+  root.addEventListener('keydown', (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (!ttl) return;
+    if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
   });
 
   root.addEventListener('click', async (e) => {
