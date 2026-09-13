@@ -680,7 +680,11 @@ function updateTask(id, input, actor) {
   const before = hydrate(t);
 
   const area = input.area ?? t.area;
-  const status = input.status ?? (area === t.area ? t.status : defaultStatusFor(area));
+  // 영역이 바뀌어도 그 상태를 쓸 수 있으면 그대로 둔다 (외주 ↔ 일반일 때만 처음으로)
+  const status = input.status ?? (
+    area === t.area || statusesFor(area).some((x) => x.code === t.status)
+      ? t.status
+      : defaultStatusFor(area));
   if (!statusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
   let owner = t.owner_slack_user_id;
   if (area !== t.area) {

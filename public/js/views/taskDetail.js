@@ -1,7 +1,7 @@
 import { api } from '../api.js';
-import { state, areaMeta, coLeadsOf } from '../state.js';
+import { state, areaMeta, coLeadsOf, leadOf } from '../state.js';
 import {
-  esc, statusChip, areaChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
+  esc, statusChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
 } from '../ui.js';
 import { taskForm, issueForm } from '../forms.js';
 
@@ -57,7 +57,12 @@ export async function renderTaskDetail(root, id) {
         <h1><input type="text" class="ttl-edit h1" maxlength="120" value="${esc(t.title)}"
                    data-title aria-label="업무명 수정"></h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          ${areaChip(t.area)}
+          <span class="area-pick" title="업무 영역 변경">
+            <select data-area aria-label="업무 영역 변경">
+              ${state.meta.areas.map((a) => `<option value="${esc(a.code)}"${
+                a.code === t.area ? ' selected' : ''}>${esc(a.full)}</option>`).join('')}
+            </select>
+          </span>
           ${t.is_delayed ? '<span class="chip delay">⚠ 지연</span>' : ''}
           ${t.has_open_issue ? `<span class="chip issue">🔥 미해결 이슈 ${t.open_issue_count}</span>` : ''}
         </div>
@@ -172,6 +177,22 @@ export async function renderTaskDetail(root, id) {
   };
 
   root.addEventListener('change', async (e) => {
+    const areaSel = e.target.closest('[data-area]');
+    if (areaSel) {
+      const next = areaSel.value;
+      if (next === t.area) return undefined;
+      // 영역이 곧 담당이다 — 바뀌면 그 영역의 리드가 맡는다
+      const lead = leadOf(next);
+      if (!lead) {
+        toast(`'${areaMeta(next).full}' 영역의 리드가 지정되지 않았습니다.`, true);
+        return reload();
+      }
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { area: next });
+        toast(`영역을 ${areaMeta(next).full}(으)로 바꿨습니다. 담당은 ${lead.display_name}입니다.`);
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
       const next = ttl.value.trim();

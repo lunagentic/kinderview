@@ -683,7 +683,12 @@ export const tasks = {
     if (!cur) throw new HttpError(404, '업무를 찾을 수 없습니다.');
 
     const area = input.area ?? cur.area;
-    const status = input.status ?? (area === cur.area ? cur.status : defaultStatusFor(area));
+    // 영역이 바뀌어도 그 상태를 쓸 수 있으면 그대로 둔다.
+    // 외주와 일반은 상태 체계가 달라 그때만 처음으로 돌아간다.
+    const status = input.status ?? (
+      area === cur.area || statusesFor(area).some((x) => x.code === cur.status)
+        ? cur.status
+        : defaultStatusFor(area));
     if (!statusesFor(area).some((s) => s.code === status)) {
       throw new HttpError(400, '업무 영역에 맞지 않는 상태입니다.');
     }
