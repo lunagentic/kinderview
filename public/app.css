@@ -218,6 +218,23 @@ label.field > span.lab .req{color:var(--s-delay);margin-left:2px}
 .chip.wait{color:var(--s-wait)} .chip.prog{color:var(--s-prog)} .chip.review{color:var(--s-review)}
 .chip.done{color:var(--s-done)} .chip.delay{color:var(--s-delay)} .chip.issue{color:var(--s-issue)}
 .chip.area{color:var(--muted);border-style:dashed}
+/* 칩 모양의 고르는 칸 — 눌러서 상태를 바꾼다. 왼쪽 점과 오른쪽 화살표는
+   가상 요소를 못 쓰는 select 라 배경 그림으로 그린다. */
+.chip-select{appearance:none;-webkit-appearance:none;
+  border:1.5px solid currentColor;border-radius:999px;
+  padding:1px 21px 1px 19px;font-size:.76rem;font-weight:600;line-height:1.65;
+  min-height:0;cursor:pointer;white-space:nowrap;background-color:var(--surface);
+  background-image:radial-gradient(circle,currentColor 46%,transparent 50%),
+                   linear-gradient(45deg,transparent 50%,currentColor 50%),
+                   linear-gradient(135deg,currentColor 50%,transparent 50%);
+  background-position:7px 50%,calc(100% - 11px) 53%,calc(100% - 7px) 53%;
+  background-size:6px 6px,4px 4px,4px 4px;background-repeat:no-repeat}
+.chip-select:hover{background-color:var(--surface-2)}
+.chip-select:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.chip-select.wait{color:var(--s-wait)} .chip-select.prog{color:var(--s-prog)}
+.chip-select.review{color:var(--s-review)} .chip-select.done{color:var(--s-done)}
+.chip-select.delay{color:var(--s-delay)} .chip-select.issue{color:var(--s-issue)}
+.chip-select option{color:var(--ink);background:var(--surface);font-weight:500}
 .pdot{display:inline-block;width:8px;height:8px;border-radius:999px;
   background:var(--pc,var(--muted));flex:none;margin-right:7px;vertical-align:0}
 .pname{display:inline-flex;align-items:center;white-space:nowrap}

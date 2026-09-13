@@ -69,6 +69,19 @@ export const statusChip = (code) => {
   return `<span class="chip ${s.tone}">${esc(s.label)}</span>`;
 };
 
+/**
+ * 상태 칩을 눌러 그 자리에서 바꾼다. 보이는 모양은 칩 그대로다.
+ * 고를 수 있는 값은 영역을 따른다 — 외주는 6단계, 나머지는 4단계.
+ */
+export const statusPick = (t) => {
+  const list = t.area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses;
+  return `<select class="chip-select ${statusMeta(t.status).tone}" data-status="${esc(t.id)}"
+                  aria-label="상태 변경" title="눌러서 상태 바꾸기">
+    ${list.map((s) => `<option value="${esc(s.code)}"${
+      s.code === t.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
+  </select>`;
+};
+
 export const issueChip = (code) => {
   const s = issueStatusMeta(code);
   return `<span class="chip ${s.tone}">${esc(s.label)}</span>`;

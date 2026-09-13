@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
-  statusChip, go, toast, dueCell, bindDueEdit,
+  statusChip, statusPick, go, toast, dueCell, bindDueEdit,
 } from '../ui.js';
 import { phaseForm, milestoneForm } from '../forms.js';
 
@@ -319,7 +319,7 @@ export async function renderTimeline(root) {
                 <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
                        data-title="${esc(t.id)}" aria-label="업무명 수정">
               </span>
-              <span class="st">${statusChip(t.status)}</span>
+              <span class="st">${statusPick(t)}</span>
               <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                       title="상세 편집">✎</button>
             </div>`).join('')}
@@ -329,6 +329,15 @@ export async function renderTimeline(root) {
   }
 
   root.addEventListener('change', async (e) => {
+    const st = e.target.closest('[data-status]');
+    if (st) {
+      try {
+        await api.patch(`/api/tasks/${st.dataset.status}`, { status: st.value });
+        toast('상태를 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      // 페이즈 진행률이 함께 달라진다
+      return reload();
+    }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
       const next = ttl.value.trim();
