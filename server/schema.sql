@@ -136,6 +136,20 @@ CREATE TABLE IF NOT EXISTS area_lead (
   updated_at    TEXT NOT NULL
 );
 
+-- 하위 업무: 업무 하나를 이루는 작은 항목들 (예: 편집 디자인 18종).
+-- 담당과 마감을 따로 갖지 않는다 — 그것들이 달라야 하면 업무로 만들어야 한다.
+CREATE TABLE IF NOT EXISTS subtask (
+  id          TEXT PRIMARY KEY,
+  task_id     TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  is_done     INTEGER NOT NULL DEFAULT 0,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL,
+  done_at     TEXT,
+  CHECK ((is_done = 1 AND done_at IS NOT NULL) OR (is_done = 0 AND done_at IS NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_subtask_task ON subtask(task_id, sort_order);
+
 CREATE TABLE IF NOT EXISTS task_collaborator (
   task_id       TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
   slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),

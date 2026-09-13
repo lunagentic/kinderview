@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dbFile, today, applySchema, weekStart, addDays } from './db.js';
 import { runMigrations } from './migrate.js';
 import {
-  members, projects, vendors, tasks, issues, overview, areaLeads,
+  members, projects, vendors, tasks, subtasks, issues, overview, areaLeads,
   timeEntries, payments, phases, milestones, timeline, expenses,
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
@@ -131,8 +131,19 @@ route('POST', '/api/tasks', async (ctx) => {
 route('GET', '/api/tasks/:id', (ctx) => {
   const t = tasks.get(ctx.params.id);
   if (!t) throw new HttpError(404, '업무를 찾을 수 없습니다.');
-  return { ...t, events: tasks.events(t.id), issues: issues.list({ task_id: t.id, includeResolved: true }) };
+  return {
+    ...t,
+    events: tasks.events(t.id),
+    issues: issues.list({ task_id: t.id, includeResolved: true }),
+    subtasks: subtasks.list(t.id),
+  };
 });
+
+// ── 하위 업무 ───────────────────────────────────────────
+route('GET', '/api/tasks/:id/subtasks', (ctx) => subtasks.list(ctx.params.id));
+route('POST', '/api/tasks/:id/subtasks', (ctx) => subtasks.create(ctx.params.id, ctx.body));
+route('PATCH', '/api/subtasks/:id', (ctx) => subtasks.update(ctx.params.id, ctx.body));
+route('DELETE', '/api/subtasks/:id', (ctx) => subtasks.remove(ctx.params.id));
 
 route('PATCH', '/api/tasks/:id', (ctx) => {
   const { before, after } = tasks.update(ctx.params.id, ctx.body, ctx.me);

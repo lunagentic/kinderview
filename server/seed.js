@@ -6,7 +6,7 @@
 
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
 import {
-  MEMBERS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, TIME_ENTRIES,
+  MEMBERS, PROJECTS, TASKS, SUBTASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, TIME_ENTRIES,
   PHASES, MILESTONES, EXPENSES,
 } from './seed-data.js';
 import { runMigrations } from './migrate.js';
@@ -101,6 +101,16 @@ tx(() => {
     run(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
          VALUES (:id, :t, 'CREATED', NULL, 'TODO', :actor, :at)`,
       { id: uid(), t: id, actor: 'U01KIM', at: created });
+  }
+
+  for (const [group, detail, items] of SUBTASKS ?? []) {
+    const taskId = taskIdByTitle[taskTitle(group, detail)];
+    if (!taskId) throw new Error(`하위 업무를 붙일 업무를 못 찾았습니다: ${taskTitle(group, detail)}`);
+    items.forEach((title, i) => {
+      run(`INSERT INTO subtask (id, task_id, title, is_done, sort_order, created_at)
+           VALUES (:id, :t, :title, 0, :n, :at)`,
+        { id: uid(), t: taskId, title, n: i + 1, at: nowISO() });
+    });
   }
 
   for (const [title, type, from, to, daysAgo] of EXTRA_EVENTS) {

@@ -25,17 +25,21 @@ const dedupeDomain = (src) => src
   .replace(/\bstatusLabel\b/g, 'domainStatusLabel')
   .replace(/\bareaLabel\b/g, 'domainAreaLabel');
 
-const seed = read('server/seed-data.js')
+const seedSrc = read('server/seed-data.js');
+const seed = seedSrc
   .replace(/^\/\/.*$/gm, '')
   .replace(/export const /g, 'const ');
+
+// SEED 에 담을 이름은 seed-data.js 의 export 에서 그대로 뽑는다.
+// 손으로 나열하면 자료를 새로 더할 때마다 데모에서만 조용히 사라진다 (SUBTASKS 가 그랬다).
+const seedKeys = [...seedSrc.matchAll(/^export const (\w+)/gm)].map((m) => m[1]);
 
 const parts = [
   '/* ── 도메인 상수 (server/domain.js) ─────────────────── */',
   dedupeDomain(flatten(read('server/domain.js'))),
   '/* ── 예시 데이터 (server/seed-data.js) ──────────────── */',
   seed,
-  'const SEED = { MEMBERS, AREA_LEADS, PROJECTS, TASKS, ISSUES, EXTRA_EVENTS, TIME_ENTRIES,\n'
-  + '  PHASES, MILESTONES, EXPENSES };',
+  `const SEED = { ${seedKeys.join(', ')} };`,
   '/* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */',
   flatten(read('server/ai/rules.js')),
   '/* ── 브라우저 저장소 (demo/store.js) ────────────────── */',

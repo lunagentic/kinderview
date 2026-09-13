@@ -110,6 +110,16 @@ function buildSeed() {
       to_value: val(to), actor_slack_user_id: 'U01KIM', occurred_at: at(d(-daysAgo), '04') });
   }
 
+  const subtasks = [];
+  for (const [group, detail, items] of SEED.SUBTASKS ?? []) {
+    const taskId = taskIdByTitle[taskTitle(group, detail)];
+    if (!taskId) continue;
+    items.forEach((title, i) => subtasks.push({
+      id: uid(), task_id: taskId, title, is_done: false,
+      sort_order: i + 1, created_at: nowISO(), done_at: null,
+    }));
+  }
+
   const issues = SEED.ISSUES.map(([pk, linkedTitle, title, content, owner, severity, status, targetDate, impact]) => ({
     id: uid(), project_id: projectId[pk], task_id: linkedTitle ? taskIdByTitle[linkedTitle] ?? null : null,
     title, content, owner_slack_user_id: owner, severity, status,
@@ -143,7 +153,7 @@ function buildSeed() {
   return {
     anchor: T, members, projects, vendors, tasks, collaborators, outsourcing, issues, events,
     area_leads: areaLeadRows, time_entries: timeRows, notifications: [], weekly_reports: [],
-    phases, milestones, expenses,
+    phases, milestones, expenses, subtasks,
   };
 }
 
@@ -162,12 +172,21 @@ function reconcile(db) {
 
   for (const m of SEED.MEMBERS ?? []) {
     const row = (db.members ?? []).find((x) => x.slack_user_id === m.id);
-    if (row && row.display_name !== m.name) {
+    if (!row) {
+      // 새로 들어온 구성원 — 시드에만 있고 저장된 데이터에는 없다
+      (db.members ??= []).push({
+        slack_user_id: m.id, display_name: m.name, real_name: m.name,
+        avatar_url: null, email: `${m.handle}@example.com`,
+        is_active: m.active, synced_at: nowISO(),
+      });
+      changed = true;
+    } else if (row.display_name !== m.name) {
       row.display_name = m.name;
       row.real_name = m.name;
       changed = true;
     }
   }
+  db.subtasks ??= [];
 
   // 새로 생긴 영역은 리드가 비어 있다. 리드가 없으면 그 영역에 업무를 넣을 수 없다.
   for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
@@ -222,6 +241,47 @@ const outOf = (taskId) => DB.outsourcing.find((o) => o.task_id === taskId) || nu
 const liveIssues = () => DB.issues.filter((i) => !i.deleted_at);
 const openIssuesOf = (taskId) => liveIssues().filter((i) => i.task_id === taskId && i.status !== 'RESOLVED');
 
+// ── 하위 업무 ───────────────────────────────────────────
+// 서버(server/repo.js 의 subtasks)와 같은 규칙이다.
+const subtasksOf = (taskId) => (DB.subtasks ?? [])
+  .filter((s) => s.task_id === taskId)
+  .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at));
+
+function createSubtask(taskId, body) {
+  const title = String(body.title ?? '').trim();
+  if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
+  const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
+  if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
+  const next = subtasksOf(taskId).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
+  const row = { id: uid(), task_id: taskId, title, is_done: false, sort_order: next,
+    created_at: nowISO(), done_at: null };
+  (DB.subtasks ??= []).push(row);
+  save();
+  return row;
+}
+
+function updateSubtask(id, body) {
+  const row = (DB.subtasks ?? []).find((s) => s.id === id);
+  if (!row) throw new DemoError('하위 업무를 찾을 수 없습니다.');
+  if (body.title !== undefined) {
+    const title = String(body.title).trim();
+    if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
+    row.title = title;
+  }
+  if (body.is_done !== undefined) {
+    row.is_done = Boolean(body.is_done);
+    row.done_at = row.is_done ? nowISO() : null;
+  }
+  save();
+  return row;
+}
+
+function removeSubtask(id) {
+  DB.subtasks = (DB.subtasks ?? []).filter((s) => s.id !== id);
+  save();
+  return { ok: true };
+}
+
 function hydrate(t, ref = today()) {
   const p = project(t.project_id);
   const m = member(t.owner_slack_user_id);
@@ -246,6 +306,8 @@ function hydrate(t, ref = today()) {
     is_delivery_delayed: Boolean(o) && t.status !== 'DONE' && o.delivery_due_date < ref,
     open_issue_count: openCount,
     has_open_issue: openCount > 0,
+    subtask_total: subtasksOf(t.id).length,
+    subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
     stage: STAGE[t.status],
     d_day: daysBetween(ref, t.due_date),
@@ -1301,6 +1363,15 @@ function handle(method, path, body) {
   }
   if (p === '/api/tasks' && method === 'POST') return createTask(body, me);
 
+  if (seg[1] === 'tasks' && seg[2] && seg[3] === 'subtasks') {
+    if (method === 'GET') return subtasksOf(seg[2]);
+    if (method === 'POST') return createSubtask(seg[2], body);
+  }
+  if (seg[1] === 'subtasks' && seg[2]) {
+    if (method === 'PATCH') return updateSubtask(seg[2], body);
+    if (method === 'DELETE') return removeSubtask(seg[2]);
+  }
+
   if (seg[1] === 'tasks' && seg[2]) {
     const id = seg[2];
     if (method === 'GET') {
@@ -1312,6 +1383,7 @@ function handle(method, path, body) {
           .map((e) => ({ ...e, actor_name: member(e.actor_slack_user_id)?.display_name ?? e.actor_slack_user_id }))
           .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)),
         issues: listIssues({ task_id: id, includeResolved: true }),
+        subtasks: subtasksOf(id),
       };
     }
     if (method === 'PATCH') return updateTask(id, body, me);

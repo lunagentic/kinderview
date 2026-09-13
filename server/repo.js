@@ -461,6 +461,8 @@ const TASK_SELECT = `
          (o.task_id IS NOT NULL AND t.status <> 'DONE' AND o.delivery_due_date < :today) AS is_delivery_delayed,
          (SELECT COUNT(*) FROM issue i
             WHERE i.task_id = t.id AND i.deleted_at IS NULL AND i.status <> 'RESOLVED') AS open_issue_count,
+         (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id) AS subtask_total,
+         (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id AND s.is_done = 1) AS subtask_done,
          ${CASE_WEIGHT} AS progress_weight
   FROM task t
   JOIN project p   ON p.id = t.project_id
@@ -475,6 +477,8 @@ const decorate = (row) => {
   row.is_delayed = !!row.is_delayed;
   row.is_delivery_delayed = !!row.is_delivery_delayed;
   row.has_open_issue = row.open_issue_count > 0;
+  row.subtask_total = row.subtask_total ?? 0;
+  row.subtask_done = row.subtask_done ?? 0;
   row.owner_active = !!row.owner_active;
   row.is_outsourcing = row.area === 'OUT';
   row.stage = STAGE[row.status];
@@ -486,6 +490,56 @@ const decorate = (row) => {
     { id: row.id },
   ).map((c) => ({ ...c, is_active: !!c.is_active }));
   return row;
+};
+
+// ── 하위 업무 ───────────────────────────────────────────
+// 업무 하나를 이루는 작은 항목이다. 담당·마감을 갖지 않는다 —
+// 그것이 서로 달라야 하는 순간 그건 하위 업무가 아니라 별개의 업무다.
+export const subtasks = {
+  list(taskId) {
+    return all(
+      'SELECT * FROM subtask WHERE task_id = :t ORDER BY sort_order, created_at',
+      { t: taskId },
+    ).map((r) => ({ ...r, is_done: !!r.is_done }));
+  },
+
+  create(taskId, input) {
+    const title = String(input.title ?? '').trim();
+    if (!title) throw new HttpError(400, '하위 업무명을 입력해 주세요.');
+    const task = one('SELECT id FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
+    if (!task) throw new HttpError(404, '업무를 찾을 수 없습니다.');
+    const next = one('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM subtask WHERE task_id = :t', { t: taskId }).n;
+    const id = uid();
+    run(
+      `INSERT INTO subtask (id, task_id, title, is_done, sort_order, created_at)
+       VALUES (:id, :t, :title, 0, :n, :at)`,
+      { id, t: taskId, title, n: next, at: nowISO() },
+    );
+    return one('SELECT * FROM subtask WHERE id = :id', { id });
+  },
+
+  update(id, patch) {
+    const cur = one('SELECT * FROM subtask WHERE id = :id', { id });
+    if (!cur) throw new HttpError(404, '하위 업무를 찾을 수 없습니다.');
+    if (patch.title !== undefined) {
+      const title = String(patch.title).trim();
+      if (!title) throw new HttpError(400, '하위 업무명을 입력해 주세요.');
+      run('UPDATE subtask SET title = :title WHERE id = :id', { id, title });
+    }
+    if (patch.is_done !== undefined) {
+      const done = patch.is_done ? 1 : 0;
+      // 완료 시각은 체크와 함께 움직인다 (CHECK 제약과 짝을 맞춘다)
+      run('UPDATE subtask SET is_done = :done, done_at = :at WHERE id = :id',
+        { id, done, at: done ? nowISO() : null });
+    }
+    const row = one('SELECT * FROM subtask WHERE id = :id', { id });
+    return { ...row, is_done: !!row.is_done };
+  },
+
+  remove(id) {
+    run('DELETE FROM subtask WHERE id = :id', { id });
+    return { ok: true };
+  },
 };
 
 export const tasks = {

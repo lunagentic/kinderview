@@ -124,7 +124,8 @@ export async function renderTasks(root, query) {
         ${shortDate(t.due_date)}
         <i class="dday">${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
       </span>
-      <span class="tk-title">${esc(t.title)} ${flags(t)}</span>
+      <span class="tk-title">${esc(t.title)} ${flags(t)}${t.subtask_total
+        ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
       <span class="tk-pr ${PR_TONE[t.priority] ?? ''}">${esc(
         (state.meta.priorities.find((x) => x.code === t.priority) ?? {}).label ?? t.priority)}</span>
       <span class="tk-owner">${person(t.owner_slack_user_id, t.owner_name)}</span>

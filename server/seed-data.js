@@ -14,6 +14,8 @@ export const MEMBERS = [
   { id: 'U03LEE',  name: '이OO', handle: 'lee',  active: 1 },
   { id: 'U04CHOI', name: '최OO', handle: 'choi', active: 1 },
   { id: 'U05JUNG', name: '정OO', handle: 'jung', active: 1 },
+  { id: 'U06KEON', name: '건',   handle: 'keon', active: 1 },
+  { id: 'U07SON',  name: '손',   handle: 'son',  active: 1 },
 ];
 
 // 영역 리드 — 업무의 담당자는 여기서 정해진다
@@ -121,6 +123,18 @@ export const TASKS = [
   ['CP', 'CP11', '안전교육 패키지',   '구성',                   'CONTENT', '2026-11-20', 'NORMAL',
     '슬랙에만 있던 항목 — 캔버스 11월 범위에는 없다'],
   ['CP', 'CP11', '스토리북',          '고도화 (아이·작품 사진)', 'CONTENT', '2026-11-27', 'NORMAL', ''],
+];
+
+// 하위 업무 — [결과, 상세업무명, [항목…]]
+// 항목 이름이 실제로 정해진 것만 넣는다. 「꾸미기 4종」처럼 개수만 아는 것은
+// 이름이 나오면 화면에서 직접 더한다 (지어내면 그게 곧 틀린 자료가 된다).
+export const SUBTASKS = [
+  ['리소스 발주 규격', '발주 양식 확정', [
+    '생성된 프롬프트',
+    '생성에 쓴 모델명',
+    '이미지·동영상 리소스',
+    '분류 정보 시트',
+  ]],
 ];
 
 // 마일스톤 — 아직 날짜가 확정된 약속이 없다. 시연일이 잡히면 여기 넣는다.

@@ -20,6 +20,23 @@ const statusLabel = (code) => {
 const reviewLabel = (code) => state.meta.review_statuses.find((s) => s.code === code)?.label ?? '-';
 const priorityLabel = (code) => state.meta.priorities.find((s) => s.code === code)?.label ?? '-';
 
+const subCount = (rows = []) => {
+  if (!rows.length) return '';
+  const done = rows.filter((r) => r.is_done).length;
+  return `<span class="sub-n${done === rows.length ? ' all' : ''}">${done}/${rows.length}</span>`;
+};
+
+const subList = (rows = []) => (rows.length
+  ? `<ul class="subs">${rows.map((r) => `
+      <li class="${r.is_done ? 'done' : ''}">
+        <label>
+          <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''}>
+          <span>${esc(r.title)}</span>
+        </label>
+        <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
+      </li>`).join('')}</ul>`
+  : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
+
 export async function renderTaskDetail(root, id) {
   root.innerHTML = loading();
   let t;
@@ -71,6 +88,17 @@ export async function renderTaskDetail(root, id) {
             ${t.completed_at ? `<dt>완료</dt><dd class="num">${dateTime(t.completed_at)}</dd>` : ''}
           </dl>
           ${t.description ? `<p style="margin-top:14px;white-space:pre-wrap;color:var(--ink-2)">${esc(t.description)}</p>` : ''}
+        </div>
+
+        <div class="panel" data-subs-panel>
+          <h3>하위 업무 ${subCount(t.subtasks)}</h3>
+          ${subList(t.subtasks)}
+          <form class="sub-add" data-sub-add>
+            <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)"
+                   aria-label="하위 업무명">
+            <button class="btn btn-ghost" type="submit">추가</button>
+          </form>
+          <p class="sub-note">담당과 마감은 위 업무를 따릅니다. 그게 달라야 하면 업무로 등록해 주세요.</p>
         </div>
 
         ${t.area === 'OUT' ? `
@@ -125,7 +153,29 @@ export async function renderTaskDetail(root, id) {
       </div>
     </div>`;
 
+  // 하위 업무는 화면만 고쳐 준다 — 한 칸 체크할 때마다 전체를 다시 그리면 흐름이 끊긴다
+  const repaintSubs = (rows) => {
+    const panel = root.querySelector('[data-subs-panel]');
+    if (!panel) return;
+    t.subtasks = rows;
+    panel.querySelector('h3').innerHTML = `하위 업무 ${subCount(rows)}`;
+    panel.querySelector('.subs, .empty-line')?.replaceWith(
+      new DOMParser().parseFromString(subList(rows), 'text/html').body.firstElementChild);
+  };
+  const reloadSubs = async () => {
+    try { repaintSubs(await api.get(`/api/tasks/${t.id}/subtasks`)); }
+    catch (err) { toast(err.message, true); }
+  };
+
   root.addEventListener('change', async (e) => {
+    const sub = e.target.closest('[data-sub]');
+    if (sub) {
+      try {
+        await api.patch(`/api/subtasks/${sub.dataset.sub}`, { is_done: sub.checked });
+        await reloadSubs();
+      } catch (err) { toast(err.message, true); await reloadSubs(); }
+      return;
+    }
     if (e.target.closest('[data-status]')) {
       const next = e.target.value;
       if (t.status === 'DONE' && next !== 'DONE') {
@@ -157,7 +207,30 @@ export async function renderTaskDetail(root, id) {
     }
   });
 
+  root.addEventListener('submit', async (e) => {
+    const form = e.target.closest('[data-sub-add]');
+    if (!form) return;
+    e.preventDefault();
+    const input = form.querySelector('[name=title]');
+    const title = input.value.trim();
+    if (!title) return;
+    try {
+      await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+      input.value = '';
+      await reloadSubs();
+      input.focus();   // 여러 개를 잇달아 넣는 일이 많다
+    } catch (err) { toast(err.message, true); }
+  });
+
   root.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-sub-del]');
+    if (del) {
+      try {
+        await api.del(`/api/subtasks/${del.dataset.subDel}`);
+        await reloadSubs();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
     if (e.target.closest('[data-edit]')) {
       taskForm({ task: t, onSaved: reload });
     } else if (e.target.closest('[data-new-issue]')) {
