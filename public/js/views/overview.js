@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state, leadOf } from '../state.js';
+import { state, leadOf, coLeadsOf } from '../state.js';
 import {
   esc, avatar, progressBar, pctText, loading, errorBox, empty, shortDate,
   go, projectStyle, projectName, hoverTip,
@@ -159,7 +159,10 @@ export async function renderOverview(root) {
         <div class="bars">
           ${ov.areas.map((a) => {
             const lead = leadOf(a.code);
-            const who = lead ? `리드 ${lead.display_name}` : '리드 미지정';
+            const co = coLeadsOf(a.code);
+            const who = lead
+              ? `리드 ${lead.display_name}${co.length ? ` · ${co.map((l) => l.display_name).join(' · ')}` : ''}`
+              : '리드 미지정';
             return barRow(
               a.label, a.progress,
               a.count ? `${who} · 업무 ${a.count} · 완료 ${a.done}${a.delayed ? ` · 지연 ${a.delayed}` : ''}` : `${who} · 등록된 업무 없음`,

@@ -553,6 +553,9 @@ details.more[open] > summary{color:var(--ink)}
 .lead-box{display:flex;align-items:center;gap:7px;background:var(--surface-2);
   border:1px solid var(--line);border-radius:var(--radius);padding:7px 10px;min-height:36px;font-size:.9rem}
 .lead-box .lead-none{color:var(--muted);font-size:.82rem}
+.lead-box .lead-co{color:var(--muted);font-size:.8rem;margin-left:2px}
+.lead-h4{margin:20px 0 6px;font-size:.92rem;font-weight:700}
+.co-picks{display:flex;flex-wrap:wrap;gap:8px 16px}
 .lead-table{display:flex;flex-direction:column;gap:1px;background:var(--line-soft);
   border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden}
 .lead-row{background:var(--surface);display:grid;grid-template-columns:1fr 200px;gap:14px;
@@ -1145,6 +1148,10 @@ const AREA_LEADS = [
   ['ETC',     'U01KIM'],
 ];
 
+
+
+const CO_LEADS = ['U07SON'];
+
 const PROJECTS = [
   { key: 'KV', name: 'Kinderverse',   code: 'KV', lead: 'U01KIM', order: 1, channel: '#킨더버스_시연-준비',
     start: '2026-09-01', end: '2026-09-30' },
@@ -1277,7 +1284,7 @@ const TIME_ENTRIES = [];
 const EXPENSES = [];
 
 
-const SEED = { MEMBERS, AREA_LEADS, PROJECTS, PHASES, TASKS, SUBTASKS, MILESTONES, ISSUES, EXTRA_EVENTS, TIME_ENTRIES, EXPENSES };
+const SEED = { MEMBERS, AREA_LEADS, CO_LEADS, PROJECTS, PHASES, TASKS, SUBTASKS, MILESTONES, ISSUES, EXTRA_EVENTS, TIME_ENTRIES, EXPENSES };
 
 /* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */
 
@@ -1714,10 +1721,16 @@ function buildSeed() {
     synced_at: nowISO(),
   }));
 
-  const areaLeadRows = (SEED.AREA_LEADS ?? []).map(([area, slack_user_id]) => ({
-    area, slack_user_id, updated_at: nowISO(),
-  }));
-  const leadOfArea = Object.fromEntries(areaLeadRows.map((l) => [l.area, l.slack_user_id]));
+  const areaLeadRows = [];
+  for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
+    areaLeadRows.push({ area, slack_user_id, role: 'LEAD', updated_at: nowISO() });
+    // 공동 리드는 모든 영역에 함께 선다. 대표와 같은 사람이면 건너뛴다.
+    for (const co of SEED.CO_LEADS ?? []) {
+      if (co !== slack_user_id) areaLeadRows.push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
+    }
+  }
+  const leadOfArea = Object.fromEntries(
+    areaLeadRows.filter((l) => l.role === 'LEAD').map((l) => [l.area, l.slack_user_id]));
 
   const projectId = {};
   const projects = SEED.PROJECTS.map((p) => {
@@ -1863,11 +1876,25 @@ function reconcile(db) {
   }
   db.subtasks ??= [];
 
-  // 새로 생긴 영역은 리드가 비어 있다. 리드가 없으면 그 영역에 업무를 넣을 수 없다.
+  // role 이 없던 시절 줄은 모두 대표였다
+  for (const l of db.area_leads ?? []) {
+    if (!l.role) { l.role = 'LEAD'; changed = true; }
+  }
+  // 새로 생긴 영역은 리드가 비어 있다. 대표가 없으면 그 영역에 업무를 넣을 수 없다.
   for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
-    if (!(db.area_leads ?? []).some((l) => l.area === area)) {
-      (db.area_leads ??= []).push({ area, slack_user_id, updated_at: nowISO() });
+    if (!(db.area_leads ?? []).some((l) => l.area === area && l.role === 'LEAD')) {
+      (db.area_leads ??= []).push({ area, slack_user_id, role: 'LEAD', updated_at: nowISO() });
       changed = true;
+    }
+  }
+  // 공동 리드도 영역마다 채워 준다 (시드에 새로 생긴 사람)
+  for (const co of SEED.CO_LEADS ?? []) {
+    for (const [area] of SEED.AREA_LEADS ?? []) {
+      const has = (db.area_leads ?? []).some((l) => l.area === area && l.slack_user_id === co);
+      if (!has) {
+        (db.area_leads ??= []).push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
+        changed = true;
+      }
     }
   }
 
@@ -2167,13 +2194,30 @@ const leadRows = () => (DB.area_leads ?? []).map((l) => {
   return { ...l, display_name: m?.display_name ?? l.slack_user_id,
     avatar_url: m?.avatar_url ?? null, is_active: Boolean(m?.is_active) };
 });
-const areaLeadOf = (area) => (DB.area_leads ?? []).find((l) => l.area === area)?.slack_user_id ?? null;
+// 담당이 되는 사람은 대표 리드다
+const areaLeadOf = (area) => (DB.area_leads ?? [])
+  .find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD')?.slack_user_id ?? null;
+
+/** 공동 리드 명단을 통째로 다시 쓴다 — 모든 영역에 같은 사람들을 세운다 */
+function setCoLeads(ids = []) {
+  DB.area_leads = (DB.area_leads ?? []).filter((l) => (l.role ?? 'LEAD') === 'LEAD');
+  for (const a of AREAS) {
+    const primary = areaLeadOf(a.code);
+    for (const uid of ids) {
+      if (!uid || uid === primary) continue;
+      DB.area_leads.push({ area: a.code, slack_user_id: uid, role: 'CO', updated_at: nowISO() });
+    }
+  }
+  save();
+  return leadRows();
+}
 
 function setLead(area, slackUserId, actor) {
   const before = areaLeadOf(area);
-  const row = (DB.area_leads ??= []).find((l) => l.area === area);
-  if (row) row.slack_user_id = slackUserId;
-  else DB.area_leads.push({ area, slack_user_id: slackUserId, updated_at: nowISO() });
+  // 대표는 영역마다 한 명. 공동으로 서 있던 사람이 대표가 되면 그 줄도 지운다.
+  DB.area_leads = (DB.area_leads ??= []).filter(
+    (l) => !(l.area === area && ((l.role ?? 'LEAD') === 'LEAD' || l.slack_user_id === slackUserId)));
+  DB.area_leads.push({ area, slack_user_id: slackUserId, role: 'LEAD', updated_at: nowISO() });
   let moved = 0;
   if (before !== slackUserId) {
     for (const t of DB.tasks) {
@@ -3099,6 +3143,7 @@ function handle(method, path, body) {
   }
 
   if (p === '/api/area-leads' && method === 'GET') return leadRows();
+  if (p === '/api/area-leads/co' && method === 'PATCH') return setCoLeads(body.members ?? []);
   if (p === '/api/area-leads' && method === 'PATCH') {
     if (!Array.isArray(body.leads)) throw new DemoError('리드 목록이 필요합니다.');
     const out = body.leads.map((l) => setLead(l.area, l.slack_user_id, me));
@@ -3310,7 +3355,16 @@ const statusMeta = (code) => {
 };
 const statusesFor = (area) =>
   area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses;
-const leadOf = (area) => state.areaLeads.find((l) => l.area === area) ?? null;
+// 담당이 되는 사람은 대표 리드다. role 이 없던 시절 데이터도 대표로 본다.
+const leadOf = (area) =>
+  state.areaLeads.find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD') ?? null;
+// 함께 서는 사람들 — 담당은 지지 않는다
+const coLeadsOf = (area) => state.areaLeads.filter((l) => l.area === area && l.role === 'CO');
+/** 화면에 쓰는 이름 한 줄: "혁 · 손" */
+const leadNames = (area) => {
+  const names = [leadOf(area), ...coLeadsOf(area)].filter(Boolean).map((l) => l.display_name);
+  return names.length ? names.join(' · ') : '리드 미지정';
+};
 const leadAreas = (slackUserId) =>
   state.areaLeads.filter((l) => l.slack_user_id === slackUserId).map((l) => l.area);
 
@@ -3743,11 +3797,14 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
 
       const syncLead = () => {
         const lead = leadOf(areaSel.value);
+        const co = coLeadsOf(areaSel.value);
         leadBox.innerHTML = lead
           ? `${avatar(lead, 'sm')}<span>${esc(lead.display_name)}</span>`
             + `${lead.is_active ? '' : '<span class="inactive">(비활성)</span>'}`
+            // 공동 리드는 담당이 아니다 — 함께 선다는 것만 보여 준다
+            + (co.length ? `<span class="lead-co">· 공동 ${esc(co.map((l) => l.display_name).join(' · '))}</span>` : '')
           : '<span class="lead-none">이 영역의 리드가 없습니다 · Overview에서 지정해 주세요</span>';
-        collabPicker.setExclude(lead ? [lead.slack_user_id] : []);
+        collabPicker.setExclude([lead?.slack_user_id, ...co.map((l) => l.slack_user_id)].filter(Boolean));
       };
 
       const syncArea = () => {
@@ -4034,7 +4091,9 @@ function projectForm({ project = null, onSaved }) {
 // ── 영역 리드 관리 ──────────────────────────────────────
 // 업무마다 사람을 고르는 대신 여기서 영역별 책임자를 정한다.
 function areaLeadsForm({ onSaved }) {
-  const current = Object.fromEntries(state.areaLeads.map((l) => [l.area, l.slack_user_id]));
+  const current = Object.fromEntries(
+    state.areaLeads.filter((l) => (l.role ?? 'LEAD') === 'LEAD').map((l) => [l.area, l.slack_user_id]));
+  const co = new Set(state.areaLeads.filter((l) => l.role === 'CO').map((l) => l.slack_user_id));
   const people = activeMembers();
 
   const body = `
@@ -4052,6 +4111,19 @@ function areaLeadsForm({ onSaved }) {
               current[a.code] === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
           </select>
         </div>`).join('')}
+    </div>
+
+    <h4 class="lead-h4">공동 리드</h4>
+    <p class="hint" style="margin-bottom:10px">
+      고른 사람은 <b>모든 영역</b>의 리드 옆에 함께 섭니다. 담당은 지지 않습니다 —
+      업무 담당은 위의 대표 리드 그대로입니다.
+    </p>
+    <div class="co-picks">
+      ${people.map((m) => `
+        <label class="chk">
+          <input type="checkbox" data-co="${esc(m.slack_user_id)}"${co.has(m.slack_user_id) ? ' checked' : ''}>
+          ${esc(m.display_name)}
+        </label>`).join('')}
     </div>`;
 
   modal({
@@ -4065,8 +4137,12 @@ function areaLeadsForm({ onSaved }) {
           .filter((sel) => sel.value)
           .map((sel) => ({ area: sel.dataset.area, slack_user_id: sel.value }));
         if (!leads.length) return toast('리드를 한 명 이상 지정해 주세요.', true);
+        const coPicks = [...root.querySelectorAll('[data-co]')]
+          .filter((c) => c.checked).map((c) => c.dataset.co);
         try {
           const result = await api.patch('/api/area-leads', { leads });
+          // 대표를 먼저 세우고 공동을 쓴다 — 대표와 겹치는 사람은 서버가 걸러 낸다
+          await api.patch('/api/area-leads/co', { members: coPicks });
           const moved = result.reduce((n, r) => n + (r.moved ?? 0), 0);
           toast(moved ? `영역 리드를 저장했습니다. 업무 ${moved}건의 담당이 함께 바뀌었습니다.` : '영역 리드를 저장했습니다.');
           close();
@@ -4526,7 +4602,10 @@ async function renderOverview(root) {
         <div class="bars">
           ${ov.areas.map((a) => {
             const lead = leadOf(a.code);
-            const who = lead ? `리드 ${lead.display_name}` : '리드 미지정';
+            const co = coLeadsOf(a.code);
+            const who = lead
+              ? `리드 ${lead.display_name}${co.length ? ` · ${co.map((l) => l.display_name).join(' · ')}` : ''}`
+              : '리드 미지정';
             return barRow(
               a.label, a.progress,
               a.count ? `${who} · 업무 ${a.count} · 완료 ${a.done}${a.delayed ? ` · 지연 ${a.delayed}` : ''}` : `${who} · 등록된 업무 없음`,
@@ -4788,7 +4867,7 @@ async function renderTasks(root, query) {
             <div class="tk-area-head">
               <span class="lab">${esc(a.area.full)}</span>
               <span class="n">${a.rows.length}건</span>
-              <span class="lead">${esc((state.areaLeads.find((l) => l.area === a.area.code) ?? {}).display_name ?? '리드 미지정')}</span>
+              <span class="lead">${esc(leadNames(a.area.code))}</span>
             </div>
             <div class="tk-rows">${a.rows.map(taskRow).join('')}</div>
           </div>`).join('')}
@@ -5064,6 +5143,8 @@ async function renderTaskDetail(root, id) {
           <h3>업무 정보</h3>
           <dl class="kv">
             <dt>담당</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}<span class="area-lead-tag">· ${esc(areaMeta(t.area).full)} 리드</span></dd>
+            ${coLeadsOf(t.area).length ? `<dt>공동</dt><dd>${
+              coLeadsOf(t.area).map((l) => person(l.slack_user_id, l.display_name)).join(' ')}</dd>` : ''}
             <dt>협업자</dt><dd>${t.collaborators.length
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
@@ -6097,7 +6178,7 @@ async function renderTimeline(root) {
           <div class="tld-area-head">
             <span class="lab">${esc(g.area.full)}</span>
             <span class="n">${g.rows.length}건</span>
-            <span class="lead">${esc((state.areaLeads.find((l) => l.area === g.area.code) ?? {}).display_name ?? '리드 미지정')}</span>
+            <span class="lead">${esc(leadNames(g.area.code))}</span>
           </div>
           ${g.rows.map((t) => `
             <button class="tld-task" data-task="${esc(t.id)}">

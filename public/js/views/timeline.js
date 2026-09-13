@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state } from '../state.js';
+import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusChip, go,
@@ -303,7 +303,7 @@ export async function renderTimeline(root) {
           <div class="tld-area-head">
             <span class="lab">${esc(g.area.full)}</span>
             <span class="n">${g.rows.length}건</span>
-            <span class="lead">${esc((state.areaLeads.find((l) => l.area === g.area.code) ?? {}).display_name ?? '리드 미지정')}</span>
+            <span class="lead">${esc(leadNames(g.area.code))}</span>
           </div>
           ${g.rows.map((t) => `
             <button class="tld-task" data-task="${esc(t.id)}">

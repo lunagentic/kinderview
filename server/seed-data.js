@@ -32,6 +32,10 @@ export const AREA_LEADS = [
   ['ETC',     'U01KIM'],
 ];
 
+// 공동 리드 — 모든 영역에 함께 서는 사람. 담당(업무 소유)은 지지 않는다.
+// 손은 PO 라 전 영역을 본다.
+export const CO_LEADS = ['U07SON'];
+
 export const PROJECTS = [
   { key: 'KV', name: 'Kinderverse',   code: 'KV', lead: 'U01KIM', order: 1, channel: '#킨더버스_시연-준비',
     start: '2026-09-01', end: '2026-09-30' },

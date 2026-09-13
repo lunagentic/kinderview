@@ -6,7 +6,7 @@
 
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
 import {
-  MEMBERS, PROJECTS, TASKS, SUBTASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, TIME_ENTRIES,
+  MEMBERS, PROJECTS, TASKS, SUBTASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, CO_LEADS, TIME_ENTRIES,
   PHASES, MILESTONES, EXPENSES,
 } from './seed-data.js';
 import { runMigrations } from './migrate.js';
@@ -46,8 +46,14 @@ tx(() => {
   }
 
   for (const [area, uid] of AREA_LEADS) {
-    run('INSERT INTO area_lead (area, slack_user_id, updated_at) VALUES (:area, :uid, :at)',
+    run("INSERT INTO area_lead (area, slack_user_id, role, updated_at) VALUES (:area, :uid, 'LEAD', :at)",
       { area, uid, at });
+    // 공동 리드는 모든 영역에 함께 선다. 대표와 같은 사람이면 건너뛴다.
+    for (const co of CO_LEADS ?? []) {
+      if (co === uid) continue;
+      run("INSERT INTO area_lead (area, slack_user_id, role, updated_at) VALUES (:area, :co, 'CO', :at)",
+        { area, co, at });
+    }
   }
 
   const projectId = {};

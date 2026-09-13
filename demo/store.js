@@ -39,10 +39,16 @@ function buildSeed() {
     synced_at: nowISO(),
   }));
 
-  const areaLeadRows = (SEED.AREA_LEADS ?? []).map(([area, slack_user_id]) => ({
-    area, slack_user_id, updated_at: nowISO(),
-  }));
-  const leadOfArea = Object.fromEntries(areaLeadRows.map((l) => [l.area, l.slack_user_id]));
+  const areaLeadRows = [];
+  for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
+    areaLeadRows.push({ area, slack_user_id, role: 'LEAD', updated_at: nowISO() });
+    // 공동 리드는 모든 영역에 함께 선다. 대표와 같은 사람이면 건너뛴다.
+    for (const co of SEED.CO_LEADS ?? []) {
+      if (co !== slack_user_id) areaLeadRows.push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
+    }
+  }
+  const leadOfArea = Object.fromEntries(
+    areaLeadRows.filter((l) => l.role === 'LEAD').map((l) => [l.area, l.slack_user_id]));
 
   const projectId = {};
   const projects = SEED.PROJECTS.map((p) => {
@@ -188,11 +194,25 @@ function reconcile(db) {
   }
   db.subtasks ??= [];
 
-  // 새로 생긴 영역은 리드가 비어 있다. 리드가 없으면 그 영역에 업무를 넣을 수 없다.
+  // role 이 없던 시절 줄은 모두 대표였다
+  for (const l of db.area_leads ?? []) {
+    if (!l.role) { l.role = 'LEAD'; changed = true; }
+  }
+  // 새로 생긴 영역은 리드가 비어 있다. 대표가 없으면 그 영역에 업무를 넣을 수 없다.
   for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
-    if (!(db.area_leads ?? []).some((l) => l.area === area)) {
-      (db.area_leads ??= []).push({ area, slack_user_id, updated_at: nowISO() });
+    if (!(db.area_leads ?? []).some((l) => l.area === area && l.role === 'LEAD')) {
+      (db.area_leads ??= []).push({ area, slack_user_id, role: 'LEAD', updated_at: nowISO() });
       changed = true;
+    }
+  }
+  // 공동 리드도 영역마다 채워 준다 (시드에 새로 생긴 사람)
+  for (const co of SEED.CO_LEADS ?? []) {
+    for (const [area] of SEED.AREA_LEADS ?? []) {
+      const has = (db.area_leads ?? []).some((l) => l.area === area && l.slack_user_id === co);
+      if (!has) {
+        (db.area_leads ??= []).push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
+        changed = true;
+      }
     }
   }
 
@@ -492,13 +512,30 @@ const leadRows = () => (DB.area_leads ?? []).map((l) => {
   return { ...l, display_name: m?.display_name ?? l.slack_user_id,
     avatar_url: m?.avatar_url ?? null, is_active: Boolean(m?.is_active) };
 });
-const areaLeadOf = (area) => (DB.area_leads ?? []).find((l) => l.area === area)?.slack_user_id ?? null;
+// 담당이 되는 사람은 대표 리드다
+const areaLeadOf = (area) => (DB.area_leads ?? [])
+  .find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD')?.slack_user_id ?? null;
+
+/** 공동 리드 명단을 통째로 다시 쓴다 — 모든 영역에 같은 사람들을 세운다 */
+function setCoLeads(ids = []) {
+  DB.area_leads = (DB.area_leads ?? []).filter((l) => (l.role ?? 'LEAD') === 'LEAD');
+  for (const a of AREAS) {
+    const primary = areaLeadOf(a.code);
+    for (const uid of ids) {
+      if (!uid || uid === primary) continue;
+      DB.area_leads.push({ area: a.code, slack_user_id: uid, role: 'CO', updated_at: nowISO() });
+    }
+  }
+  save();
+  return leadRows();
+}
 
 function setLead(area, slackUserId, actor) {
   const before = areaLeadOf(area);
-  const row = (DB.area_leads ??= []).find((l) => l.area === area);
-  if (row) row.slack_user_id = slackUserId;
-  else DB.area_leads.push({ area, slack_user_id: slackUserId, updated_at: nowISO() });
+  // 대표는 영역마다 한 명. 공동으로 서 있던 사람이 대표가 되면 그 줄도 지운다.
+  DB.area_leads = (DB.area_leads ??= []).filter(
+    (l) => !(l.area === area && ((l.role ?? 'LEAD') === 'LEAD' || l.slack_user_id === slackUserId)));
+  DB.area_leads.push({ area, slack_user_id: slackUserId, role: 'LEAD', updated_at: nowISO() });
   let moved = 0;
   if (before !== slackUserId) {
     for (const t of DB.tasks) {
@@ -1424,6 +1461,7 @@ function handle(method, path, body) {
   }
 
   if (p === '/api/area-leads' && method === 'GET') return leadRows();
+  if (p === '/api/area-leads/co' && method === 'PATCH') return setCoLeads(body.members ?? []);
   if (p === '/api/area-leads' && method === 'PATCH') {
     if (!Array.isArray(body.leads)) throw new DemoError('리드 목록이 필요합니다.');
     const out = body.leads.map((l) => setLead(l.area, l.slack_user_id, me));

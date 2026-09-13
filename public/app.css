@@ -548,6 +548,9 @@ details.more[open] > summary{color:var(--ink)}
 .lead-box{display:flex;align-items:center;gap:7px;background:var(--surface-2);
   border:1px solid var(--line);border-radius:var(--radius);padding:7px 10px;min-height:36px;font-size:.9rem}
 .lead-box .lead-none{color:var(--muted);font-size:.82rem}
+.lead-box .lead-co{color:var(--muted);font-size:.8rem;margin-left:2px}
+.lead-h4{margin:20px 0 6px;font-size:.92rem;font-weight:700}
+.co-picks{display:flex;flex-wrap:wrap;gap:8px 16px}
 .lead-table{display:flex;flex-direction:column;gap:1px;background:var(--line-soft);
   border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden}
 .lead-row{background:var(--surface);display:grid;grid-template-columns:1fr 200px;gap:14px;

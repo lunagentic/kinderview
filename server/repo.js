@@ -373,16 +373,42 @@ export const vendors = {
 export const areaLeads = {
   list() {
     return all(
-      `SELECT l.area, l.slack_user_id, l.updated_at,
+      `SELECT l.area, l.slack_user_id, l.role, l.updated_at,
               m.display_name, m.avatar_url, m.is_active
-       FROM area_lead l JOIN member m ON m.slack_user_id = l.slack_user_id`,
+       FROM area_lead l JOIN member m ON m.slack_user_id = l.slack_user_id
+       ORDER BY (l.role <> 'LEAD'), m.display_name`,
     ).map((r) => ({ ...r, is_active: !!r.is_active }));
   },
   map() {
-    return Object.fromEntries(areaLeads.list().map((r) => [r.area, r.slack_user_id]));
+    return Object.fromEntries(
+      areaLeads.list().filter((r) => r.role === 'LEAD').map((r) => [r.area, r.slack_user_id]),
+    );
   },
+  /** 업무 담당이 되는 사람 — 대표 리드다. 공동 리드는 담당을 지지 않는다. */
   of(area) {
-    return one('SELECT slack_user_id FROM area_lead WHERE area = :area', { area })?.slack_user_id ?? null;
+    return one("SELECT slack_user_id FROM area_lead WHERE area = :area AND role = 'LEAD'", { area })
+      ?.slack_user_id ?? null;
+  },
+
+  /**
+   * 공동 리드를 통째로 다시 쓴다. 전 영역에 함께 서는 사람(PO 등)을 위한 것이라
+   * 영역별로 따로 고르지 않고 명단 하나를 모든 영역에 적용한다.
+   * 대표 리드와 같은 사람은 건너뛴다 — 한 영역에서 두 줄이 될 수는 없다.
+   */
+  setCo(slackUserIds = []) {
+    return tx(() => {
+      run("DELETE FROM area_lead WHERE role = 'CO'");
+      const at = nowISO();
+      for (const a of AREAS) {
+        const primary = areaLeads.of(a.code);
+        for (const uid of slackUserIds) {
+          if (!uid || uid === primary) continue;
+          run(`INSERT INTO area_lead (area, slack_user_id, role, updated_at)
+               VALUES (:area, :uid, 'CO', :at)`, { area: a.code, uid, at });
+        }
+      }
+      return areaLeads.list();
+    });
   },
   /** 리드를 바꾸면 그 영역의 미완료 업무 담당도 함께 옮긴다. 완료된 업무는 기록으로 남긴다. */
   set(area, slackUserId, actor) {
@@ -390,9 +416,13 @@ export const areaLeads = {
     if (!slackUserId) throw new HttpError(400, '리드를 지정해 주세요.');
     return tx(() => {
       const before = areaLeads.of(area);
+      // 대표는 영역마다 한 명이다. 사람이 바뀌면 옛 줄을 지우고 새로 세운다.
+      run("DELETE FROM area_lead WHERE area = :area AND role = 'LEAD'", { area });
+      // 공동으로 서 있던 사람이 대표가 되는 경우 — 같은 영역에 두 줄이 될 수 없으니 먼저 지운다
+      run('DELETE FROM area_lead WHERE area = :area AND slack_user_id = :uid', { area, uid: slackUserId });
       run(
-        `INSERT INTO area_lead (area, slack_user_id, updated_at) VALUES (:area, :uid, :at)
-         ON CONFLICT(area) DO UPDATE SET slack_user_id = excluded.slack_user_id, updated_at = excluded.updated_at`,
+        `INSERT INTO area_lead (area, slack_user_id, role, updated_at)
+         VALUES (:area, :uid, 'LEAD', :at)`,
         { area, uid: slackUserId, at: nowISO() },
       );
       let moved = 0;

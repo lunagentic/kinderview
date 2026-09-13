@@ -169,6 +169,8 @@ route('PATCH', '/api/projects/:id', (ctx) => {
 // ── 영역 리드 ───────────────────────────────────────────
 
 route('GET', '/api/area-leads', () => areaLeads.list());
+// 공동 리드 — 전 영역에 함께 서는 사람들. 명단을 통째로 바꾼다.
+route('PATCH', '/api/area-leads/co', (ctx) => areaLeads.setCo(ctx.body?.members ?? []));
 
 route('PATCH', '/api/area-leads', (ctx) => {
   if (!Array.isArray(ctx.body.leads)) throw new HttpError(400, '리드 목록이 필요합니다.');

@@ -87,6 +87,41 @@ function migrateAreas() {
   return '업무 영역 개편: KinderBoard 추가 (기존 업무의 영역 값은 그대로)';
 }
 
+/**
+ * 공동 리드: area_lead 의 기본키가 area 하나였다. 영역마다 한 명만 설 수 있다는 뜻이라
+ * 여러 명을 세우려면 표를 다시 만들어야 한다. 기존 행은 모두 대표(LEAD)로 옮긴다.
+ */
+function migrateCoLeads() {
+  const sql = tableSql('area_lead');
+  if (!sql || sql.includes('role')) return null;
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN');
+  try {
+    db.exec(`
+      CREATE TABLE area_lead_migrated (
+        area          TEXT NOT NULL
+                      CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
+        slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
+        role          TEXT NOT NULL DEFAULT 'LEAD' CHECK (role IN ('LEAD','CO')),
+        updated_at    TEXT NOT NULL,
+        PRIMARY KEY (area, slack_user_id)
+      )`);
+    db.exec(`INSERT INTO area_lead_migrated (area, slack_user_id, role, updated_at)
+             SELECT area, slack_user_id, 'LEAD', updated_at FROM area_lead`);
+    db.exec('DROP TABLE area_lead');
+    db.exec('ALTER TABLE area_lead_migrated RENAME TO area_lead');
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    db.exec('PRAGMA foreign_keys = ON');
+    throw err;
+  }
+  db.exec('PRAGMA foreign_keys = ON');
+
+  return '영역 리드에 공동 리드 추가 (기존 리드는 모두 대표로)';
+}
+
 /** 외주 지급 정보 — 컬럼 추가는 테이블 재생성이 필요 없다 */
 function addOutsourcingPayment() {
   const sql = tableSql('outsourcing');
@@ -105,10 +140,22 @@ function addTaskPhase() {
   return '업무에 페이즈 컬럼 추가';
 }
 
+/**
+ * 스키마 적용(db.js)보다 늦게 걸어야 하는 제약들.
+ * 여기 있는 것은 언제 돌려도 안전하고, 옮길 것이 없어도 매번 확인한다.
+ */
+function ensureConstraints() {
+  // 대표 리드는 영역마다 한 명 — area_lead 에 role 이 생긴 뒤에야 걸 수 있다
+  if (tableSql('area_lead').includes('role')) {
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_area_lead_primary ON area_lead(area) WHERE role = 'LEAD'");
+  }
+}
+
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
-  const notes = [migrateAreas(), addTaskPhase(), addOutsourcingPayment()].filter(Boolean);
+  const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment()].filter(Boolean);
+  ensureConstraints();
   for (const note of notes) console.log(`[migrate] ${note}`);
   return notes;
 }

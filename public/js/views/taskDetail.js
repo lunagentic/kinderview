@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state, areaMeta } from '../state.js';
+import { state, areaMeta, coLeadsOf } from '../state.js';
 import {
   esc, statusChip, areaChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
 } from '../ui.js';
@@ -76,6 +76,8 @@ export async function renderTaskDetail(root, id) {
           <h3>업무 정보</h3>
           <dl class="kv">
             <dt>담당</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}<span class="area-lead-tag">· ${esc(areaMeta(t.area).full)} 리드</span></dd>
+            ${coLeadsOf(t.area).length ? `<dt>공동</dt><dd>${
+              coLeadsOf(t.area).map((l) => person(l.slack_user_id, l.display_name)).join(' ')}</dd>` : ''}
             <dt>협업자</dt><dd>${t.collaborators.length
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>

@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state, activeProjects, areaMeta } from '../state.js';
+import { state, activeProjects, areaMeta, leadNames } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref,
@@ -188,7 +188,7 @@ export async function renderTasks(root, query) {
             <div class="tk-area-head">
               <span class="lab">${esc(a.area.full)}</span>
               <span class="n">${a.rows.length}건</span>
-              <span class="lead">${esc((state.areaLeads.find((l) => l.area === a.area.code) ?? {}).display_name ?? '리드 미지정')}</span>
+              <span class="lead">${esc(leadNames(a.area.code))}</span>
             </div>
             <div class="tk-rows">${a.rows.map(taskRow).join('')}</div>
           </div>`).join('')}

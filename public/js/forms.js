@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, leadOf } from './state.js';
+import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, leadOf, coLeadsOf } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal } from './ui.js';
 
 // ── Slack 멤버 검색 선택기 ──────────────────────────────
@@ -218,11 +218,14 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
 
       const syncLead = () => {
         const lead = leadOf(areaSel.value);
+        const co = coLeadsOf(areaSel.value);
         leadBox.innerHTML = lead
           ? `${avatar(lead, 'sm')}<span>${esc(lead.display_name)}</span>`
             + `${lead.is_active ? '' : '<span class="inactive">(비활성)</span>'}`
+            // 공동 리드는 담당이 아니다 — 함께 선다는 것만 보여 준다
+            + (co.length ? `<span class="lead-co">· 공동 ${esc(co.map((l) => l.display_name).join(' · '))}</span>` : '')
           : '<span class="lead-none">이 영역의 리드가 없습니다 · Overview에서 지정해 주세요</span>';
-        collabPicker.setExclude(lead ? [lead.slack_user_id] : []);
+        collabPicker.setExclude([lead?.slack_user_id, ...co.map((l) => l.slack_user_id)].filter(Boolean));
       };
 
       const syncArea = () => {
@@ -509,7 +512,9 @@ export function projectForm({ project = null, onSaved }) {
 // ── 영역 리드 관리 ──────────────────────────────────────
 // 업무마다 사람을 고르는 대신 여기서 영역별 책임자를 정한다.
 export function areaLeadsForm({ onSaved }) {
-  const current = Object.fromEntries(state.areaLeads.map((l) => [l.area, l.slack_user_id]));
+  const current = Object.fromEntries(
+    state.areaLeads.filter((l) => (l.role ?? 'LEAD') === 'LEAD').map((l) => [l.area, l.slack_user_id]));
+  const co = new Set(state.areaLeads.filter((l) => l.role === 'CO').map((l) => l.slack_user_id));
   const people = activeMembers();
 
   const body = `
@@ -527,6 +532,19 @@ export function areaLeadsForm({ onSaved }) {
               current[a.code] === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
           </select>
         </div>`).join('')}
+    </div>
+
+    <h4 class="lead-h4">공동 리드</h4>
+    <p class="hint" style="margin-bottom:10px">
+      고른 사람은 <b>모든 영역</b>의 리드 옆에 함께 섭니다. 담당은 지지 않습니다 —
+      업무 담당은 위의 대표 리드 그대로입니다.
+    </p>
+    <div class="co-picks">
+      ${people.map((m) => `
+        <label class="chk">
+          <input type="checkbox" data-co="${esc(m.slack_user_id)}"${co.has(m.slack_user_id) ? ' checked' : ''}>
+          ${esc(m.display_name)}
+        </label>`).join('')}
     </div>`;
 
   modal({
@@ -540,8 +558,12 @@ export function areaLeadsForm({ onSaved }) {
           .filter((sel) => sel.value)
           .map((sel) => ({ area: sel.dataset.area, slack_user_id: sel.value }));
         if (!leads.length) return toast('리드를 한 명 이상 지정해 주세요.', true);
+        const coPicks = [...root.querySelectorAll('[data-co]')]
+          .filter((c) => c.checked).map((c) => c.dataset.co);
         try {
           const result = await api.patch('/api/area-leads', { leads });
+          // 대표를 먼저 세우고 공동을 쓴다 — 대표와 겹치는 사람은 서버가 걸러 낸다
+          await api.patch('/api/area-leads/co', { members: coPicks });
           const moved = result.reduce((n, r) => n + (r.moved ?? 0), 0);
           toast(moved ? `영역 리드를 저장했습니다. 업무 ${moved}건의 담당이 함께 바뀌었습니다.` : '영역 리드를 저장했습니다.');
           close();

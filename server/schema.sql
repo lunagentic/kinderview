@@ -127,14 +127,20 @@ CREATE INDEX IF NOT EXISTS idx_task_owner   ON task(owner_slack_user_id);
 CREATE INDEX IF NOT EXISTS idx_task_due     ON task(due_date);
 CREATE INDEX IF NOT EXISTS idx_task_open    ON task(due_date) WHERE deleted_at IS NULL AND status <> 'DONE';
 
--- 영역 리드: 업무 영역마다 책임자 1명.
--- 업무의 담당자는 사람을 따로 고르지 않고 이 표에서 결정된다.
+-- 영역 리드: 업무 영역마다 대표 1명(LEAD) + 공동 여러 명(CO).
+-- 업무의 담당자는 사람을 따로 고르지 않고 대표 리드로 정해진다.
+-- 공동 리드는 담당을 나눠 지지 않는다 — 함께 서는 사람이다(예: 전 영역을 보는 PO).
 CREATE TABLE IF NOT EXISTS area_lead (
-  area          TEXT PRIMARY KEY
+  area          TEXT NOT NULL
                 CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
   slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
-  updated_at    TEXT NOT NULL
+  role          TEXT NOT NULL DEFAULT 'LEAD' CHECK (role IN ('LEAD','CO')),
+  updated_at    TEXT NOT NULL,
+  PRIMARY KEY (area, slack_user_id)
 );
+-- 대표 리드가 영역마다 한 명이라는 제약은 migrate.js 에서 건다.
+-- 여기에 두면 role 컬럼이 아직 없는 옛 DB 에서 스키마 적용 자체가 실패한다
+-- (스키마는 마이그레이션보다 먼저 돈다).
 
 -- 하위 업무: 업무 하나를 이루는 작은 항목들 (예: 편집 디자인 18종).
 -- 담당과 마감을 따로 갖지 않는다 — 그것들이 달라야 하면 업무로 만들어야 한다.
