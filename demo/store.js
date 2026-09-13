@@ -97,7 +97,7 @@ function buildSeed() {
     const title = taskTitle(group, detail);
     taskIdByTitle[title] = id;
     const owner = leadOfArea[area];
-    const created = at(addDays(due, -21), '01');
+    const created = at(T, '09');   // 등록 이력은 오늘로 — 가짜 과거를 만들지 않는다
     tasks.push({
       id, project_id: projectId[pk], phase_id: phaseId[phaseKey] ?? null,
       title, area, owner_slack_user_id: owner, status: 'TODO', priority,
@@ -223,6 +223,16 @@ function reconcile(db) {
     }
   }
 
+  // 오늘 이전의 변경 이력은 치운다. 시드가 만들어 둔 가짜 과거라 읽을 값이 없다.
+  // (한 번만 하고, 이 뒤로 쌓이는 진짜 이력은 그대로 남는다)
+  if (!db.history_trimmed) {
+    const from = `${today()}T00:00:00.000Z`;
+    const before = (db.events ?? []).length;
+    db.events = (db.events ?? []).filter((e) => (e.occurred_at ?? '') >= from);
+    db.history_trimmed = true;
+    if (before !== db.events.length) changed = true;
+  }
+
   // 시드에 새로 들어온 업무를 채워 준다.
   // 이름이 한 번도 없던 것만 넣는다 — 지운 업무는 지워진 채(deleted_at) 남아 있으므로
   // 일부러 지운 것이 되살아나지 않는다. 이름을 고친 업무도 건드리지 않는다.
@@ -345,6 +355,9 @@ function flatten(db) {
     for (const r of db[c] ?? []) out.push({ collection: c, id: String(ROW_KEY[c](r)), data: r });
   }
   out.push({ collection: 'meta', id: 'anchor', data: { value: db.anchor } });
+  // 한 번만 해야 하는 정리는 여기에 표시를 남긴다. 날짜로 판단하면 날이 바뀔 때마다
+  // 진짜 이력까지 지워 버린다.
+  out.push({ collection: 'meta', id: 'flags', data: { history_trimmed: Boolean(db.history_trimmed) } });
   return out;
 }
 
@@ -353,7 +366,11 @@ function unflatten(rows) {
   const db = { anchor: today() };
   for (const c of COLLECTIONS) db[c] = [];
   for (const r of rows) {
-    if (r.collection === 'meta') { if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value; continue; }
+    if (r.collection === 'meta') {
+      if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value;
+      if (r.id === 'flags') db.history_trimmed = Boolean(r.data?.history_trimmed);
+      continue;
+    }
     (db[r.collection] ??= []).push(r.data);
   }
   return db;
@@ -758,6 +775,13 @@ function overview(ref = today()) {
   };
 }
 
+/** 담당으로 세울 수 있는 사람인지 본다 — 담당 없는 업무는 만들 수 없다(원칙 1) */
+function ensureMember(slackUserId) {
+  const m = member(slackUserId);
+  if (!m || !m.is_active) throw new DemoError('없는 구성원입니다.');
+  return m.slack_user_id;
+}
+
 // ── 영역 리드 ───────────────────────────────────────────
 const leadRows = () => (DB.area_leads ?? []).map((l) => {
   const m = member(l.slack_user_id);
@@ -795,6 +819,8 @@ function setLead(area, slackUserId, actor) {
   if (before !== slackUserId) {
     for (const t of DB.tasks) {
       if (t.area !== area || t.status === 'DONE' || t.deleted_at) continue;
+      // 담당을 따로 정해 둔 업무는 그대로 둔다 — 리드를 바꿀 때마다 지워지면 안 된다
+      if (t.owner_slack_user_id !== before) continue;
       t.owner_slack_user_id = slackUserId;
       t.updated_at = nowISO();
       logEvent(t.id, 'OWNER_CHANGED', before, slackUserId, actor);
@@ -853,8 +879,9 @@ function createTask(input, actor) {
   if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
   const area = input.area;
   if (!AREAS.some((a) => a.code === area)) throw new DemoError('업무 영역을 선택해 주세요.');
-  const owner = areaLeadOf(area);
-  if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
+  // 담당은 기본이 그 영역의 리드다. 다른 사람을 고르면 그 사람이 맡는다.
+  const owner = input.owner_slack_user_id ? ensureMember(input.owner_slack_user_id) : areaLeadOf(area);
+  if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다. 영역 리드를 먼저 설정하거나 담당을 직접 골라 주세요.`);
   const status = input.status || defaultStatusFor(area);
   if (!statusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
   const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null);
@@ -893,7 +920,11 @@ function updateTask(id, input, actor) {
       : defaultStatusFor(area));
   if (!statusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
   let owner = t.owner_slack_user_id;
-  if (area !== t.area) {
+  if (input.owner_slack_user_id) {
+    // 직접 고른 담당이 가장 세다
+    owner = ensureMember(input.owner_slack_user_id);
+  } else if (area !== t.area && t.owner_slack_user_id === areaLeadOf(t.area)) {
+    // 리드를 따르고 있던 업무만 새 영역의 리드로 따라간다
     owner = areaLeadOf(area);
     if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
   }

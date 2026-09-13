@@ -597,6 +597,9 @@ details.more[open] > summary{color:var(--ink)}
   align-items:center;padding:9px 14px}
 .lead-area{font-weight:500;font-size:.9rem}
 .area-lead-tag{color:var(--muted);font-size:.78rem;display:inline-flex;align-items:center;gap:5px}
+/* 담당 — 기본은 영역 리드지만 업무마다 바꿀 수 있다 */
+.owner-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.owner-cell select{font-size:.88rem;padding:3px 8px;min-height:0;max-width:160px}
 /* 영역은 칩처럼 보이지만 고를 수 있다 — 바꾸면 담당이 그 영역의 리드로 따라간다 */
 .area-pick{display:inline-flex}
 .area-pick select{appearance:none;-webkit-appearance:none;

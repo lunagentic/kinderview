@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, leadOf, coLeadsOf } from './state.js';
+import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal } from './ui.js';
 
 // ── Slack 멤버 검색 선택기 ──────────────────────────────
@@ -116,8 +116,12 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
-          <span class="lab">담당 <span class="hint" style="font-weight:400">영역 리드가 맡습니다</span></span>
-          <div class="lead-box" data-lead-box>영역을 선택해 주세요</div>
+          <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
+          <select name="owner_slack_user_id" data-owner>
+            ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
+              m.slack_user_id === task?.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+          </select>
+          <span class="lead-box" data-lead-box></span>
         </label>
 
         <label class="field">
@@ -216,16 +220,24 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         value: (task?.collaborators ?? []).map((c) => c.slack_user_id),
       });
 
+      // 담당을 직접 골랐는지 기억한다. 손대지 않았으면 영역을 바꿀 때 리드를 따라간다.
+      const ownerSel = form.querySelector('[data-owner]');
+      let ownerPicked = Boolean(task?.owner_slack_user_id
+        && task.owner_slack_user_id !== leadOf(task.area)?.slack_user_id);
+      ownerSel.addEventListener('change', () => { ownerPicked = true; syncLead(); });
+
       const syncLead = () => {
         const lead = leadOf(areaSel.value);
         const co = coLeadsOf(areaSel.value);
+        if (!ownerPicked && lead) ownerSel.value = lead.slack_user_id;
+        const owner = memberOf(ownerSel.value);
+        const isLead = owner && owner.slack_user_id === lead?.slack_user_id;
         leadBox.innerHTML = lead
-          ? `${avatar(lead, 'sm')}<span>${esc(lead.display_name)}</span>`
-            + `${lead.is_active ? '' : '<span class="inactive">(비활성)</span>'}`
-            // 공동 리드는 담당이 아니다 — 함께 선다는 것만 보여 준다
+          ? (isLead ? `<span class="lead-co">${esc(areaMeta(areaSel.value).full)} 리드</span>` : '')
             + (co.length ? `<span class="lead-co">· 공동 ${esc(co.map((l) => l.display_name).join(' · '))}</span>` : '')
-          : '<span class="lead-none">이 영역의 리드가 없습니다 · Overview에서 지정해 주세요</span>';
-        collabPicker.setExclude([lead?.slack_user_id, ...co.map((l) => l.slack_user_id)].filter(Boolean));
+          : '<span class="lead-none">이 영역의 리드가 없습니다 · 담당을 직접 골라 주세요</span>';
+        // 담당인 사람은 협업자로 또 고를 수 없다
+        collabPicker.setExclude([ownerSel.value, ...co.map((l) => l.slack_user_id)].filter(Boolean));
       };
 
       const syncArea = () => {
@@ -303,7 +315,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
 
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
         if (!payload.project_id) return toast('프로젝트를 선택해 주세요.', true);
-        if (!leadOf(payload.area)) return toast('이 영역의 리드가 지정되지 않았습니다. Overview에서 영역 리드를 먼저 설정해 주세요.', true);
+        if (!payload.owner_slack_user_id) return toast('담당을 골라 주세요.', true);
         if (!payload.due_date && !payload.delivery_due_date) return toast('마감일을 입력해 주세요.', true);
 
         try {
@@ -359,8 +371,12 @@ export function issueForm({ issue = null, defaults = {}, onSaved }) {
           <textarea name="content" required placeholder="무엇이 막고 있는지, 원인은 무엇인지">${esc(issue?.content ?? '')}</textarea>
         </label>
         <label class="field">
-          <span class="lab">담당 <span class="hint" style="font-weight:400">영역 리드가 맡습니다</span></span>
-          <div class="lead-box" data-lead-box>영역을 선택해 주세요</div>
+          <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
+          <select name="owner_slack_user_id" data-owner>
+            ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
+              m.slack_user_id === task?.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+          </select>
+          <span class="lead-box" data-lead-box></span>
         </label>
         <label class="field">
           <span class="lab">중요도</span>

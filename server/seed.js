@@ -93,7 +93,9 @@ tx(() => {
     taskIdByTitle[title] = id;
     const owner = leadOf[area];   // 담당자 = 영역 리드
     if (!owner) throw new Error(`'${area}' 영역의 리드가 없습니다 — AREA_LEADS 를 확인하세요.`);
-    const created = before(due, 21);
+    // 등록 이력은 오늘로 둔다. 마감 21일 전이라는 가짜 과거를 만들면
+    // 변경 이력이 지어낸 이야기가 된다.
+    const created = ts(T, '09');
 
     run(`INSERT INTO task (id, project_id, phase_id, title, area, owner_slack_user_id, status, priority,
                            start_date, due_date, description, completed_at, created_by, created_at, updated_at)

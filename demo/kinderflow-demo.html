@@ -602,6 +602,9 @@ details.more[open] > summary{color:var(--ink)}
   align-items:center;padding:9px 14px}
 .lead-area{font-weight:500;font-size:.9rem}
 .area-lead-tag{color:var(--muted);font-size:.78rem;display:inline-flex;align-items:center;gap:5px}
+/* 담당 — 기본은 영역 리드지만 업무마다 바꿀 수 있다 */
+.owner-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.owner-cell select{font-size:.88rem;padding:3px 8px;min-height:0;max-width:160px}
 /* 영역은 칩처럼 보이지만 고를 수 있다 — 바꾸면 담당이 그 영역의 리드로 따라간다 */
 .area-pick{display:inline-flex}
 .area-pick select{appearance:none;-webkit-appearance:none;
@@ -1087,18 +1090,6 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
   .sub-add input,.sub-add button{min-height:40px}
 }
 
-
-/* 데모 안내 (빌드에서만 추가) */
-.demo-note{max-width:1320px;margin:16px auto 0;padding:11px 16px;display:flex;gap:10px;
-  align-items:center;flex-wrap:wrap;font-size:.83rem;color:var(--ink-2);
-  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--s-prog);
-  border-radius:var(--radius)}
-.demo-note b{color:var(--ink)}
-.demo-note .btn{margin-left:auto;font-size:.8rem}
-@media (max-width:860px){
-  .demo-note{margin:12px 14px 0;padding:9px 12px;font-size:.78rem;line-height:1.55;gap:6px}
-  .demo-note .btn{margin-left:0;font-size:.76rem;min-height:32px;padding:4px 10px}
-}
 </style>
 
   <header class="topbar">
@@ -1126,13 +1117,6 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
     </div>
   </header>
 
-  
-  <div class="demo-note">
-    <b>브라우저 데모</b> — 서버 없이 이 페이지 안에서 동작합니다.
-    입력한 내용은 이 브라우저에만 저장되고 다른 사람에게 보이지 않습니다.
-    Slack 알림은 실제로 발송되지 않고 <b>알림함</b>에 기록됩니다.
-    <button class="btn btn-ghost" id="demo-reset">데모 데이터 초기화</button>
-  </div>
   <main id="view" class="view" aria-live="polite"></main>
 
   <div id="modal-root"></div>
@@ -1254,6 +1238,7 @@ const MEMBERS = [
   { id: 'U05JUNG', name: '황OO', handle: 'hwang', active: 1 },  // 상위 기획 및 리소스 · 디자인·콘텐츠 리드
   { id: 'U06KEON', name: '건',   handle: 'keon', active: 1 },
   { id: 'U07SON',  name: '손',   handle: 'son',  active: 1 },
+  { id: 'U08YUN',  name: '윤',   handle: 'yun',  active: 1 },
 ];
 
 
@@ -1907,7 +1892,7 @@ function buildSeed() {
     const title = taskTitle(group, detail);
     taskIdByTitle[title] = id;
     const owner = leadOfArea[area];
-    const created = at(addDays(due, -21), '01');
+    const created = at(T, '09');   // 등록 이력은 오늘로 — 가짜 과거를 만들지 않는다
     tasks.push({
       id, project_id: projectId[pk], phase_id: phaseId[phaseKey] ?? null,
       title, area, owner_slack_user_id: owner, status: 'TODO', priority,
@@ -2033,6 +2018,16 @@ function reconcile(db) {
     }
   }
 
+  // 오늘 이전의 변경 이력은 치운다. 시드가 만들어 둔 가짜 과거라 읽을 값이 없다.
+  // (한 번만 하고, 이 뒤로 쌓이는 진짜 이력은 그대로 남는다)
+  if (!db.history_trimmed) {
+    const from = `${today()}T00:00:00.000Z`;
+    const before = (db.events ?? []).length;
+    db.events = (db.events ?? []).filter((e) => (e.occurred_at ?? '') >= from);
+    db.history_trimmed = true;
+    if (before !== db.events.length) changed = true;
+  }
+
   // 시드에 새로 들어온 업무를 채워 준다.
   // 이름이 한 번도 없던 것만 넣는다 — 지운 업무는 지워진 채(deleted_at) 남아 있으므로
   // 일부러 지운 것이 되살아나지 않는다. 이름을 고친 업무도 건드리지 않는다.
@@ -2155,6 +2150,9 @@ function flatten(db) {
     for (const r of db[c] ?? []) out.push({ collection: c, id: String(ROW_KEY[c](r)), data: r });
   }
   out.push({ collection: 'meta', id: 'anchor', data: { value: db.anchor } });
+  // 한 번만 해야 하는 정리는 여기에 표시를 남긴다. 날짜로 판단하면 날이 바뀔 때마다
+  // 진짜 이력까지 지워 버린다.
+  out.push({ collection: 'meta', id: 'flags', data: { history_trimmed: Boolean(db.history_trimmed) } });
   return out;
 }
 
@@ -2163,7 +2161,11 @@ function unflatten(rows) {
   const db = { anchor: today() };
   for (const c of COLLECTIONS) db[c] = [];
   for (const r of rows) {
-    if (r.collection === 'meta') { if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value; continue; }
+    if (r.collection === 'meta') {
+      if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value;
+      if (r.id === 'flags') db.history_trimmed = Boolean(r.data?.history_trimmed);
+      continue;
+    }
     (db[r.collection] ??= []).push(r.data);
   }
   return db;
@@ -2568,6 +2570,13 @@ function overview(ref = today()) {
   };
 }
 
+/** 담당으로 세울 수 있는 사람인지 본다 — 담당 없는 업무는 만들 수 없다(원칙 1) */
+function ensureMember(slackUserId) {
+  const m = member(slackUserId);
+  if (!m || !m.is_active) throw new DemoError('없는 구성원입니다.');
+  return m.slack_user_id;
+}
+
 // ── 영역 리드 ───────────────────────────────────────────
 const leadRows = () => (DB.area_leads ?? []).map((l) => {
   const m = member(l.slack_user_id);
@@ -2605,6 +2614,8 @@ function setLead(area, slackUserId, actor) {
   if (before !== slackUserId) {
     for (const t of DB.tasks) {
       if (t.area !== area || t.status === 'DONE' || t.deleted_at) continue;
+      // 담당을 따로 정해 둔 업무는 그대로 둔다 — 리드를 바꿀 때마다 지워지면 안 된다
+      if (t.owner_slack_user_id !== before) continue;
       t.owner_slack_user_id = slackUserId;
       t.updated_at = nowISO();
       logEvent(t.id, 'OWNER_CHANGED', before, slackUserId, actor);
@@ -2663,8 +2674,9 @@ function createTask(input, actor) {
   if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
   const area = input.area;
   if (!AREAS.some((a) => a.code === area)) throw new DemoError('업무 영역을 선택해 주세요.');
-  const owner = areaLeadOf(area);
-  if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
+  // 담당은 기본이 그 영역의 리드다. 다른 사람을 고르면 그 사람이 맡는다.
+  const owner = input.owner_slack_user_id ? ensureMember(input.owner_slack_user_id) : areaLeadOf(area);
+  if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다. 영역 리드를 먼저 설정하거나 담당을 직접 골라 주세요.`);
   const status = input.status || defaultStatusFor(area);
   if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
   const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null);
@@ -2703,7 +2715,11 @@ function updateTask(id, input, actor) {
       : defaultStatusFor(area));
   if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
   let owner = t.owner_slack_user_id;
-  if (area !== t.area) {
+  if (input.owner_slack_user_id) {
+    // 직접 고른 담당이 가장 세다
+    owner = ensureMember(input.owner_slack_user_id);
+  } else if (area !== t.area && t.owner_slack_user_id === areaLeadOf(t.area)) {
+    // 리드를 따르고 있던 업무만 새 영역의 리드로 따라간다
     owner = areaLeadOf(area);
     if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
   }
@@ -4139,8 +4155,12 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
-          <span class="lab">담당 <span class="hint" style="font-weight:400">영역 리드가 맡습니다</span></span>
-          <div class="lead-box" data-lead-box>영역을 선택해 주세요</div>
+          <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
+          <select name="owner_slack_user_id" data-owner>
+            ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
+              m.slack_user_id === task?.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+          </select>
+          <span class="lead-box" data-lead-box></span>
         </label>
 
         <label class="field">
@@ -4239,16 +4259,24 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         value: (task?.collaborators ?? []).map((c) => c.slack_user_id),
       });
 
+      // 담당을 직접 골랐는지 기억한다. 손대지 않았으면 영역을 바꿀 때 리드를 따라간다.
+      const ownerSel = form.querySelector('[data-owner]');
+      let ownerPicked = Boolean(task?.owner_slack_user_id
+        && task.owner_slack_user_id !== leadOf(task.area)?.slack_user_id);
+      ownerSel.addEventListener('change', () => { ownerPicked = true; syncLead(); });
+
       const syncLead = () => {
         const lead = leadOf(areaSel.value);
         const co = coLeadsOf(areaSel.value);
+        if (!ownerPicked && lead) ownerSel.value = lead.slack_user_id;
+        const owner = memberOf(ownerSel.value);
+        const isLead = owner && owner.slack_user_id === lead?.slack_user_id;
         leadBox.innerHTML = lead
-          ? `${avatar(lead, 'sm')}<span>${esc(lead.display_name)}</span>`
-            + `${lead.is_active ? '' : '<span class="inactive">(비활성)</span>'}`
-            // 공동 리드는 담당이 아니다 — 함께 선다는 것만 보여 준다
+          ? (isLead ? `<span class="lead-co">${esc(areaMeta(areaSel.value).full)} 리드</span>` : '')
             + (co.length ? `<span class="lead-co">· 공동 ${esc(co.map((l) => l.display_name).join(' · '))}</span>` : '')
-          : '<span class="lead-none">이 영역의 리드가 없습니다 · Overview에서 지정해 주세요</span>';
-        collabPicker.setExclude([lead?.slack_user_id, ...co.map((l) => l.slack_user_id)].filter(Boolean));
+          : '<span class="lead-none">이 영역의 리드가 없습니다 · 담당을 직접 골라 주세요</span>';
+        // 담당인 사람은 협업자로 또 고를 수 없다
+        collabPicker.setExclude([ownerSel.value, ...co.map((l) => l.slack_user_id)].filter(Boolean));
       };
 
       const syncArea = () => {
@@ -4326,7 +4354,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
 
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
         if (!payload.project_id) return toast('프로젝트를 선택해 주세요.', true);
-        if (!leadOf(payload.area)) return toast('이 영역의 리드가 지정되지 않았습니다. Overview에서 영역 리드를 먼저 설정해 주세요.', true);
+        if (!payload.owner_slack_user_id) return toast('담당을 골라 주세요.', true);
         if (!payload.due_date && !payload.delivery_due_date) return toast('마감일을 입력해 주세요.', true);
 
         try {
@@ -4382,8 +4410,12 @@ function issueForm({ issue = null, defaults = {}, onSaved }) {
           <textarea name="content" required placeholder="무엇이 막고 있는지, 원인은 무엇인지">${esc(issue?.content ?? '')}</textarea>
         </label>
         <label class="field">
-          <span class="lab">담당 <span class="hint" style="font-weight:400">영역 리드가 맡습니다</span></span>
-          <div class="lead-box" data-lead-box>영역을 선택해 주세요</div>
+          <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
+          <select name="owner_slack_user_id" data-owner>
+            ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
+              m.slack_user_id === task?.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+          </select>
+          <span class="lead-box" data-lead-box></span>
         </label>
         <label class="field">
           <span class="lab">중요도</span>
@@ -5711,7 +5743,14 @@ async function renderTaskDetail(root, id) {
         <div class="panel">
           <h3>업무 정보</h3>
           <dl class="kv">
-            <dt>담당</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}<span class="area-lead-tag">· ${esc(areaMeta(t.area).full)} 리드</span></dd>
+            <dt>담당</dt><dd class="owner-cell">
+              <select data-owner aria-label="담당 변경">
+                ${state.members.filter((m) => m.is_active).map((m) => `<option value="${esc(m.slack_user_id)}"${
+                  m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              </select>
+              ${t.owner_slack_user_id === leadOf(t.area)?.slack_user_id
+                ? `<span class="area-lead-tag">${esc(areaMeta(t.area).full)} 리드</span>` : ''}
+            </dd>
             ${coLeadsOf(t.area).length ? `<dt>공동</dt><dd>${
               coLeadsOf(t.area).map((l) => person(l.slack_user_id, l.display_name)).join(' ')}</dd>` : ''}
             <dt>협업자</dt><dd>${t.collaborators.length
@@ -5807,6 +5846,15 @@ async function renderTaskDetail(root, id) {
   };
 
   root.addEventListener('change', async (e) => {
+    const own = e.target.closest('[data-owner]');
+    if (own) {
+      if (own.value === t.owner_slack_user_id) return undefined;
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { owner_slack_user_id: own.value });
+        toast('담당을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
     const areaSel = e.target.closest('[data-area]');
     if (areaSel) {
       const next = areaSel.value;
@@ -7566,9 +7614,4 @@ window.addEventListener('kf:reload', async () => {
 
 boot();
 
-
-document.getElementById('demo-reset')?.addEventListener('click', () => {
-  resetDemo();
-  window.dispatchEvent(new Event('kf:reload'));
-});
 </script>

@@ -81,7 +81,14 @@ export async function renderTaskDetail(root, id) {
         <div class="panel">
           <h3>업무 정보</h3>
           <dl class="kv">
-            <dt>담당</dt><dd>${person(t.owner_slack_user_id, t.owner_name)}<span class="area-lead-tag">· ${esc(areaMeta(t.area).full)} 리드</span></dd>
+            <dt>담당</dt><dd class="owner-cell">
+              <select data-owner aria-label="담당 변경">
+                ${state.members.filter((m) => m.is_active).map((m) => `<option value="${esc(m.slack_user_id)}"${
+                  m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              </select>
+              ${t.owner_slack_user_id === leadOf(t.area)?.slack_user_id
+                ? `<span class="area-lead-tag">${esc(areaMeta(t.area).full)} 리드</span>` : ''}
+            </dd>
             ${coLeadsOf(t.area).length ? `<dt>공동</dt><dd>${
               coLeadsOf(t.area).map((l) => person(l.slack_user_id, l.display_name)).join(' ')}</dd>` : ''}
             <dt>협업자</dt><dd>${t.collaborators.length
@@ -177,6 +184,15 @@ export async function renderTaskDetail(root, id) {
   };
 
   root.addEventListener('change', async (e) => {
+    const own = e.target.closest('[data-owner]');
+    if (own) {
+      if (own.value === t.owner_slack_user_id) return undefined;
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { owner_slack_user_id: own.value });
+        toast('담당을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
     const areaSel = e.target.closest('[data-area]');
     if (areaSel) {
       const next = areaSel.value;

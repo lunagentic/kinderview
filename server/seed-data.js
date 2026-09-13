@@ -16,6 +16,7 @@ export const MEMBERS = [
   { id: 'U05JUNG', name: '황OO', handle: 'hwang', active: 1 },  // 상위 기획 및 리소스 · 디자인·콘텐츠 리드
   { id: 'U06KEON', name: '건',   handle: 'keon', active: 1 },
   { id: 'U07SON',  name: '손',   handle: 'son',  active: 1 },
+  { id: 'U08YUN',  name: '윤',   handle: 'yun',  active: 1 },
 ];
 
 // 영역 리드 — 업무의 담당자는 여기서 정해진다

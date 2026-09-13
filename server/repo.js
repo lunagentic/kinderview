@@ -370,6 +370,14 @@ export const vendors = {
 // ── 영역 리드 ───────────────────────────────────────────
 // 업무의 담당자는 사람을 고르는 것이 아니라 "그 영역의 리드가 누구인가"로 정해진다.
 
+/** 담당으로 세울 수 있는 사람인지 본다 — 담당 없는 업무는 만들 수 없다(원칙 1) */
+function ensureMember(slackUserId) {
+  const m = one('SELECT slack_user_id FROM member WHERE slack_user_id = :id AND is_active = 1',
+    { id: slackUserId });
+  if (!m) throw new HttpError(400, '없는 구성원입니다.');
+  return m.slack_user_id;
+}
+
 export const areaLeads = {
   list() {
     return all(
@@ -431,9 +439,13 @@ export const areaLeads = {
       );
       let moved = 0;
       if (before !== slackUserId) {
+        // 리드를 따르고 있던 업무만 옮긴다. 담당을 따로 정해 둔 업무는 그대로 둔다 —
+        // 그러지 않으면 리드 한 번 바꿀 때마다 손으로 정한 담당이 전부 지워진다.
         const rows = all(
-          `SELECT id FROM task WHERE area = :area AND status <> 'DONE' AND deleted_at IS NULL`,
-          { area },
+          `SELECT id FROM task
+            WHERE area = :area AND status <> 'DONE' AND deleted_at IS NULL
+              AND owner_slack_user_id = :before`,
+          { area, before },
         );
         for (const r of rows) {
           run('UPDATE task SET owner_slack_user_id = :uid, updated_at = :at WHERE id = :id',
@@ -628,11 +640,12 @@ export const tasks = {
     if (!input.title?.trim()) throw new HttpError(400, '업무명을 입력해 주세요.');
     if (!input.project_id) throw new HttpError(400, '프로젝트를 선택해 주세요.');
 
-    // 담당자는 사람을 고르는 것이 아니라 영역 리드로 정해진다.
-    // 담당자 없는 업무는 여전히 만들 수 없다 (원칙 1) — 리드가 없으면 여기서 막힌다.
-    const owner = areaLeads.of(area);
+    // 담당은 기본이 그 영역의 리드다. 다른 사람을 고르면 그 사람이 맡는다.
+    // 담당자 없는 업무는 여전히 만들 수 없다 (원칙 1).
+    const lead = areaLeads.of(area);
+    const owner = input.owner_slack_user_id ? ensureMember(input.owner_slack_user_id) : lead;
     if (!owner) {
-      throw new HttpError(400, `'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다. 영역 리드를 먼저 설정해 주세요.`);
+      throw new HttpError(400, `'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다. 영역 리드를 먼저 설정하거나 담당을 직접 골라 주세요.`);
     }
 
     const status = input.status || defaultStatusFor(area);
@@ -692,12 +705,18 @@ export const tasks = {
     if (!statusesFor(area).some((s) => s.code === status)) {
       throw new HttpError(400, '업무 영역에 맞지 않는 상태입니다.');
     }
-    // 영역이 바뀌면 담당도 새 영역의 리드로 따라간다
     let owner = cur.owner_slack_user_id;
-    if (area !== cur.area) {
-      owner = areaLeads.of(area);
-      if (!owner) {
-        throw new HttpError(400, `'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
+    if (input.owner_slack_user_id) {
+      // 직접 고른 담당이 가장 세다
+      owner = ensureMember(input.owner_slack_user_id);
+    } else if (area !== cur.area) {
+      // 영역이 바뀌면 담당도 새 영역의 리드로 따라간다.
+      // 단, 리드를 따르고 있던 업무만 그렇다 — 따로 정해 둔 담당은 그대로 둔다.
+      if (cur.owner_slack_user_id === areaLeads.of(cur.area)) {
+        owner = areaLeads.of(area);
+        if (!owner) {
+          throw new HttpError(400, `'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
+        }
       }
     }
 

@@ -63,7 +63,6 @@ const parts = [
     /import\('\.\/forms\.js'\)\.then\(\(\{ issueForm \}\) =>\s*\n?\s*issueForm\(\{ onSaved: \(\) => window\.dispatchEvent\(new Event\('kf:reload'\)\) \}\)\);/,
     "issueForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });",
   ),
-  "document.getElementById('demo-reset')?.addEventListener('click', () => {\n  resetDemo();\n  window.dispatchEvent(new Event('kf:reload'));\n});",
 ].join('\n\n');
 
 if (parts.includes("import('./forms.js')")) {
@@ -77,34 +76,14 @@ const html = read('public/index.html');
 const bodyInner = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'))
   .replace(/\s*<script type="module"[\s\S]*?<\/script>/, '');
 
-const banner = `
-  <div class="demo-note">
-    <b>브라우저 데모</b> — 서버 없이 이 페이지 안에서 동작합니다.
-    입력한 내용은 이 브라우저에만 저장되고 다른 사람에게 보이지 않습니다.
-    Slack 알림은 실제로 발송되지 않고 <b>알림함</b>에 기록됩니다.
-    <button class="btn btn-ghost" id="demo-reset">데모 데이터 초기화</button>
-  </div>`;
-
 const out = `<title>KinderFlow</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 ${css}
-
-/* 데모 안내 (빌드에서만 추가) */
-.demo-note{max-width:1320px;margin:16px auto 0;padding:11px 16px;display:flex;gap:10px;
-  align-items:center;flex-wrap:wrap;font-size:.83rem;color:var(--ink-2);
-  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--s-prog);
-  border-radius:var(--radius)}
-.demo-note b{color:var(--ink)}
-.demo-note .btn{margin-left:auto;font-size:.8rem}
-@media (max-width:860px){
-  .demo-note{margin:12px 14px 0;padding:9px 12px;font-size:.78rem;line-height:1.55;gap:6px}
-  .demo-note .btn{margin-left:0;font-size:.76rem;min-height:32px;padding:4px 10px}
-}
 </style>
-${bodyInner.replace('<main id="view"', `${banner}\n  <main id="view"`)}
+${bodyInner}
 <script type="module">
 ${parts}
 </script>
