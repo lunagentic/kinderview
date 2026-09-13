@@ -489,7 +489,14 @@ details.more[open] > summary{color:var(--ink)}
   .topbar{padding:8px 12px;gap:8px 10px}
   #btn-new-task .wide{display:none}   /* '+ 업무 등록' → '+ 업무' */
   #me-select{max-width:84px}
-  .topbar-util{font-size:.78rem}
+  /* 공유 상태 — 닿아 있으면 조용히, 끊기면 눈에 띄게 */
+.sync-badge{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+  font-size:.72rem;color:var(--on-chrome-muted);padding:2px 9px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.18)}
+.sync-badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.sync-badge.off{color:var(--s-issue);border-color:currentColor;font-weight:600}
+@media (max-width:420px){ .sync-badge{padding:2px 7px;font-size:.68rem} }
+.topbar-util{font-size:.78rem}
   .view{padding:16px 12px 72px}
   .gnb,.filter-row,.quick,.months{margin:0 -12px;padding:0 12px 2px}
   .stats{grid-template-columns:repeat(2,1fr)}

@@ -262,6 +262,210 @@ function reconcile(db) {
   return changed;
 }
 
+// ── 공유 저장소 (Supabase) ──────────────────────────────
+// 표 하나(kf_rows)에 개체마다 한 줄이 들어간다. 규칙과 계산은 그대로 브라우저가 하고,
+// 여기는 "팀이 같은 것을 본다"만 맡는다. 그래서 라이브러리 없이 REST 로 붙인다.
+//
+// 키는 공개용(publishable)이다. 브라우저에 내려가는 값이라 감출 수 없고, 감출 이유도 없다 —
+// 접근 범위는 Supabase 쪽 정책이 정한다. 지금은 "주소를 아는 사람은 보고 고치기"다.
+const SB_URL = 'https://tlthpmwgchvzhewlmyss.supabase.co';
+const SB_KEY = 'sb_publishable_h4epUC2bxGZSWdD1vXAsrQ_8rQ9K9qF';
+const SB_TABLE = 'kf_rows';
+
+// 묶음마다 줄을 가리키는 이름이 다르다. 없는 것은 합쳐서 만든다.
+const ROW_KEY = {
+  members: (r) => r.slack_user_id,
+  projects: (r) => r.id,
+  vendors: (r) => r.id,
+  phases: (r) => r.id,
+  milestones: (r) => r.id,
+  tasks: (r) => r.id,
+  subtasks: (r) => r.id,
+  issues: (r) => r.id,
+  events: (r) => r.id,
+  expenses: (r) => r.id,
+  time_entries: (r) => r.id,
+  notifications: (r) => r.id,
+  weekly_reports: (r) => r.id,
+  collaborators: (r) => `${r.task_id}/${r.slack_user_id}`,
+  outsourcing: (r) => r.task_id,
+  area_leads: (r) => `${r.area}/${r.slack_user_id}`,
+};
+const COLLECTIONS = Object.keys(ROW_KEY);
+
+let remoteOk = false;      // 한 번이라도 닿았는가
+let remoteWarned = false;
+let lastSeen = null;       // 남이 고친 것을 알아채는 기준 시각
+
+const sbFetch = (path, init = {}) => fetch(`${SB_URL}/rest/v1/${path}`, {
+  ...init,
+  headers: {
+    apikey: SB_KEY,
+    Authorization: `Bearer ${SB_KEY}`,
+    'Content-Type': 'application/json',
+    ...(init.headers ?? {}),
+  },
+});
+
+/** 지금 공유되고 있는지 화면에 알린다 — 모르고 쓰면 "공유된 줄 알았는데"가 생긴다 */
+const tellSync = (ok) => {
+  try { window.dispatchEvent(new CustomEvent('kf:sync', { detail: { ok } })); } catch { /* 창이 없으면 넘어간다 */ }
+};
+
+function remoteDown(err) {
+  const was = remoteOk;
+  remoteOk = false;
+  if (was || !remoteWarned) tellSync(false);
+  if (!remoteWarned) {
+    remoteWarned = true;
+    // 못 닿아도 앱은 그대로 돈다 — 이 브라우저에만 쌓일 뿐이다
+    console.warn('[kf] 공유 저장소에 닿지 못했습니다. 이 브라우저에만 저장됩니다.', err);
+  }
+}
+
+/** 줄 전체를 읽어 온다. PostgREST 는 한 번에 1000줄까지 준다. */
+async function remoteReadAll() {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const res = await sbFetch(`${SB_TABLE}?select=collection,id,data,updated_at&order=updated_at.asc`, {
+      headers: { Range: `${from}-${from + 999}` },
+    });
+    if (!res.ok) throw new Error(`읽기 실패 ${res.status}`);
+    const part = await res.json();
+    rows.push(...part);
+    if (part.length < 1000) break;
+  }
+  return rows;
+}
+
+/** 저장된 판을 kf_rows 줄 목록으로 편다 */
+function flatten(db) {
+  const out = [];
+  for (const c of COLLECTIONS) {
+    for (const r of db[c] ?? []) out.push({ collection: c, id: String(ROW_KEY[c](r)), data: r });
+  }
+  out.push({ collection: 'meta', id: 'anchor', data: { value: db.anchor } });
+  return out;
+}
+
+/** 줄 목록을 판으로 되돌린다 */
+function unflatten(rows) {
+  const db = { anchor: today() };
+  for (const c of COLLECTIONS) db[c] = [];
+  for (const r of rows) {
+    if (r.collection === 'meta') { if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value; continue; }
+    (db[r.collection] ??= []).push(r.data);
+  }
+  return db;
+}
+
+let shadow = new Map();    // 마지막으로 올린 모습 — 바뀐 줄만 골라내는 기준
+const snapshot = (rows) => new Map(rows.map((r) => [`${r.collection}/${r.id}`, JSON.stringify(r.data)]));
+
+let flushTimer = null;
+let flushing = false;
+let flushAgain = false;
+
+/** 바뀐 줄만 올린다. 여러 번 불려도 한 번으로 모은다. */
+function scheduleFlush() {
+  if (!remoteOk) return;
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(() => { flush(); }, 350);
+}
+
+async function flush() {
+  if (!remoteOk) return;
+  if (flushing) { flushAgain = true; return; }
+  flushing = true;
+  try {
+    const rows = flatten(DB);
+    const now = snapshot(rows);
+    const upserts = rows.filter((r) => now.get(`${r.collection}/${r.id}`) !== shadow.get(`${r.collection}/${r.id}`));
+    const gone = [...shadow.keys()].filter((k) => !now.has(k));
+
+    if (upserts.length) {
+      // 저장된 시각을 되돌려 받는다. 브라우저 시계로 기준을 잡으면 시계가 어긋난 만큼
+      // 남이 고친 것을 영영 못 본다 — 기준은 항상 저장소가 찍은 시각이어야 한다.
+      const res = await sbFetch(`${SB_TABLE}?select=updated_at`, {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(upserts),
+      });
+      if (!res.ok) throw new Error(`쓰기 실패 ${res.status} ${await res.text()}`);
+      const saved = await res.json().catch(() => []);
+      for (const r of saved) if (!lastSeen || r.updated_at > lastSeen) lastSeen = r.updated_at;
+    }
+    for (const key of gone) {
+      const cut = key.indexOf('/');
+      const collection = key.slice(0, cut);
+      const id = key.slice(cut + 1);
+      const res = await sbFetch(
+        `${SB_TABLE}?collection=eq.${encodeURIComponent(collection)}&id=eq.${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
+      );
+      if (!res.ok) throw new Error(`삭제 실패 ${res.status}`);
+    }
+    shadow = now;
+  } catch (err) {
+    remoteDown(err);
+  } finally {
+    flushing = false;
+    if (flushAgain) { flushAgain = false; scheduleFlush(); }
+  }
+}
+
+/**
+ * 처음 열 때 공유 저장소와 맞춘다.
+ * - 저장소가 비어 있으면 이 브라우저에 있던 것을 그대로 올린다 (처음 여는 사람이 기준이 된다)
+ * - 들어 있으면 그것을 쓴다. 이 브라우저에만 있던 것은 덮인다.
+ */
+async function syncFromRemote() {
+  try {
+    const rows = await remoteReadAll();
+    remoteOk = true;
+    tellSync(true);
+    if (!rows.length) {
+      // 비어 있으면 이 브라우저에 있던 것이 공유본이 된다
+      shadow = new Map();
+      lastSeen = null;
+      await flush();
+      return;
+    }
+    const remote = unflatten(rows);
+    lastSeen = rows[rows.length - 1]?.updated_at ?? null;
+    // 시드가 늘었으면 여기서도 채운다 (구성원·영역 리드·새 업무)
+    try { reconcile(remote); } catch (err) { console.warn('[kf] 시드 맞추기 실패', err); }
+    DB = remote;
+    save();
+    shadow = snapshot(flatten(DB));
+    await flush();   // reconcile 로 는 것이 있으면 올린다
+  } catch (err) {
+    remoteDown(err);
+  }
+}
+
+/** 남이 고친 것이 있으면 다시 읽어 화면을 새로 그린다 */
+async function pollRemote() {
+  if (!remoteOk || flushing || document.hidden) return;
+  try {
+    const res = await sbFetch(`${SB_TABLE}?select=updated_at&order=updated_at.desc&limit=1`);
+    if (!res.ok) return;
+    const [top] = await res.json();
+    if (!top || !lastSeen || top.updated_at <= lastSeen) return;
+    const rows = await remoteReadAll();
+    DB = unflatten(rows);
+    save();
+    shadow = snapshot(flatten(DB));
+    lastSeen = top.updated_at;
+    window.dispatchEvent(new Event('kf:reload'));
+  } catch { /* 잠깐 못 닿는 것은 넘어간다 */ }
+}
+
+let readyPromise = null;
+const ensureReady = () => (readyPromise ??= syncFromRemote().then(() => {
+  setInterval(pollRemote, 15_000);
+}));
+
 function load() {
   let parsed = null;
   try {
@@ -288,6 +492,8 @@ function load() {
 
 function save(db = DB) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(db)); } catch { /* 용량 초과 시 메모리만 사용 */ }
+  // 공유 저장소에는 바뀐 줄만, 잠깐 모았다가 한 번에 올린다
+  scheduleFlush();
 }
 
 // DB 는 위의 선언들이 모두 준비된 뒤에 읽는다 —
@@ -1664,9 +1870,15 @@ function handle(method, path, body) {
 }
 
 // 서버판 api.js 와 같은 인터페이스. 화면 코드는 차이를 모른다.
+// 첫 요청 때 공유 저장소를 먼저 맞춘다. 화면은 원래도 기다리게 되어 있어 손댈 것이 없다.
+const call = async (method, p, b) => {
+  await ensureReady();
+  return handle(method, p, b);
+};
+
 export const api = {
-  get: (p) => Promise.resolve().then(() => handle('GET', p)),
-  post: (p, b) => Promise.resolve().then(() => handle('POST', p, b ?? {})),
-  patch: (p, b) => Promise.resolve().then(() => handle('PATCH', p, b ?? {})),
-  del: (p) => Promise.resolve().then(() => handle('DELETE', p)),
+  get: (p) => call('GET', p),
+  post: (p, b) => call('POST', p, b ?? {}),
+  patch: (p, b) => call('PATCH', p, b ?? {}),
+  del: (p) => call('DELETE', p),
 };

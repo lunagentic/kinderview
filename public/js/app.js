@@ -15,6 +15,19 @@ const view = document.getElementById('view');
 
 // 프로젝트 매니징 아래의 화면들.
 // 첫 칸이 곧 들어왔을 때 보이는 화면이다 — 순서를 바꾸면 진입 화면도 함께 바뀐다.
+// 공유 저장소에 닿아 있는지 알려 준다. 서버 모드에서는 이 알림이 오지 않아 그대로 숨어 있다.
+window.addEventListener('kf:sync', (e) => {
+  const badge = document.getElementById('sync-badge');
+  if (!badge) return;
+  const ok = Boolean(e.detail?.ok);
+  badge.hidden = false;
+  badge.classList.toggle('off', !ok);
+  badge.textContent = ok ? '공유 중' : '이 브라우저에만';
+  badge.title = ok
+    ? '바꾼 내용이 팀 모두에게 보입니다.'
+    : '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.';
+});
+
 const PROJECT_TABS = [
   { key: 'timeline', label: '타임라인' },
   { key: 'weekly',   label: '주간 리포트' },
