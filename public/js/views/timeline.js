@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
-  statusChip, go,
+  statusChip, go, toast,
 } from '../ui.js';
 import { phaseForm, milestoneForm } from '../forms.js';
 
@@ -301,21 +301,63 @@ export async function renderTimeline(root) {
       ${areas.length ? `<div class="tld-areas">${areas.map((g) => `
         <section class="tld-area">
           <div class="tld-area-head">
-            <span class="lab">${esc(g.area.full)}</span>
+            <a class="lab" href="#/project/tasks?area=${encodeURIComponent(g.area.code)}&month=all&done=1"
+               title="${esc(g.area.full)} 업무 전체 보기">${esc(g.area.full)}</a>
             <span class="n">${g.rows.length}건</span>
             <span class="lead">${esc(leadNames(g.area.code))}</span>
           </div>
           ${g.rows.map((t) => `
-            <button class="tld-task" data-task="${esc(t.id)}">
-              <span class="due num ${t.is_delayed ? 'late' : ''}">${shortDate(t.due_date)}<i>${
-                t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i></span>
-              <span class="ttl">${esc(t.title)}</span>
+            <div class="tld-task">
+              <span class="due num ${t.is_delayed ? 'late' : ''}">
+                <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}"
+                       data-due="${esc(t.id)}" aria-label="마감일 변경">
+                <i>${t.status === 'DONE' ? '' : esc(dDay(t.d_day))}</i>
+              </span>
+              <span class="ttl">
+                <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
+                       data-title="${esc(t.id)}" aria-label="업무명 수정">
+              </span>
               <span class="st">${statusChip(t.status)}</span>
-            </button>`).join('')}
+              <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
+                      title="상세 편집">✎</button>
+            </div>`).join('')}
         </section>`).join('')}</div>`
         : '<p class="hint" style="padding:14px 2px">이 페이즈에 배정된 업무가 없습니다.</p>'}`;
     return undefined;
   }
+
+  root.addEventListener('change', async (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (ttl) {
+      const next = ttl.value.trim();
+      if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
+      if (next === ttl.defaultValue) return undefined;
+      try {
+        await api.patch(`/api/tasks/${ttl.dataset.title}`, { title: next });
+        ttl.defaultValue = next;
+        toast('업무명을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); reload(); }
+      return undefined;
+    }
+    const due = e.target.closest('[data-due]');
+    if (due) {
+      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
+      try {
+        await api.patch(`/api/tasks/${due.dataset.due}`, { due_date: due.value });
+        toast('마감일을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      // 마감이 바뀌면 페이즈 기간·진행도 달라진다
+      return reload();
+    }
+    return undefined;
+  });
+
+  root.addEventListener('keydown', (e) => {
+    const ttl = e.target.closest('[data-title]');
+    if (!ttl) return;
+    if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+  });
 
   root.addEventListener('click', (e) => {
     const addP = e.target.closest('[data-add-phase]');

@@ -191,7 +191,8 @@ export async function renderTasks(root, query) {
         ${g.areas.map((a) => `
           <div class="tk-area">
             <div class="tk-area-head">
-              <span class="lab">${esc(a.area.full)}</span>
+              <a class="lab" href="#/project/tasks?area=${encodeURIComponent(a.area.code)}&month=all&done=1"
+                 title="${esc(a.area.full)} 업무 전체 보기">${esc(a.area.full)}</a>
               <span class="n">${a.rows.length}건</span>
               <span class="lead">${esc(leadNames(a.area.code))}</span>
             </div>

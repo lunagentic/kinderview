@@ -22,6 +22,9 @@ const weekStart = (base = today()) => addDays(base, -((new Date(`${base}T00:00:0
 const nowISO = () => new Date().toISOString();
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `id-${Math.random().toString(36).slice(2)}`);
 
+// 업무명 = 결과 · 상세업무명. 시드와 reconcile 이 같이 쓴다.
+const taskTitle = (group, detail) => (detail ? `${group} · ${detail}` : group);
+
 // ── 시드 → 실제 데이터 ──────────────────────────────────
 // 날짜 오프셋을 오늘 기준으로 펼친다. 언제 열어도 D-day 와 지연이 살아 있다.
 function buildSeed() {
@@ -88,7 +91,6 @@ function buildSeed() {
   const events = [];
   const taskIdByTitle = {};
 
-  const taskTitle = (group, detail) => (detail ? `${group} · ${detail}` : group);
 
   for (const [pk, phaseKey, group, detail, area, due, priority, note] of SEED.TASKS) {
     const id = uid();
@@ -162,8 +164,6 @@ function buildSeed() {
   };
 }
 
-let DB = load();
-
 // 이름이 바뀐 프로젝트 — 옛 이름 그대로일 때만 갈아 끼운다
 const RENAMED_PROJECTS = { '콘텐츠 패키지': '상위 기획 및 리소스' };
 
@@ -223,21 +223,64 @@ function reconcile(db) {
     }
   }
 
+  // 시드에 새로 들어온 업무를 채워 준다.
+  // 이름이 한 번도 없던 것만 넣는다 — 지운 업무는 지워진 채(deleted_at) 남아 있으므로
+  // 일부러 지운 것이 되살아나지 않는다. 이름을 고친 업무도 건드리지 않는다.
+  const known = new Set((db.tasks ?? []).map((t) => t.title));
+  const phaseByKey = {};
+  for (const ph of db.phases ?? []) phaseByKey[`${ph.project_id}/${ph.name}`] = ph.id;
+  const projectByName = {};
+  for (const pr of db.projects ?? []) projectByName[pr.name] = pr.id;
+  const seedProjectName = Object.fromEntries((SEED.PROJECTS ?? []).map((pr) => [pr.key, pr.name]));
+  const seedPhaseName = Object.fromEntries((SEED.PHASES ?? []).map(([, key, name]) => [key, name]));
+  const leadNow = (area) => (db.area_leads ?? [])
+    .find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD')?.slack_user_id;
+
+  for (const [pk, phaseKey, group, detail, area, due, priority, note] of SEED.TASKS ?? []) {
+    const title = taskTitle(group, detail);
+    if (known.has(title)) continue;
+    // 프로젝트 이름이 바뀌었을 수 있으니 바뀐 이름으로도 찾아본다
+    const wanted = seedProjectName[pk];
+    const projectId = projectByName[RENAMED_PROJECTS[wanted] ?? wanted] ?? projectByName[wanted];
+    const owner = leadNow(area);
+    if (!projectId || !owner) continue;
+    const created = `${addDays(due, -21)}T01:00:00.000Z`;
+    const id = uid();
+    db.tasks.push({
+      id, project_id: projectId, phase_id: phaseByKey[`${projectId}/${seedPhaseName[phaseKey]}`] ?? null,
+      title, area, owner_slack_user_id: owner, status: 'TODO', priority,
+      start_date: null, due_date: due, description: note || null,
+      completed_at: null, created_by: owner,
+      created_at: created, updated_at: created, deleted_at: null,
+    });
+    (db.events ??= []).push({ id: uid(), task_id: id, event_type: 'CREATED',
+      from_value: null, to_value: 'TODO', actor_slack_user_id: owner, occurred_at: created });
+    known.add(title);
+    changed = true;
+  }
+
   return changed;
 }
 
 function load() {
+  let parsed = null;
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      // 실제 일정이라 날짜가 따라 움직이면 안 된다 — 저장된 것을 그대로 쓴다
-      if (parsed.anchor) {
-        if (reconcile(parsed)) save(parsed);
-        return parsed;
-      }
+    if (raw) parsed = JSON.parse(raw);
+  } catch { /* 저장된 데이터가 깨졌으면 아래에서 새로 만든다 */ }
+
+  // 실제 일정이라 날짜가 따라 움직이면 안 된다 — 저장된 것을 그대로 쓴다
+  if (parsed?.anchor) {
+    // 맞춰 주다 실패해도 저장된 데이터는 그대로 쓴다.
+    // 여기서 시드를 새로 만들면 그동안 등록한 업무가 통째로 날아간다.
+    try {
+      if (reconcile(parsed)) save(parsed);
+    } catch (err) {
+      console.warn('[kf] 저장된 데이터를 최신 시드에 맞추지 못했습니다', err);
     }
-  } catch { /* 저장된 데이터가 깨졌으면 새로 만든다 */ }
+    return parsed;
+  }
+
   const fresh = buildSeed();
   save(fresh);
   return fresh;
@@ -246,6 +289,10 @@ function load() {
 function save(db = DB) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(db)); } catch { /* 용량 초과 시 메모리만 사용 */ }
 }
+
+// DB 는 위의 선언들이 모두 준비된 뒤에 읽는다 —
+// 먼저 읽으면 reconcile 이 아직 만들어지지 않은 값을 건드린다.
+let DB = load();
 
 export function resetDemo() {
   DB = buildSeed();
