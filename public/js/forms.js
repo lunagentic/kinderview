@@ -510,11 +510,34 @@ export function projectForm({ project = null, onSaved }) {
 }
 
 // ── 영역 리드 관리 ──────────────────────────────────────
+// 공동 리드 한 줄: 사람 이름 + 그 사람이 함께 서는 영역 칩.
+// 칩을 눌러 켜고 끈다. 아무 칩도 안 켜면 그 사람은 공동 리드가 아니다.
+const coPersonRow = (m, areas = new Set()) => `
+  <div class="co-person" data-co-person="${esc(m.slack_user_id)}">
+    <div class="co-who">
+      <span class="nm">${esc(m.display_name)}</span>
+      <button type="button" class="lnk" data-co-all>전체</button>
+      <button type="button" class="lnk" data-co-none>해제</button>
+    </div>
+    <div class="co-areas">
+      ${state.meta.areas.map((a) => `
+        <button type="button" class="co-chip${areas.has(a.code) ? ' on' : ''}"
+                data-co-area="${esc(a.code)}" aria-pressed="${areas.has(a.code) ? 'true' : 'false'}">
+          ${esc(a.label)}
+        </button>`).join('')}
+    </div>
+  </div>`;
+
 // 업무마다 사람을 고르는 대신 여기서 영역별 책임자를 정한다.
 export function areaLeadsForm({ onSaved }) {
   const current = Object.fromEntries(
     state.areaLeads.filter((l) => (l.role ?? 'LEAD') === 'LEAD').map((l) => [l.area, l.slack_user_id]));
-  const co = new Set(state.areaLeads.filter((l) => l.role === 'CO').map((l) => l.slack_user_id));
+  // 공동 리드는 사람마다 서는 영역이 다르다 — 사람 → 영역 집합으로 들고 있는다
+  const co = new Map();
+  for (const l of state.areaLeads.filter((x) => x.role === 'CO')) {
+    if (!co.has(l.slack_user_id)) co.set(l.slack_user_id, new Set());
+    co.get(l.slack_user_id).add(l.area);
+  }
   const people = activeMembers();
 
   const body = `
@@ -536,16 +559,10 @@ export function areaLeadsForm({ onSaved }) {
 
     <h4 class="lead-h4">공동 리드</h4>
     <p class="hint" style="margin-bottom:10px">
-      고른 사람은 <b>모든 영역</b>의 리드 옆에 함께 섭니다. 담당은 지지 않습니다 —
+      고른 영역의 리드 옆에 함께 섭니다. 담당은 지지 않습니다 —
       업무 담당은 위의 대표 리드 그대로입니다.
     </p>
-    <div class="co-picks">
-      ${people.map((m) => `
-        <label class="chk">
-          <input type="checkbox" data-co="${esc(m.slack_user_id)}"${co.has(m.slack_user_id) ? ' checked' : ''}>
-          ${esc(m.display_name)}
-        </label>`).join('')}
-    </div>`;
+    <div class="co-people">${people.map((m) => coPersonRow(m, co.get(m.slack_user_id))).join('')}</div>`;
 
   modal({
     title: '영역 리드',
@@ -553,17 +570,37 @@ export function areaLeadsForm({ onSaved }) {
     footer: `<div class="right"><button class="btn" data-close>취소</button>
              <button class="btn btn-primary" data-save>저장</button></div>`,
     onMount({ root, close }) {
+      // 칩 켜고 끄기 — 대표로 세운 영역은 공동으로 또 설 수 없으니 눌러도 꺼 둔다
+      root.addEventListener('click', (e) => {
+        const chip = e.target.closest('.co-chip');
+        if (chip) {
+          const on = chip.classList.toggle('on');
+          chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+          return;
+        }
+        const all = e.target.closest('[data-co-all]');
+        const none = e.target.closest('[data-co-none]');
+        if (!all && !none) return;
+        const row = (all ?? none).closest('[data-co-person]');
+        for (const c of row.querySelectorAll('.co-chip')) {
+          c.classList.toggle('on', Boolean(all));
+          c.setAttribute('aria-pressed', all ? 'true' : 'false');
+        }
+      });
+
       root.querySelector('[data-save]').addEventListener('click', async () => {
         const leads = [...root.querySelectorAll('[data-area]')]
           .filter((sel) => sel.value)
           .map((sel) => ({ area: sel.dataset.area, slack_user_id: sel.value }));
         if (!leads.length) return toast('리드를 한 명 이상 지정해 주세요.', true);
-        const coPicks = [...root.querySelectorAll('[data-co]')]
-          .filter((c) => c.checked).map((c) => c.dataset.co);
+        const coRows = [...root.querySelectorAll('[data-co-person]')].flatMap((row) =>
+          [...row.querySelectorAll('.co-chip.on')].map((c) => ({
+            area: c.dataset.coArea, slack_user_id: row.dataset.coPerson,
+          })));
         try {
           const result = await api.patch('/api/area-leads', { leads });
           // 대표를 먼저 세우고 공동을 쓴다 — 대표와 겹치는 사람은 서버가 걸러 낸다
-          await api.patch('/api/area-leads/co', { members: coPicks });
+          await api.patch('/api/area-leads/co', { rows: coRows });
           const moved = result.reduce((n, r) => n + (r.moved ?? 0), 0);
           toast(moved ? `영역 리드를 저장했습니다. 업무 ${moved}건의 담당이 함께 바뀌었습니다.` : '영역 리드를 저장했습니다.');
           close();

@@ -32,9 +32,15 @@ export const AREA_LEADS = [
   ['ETC',     'U01KIM'],
 ];
 
-// 공동 리드 — 모든 영역에 함께 서는 사람. 담당(업무 소유)은 지지 않는다.
-// 손은 PO 라 전 영역을 본다.
-export const CO_LEADS = ['U07SON'];
+// 공동 리드 — 리드 옆에 함께 서는 사람. 담당(업무 소유)은 지지 않는다.
+// [사람, 빼는 영역] — 손은 PO 라 전 영역을 보되 개발은 뺀다.
+export const CO_LEADS = [
+  ['U07SON', ['DEV']],
+];
+
+// 위 표를 영역별 줄로 편다. 서버 시드와 데모가 같은 것을 쓴다.
+export const CO_LEAD_ROWS = CO_LEADS.flatMap(([uid, except = []]) =>
+  AREA_LEADS.filter(([area]) => !except.includes(area)).map(([area]) => [area, uid]));
 
 export const PROJECTS = [
   { key: 'KV', name: 'Kinderverse',   code: 'KV', lead: 'U01KIM', order: 1, channel: '#킨더버스_시연-준비',

@@ -555,7 +555,20 @@ details.more[open] > summary{color:var(--ink)}
 .lead-box .lead-none{color:var(--muted);font-size:.82rem}
 .lead-box .lead-co{color:var(--muted);font-size:.8rem;margin-left:2px}
 .lead-h4{margin:20px 0 6px;font-size:.92rem;font-weight:700}
-.co-picks{display:flex;flex-wrap:wrap;gap:8px 16px}
+.co-people{display:flex;flex-direction:column;gap:1px;background:var(--line-soft);
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.co-person{background:var(--surface);padding:10px 12px}
+.co-who{display:flex;align-items:baseline;gap:10px;margin-bottom:7px}
+.co-who .nm{font-weight:600;font-size:.88rem}
+.co-who .lnk{border:0;background:none;color:var(--muted);font-size:.76rem;cursor:pointer;padding:2px 0}
+.co-who .lnk:hover{color:var(--ink);text-decoration:underline}
+.co-areas{display:flex;flex-wrap:wrap;gap:5px}
+.co-chip{border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  border-radius:999px;padding:3px 10px;font-size:.76rem;cursor:pointer;white-space:nowrap}
+.co-chip:hover{border-color:var(--muted);color:var(--ink-2)}
+.co-chip.on{background:var(--ink);border-color:var(--ink);color:var(--ground);font-weight:500}
+.co-chip:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+@media (max-width:860px){ .co-chip{min-height:32px;padding:5px 11px} }
 .lead-table{display:flex;flex-direction:column;gap:1px;background:var(--line-soft);
   border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden}
 .lead-row{background:var(--surface);display:grid;grid-template-columns:1fr 200px;gap:14px;
@@ -1150,7 +1163,13 @@ const AREA_LEADS = [
 
 
 
-const CO_LEADS = ['U07SON'];
+const CO_LEADS = [
+  ['U07SON', ['DEV']],
+];
+
+
+const CO_LEAD_ROWS = CO_LEADS.flatMap(([uid, except = []]) =>
+  AREA_LEADS.filter(([area]) => !except.includes(area)).map(([area]) => [area, uid]));
 
 const PROJECTS = [
   { key: 'KV', name: 'Kinderverse',   code: 'KV', lead: 'U01KIM', order: 1, channel: '#킨더버스_시연-준비',
@@ -1284,7 +1303,7 @@ const TIME_ENTRIES = [];
 const EXPENSES = [];
 
 
-const SEED = { MEMBERS, AREA_LEADS, CO_LEADS, PROJECTS, PHASES, TASKS, SUBTASKS, MILESTONES, ISSUES, EXTRA_EVENTS, TIME_ENTRIES, EXPENSES };
+const SEED = { MEMBERS, AREA_LEADS, CO_LEADS, CO_LEAD_ROWS, PROJECTS, PHASES, TASKS, SUBTASKS, MILESTONES, ISSUES, EXTRA_EVENTS, TIME_ENTRIES, EXPENSES };
 
 /* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */
 
@@ -1721,16 +1740,15 @@ function buildSeed() {
     synced_at: nowISO(),
   }));
 
-  const areaLeadRows = [];
-  for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
-    areaLeadRows.push({ area, slack_user_id, role: 'LEAD', updated_at: nowISO() });
-    // 공동 리드는 모든 영역에 함께 선다. 대표와 같은 사람이면 건너뛴다.
-    for (const co of SEED.CO_LEADS ?? []) {
-      if (co !== slack_user_id) areaLeadRows.push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
-    }
+  const areaLeadRows = (SEED.AREA_LEADS ?? []).map(([area, slack_user_id]) => ({
+    area, slack_user_id, role: 'LEAD', updated_at: nowISO(),
+  }));
+  const leadOfArea = Object.fromEntries(areaLeadRows.map((l) => [l.area, l.slack_user_id]));
+  // 공동 리드는 사람마다 서는 영역이 다르다. 대표인 영역에는 또 설 수 없다.
+  for (const [area, co] of SEED.CO_LEAD_ROWS ?? []) {
+    if (leadOfArea[area] === co) continue;
+    areaLeadRows.push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
   }
-  const leadOfArea = Object.fromEntries(
-    areaLeadRows.filter((l) => l.role === 'LEAD').map((l) => [l.area, l.slack_user_id]));
 
   const projectId = {};
   const projects = SEED.PROJECTS.map((p) => {
@@ -1887,14 +1905,14 @@ function reconcile(db) {
       changed = true;
     }
   }
-  // 공동 리드도 영역마다 채워 준다 (시드에 새로 생긴 사람)
-  for (const co of SEED.CO_LEADS ?? []) {
-    for (const [area] of SEED.AREA_LEADS ?? []) {
-      const has = (db.area_leads ?? []).some((l) => l.area === area && l.slack_user_id === co);
-      if (!has) {
-        (db.area_leads ??= []).push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
-        changed = true;
-      }
+  // 시드에 새로 생긴 공동 리드 줄을 채워 준다. 화면에서 뺀 것은 되살리지 않는다 —
+  // 이미 그 사람 줄이 하나라도 있으면 손대지 않는다.
+  for (const [area, co] of SEED.CO_LEAD_ROWS ?? []) {
+    const knowsPerson = (db.area_leads ?? []).some((l) => l.slack_user_id === co && l.role === 'CO');
+    const here = (db.area_leads ?? []).some((l) => l.area === area && l.slack_user_id === co);
+    if (!knowsPerson && !here) {
+      (db.area_leads ??= []).push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
+      changed = true;
     }
   }
 
@@ -2198,15 +2216,18 @@ const leadRows = () => (DB.area_leads ?? []).map((l) => {
 const areaLeadOf = (area) => (DB.area_leads ?? [])
   .find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD')?.slack_user_id ?? null;
 
-/** 공동 리드 명단을 통째로 다시 쓴다 — 모든 영역에 같은 사람들을 세운다 */
-function setCoLeads(ids = []) {
+/** 공동 리드 줄을 통째로 다시 쓴다 — [{area, slack_user_id}] */
+function setCoLeads(rows = []) {
   DB.area_leads = (DB.area_leads ?? []).filter((l) => (l.role ?? 'LEAD') === 'LEAD');
-  for (const a of AREAS) {
-    const primary = areaLeadOf(a.code);
-    for (const uid of ids) {
-      if (!uid || uid === primary) continue;
-      DB.area_leads.push({ area: a.code, slack_user_id: uid, role: 'CO', updated_at: nowISO() });
-    }
+  const seen = new Set();
+  for (const r of rows) {
+    const { area, slack_user_id: uid } = r ?? {};
+    if (!area || !uid) continue;
+    if (!AREAS.some((a) => a.code === area)) throw new DemoError('없는 업무 영역입니다.');
+    const key = `${area}/${uid}`;
+    if (seen.has(key) || uid === areaLeadOf(area)) continue;
+    seen.add(key);
+    DB.area_leads.push({ area, slack_user_id: uid, role: 'CO', updated_at: nowISO() });
   }
   save();
   return leadRows();
@@ -3143,7 +3164,7 @@ function handle(method, path, body) {
   }
 
   if (p === '/api/area-leads' && method === 'GET') return leadRows();
-  if (p === '/api/area-leads/co' && method === 'PATCH') return setCoLeads(body.members ?? []);
+  if (p === '/api/area-leads/co' && method === 'PATCH') return setCoLeads(body.rows ?? []);
   if (p === '/api/area-leads' && method === 'PATCH') {
     if (!Array.isArray(body.leads)) throw new DemoError('리드 목록이 필요합니다.');
     const out = body.leads.map((l) => setLead(l.area, l.slack_user_id, me));
@@ -4089,11 +4110,34 @@ function projectForm({ project = null, onSaved }) {
 }
 
 // ── 영역 리드 관리 ──────────────────────────────────────
+// 공동 리드 한 줄: 사람 이름 + 그 사람이 함께 서는 영역 칩.
+// 칩을 눌러 켜고 끈다. 아무 칩도 안 켜면 그 사람은 공동 리드가 아니다.
+const coPersonRow = (m, areas = new Set()) => `
+  <div class="co-person" data-co-person="${esc(m.slack_user_id)}">
+    <div class="co-who">
+      <span class="nm">${esc(m.display_name)}</span>
+      <button type="button" class="lnk" data-co-all>전체</button>
+      <button type="button" class="lnk" data-co-none>해제</button>
+    </div>
+    <div class="co-areas">
+      ${state.meta.areas.map((a) => `
+        <button type="button" class="co-chip${areas.has(a.code) ? ' on' : ''}"
+                data-co-area="${esc(a.code)}" aria-pressed="${areas.has(a.code) ? 'true' : 'false'}">
+          ${esc(a.label)}
+        </button>`).join('')}
+    </div>
+  </div>`;
+
 // 업무마다 사람을 고르는 대신 여기서 영역별 책임자를 정한다.
 function areaLeadsForm({ onSaved }) {
   const current = Object.fromEntries(
     state.areaLeads.filter((l) => (l.role ?? 'LEAD') === 'LEAD').map((l) => [l.area, l.slack_user_id]));
-  const co = new Set(state.areaLeads.filter((l) => l.role === 'CO').map((l) => l.slack_user_id));
+  // 공동 리드는 사람마다 서는 영역이 다르다 — 사람 → 영역 집합으로 들고 있는다
+  const co = new Map();
+  for (const l of state.areaLeads.filter((x) => x.role === 'CO')) {
+    if (!co.has(l.slack_user_id)) co.set(l.slack_user_id, new Set());
+    co.get(l.slack_user_id).add(l.area);
+  }
   const people = activeMembers();
 
   const body = `
@@ -4115,16 +4159,10 @@ function areaLeadsForm({ onSaved }) {
 
     <h4 class="lead-h4">공동 리드</h4>
     <p class="hint" style="margin-bottom:10px">
-      고른 사람은 <b>모든 영역</b>의 리드 옆에 함께 섭니다. 담당은 지지 않습니다 —
+      고른 영역의 리드 옆에 함께 섭니다. 담당은 지지 않습니다 —
       업무 담당은 위의 대표 리드 그대로입니다.
     </p>
-    <div class="co-picks">
-      ${people.map((m) => `
-        <label class="chk">
-          <input type="checkbox" data-co="${esc(m.slack_user_id)}"${co.has(m.slack_user_id) ? ' checked' : ''}>
-          ${esc(m.display_name)}
-        </label>`).join('')}
-    </div>`;
+    <div class="co-people">${people.map((m) => coPersonRow(m, co.get(m.slack_user_id))).join('')}</div>`;
 
   modal({
     title: '영역 리드',
@@ -4132,17 +4170,37 @@ function areaLeadsForm({ onSaved }) {
     footer: `<div class="right"><button class="btn" data-close>취소</button>
              <button class="btn btn-primary" data-save>저장</button></div>`,
     onMount({ root, close }) {
+      // 칩 켜고 끄기 — 대표로 세운 영역은 공동으로 또 설 수 없으니 눌러도 꺼 둔다
+      root.addEventListener('click', (e) => {
+        const chip = e.target.closest('.co-chip');
+        if (chip) {
+          const on = chip.classList.toggle('on');
+          chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+          return;
+        }
+        const all = e.target.closest('[data-co-all]');
+        const none = e.target.closest('[data-co-none]');
+        if (!all && !none) return;
+        const row = (all ?? none).closest('[data-co-person]');
+        for (const c of row.querySelectorAll('.co-chip')) {
+          c.classList.toggle('on', Boolean(all));
+          c.setAttribute('aria-pressed', all ? 'true' : 'false');
+        }
+      });
+
       root.querySelector('[data-save]').addEventListener('click', async () => {
         const leads = [...root.querySelectorAll('[data-area]')]
           .filter((sel) => sel.value)
           .map((sel) => ({ area: sel.dataset.area, slack_user_id: sel.value }));
         if (!leads.length) return toast('리드를 한 명 이상 지정해 주세요.', true);
-        const coPicks = [...root.querySelectorAll('[data-co]')]
-          .filter((c) => c.checked).map((c) => c.dataset.co);
+        const coRows = [...root.querySelectorAll('[data-co-person]')].flatMap((row) =>
+          [...row.querySelectorAll('.co-chip.on')].map((c) => ({
+            area: c.dataset.coArea, slack_user_id: row.dataset.coPerson,
+          })));
         try {
           const result = await api.patch('/api/area-leads', { leads });
           // 대표를 먼저 세우고 공동을 쓴다 — 대표와 겹치는 사람은 서버가 걸러 낸다
-          await api.patch('/api/area-leads/co', { members: coPicks });
+          await api.patch('/api/area-leads/co', { rows: coRows });
           const moved = result.reduce((n, r) => n + (r.moved ?? 0), 0);
           toast(moved ? `영역 리드를 저장했습니다. 업무 ${moved}건의 담당이 함께 바뀌었습니다.` : '영역 리드를 저장했습니다.');
           close();

@@ -39,16 +39,15 @@ function buildSeed() {
     synced_at: nowISO(),
   }));
 
-  const areaLeadRows = [];
-  for (const [area, slack_user_id] of SEED.AREA_LEADS ?? []) {
-    areaLeadRows.push({ area, slack_user_id, role: 'LEAD', updated_at: nowISO() });
-    // 공동 리드는 모든 영역에 함께 선다. 대표와 같은 사람이면 건너뛴다.
-    for (const co of SEED.CO_LEADS ?? []) {
-      if (co !== slack_user_id) areaLeadRows.push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
-    }
+  const areaLeadRows = (SEED.AREA_LEADS ?? []).map(([area, slack_user_id]) => ({
+    area, slack_user_id, role: 'LEAD', updated_at: nowISO(),
+  }));
+  const leadOfArea = Object.fromEntries(areaLeadRows.map((l) => [l.area, l.slack_user_id]));
+  // 공동 리드는 사람마다 서는 영역이 다르다. 대표인 영역에는 또 설 수 없다.
+  for (const [area, co] of SEED.CO_LEAD_ROWS ?? []) {
+    if (leadOfArea[area] === co) continue;
+    areaLeadRows.push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
   }
-  const leadOfArea = Object.fromEntries(
-    areaLeadRows.filter((l) => l.role === 'LEAD').map((l) => [l.area, l.slack_user_id]));
 
   const projectId = {};
   const projects = SEED.PROJECTS.map((p) => {
@@ -205,14 +204,14 @@ function reconcile(db) {
       changed = true;
     }
   }
-  // 공동 리드도 영역마다 채워 준다 (시드에 새로 생긴 사람)
-  for (const co of SEED.CO_LEADS ?? []) {
-    for (const [area] of SEED.AREA_LEADS ?? []) {
-      const has = (db.area_leads ?? []).some((l) => l.area === area && l.slack_user_id === co);
-      if (!has) {
-        (db.area_leads ??= []).push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
-        changed = true;
-      }
+  // 시드에 새로 생긴 공동 리드 줄을 채워 준다. 화면에서 뺀 것은 되살리지 않는다 —
+  // 이미 그 사람 줄이 하나라도 있으면 손대지 않는다.
+  for (const [area, co] of SEED.CO_LEAD_ROWS ?? []) {
+    const knowsPerson = (db.area_leads ?? []).some((l) => l.slack_user_id === co && l.role === 'CO');
+    const here = (db.area_leads ?? []).some((l) => l.area === area && l.slack_user_id === co);
+    if (!knowsPerson && !here) {
+      (db.area_leads ??= []).push({ area, slack_user_id: co, role: 'CO', updated_at: nowISO() });
+      changed = true;
     }
   }
 
@@ -516,15 +515,18 @@ const leadRows = () => (DB.area_leads ?? []).map((l) => {
 const areaLeadOf = (area) => (DB.area_leads ?? [])
   .find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD')?.slack_user_id ?? null;
 
-/** 공동 리드 명단을 통째로 다시 쓴다 — 모든 영역에 같은 사람들을 세운다 */
-function setCoLeads(ids = []) {
+/** 공동 리드 줄을 통째로 다시 쓴다 — [{area, slack_user_id}] */
+function setCoLeads(rows = []) {
   DB.area_leads = (DB.area_leads ?? []).filter((l) => (l.role ?? 'LEAD') === 'LEAD');
-  for (const a of AREAS) {
-    const primary = areaLeadOf(a.code);
-    for (const uid of ids) {
-      if (!uid || uid === primary) continue;
-      DB.area_leads.push({ area: a.code, slack_user_id: uid, role: 'CO', updated_at: nowISO() });
-    }
+  const seen = new Set();
+  for (const r of rows) {
+    const { area, slack_user_id: uid } = r ?? {};
+    if (!area || !uid) continue;
+    if (!AREAS.some((a) => a.code === area)) throw new DemoError('없는 업무 영역입니다.');
+    const key = `${area}/${uid}`;
+    if (seen.has(key) || uid === areaLeadOf(area)) continue;
+    seen.add(key);
+    DB.area_leads.push({ area, slack_user_id: uid, role: 'CO', updated_at: nowISO() });
   }
   save();
   return leadRows();
@@ -1461,7 +1463,7 @@ function handle(method, path, body) {
   }
 
   if (p === '/api/area-leads' && method === 'GET') return leadRows();
-  if (p === '/api/area-leads/co' && method === 'PATCH') return setCoLeads(body.members ?? []);
+  if (p === '/api/area-leads/co' && method === 'PATCH') return setCoLeads(body.rows ?? []);
   if (p === '/api/area-leads' && method === 'PATCH') {
     if (!Array.isArray(body.leads)) throw new DemoError('리드 목록이 필요합니다.');
     const out = body.leads.map((l) => setLead(l.area, l.slack_user_id, me));

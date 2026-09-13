@@ -391,21 +391,25 @@ export const areaLeads = {
   },
 
   /**
-   * 공동 리드를 통째로 다시 쓴다. 전 영역에 함께 서는 사람(PO 등)을 위한 것이라
-   * 영역별로 따로 고르지 않고 명단 하나를 모든 영역에 적용한다.
+   * 공동 리드를 통째로 다시 쓴다. [{area, slack_user_id}] 줄 목록을 그대로 받는다 —
+   * 사람마다 서는 영역이 다를 수 있다(전 영역을 보되 개발만 빼는 식).
    * 대표 리드와 같은 사람은 건너뛴다 — 한 영역에서 두 줄이 될 수는 없다.
    */
-  setCo(slackUserIds = []) {
+  setCo(rows = []) {
     return tx(() => {
       run("DELETE FROM area_lead WHERE role = 'CO'");
       const at = nowISO();
-      for (const a of AREAS) {
-        const primary = areaLeads.of(a.code);
-        for (const uid of slackUserIds) {
-          if (!uid || uid === primary) continue;
-          run(`INSERT INTO area_lead (area, slack_user_id, role, updated_at)
-               VALUES (:area, :uid, 'CO', :at)`, { area: a.code, uid, at });
-        }
+      const seen = new Set();
+      for (const r of rows) {
+        const area = r?.area;
+        const uid = r?.slack_user_id;
+        if (!area || !uid) continue;
+        if (!AREAS.some((a) => a.code === area)) throw new HttpError(400, '없는 업무 영역입니다.');
+        const key = `${area}/${uid}`;
+        if (seen.has(key) || uid === areaLeads.of(area)) continue;
+        seen.add(key);
+        run(`INSERT INTO area_lead (area, slack_user_id, role, updated_at)
+             VALUES (:area, :uid, 'CO', :at)`, { area, uid, at });
       }
       return areaLeads.list();
     });
