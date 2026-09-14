@@ -85,7 +85,8 @@ export const members = {
 export const projects = {
   list({ includeArchived = false } = {}) {
     return all(
-      `SELECT p.*, m.display_name AS lead_name
+      `SELECT p.*, m.display_name AS lead_name,
+              (SELECT COUNT(*) FROM task t WHERE t.project_id = p.id AND t.deleted_at IS NULL) AS task_count
        FROM project p LEFT JOIN member m ON m.slack_user_id = p.lead_slack_user_id
        ${includeArchived ? '' : 'WHERE p.is_archived = 0'}
        ORDER BY p.is_archived, p.sort_order, p.name`,

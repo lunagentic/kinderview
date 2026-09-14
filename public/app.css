@@ -877,6 +877,10 @@ details.more[open] > summary{color:var(--ink)}
 .tk-project-head h2{font-size:1.02rem;font-weight:800}
 .tk-project-head .n{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-left:auto}
 
+/* 업무가 아직 없는 프로젝트 — 빈 채로라도 자리를 지켜야 방금 만든 게 보인다 */
+.tk-empty-project{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+  background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);
+  padding:14px 16px;color:var(--muted);font-size:.86rem}
 .tk-area{margin-top:12px}
 .tk-area-head{display:flex;align-items:baseline;gap:9px;padding:0 2px 5px}
 .tk-area-head .lab{font-size:.84rem;font-weight:600;color:var(--ink-2)}

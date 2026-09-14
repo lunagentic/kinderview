@@ -100,7 +100,9 @@ export async function renderTasks(root, query) {
   const groups = [];
   for (const pr of ordered) {
     const mine = rows.filter((t) => t.project_id === pr.id);
-    if (!mine.length) continue;
+    // 업무가 아직 하나도 없는 프로젝트도 보여 준다. 안 보이면 방금 만든 프로젝트가
+    // 사라진 것처럼 보인다. 조건에 안 걸린 것뿐인 프로젝트는 접어 둔다.
+    if (!mine.length && pr.task_count) continue;
     const areas = [];
     for (const a of state.meta.areas) {
       const inArea = mine.filter((t) => t.area === a.code);
@@ -184,6 +186,11 @@ export async function renderTasks(root, query) {
           <h2>${projectName(g.project.id, g.project.name)}</h2>
           <span class="n">${g.count}건</span>
         </div>
+        ${g.areas.length ? '' : `
+          <div class="tk-empty-project">
+            아직 업무가 없습니다.
+            <button class="btn btn-ghost" data-new-task data-project="${esc(g.project.id)}">+ 업무 등록</button>
+          </div>`}
         ${g.areas.map((a) => `
           <div class="tk-area">
             <div class="tk-area-head">
@@ -368,10 +375,11 @@ export async function renderTasks(root, query) {
       return projectForm({ onSaved: reload });
     }
 
-    if (e.target.closest('[data-new-task]')) {
+    const newTask = e.target.closest('[data-new-task]');
+    if (newTask) {
       return taskForm({
         defaults: {
-          project_id: p.get('project') || undefined,
+          project_id: newTask.dataset.project || p.get('project') || undefined,
           area: p.get('area') || undefined,
           due_date: month ? monthEndDay(month) : undefined,
         },

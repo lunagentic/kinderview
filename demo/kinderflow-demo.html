@@ -882,6 +882,10 @@ details.more[open] > summary{color:var(--ink)}
 .tk-project-head h2{font-size:1.02rem;font-weight:800}
 .tk-project-head .n{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-left:auto}
 
+/* 업무가 아직 없는 프로젝트 — 빈 채로라도 자리를 지켜야 방금 만든 게 보인다 */
+.tk-empty-project{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+  background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);
+  padding:14px 16px;color:var(--muted);font-size:.86rem}
 .tk-area{margin-top:12px}
 .tk-area-head{display:flex;align-items:baseline;gap:9px;padding:0 2px 5px}
 .tk-area-head .lab{font-size:.84rem;font-weight:600;color:var(--ink-2)}
@@ -2577,6 +2581,13 @@ function ensureMember(slackUserId) {
   return m.slack_user_id;
 }
 
+/** 프로젝트마다 업무 수를 얹는다 — 업무가 하나도 없는 프로젝트를 화면에서 알아보려면 필요하다 */
+const projectRows = () => (DB.projects ?? []).map((p) => ({
+  ...p,
+  lead_name: member(p.lead_slack_user_id)?.display_name ?? null,
+  task_count: (DB.tasks ?? []).filter((t) => t.project_id === p.id && !t.deleted_at).length,
+}));
+
 // ── 영역 리드 ───────────────────────────────────────────
 const leadRows = () => (DB.area_leads ?? []).map((l) => {
   const m = member(l.slack_user_id);
@@ -3458,7 +3469,7 @@ function handle(method, path, body) {
   if (method === 'GET' && p === '/api/bootstrap') {
     return {
       me, today: today(),
-      members: DB.members, projects: DB.projects, vendors: DB.vendors,
+      members: DB.members, projects: projectRows(), vendors: DB.vendors,
       area_leads: leadRows(),
       slack_configured: false,
       meta: {
@@ -3517,7 +3528,7 @@ function handle(method, path, body) {
     }
   }
 
-  if (p === '/api/projects' && method === 'GET') return DB.projects;
+  if (p === '/api/projects' && method === 'GET') return projectRows();
   if (p === '/api/projects' && method === 'POST') {
     if (!body.name?.trim()) throw new DemoError('프로젝트명을 입력해 주세요.');
     const pr = {
@@ -5292,7 +5303,9 @@ async function renderTasks(root, query) {
   const groups = [];
   for (const pr of ordered) {
     const mine = rows.filter((t) => t.project_id === pr.id);
-    if (!mine.length) continue;
+    // 업무가 아직 하나도 없는 프로젝트도 보여 준다. 안 보이면 방금 만든 프로젝트가
+    // 사라진 것처럼 보인다. 조건에 안 걸린 것뿐인 프로젝트는 접어 둔다.
+    if (!mine.length && pr.task_count) continue;
     const areas = [];
     for (const a of state.meta.areas) {
       const inArea = mine.filter((t) => t.area === a.code);
@@ -5376,6 +5389,11 @@ async function renderTasks(root, query) {
           <h2>${projectName(g.project.id, g.project.name)}</h2>
           <span class="n">${g.count}건</span>
         </div>
+        ${g.areas.length ? '' : `
+          <div class="tk-empty-project">
+            아직 업무가 없습니다.
+            <button class="btn btn-ghost" data-new-task data-project="${esc(g.project.id)}">+ 업무 등록</button>
+          </div>`}
         ${g.areas.map((a) => `
           <div class="tk-area">
             <div class="tk-area-head">
@@ -5560,10 +5578,11 @@ async function renderTasks(root, query) {
       return projectForm({ onSaved: reload });
     }
 
-    if (e.target.closest('[data-new-task]')) {
+    const newTask = e.target.closest('[data-new-task]');
+    if (newTask) {
       return taskForm({
         defaults: {
-          project_id: p.get('project') || undefined,
+          project_id: newTask.dataset.project || p.get('project') || undefined,
           area: p.get('area') || undefined,
           due_date: month ? monthEndDay(month) : undefined,
         },

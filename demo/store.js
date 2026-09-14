@@ -782,6 +782,13 @@ function ensureMember(slackUserId) {
   return m.slack_user_id;
 }
 
+/** 프로젝트마다 업무 수를 얹는다 — 업무가 하나도 없는 프로젝트를 화면에서 알아보려면 필요하다 */
+const projectRows = () => (DB.projects ?? []).map((p) => ({
+  ...p,
+  lead_name: member(p.lead_slack_user_id)?.display_name ?? null,
+  task_count: (DB.tasks ?? []).filter((t) => t.project_id === p.id && !t.deleted_at).length,
+}));
+
 // ── 영역 리드 ───────────────────────────────────────────
 const leadRows = () => (DB.area_leads ?? []).map((l) => {
   const m = member(l.slack_user_id);
@@ -1663,7 +1670,7 @@ function handle(method, path, body) {
   if (method === 'GET' && p === '/api/bootstrap') {
     return {
       me, today: today(),
-      members: DB.members, projects: DB.projects, vendors: DB.vendors,
+      members: DB.members, projects: projectRows(), vendors: DB.vendors,
       area_leads: leadRows(),
       slack_configured: false,
       meta: {
@@ -1722,7 +1729,7 @@ function handle(method, path, body) {
     }
   }
 
-  if (p === '/api/projects' && method === 'GET') return DB.projects;
+  if (p === '/api/projects' && method === 'GET') return projectRows();
   if (p === '/api/projects' && method === 'POST') {
     if (!body.name?.trim()) throw new DemoError('프로젝트명을 입력해 주세요.');
     const pr = {
