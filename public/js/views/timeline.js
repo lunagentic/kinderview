@@ -57,7 +57,9 @@ export async function renderTimeline(root) {
     return;
   }
 
-  const live = rows.filter((r) => r.phases.length || r.milestones.length || r.start_date);
+  // 기간이 아직 없는 프로젝트도 자리를 지킨다. 방금 만든 프로젝트가 여기서도
+  // 안 보이면 등록이 안 된 것처럼 보인다 — 페이즈를 더하라고 그 자리에서 권한다.
+  const live = rows;
   if (!live.length) {
     root.innerHTML = `${tlHead()}${empty({
       title: '일정이 없습니다',

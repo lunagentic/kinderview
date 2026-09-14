@@ -184,6 +184,8 @@ export async function renderTasks(root, query) {
         <div class="tk-project-head" title="끌어서 프로젝트 차례를 바꿉니다">
           <span class="grip" aria-hidden="true">⠿</span>
           <h2>${projectName(g.project.id, g.project.name)}</h2>
+          <button class="pr-edit" data-edit-project="${esc(g.project.id)}"
+                  aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>
           <span class="n">${g.count}건</span>
         </div>
         ${g.areas.length ? '' : `
@@ -220,7 +222,8 @@ export async function renderTasks(root, query) {
 
     root.addEventListener('pointerdown', (e) => {
       const head = e.target.closest('.tk-project-head');
-      if (!head || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (!head || e.target.closest('button')) return;   // 단추는 눌리는 것이지 끌리는 것이 아니다
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       key = head.closest('.tk-project').dataset.project;
       moved = false;
       startY = e.clientY;
@@ -373,6 +376,12 @@ export async function renderTasks(root, query) {
 
     if (e.target.closest('[data-new-project]')) {
       return projectForm({ onSaved: reload });
+    }
+
+    const edit = e.target.closest('[data-edit-project]');
+    if (edit) {
+      const pr = state.projects.find((x) => x.id === edit.dataset.editProject);
+      if (pr) return projectForm({ project: pr, onSaved: reload });
     }
 
     const newTask = e.target.closest('[data-new-task]');

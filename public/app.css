@@ -509,6 +509,8 @@ details.more[open] > summary{color:var(--ink)}
 /* 더 좁아지면 가로로 미는 대신 한 줄씩 쌓는다.
    여기서는 어떤 폭이 와도 상단바가 페이지를 넓히지 않는다. */
 @media (max-width:330px){
+  .kv{grid-template-columns:minmax(0,1fr);gap:2px 0}
+  .kv dt{color:var(--muted);font-size:.78rem;margin-top:6px}
   .topbar{grid-template-columns:minmax(0,1fr);grid-template-areas:"brand" "right" "nav"}
   .topbar-right{justify-content:flex-start;flex-wrap:wrap}
   #me-select{max-width:none;flex:1 1 auto}
@@ -864,7 +866,7 @@ details.more[open] > summary{color:var(--ink)}
 .chk{display:flex;align-items:center;gap:6px;font-size:.83rem;color:var(--muted);white-space:nowrap}
 
 .tk-project{margin-bottom:26px}
-.tk-project-head{display:flex;align-items:baseline;gap:10px;
+.tk-project-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0;
   padding-bottom:8px;border-bottom:2px solid var(--pc,var(--line));margin-bottom:2px;
   /* 세로 스크롤은 살리고, 머리를 잡았을 때만 우리가 받는다 */
   cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -874,7 +876,14 @@ details.more[open] > summary{color:var(--ink)}
 .tk-project-head:hover .grip{color:var(--muted)}
 .tk-project.dragging{opacity:.6}
 .tk-project.dragging .tk-project-head{cursor:grabbing}
-.tk-project-head h2{font-size:1.02rem;font-weight:800}
+.tk-project-head h2{font-size:1.02rem;font-weight:800;min-width:0;overflow-wrap:anywhere}
+/* 프로젝트를 고치러 가는 문 — 줄에 손이 가면 나타난다 */
+.pr-edit{border:0;background:none;color:transparent;cursor:pointer;font-size:.86rem;
+  line-height:1;padding:2px 5px;border-radius:6px;align-self:center}
+.tk-project-head:hover .pr-edit{color:var(--muted)}
+.pr-edit:hover{color:var(--ink);background:var(--surface-2)}
+.pr-edit:focus-visible{color:var(--muted);outline:2px solid var(--focus)}
+@media (max-width:860px){ .pr-edit{color:var(--muted);min-height:30px;padding:4px 7px} }
 .tk-project-head .n{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-left:auto}
 
 /* 업무가 아직 없는 프로젝트 — 빈 채로라도 자리를 지켜야 방금 만든 게 보인다 */
@@ -945,7 +954,7 @@ details.more[open] > summary{color:var(--ink)}
   background:var(--surface);box-shadow:var(--shadow)}
 .tk-due.late .due-edit{color:var(--s-delay)}
 .due-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.due-cell .due-edit{width:auto;flex:none}
+.due-cell .due-edit{width:auto;flex:0 1 auto;min-width:0;max-width:100%}
 @media (max-width:860px){ .due-edit{min-height:32px} }
 .tk-due.late{color:var(--s-delay);font-weight:500}
 .tk-due.late .dday{color:var(--s-delay)}

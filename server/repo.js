@@ -144,6 +144,26 @@ export const projects = {
     );
     return projects.get(id);
   },
+  /**
+   * 빈 프로젝트만 지운다. 업무·페이즈·마일스톤·경비가 하나라도 붙어 있으면
+   * 지우는 대신 아카이브해야 한다 — 지워 버리면 그 기록들이 갈 곳이 없다.
+   */
+  remove(id) {
+    const cur = projects.get(id);
+    if (!cur) throw new HttpError(404, '프로젝트를 찾을 수 없습니다.');
+    const held = [
+      ['업무', one('SELECT COUNT(*) n FROM task WHERE project_id = :id AND deleted_at IS NULL', { id }).n],
+      ['페이즈', one('SELECT COUNT(*) n FROM phase WHERE project_id = :id', { id }).n],
+      ['마일스톤', one('SELECT COUNT(*) n FROM milestone WHERE project_id = :id', { id }).n],
+      ['경비', one('SELECT COUNT(*) n FROM expense WHERE project_id = :id', { id }).n],
+    ].filter(([, n]) => n > 0);
+    if (held.length) {
+      throw new HttpError(400,
+        `${held.map(([k, n]) => `${k} ${n}건`).join(' · ')}이 남아 있어 지울 수 없습니다. 아카이브를 쓰세요.`);
+    }
+    run('DELETE FROM project WHERE id = :id', { id });
+    return { ok: true };
+  },
 };
 
 // ── 페이즈 · 마일스톤 ───────────────────────────────────

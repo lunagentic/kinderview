@@ -514,6 +514,8 @@ details.more[open] > summary{color:var(--ink)}
 /* 더 좁아지면 가로로 미는 대신 한 줄씩 쌓는다.
    여기서는 어떤 폭이 와도 상단바가 페이지를 넓히지 않는다. */
 @media (max-width:330px){
+  .kv{grid-template-columns:minmax(0,1fr);gap:2px 0}
+  .kv dt{color:var(--muted);font-size:.78rem;margin-top:6px}
   .topbar{grid-template-columns:minmax(0,1fr);grid-template-areas:"brand" "right" "nav"}
   .topbar-right{justify-content:flex-start;flex-wrap:wrap}
   #me-select{max-width:none;flex:1 1 auto}
@@ -869,7 +871,7 @@ details.more[open] > summary{color:var(--ink)}
 .chk{display:flex;align-items:center;gap:6px;font-size:.83rem;color:var(--muted);white-space:nowrap}
 
 .tk-project{margin-bottom:26px}
-.tk-project-head{display:flex;align-items:baseline;gap:10px;
+.tk-project-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0;
   padding-bottom:8px;border-bottom:2px solid var(--pc,var(--line));margin-bottom:2px;
   /* 세로 스크롤은 살리고, 머리를 잡았을 때만 우리가 받는다 */
   cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -879,7 +881,14 @@ details.more[open] > summary{color:var(--ink)}
 .tk-project-head:hover .grip{color:var(--muted)}
 .tk-project.dragging{opacity:.6}
 .tk-project.dragging .tk-project-head{cursor:grabbing}
-.tk-project-head h2{font-size:1.02rem;font-weight:800}
+.tk-project-head h2{font-size:1.02rem;font-weight:800;min-width:0;overflow-wrap:anywhere}
+/* 프로젝트를 고치러 가는 문 — 줄에 손이 가면 나타난다 */
+.pr-edit{border:0;background:none;color:transparent;cursor:pointer;font-size:.86rem;
+  line-height:1;padding:2px 5px;border-radius:6px;align-self:center}
+.tk-project-head:hover .pr-edit{color:var(--muted)}
+.pr-edit:hover{color:var(--ink);background:var(--surface-2)}
+.pr-edit:focus-visible{color:var(--muted);outline:2px solid var(--focus)}
+@media (max-width:860px){ .pr-edit{color:var(--muted);min-height:30px;padding:4px 7px} }
 .tk-project-head .n{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-left:auto}
 
 /* 업무가 아직 없는 프로젝트 — 빈 채로라도 자리를 지켜야 방금 만든 게 보인다 */
@@ -950,7 +959,7 @@ details.more[open] > summary{color:var(--ink)}
   background:var(--surface);box-shadow:var(--shadow)}
 .tk-due.late .due-edit{color:var(--s-delay)}
 .due-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.due-cell .due-edit{width:auto;flex:none}
+.due-cell .due-edit{width:auto;flex:0 1 auto;min-width:0;max-width:100%}
 @media (max-width:860px){ .due-edit{min-height:32px} }
 .tk-due.late{color:var(--s-delay);font-weight:500}
 .tk-due.late .dday{color:var(--s-delay)}
@@ -3528,6 +3537,25 @@ function handle(method, path, body) {
     }
   }
 
+  if (seg[1] === 'projects' && seg[2] && method === 'DELETE') {
+    const id = seg[2];
+    const pr = project(id);
+    if (!pr) throw new DemoError('프로젝트를 찾을 수 없습니다.');
+    // 빈 프로젝트만 지운다. 붙은 기록이 있으면 아카이브해야 한다.
+    const held = [
+      ['업무', (DB.tasks ?? []).filter((t) => t.project_id === id && !t.deleted_at).length],
+      ['페이즈', (DB.phases ?? []).filter((x) => x.project_id === id).length],
+      ['마일스톤', (DB.milestones ?? []).filter((x) => x.project_id === id).length],
+      ['경비', (DB.expenses ?? []).filter((x) => x.project_id === id).length],
+    ].filter(([, n]) => n > 0);
+    if (held.length) {
+      throw new DemoError(`${held.map(([k, n]) => `${k} ${n}건`).join(' · ')}이 남아 있어 지울 수 없습니다. 아카이브를 쓰세요.`);
+    }
+    DB.projects = DB.projects.filter((x) => x.id !== id);
+    save();
+    return { ok: true };
+  }
+
   if (p === '/api/projects' && method === 'GET') return projectRows();
   if (p === '/api/projects' && method === 'POST') {
     if (!body.name?.trim()) throw new DemoError('프로젝트명을 입력해 주세요.');
@@ -4538,6 +4566,7 @@ function projectForm({ project = null, onSaved }) {
     body,
     footer: `<div class="right">
       ${editing ? `<button class="btn btn-danger" data-archive>${project.is_archived ? '아카이브 해제' : '아카이브'}</button>` : ''}
+      ${editing && !project.task_count ? '<button class="btn btn-danger" data-delete>삭제</button>' : ''}
       <button class="btn" data-close>취소</button>
       <button class="btn btn-primary" data-save>${editing ? '저장' : '등록'}</button></div>`,
     onMount({ root, close }) {
@@ -4554,6 +4583,18 @@ function projectForm({ project = null, onSaved }) {
         await api.patch(`/api/projects/${project.id}`, { is_archived: !project.is_archived });
         close();
         onSaved?.();
+      });
+
+      root.querySelector('[data-delete]')?.addEventListener('click', async () => {
+        const ok = await confirmModal(`「${project.name}」을(를) 삭제할까요? 되돌릴 수 없습니다.`,
+          { confirmLabel: '삭제', danger: true });
+        if (!ok) return;
+        try {
+          await api.del(`/api/projects/${project.id}`);
+          toast('프로젝트를 삭제했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
       });
       root.querySelector('[data-save]').addEventListener('click', async () => {
         const fd = new FormData(form);
@@ -5387,6 +5428,8 @@ async function renderTasks(root, query) {
         <div class="tk-project-head" title="끌어서 프로젝트 차례를 바꿉니다">
           <span class="grip" aria-hidden="true">⠿</span>
           <h2>${projectName(g.project.id, g.project.name)}</h2>
+          <button class="pr-edit" data-edit-project="${esc(g.project.id)}"
+                  aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>
           <span class="n">${g.count}건</span>
         </div>
         ${g.areas.length ? '' : `
@@ -5423,7 +5466,8 @@ async function renderTasks(root, query) {
 
     root.addEventListener('pointerdown', (e) => {
       const head = e.target.closest('.tk-project-head');
-      if (!head || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (!head || e.target.closest('button')) return;   // 단추는 눌리는 것이지 끌리는 것이 아니다
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       key = head.closest('.tk-project').dataset.project;
       moved = false;
       startY = e.clientY;
@@ -5576,6 +5620,12 @@ async function renderTasks(root, query) {
 
     if (e.target.closest('[data-new-project]')) {
       return projectForm({ onSaved: reload });
+    }
+
+    const edit = e.target.closest('[data-edit-project]');
+    if (edit) {
+      const pr = state.projects.find((x) => x.id === edit.dataset.editProject);
+      if (pr) return projectForm({ project: pr, onSaved: reload });
     }
 
     const newTask = e.target.closest('[data-new-task]');
@@ -6613,7 +6663,9 @@ async function renderTimeline(root) {
     return;
   }
 
-  const live = rows.filter((r) => r.phases.length || r.milestones.length || r.start_date);
+  // 기간이 아직 없는 프로젝트도 자리를 지킨다. 방금 만든 프로젝트가 여기서도
+  // 안 보이면 등록이 안 된 것처럼 보인다 — 페이즈를 더하라고 그 자리에서 권한다.
+  const live = rows;
   if (!live.length) {
     root.innerHTML = `${tlHead()}${empty({
       title: '일정이 없습니다',

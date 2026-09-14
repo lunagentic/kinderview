@@ -160,6 +160,8 @@ route('DELETE', '/api/tasks/:id', (ctx) => {
 
 route('GET', '/api/projects', () => projects.list({ includeArchived: true }));
 route('POST', '/api/projects', (ctx) => projects.create(ctx.body));
+route('DELETE', '/api/projects/:id', (ctx) => projects.remove(ctx.params.id));
+
 route('PATCH', '/api/projects/:id', (ctx) => {
   const p = projects.update(ctx.params.id, ctx.body);
   if (!p) throw new HttpError(404, '프로젝트를 찾을 수 없습니다.');

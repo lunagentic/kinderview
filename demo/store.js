@@ -1729,6 +1729,25 @@ function handle(method, path, body) {
     }
   }
 
+  if (seg[1] === 'projects' && seg[2] && method === 'DELETE') {
+    const id = seg[2];
+    const pr = project(id);
+    if (!pr) throw new DemoError('프로젝트를 찾을 수 없습니다.');
+    // 빈 프로젝트만 지운다. 붙은 기록이 있으면 아카이브해야 한다.
+    const held = [
+      ['업무', (DB.tasks ?? []).filter((t) => t.project_id === id && !t.deleted_at).length],
+      ['페이즈', (DB.phases ?? []).filter((x) => x.project_id === id).length],
+      ['마일스톤', (DB.milestones ?? []).filter((x) => x.project_id === id).length],
+      ['경비', (DB.expenses ?? []).filter((x) => x.project_id === id).length],
+    ].filter(([, n]) => n > 0);
+    if (held.length) {
+      throw new DemoError(`${held.map(([k, n]) => `${k} ${n}건`).join(' · ')}이 남아 있어 지울 수 없습니다. 아카이브를 쓰세요.`);
+    }
+    DB.projects = DB.projects.filter((x) => x.id !== id);
+    save();
+    return { ok: true };
+  }
+
   if (p === '/api/projects' && method === 'GET') return projectRows();
   if (p === '/api/projects' && method === 'POST') {
     if (!body.name?.trim()) throw new DemoError('프로젝트명을 입력해 주세요.');

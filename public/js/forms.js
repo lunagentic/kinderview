@@ -488,6 +488,7 @@ export function projectForm({ project = null, onSaved }) {
     body,
     footer: `<div class="right">
       ${editing ? `<button class="btn btn-danger" data-archive>${project.is_archived ? '아카이브 해제' : '아카이브'}</button>` : ''}
+      ${editing && !project.task_count ? '<button class="btn btn-danger" data-delete>삭제</button>' : ''}
       <button class="btn" data-close>취소</button>
       <button class="btn btn-primary" data-save>${editing ? '저장' : '등록'}</button></div>`,
     onMount({ root, close }) {
@@ -504,6 +505,18 @@ export function projectForm({ project = null, onSaved }) {
         await api.patch(`/api/projects/${project.id}`, { is_archived: !project.is_archived });
         close();
         onSaved?.();
+      });
+
+      root.querySelector('[data-delete]')?.addEventListener('click', async () => {
+        const ok = await confirmModal(`「${project.name}」을(를) 삭제할까요? 되돌릴 수 없습니다.`,
+          { confirmLabel: '삭제', danger: true });
+        if (!ok) return;
+        try {
+          await api.del(`/api/projects/${project.id}`);
+          toast('프로젝트를 삭제했습니다.');
+          close();
+          onSaved?.();
+        } catch (err) { toast(err.message, true); }
       });
       root.querySelector('[data-save]').addEventListener('click', async () => {
         const fd = new FormData(form);
