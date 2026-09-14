@@ -87,11 +87,12 @@ tx(() => {
 
   const leadOf = Object.fromEntries(AREA_LEADS);
   const taskIdByTitle = {};
-  for (const [pk, phaseKey, group, detail, area, due, priority, note] of TASKS) {
+  for (const [pk, phaseKey, group, detail, area, due, priority, note, who] of TASKS) {
     const id = uid();
     const title = taskTitle(group, detail);
     taskIdByTitle[title] = id;
-    const owner = leadOf[area];   // 담당자 = 영역 리드
+    // 담당은 정해진 사람이 있으면 그 사람, 없으면 그 영역의 리드
+    const owner = who || leadOf[area];
     if (!owner) throw new Error(`'${area}' 영역의 리드가 없습니다 — AREA_LEADS 를 확인하세요.`);
     // 등록 이력은 오늘로 둔다. 마감 21일 전이라는 가짜 과거를 만들면
     // 변경 이력이 지어낸 이야기가 된다.

@@ -92,11 +92,11 @@ function buildSeed() {
   const taskIdByTitle = {};
 
 
-  for (const [pk, phaseKey, group, detail, area, due, priority, note] of SEED.TASKS) {
+  for (const [pk, phaseKey, group, detail, area, due, priority, note, who] of SEED.TASKS) {
     const id = uid();
     const title = taskTitle(group, detail);
     taskIdByTitle[title] = id;
-    const owner = leadOfArea[area];
+    const owner = who || leadOfArea[area];   // 정해진 담당이 있으면 그 사람
     const created = at(T, '09');   // 등록 이력은 오늘로 — 가짜 과거를 만들지 않는다
     tasks.push({
       id, project_id: projectId[pk], phase_id: phaseId[phaseKey] ?? null,
@@ -246,13 +246,13 @@ function reconcile(db) {
   const leadNow = (area) => (db.area_leads ?? [])
     .find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD')?.slack_user_id;
 
-  for (const [pk, phaseKey, group, detail, area, due, priority, note] of SEED.TASKS ?? []) {
+  for (const [pk, phaseKey, group, detail, area, due, priority, note, who] of SEED.TASKS ?? []) {
     const title = taskTitle(group, detail);
     if (known.has(title)) continue;
     // 프로젝트 이름이 바뀌었을 수 있으니 바뀐 이름으로도 찾아본다
     const wanted = seedProjectName[pk];
     const projectId = projectByName[RENAMED_PROJECTS[wanted] ?? wanted] ?? projectByName[wanted];
-    const owner = leadNow(area);
+    const owner = who || leadNow(area);
     if (!projectId || !owner) continue;
     const created = `${addDays(due, -21)}T01:00:00.000Z`;
     const id = uid();

@@ -1252,6 +1252,7 @@ const MEMBERS = [
   { id: 'U06KEON', name: '건',   handle: 'keon', active: 1 },
   { id: 'U07SON',  name: '손',   handle: 'son',  active: 1 },
   { id: 'U08YUN',  name: '윤',   handle: 'yun',  active: 1 },
+  { id: 'U09MYUNG', name: '명학', handle: 'myung', active: 1 },
 ];
 
 
@@ -1283,6 +1284,9 @@ const PROJECTS = [
     start: '2026-09-01', end: '2026-09-30' },
   { key: 'CP', name: '상위 기획 및 리소스', code: 'CP', lead: 'U05JUNG', order: 2, channel: '#킨더버스_시연-준비',
     start: '2026-09-01', end: '2026-11-27' },
+  // 차례는 뒤에 붙인다 — sort_order 가 프로젝트 색을 정해서, 중간에 끼우면 기존 색이 밀린다
+  { key: 'KB', name: '킨더보드', code: 'KB', lead: 'U01KIM', order: 3, channel: null,
+    start: '2026-09-01', end: '2026-09-30' },
 ];
 
 
@@ -1292,7 +1296,11 @@ const PHASES = [
   ['CP', 'CP9',   '9월',    '2026-09-01', '2026-09-30', 1],
   ['CP', 'CP910', '9~10월', '2026-09-28', '2026-10-16', 2],
   ['CP', 'CP11',  '11월',   '2026-11-01', '2026-11-27', 3],
+
+  ['KV', 'KV10',  '10월',   '2026-10-01', '2026-10-31', 2],
+  ['KB', 'KB9',   '9월',    '2026-09-01', '2026-09-30', 1],
 ];
+
 
 
 
@@ -1318,6 +1326,28 @@ const TASKS = [
     '기존 킨더버스에서 생성된 리소스를 옮긴다'],
   ['KV', 'KV9', '킨더보드 에이전트', '프롬프트 기능 연동', 'DEV', '2026-09-25', 'HIGH',
     '지금 킨더버스가 프롬프트로 처리하는 기능을 킨더보드 에이전트가 맡도록 연동 · 캔버스 강조 표시'],
+
+  // ── 킨더보드 · 9월 (서비스기획) ───────────────────────
+  // 출처: 아티팩트 「업무 리스트」 (9월). 담당은 그 표의 이름을 그대로 따랐다.
+  ['KB', 'KB9', '알림장',        '기획',            'PLAN', '2026-09-30', 'HIGH', '공통', 'U01KIM'],
+  ['KB', 'KB9', '운영 팔로업',    '',                'PLAN', '2026-09-30', 'HIGH', '공통', 'U01KIM'],
+  ['KB', 'KB9', '관찰일지',       '',                'PLAN', '2026-09-30', 'HIGH', '',     'U01KIM'],
+  ['KB', 'KB9', '발달평가',       '관찰일지 연계',     'PLAN', '2026-09-30', 'HIGH', '',     'U01KIM'],
+  ['KB', 'KB9', '아이',          '일괄 등록',        'PLAN', '2026-09-30', 'HIGH', '',     'U06KEON'],
+  ['KB', 'KB9', '기관 대시보드',   '',                'PLAN', '2026-09-30', 'HIGH', '',     'U09MYUNG'],
+  ['KB', 'KB9', '기관 회원가입',   '로그인',           'PLAN', '2026-09-30', 'HIGH', '',     'U09MYUNG'],
+  ['KB', 'KB9', '킨더브레인',     '방향성 기획',       'PLAN', '2026-09-30', 'HIGH', '',     'U09MYUNG'],
+
+  // ── Kinderverse · 9월 (서비스기획 · 아티팩트에서 더해진 것) ──
+  ['KV', 'KV9', '내 폴더',       '저장 체계 구축',     'PLAN', '2026-09-30', 'HIGH', '',     'U01KIM'],
+  ['KV', 'KV9', '보드',          '오류 수정',        'PLAN', '2026-09-30', 'HIGH', '',     'U01KIM'],
+
+  // ── Kinderverse · 10월 (서비스기획) ──────────────────
+  ['KV', 'KV10', '즐겨찾기',      '플로우 정비',       'PLAN', '2026-10-30', 'HIGH', '공통 · 최혁·박건', 'U01KIM'],
+  ['KV', 'KV10', '알림장',        '기획',            'PLAN', '2026-10-30', 'HIGH', '공통 · 혁·건',    'U01KIM'],
+  ['KV', 'KV10', '킨더챗',        '오류 수정',        'PLAN', '2026-10-30', 'HIGH', '',              'U01KIM'],
+  ['KV', 'KV10', '홈 화면',       '개편 기획',        'PLAN', '2026-10-30', 'HIGH', '',              'U01KIM'],
+  ['KV', 'KV10', 'SNS·채팅',     '기능 기획',        'PLAN', '2026-10-30', 'HIGH', '',              'U06KEON'],
 
   // ── 상위 기획 및 리소스 · 9월 (편집 디자인) ────────────────
   ['CP', 'CP9', '활동자료·활동지',   '편집 디자인',      'DESIGN',  '2026-09-18', 'NORMAL',
@@ -1900,11 +1930,11 @@ function buildSeed() {
   const taskIdByTitle = {};
 
 
-  for (const [pk, phaseKey, group, detail, area, due, priority, note] of SEED.TASKS) {
+  for (const [pk, phaseKey, group, detail, area, due, priority, note, who] of SEED.TASKS) {
     const id = uid();
     const title = taskTitle(group, detail);
     taskIdByTitle[title] = id;
-    const owner = leadOfArea[area];
+    const owner = who || leadOfArea[area];   // 정해진 담당이 있으면 그 사람
     const created = at(T, '09');   // 등록 이력은 오늘로 — 가짜 과거를 만들지 않는다
     tasks.push({
       id, project_id: projectId[pk], phase_id: phaseId[phaseKey] ?? null,
@@ -2054,13 +2084,13 @@ function reconcile(db) {
   const leadNow = (area) => (db.area_leads ?? [])
     .find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD')?.slack_user_id;
 
-  for (const [pk, phaseKey, group, detail, area, due, priority, note] of SEED.TASKS ?? []) {
+  for (const [pk, phaseKey, group, detail, area, due, priority, note, who] of SEED.TASKS ?? []) {
     const title = taskTitle(group, detail);
     if (known.has(title)) continue;
     // 프로젝트 이름이 바뀌었을 수 있으니 바뀐 이름으로도 찾아본다
     const wanted = seedProjectName[pk];
     const projectId = projectByName[RENAMED_PROJECTS[wanted] ?? wanted] ?? projectByName[wanted];
-    const owner = leadNow(area);
+    const owner = who || leadNow(area);
     if (!projectId || !owner) continue;
     const created = `${addDays(due, -21)}T01:00:00.000Z`;
     const id = uid();
