@@ -102,14 +102,15 @@ CREATE TABLE IF NOT EXISTS task (
   status              TEXT NOT NULL,
   priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),
   start_date          TEXT,
-  due_date            TEXT NOT NULL,
+  -- 마감일이 없으면 백로그다 — 아직 언제 할지 안 정한 일.
+  due_date            TEXT,
   description         TEXT,
   completed_at        TEXT,
   created_by          TEXT NOT NULL REFERENCES member(slack_user_id),
   created_at          TEXT NOT NULL,
   updated_at          TEXT NOT NULL,
   deleted_at          TEXT,
-  CHECK (start_date IS NULL OR start_date <= due_date),
+  CHECK (start_date IS NULL OR due_date IS NULL OR start_date <= due_date),
   -- 상태 체계는 업무 영역에 따라 분리된다 (일반 4단계 / 외주 6단계)
   CHECK (
     (area =  'OUT' AND status IN ('REQUEST_PLANNED','REQUESTED','OUT_IN_PROGRESS','OUT_REVIEW','OUT_REVISION','DONE'))

@@ -631,6 +631,9 @@ export const tasks = {
     if (!filter.includeDone && !filter.status?.length && filter.stage !== 'DONE') {
       where.push("t.status <> 'DONE'");
     }
+    // 백로그(마감일 미정)는 달력 위의 일이 아니다. 따로 달라고 해야 나온다.
+    if (filter.backlog) where.push('t.due_date IS NULL');
+    else if (!filter.includeBacklog) where.push('t.due_date IS NOT NULL');
     if (filter.month) {
       // 'YYYY-MM' 한 달 — 마감일 기준이다
       params.mFrom = `${filter.month}-01`;
@@ -645,7 +648,7 @@ export const tasks = {
     }
 
     const sql = `${TASK_SELECT} WHERE ${where.join(' AND ')}
-      ORDER BY (t.status = 'DONE'), t.due_date,
+      ORDER BY (t.status = 'DONE'), (t.due_date IS NULL), t.due_date,
                CASE t.priority WHEN 'HIGH' THEN 0 WHEN 'NORMAL' THEN 1 ELSE 2 END,
                t.created_at`;
     return all(sql, params).map(decorate);
@@ -673,9 +676,9 @@ export const tasks = {
     if (!statusesFor(area).some((s) => s.code === status)) {
       throw new HttpError(400, '업무 영역에 맞지 않는 상태입니다.');
     }
-    let dueDate = input.due_date;
-    if (area === 'OUT' && !dueDate) dueDate = input.delivery_due_date;
-    if (!dueDate) throw new HttpError(400, '마감일을 입력해 주세요.');
+    // 마감일을 비우면 백로그다 — 아직 언제 할지 안 정한 일.
+    let dueDate = input.due_date || null;
+    if (area === 'OUT' && !dueDate) dueDate = input.delivery_due_date || null;
 
     return tx(() => {
       const id = uid();
@@ -743,7 +746,8 @@ export const tasks = {
 
     return tx(() => {
       const at = nowISO();
-      const dueDate = input.due_date ?? cur.due_date;
+      // 빈 문자열로 오면 '비운다'는 뜻이다 (백로그로 내린다)
+      const dueDate = input.due_date === undefined ? cur.due_date : (input.due_date || null);
       const completedAt = status === 'DONE' ? (cur.completed_at || at) : null;
 
       run(

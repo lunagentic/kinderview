@@ -516,6 +516,27 @@ details.more[open] > summary{color:var(--ink)}
   #me-select{max-width:none;flex:1 1 auto}
 }
 
+/* ── 타임라인: 백로그 ────────────────────────
+   아직 언제 할지 안 정한 일. 달력 위에 자리를 잡지 못하니 맨 아래 한 줄로 접어 둔다. */
+.tl-backlog{margin-top:18px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden}
+.tl-backlog > summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 16px;cursor:pointer;list-style:none;font-size:.9rem}
+.tl-backlog > summary::-webkit-details-marker{display:none}
+.tl-backlog > summary::before{content:"▸";color:var(--muted);font-size:.8rem;transition:transform .12s}
+.tl-backlog[open] > summary::before{transform:rotate(90deg)}
+.tl-backlog > summary:hover{background:var(--surface-2)}
+.tl-backlog > summary .lab{font-weight:700}
+.tl-backlog > summary .n{font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.tl-backlog > summary .hint{margin-left:auto;font-size:.78rem;color:var(--muted)}
+.tl-backlog-body{padding:0 16px 16px}
+.tl-backlog .due-view{color:var(--muted);font-style:italic}
+@media (max-width:860px){
+  .tl-backlog > summary{padding:12px 13px}
+  .tl-backlog > summary .hint{margin-left:0;flex-basis:100%}
+  .tl-backlog-body{padding:0 13px 13px}
+}
+
 /* ── AI: 위험 신호 ──────────────────────────── */
 .risks{display:flex;flex-direction:column;gap:10px}
 .risk{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--s-wait);
@@ -853,6 +874,7 @@ details.more[open] > summary{color:var(--ink)}
    마감이 맨 앞이다. 이 화면은 "언제까지 무엇을"을 보는 곳이라
    가장 먼저 읽혀야 하는 값이 날짜다. */
 .months{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.months button.bl{border-style:dashed}
 .months button{
   display:inline-flex;align-items:baseline;gap:7px;cursor:pointer;
   background:var(--surface);border:1px solid var(--line);border-radius:999px;
@@ -988,7 +1010,8 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
 @media (max-width:860px){
   .months{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -14px 12px;padding:0 14px 2px}
   .months::-webkit-scrollbar{display:none}
-  .months button{flex:0 0 auto;min-height:36px}
+  .months button.bl{border-style:dashed}
+.months button{flex:0 0 auto;min-height:36px}
   .tk-row{grid-template-columns:22px 88px minmax(0,1fr) auto;gap:6px 10px;padding:11px 13px}
   /* 좁은 화면에서는 늘 보인다 — 손가락에는 hover 가 없다 */
   .tk-del{grid-column:4/5;justify-self:end;color:var(--line);min-height:32px;padding:4px 8px}

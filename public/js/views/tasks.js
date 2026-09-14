@@ -47,24 +47,31 @@ export async function renderTasks(root, query) {
   // month=all 은 "달을 안 고름"이라는 뜻이다. 파라미터가 아예 없는 것과 구별해야
   // 전체를 눌렀을 때 이번 달로 다시 튕기지 않는다.
   const rawMonth = p.get('month');
-  const month = rawMonth && rawMonth !== 'all' ? rawMonth : null;
+  const backlog = rawMonth === 'backlog';
+  const month = rawMonth && rawMonth !== 'all' && !backlog ? rawMonth : null;
   const ask = new URLSearchParams(p);
   if (ask.get('month') === 'all') ask.delete('month');
+  // 백로그는 달이 아니다 — 달 자리에 얹어 두고 서버에는 따로 알린다
+  if (backlog) { ask.delete('month'); ask.set('backlog', '1'); }
 
   let rows;
   let months;
+  let backlogCount = 0;
   try {
-    [months, rows] = await Promise.all([
+    let backlogRows;
+    [months, rows, backlogRows] = await Promise.all([
       api.get('/api/task-months'),
       api.get(`/api/tasks?${ask.toString()}`),
+      api.get('/api/tasks?backlog=1&done=1'),
     ]);
+    backlogCount = backlogRows.length;
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
   }
 
   // 아무 조건 없이 들어오면 이번 달부터 보여 준다 — 대개 그걸 보러 온다
-  if (![...p.keys()].length && months.length) {
+  if (![...p.keys()].length && months.length && !backlog) {
     const now = (state.today ?? '').slice(0, 7);
     const pick = months.find((m) => m.month === now) ?? months[0];
     go(`#/project/tasks?month=${pick.month}`);
@@ -146,8 +153,9 @@ export async function renderTasks(root, query) {
     <div class="page-head">
       <div>
         <h1>업무</h1>
-        <div class="sub">${month ? `${monthLabel(month)} ` : ''}${rows.length}건 · ${
-          manual ? '직접 정한 차례' : '마감일 순'} · 담당은 업무 영역의 리드가 맡습니다</div>
+        <div class="sub">${backlog ? '백로그 ' : month ? `${monthLabel(month)} ` : ''}${rows.length}건 · ${
+          backlog ? '마감일을 아직 안 정한 업무' : manual ? '직접 정한 차례' : '마감일 순'
+        } · 담당은 업무 영역의 리드가 맡습니다</div>
       </div>
       <div class="page-actions">
         <button class="btn" data-new-project>+ 프로젝트</button>
@@ -156,11 +164,14 @@ export async function renderTasks(root, query) {
     </div>
 
     <div class="months" role="group" aria-label="월 선택">
-      <button data-month="all" class="${month ? '' : 'on'}">전체 <b>${months.reduce((n, m) => n + m.count, 0)}</b></button>
+      <button data-month="all" class="${month || backlog ? '' : 'on'}">전체 <b>${months.reduce((n, m) => n + m.count, 0)}</b></button>
       ${months.map((m) => `
         <button data-month="${esc(m.month)}" class="${m.month === month ? 'on' : ''}">
           ${monthLabel(m.month)} <b>${m.count}</b>${m.delayed ? `<i class="late">지연 ${m.delayed}</i>` : ''}
         </button>`).join('')}
+      <button data-month="backlog" class="bl ${backlog ? 'on' : ''}" title="마감일을 아직 안 정한 업무">
+        백로그${backlogCount ? ` <b>${backlogCount}</b>` : ''}
+      </button>
     </div>
 
     <div class="filters">
@@ -204,8 +215,9 @@ export async function renderTasks(root, query) {
             <div class="tk-rows">${a.rows.map(taskRow).join('')}</div>
           </div>`).join('')}
       </section>`).join('') : empty({
-        title: month ? `${monthLabel(month)}에 마감인 업무가 없습니다` : '조건에 맞는 업무가 없습니다',
-        hint: '월을 바꾸거나 필터를 초기화해 보세요.',
+        title: backlog ? '백로그가 비어 있습니다'
+          : month ? `${monthLabel(month)}에 마감인 업무가 없습니다` : '조건에 맞는 업무가 없습니다',
+        hint: backlog ? '업무를 등록할 때 마감일을 비우면 여기로 들어옵니다.' : '월을 바꾸거나 필터를 초기화해 보세요.',
         action: '<button class="btn btn-primary" data-new-task>+ 업무 등록</button>',
       })}`;
 

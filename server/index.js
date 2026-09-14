@@ -114,6 +114,8 @@ route('GET', '/api/tasks', (ctx) => {
     delayed: u.searchParams.get('delayed') === '1',
     hasIssue: u.searchParams.get('issue') === '1',
     includeDone: u.searchParams.get('done') === '1',
+    backlog: u.searchParams.get('backlog') === '1',
+    includeBacklog: u.searchParams.get('all_backlog') === '1',
     dueFrom: u.searchParams.get('due_from') || undefined,
     dueTo: u.searchParams.get('due_to') || undefined,
     q: u.searchParams.get('q') || undefined,

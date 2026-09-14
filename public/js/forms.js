@@ -125,8 +125,8 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
-          <span class="lab">마감일<span class="req">*</span></span>
-          <input type="date" name="due_date" required value="${esc(task?.due_date ?? defaults.due_date ?? '')}">
+          <span class="lab">마감일 <span class="hint" style="font-weight:400">비우면 백로그</span></span>
+          <input type="date" name="due_date" value="${esc(task?.due_date ?? defaults.due_date ?? '')}">
         </label>
 
         <label class="field span2">
@@ -316,7 +316,11 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
         if (!payload.project_id) return toast('프로젝트를 선택해 주세요.', true);
         if (!payload.owner_slack_user_id) return toast('담당을 골라 주세요.', true);
-        if (!payload.due_date && !payload.delivery_due_date) return toast('마감일을 입력해 주세요.', true);
+        // 마감일을 비우면 백로그로 들어간다 — 막지 않는다.
+        // 외주만은 납품 예정일이 곧 마감이라 하나는 있어야 한다.
+        if (payload.area === 'OUT' && !payload.due_date && !payload.delivery_due_date) {
+          return toast('납품 예정일이나 마감일 중 하나는 입력해 주세요.', true);
+        }
 
         try {
           const saved = editing

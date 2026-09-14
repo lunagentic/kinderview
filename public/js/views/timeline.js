@@ -191,6 +191,15 @@ export async function renderTimeline(root) {
 
     <div class="tl-detail" id="tl-detail" hidden></div>
 
+    <details class="tl-backlog">
+      <summary>
+        <span class="lab">백로그</span>
+        <span class="n" id="tl-backlog-n">…</span>
+        <span class="hint">마감일을 아직 안 정한 업무</span>
+      </summary>
+      <div class="tl-backlog-body" id="tl-backlog-body">불러오는 중…</div>
+    </details>
+
     <details class="tl-table">
       <summary>표로 보기</summary>
       <div class="table-wrap">
@@ -401,6 +410,48 @@ export async function renderTimeline(root) {
     }
     return undefined;
   });
+
+  // 백로그는 펼칠 때 한 번만 불러온다 — 타임라인을 여는 값이 아니라 곁들이는 값이다
+  (function enableBacklog() {
+    const box = root.querySelector('.tl-backlog');
+    const body = root.querySelector('#tl-backlog-body');
+    const nBox = root.querySelector('#tl-backlog-n');
+    let loaded = false;
+
+    const paint = (list) => {
+      nBox.textContent = `${list.length}건`;
+      body.innerHTML = list.length
+        ? `<div class="tk-rows">${list.map((t) => `
+            <div class="tld-task">
+              <span class="due num"><span class="due-view" data-due="${esc(t.id)}"
+                    data-date="" title="눌러서 마감일 정하기">미정</span></span>
+              <span class="ttl">
+                <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
+                       data-title="${esc(t.id)}" aria-label="업무명 수정">
+              </span>
+              <span class="st">${statusPick(t)}</span>
+              <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
+                      title="상세 편집">✎</button>
+            </div>`).join('')}</div>`
+        : '<p class="hint" style="padding:12px 2px">백로그가 비어 있습니다. 업무를 등록할 때 마감일을 비우면 여기로 들어옵니다.</p>';
+    };
+
+    const load = async () => {
+      try {
+        paint(await api.get('/api/tasks?backlog=1'));
+        loaded = true;
+      } catch (err) {
+        body.innerHTML = errorBox(err.message);
+      }
+    };
+
+    box.addEventListener('toggle', () => { if (box.open && !loaded) load(); });
+    // 몇 건인지는 접혀 있어도 보여 준다
+    api.get('/api/tasks?backlog=1').then((list) => {
+      nBox.textContent = `${list.length}건`;
+      if (box.open) { paint(list); loaded = true; }
+    }).catch(() => { nBox.textContent = ''; });
+  }());
 
   // 아까 열어 둔 페이즈가 아직 있으면 도로 펴 준다.
   // 저장하고 나면 화면을 다시 그리는데, 그때마다 표가 사라지면 고칠 수가 없다.

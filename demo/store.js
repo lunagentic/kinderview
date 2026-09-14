@@ -591,7 +591,7 @@ function hydrate(t, ref = today()) {
     delivery_due_date: o?.delivery_due_date ?? null, delivered_at: o?.delivered_at ?? null,
     review_status: o?.review_status ?? null,
     // 지연·이슈는 저장하지 않고 조회 시 계산한다
-    is_delayed: t.status !== 'DONE' && t.due_date < ref,
+    is_delayed: Boolean(t.due_date) && t.status !== 'DONE' && t.due_date < ref,
     is_delivery_delayed: Boolean(o) && t.status !== 'DONE' && o.delivery_due_date < ref,
     open_issue_count: openCount,
     has_open_issue: openCount > 0,
@@ -599,7 +599,7 @@ function hydrate(t, ref = today()) {
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
     stage: STAGE[t.status],
-    d_day: daysBetween(ref, t.due_date),
+    d_day: t.due_date ? daysBetween(ref, t.due_date) : null,
     collaborators: DB.collaborators
       .filter((c) => c.task_id === t.id)
       .map((c) => {
@@ -650,8 +650,11 @@ function listTasks(f = {}) {
   if (f.delayed) rows = rows.filter((t) => t.is_delayed);
   if (f.hasIssue) rows = rows.filter((t) => t.has_open_issue);
   if (!f.includeDone && !f.status?.length && f.stage !== 'DONE') rows = rows.filter((t) => t.status !== 'DONE');
-  if (f.dueFrom) rows = rows.filter((t) => t.due_date >= f.dueFrom);
-  if (f.dueTo) rows = rows.filter((t) => t.due_date <= f.dueTo);
+  // 백로그(마감일 미정)는 달력 위의 일이 아니다. 따로 달라고 해야 나온다.
+  if (f.backlog) rows = rows.filter((t) => !t.due_date);
+  else if (!f.includeBacklog) rows = rows.filter((t) => Boolean(t.due_date));
+  if (f.dueFrom) rows = rows.filter((t) => (t.due_date ?? '') >= f.dueFrom);
+  if (f.dueTo) rows = rows.filter((t) => (t.due_date ?? '') <= f.dueTo);
   if (f.q) {
     const q = f.q.toLowerCase();
     rows = rows.filter((t) => `${t.title} ${t.description ?? ''}`.toLowerCase().includes(q));
@@ -659,7 +662,8 @@ function listTasks(f = {}) {
 
   return rows.sort((a, b) =>
     (a.status === 'DONE') - (b.status === 'DONE')
-    || a.due_date.localeCompare(b.due_date)
+    || (!a.due_date) - (!b.due_date)          // 마감일 없는 것은 뒤로
+    || (a.due_date ?? '').localeCompare(b.due_date ?? '')
     || PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
     || a.created_at.localeCompare(b.created_at));
 }
@@ -891,8 +895,8 @@ function createTask(input, actor) {
   if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다. 영역 리드를 먼저 설정하거나 담당을 직접 골라 주세요.`);
   const status = input.status || defaultStatusFor(area);
   if (!statusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
-  const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null);
-  if (!due) throw new DemoError('마감일을 입력해 주세요.');
+  const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null) || null;
+  // 마감일을 비우면 백로그다 — 아직 언제 할지 안 정한 일.
   if (input.start_date && input.start_date > due) throw new DemoError('시작일은 마감일보다 늦을 수 없습니다.');
 
   const t = {
@@ -935,7 +939,8 @@ function updateTask(id, input, actor) {
     owner = areaLeadOf(area);
     if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
   }
-  const due = input.due_date ?? t.due_date;
+  // 빈 문자열로 오면 '비운다'는 뜻이다 (백로그로 내린다)
+  const due = input.due_date === undefined ? t.due_date : (input.due_date || null);
 
   Object.assign(t, {
     project_id: input.project_id ?? t.project_id,
@@ -1691,6 +1696,8 @@ function handle(method, path, body) {
       status: listParam(sp, 'status'), stage: sp.get('stage') || undefined,
       delayed: sp.get('delayed') === '1', hasIssue: sp.get('issue') === '1',
       includeDone: sp.get('done') === '1',
+      backlog: sp.get('backlog') === '1',
+      includeBacklog: sp.get('all_backlog') === '1',
       dueFrom: sp.get('due_from') || undefined, dueTo: sp.get('due_to') || undefined,
       q: sp.get('q') || undefined,
     });

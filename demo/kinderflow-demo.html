@@ -521,6 +521,27 @@ details.more[open] > summary{color:var(--ink)}
   #me-select{max-width:none;flex:1 1 auto}
 }
 
+/* ── 타임라인: 백로그 ────────────────────────
+   아직 언제 할지 안 정한 일. 달력 위에 자리를 잡지 못하니 맨 아래 한 줄로 접어 둔다. */
+.tl-backlog{margin-top:18px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden}
+.tl-backlog > summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 16px;cursor:pointer;list-style:none;font-size:.9rem}
+.tl-backlog > summary::-webkit-details-marker{display:none}
+.tl-backlog > summary::before{content:"▸";color:var(--muted);font-size:.8rem;transition:transform .12s}
+.tl-backlog[open] > summary::before{transform:rotate(90deg)}
+.tl-backlog > summary:hover{background:var(--surface-2)}
+.tl-backlog > summary .lab{font-weight:700}
+.tl-backlog > summary .n{font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.tl-backlog > summary .hint{margin-left:auto;font-size:.78rem;color:var(--muted)}
+.tl-backlog-body{padding:0 16px 16px}
+.tl-backlog .due-view{color:var(--muted);font-style:italic}
+@media (max-width:860px){
+  .tl-backlog > summary{padding:12px 13px}
+  .tl-backlog > summary .hint{margin-left:0;flex-basis:100%}
+  .tl-backlog-body{padding:0 13px 13px}
+}
+
 /* ── AI: 위험 신호 ──────────────────────────── */
 .risks{display:flex;flex-direction:column;gap:10px}
 .risk{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--s-wait);
@@ -858,6 +879,7 @@ details.more[open] > summary{color:var(--ink)}
    마감이 맨 앞이다. 이 화면은 "언제까지 무엇을"을 보는 곳이라
    가장 먼저 읽혀야 하는 값이 날짜다. */
 .months{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.months button.bl{border-style:dashed}
 .months button{
   display:inline-flex;align-items:baseline;gap:7px;cursor:pointer;
   background:var(--surface);border:1px solid var(--line);border-radius:999px;
@@ -993,7 +1015,8 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
 @media (max-width:860px){
   .months{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -14px 12px;padding:0 14px 2px}
   .months::-webkit-scrollbar{display:none}
-  .months button{flex:0 0 auto;min-height:36px}
+  .months button.bl{border-style:dashed}
+.months button{flex:0 0 auto;min-height:36px}
   .tk-row{grid-template-columns:22px 88px minmax(0,1fr) auto;gap:6px 10px;padding:11px 13px}
   /* 좁은 화면에서는 늘 보인다 — 손가락에는 hover 가 없다 */
   .tk-del{grid-column:4/5;justify-self:end;color:var(--line);min-height:32px;padding:4px 8px}
@@ -2429,7 +2452,7 @@ function hydrate(t, ref = today()) {
     delivery_due_date: o?.delivery_due_date ?? null, delivered_at: o?.delivered_at ?? null,
     review_status: o?.review_status ?? null,
     // 지연·이슈는 저장하지 않고 조회 시 계산한다
-    is_delayed: t.status !== 'DONE' && t.due_date < ref,
+    is_delayed: Boolean(t.due_date) && t.status !== 'DONE' && t.due_date < ref,
     is_delivery_delayed: Boolean(o) && t.status !== 'DONE' && o.delivery_due_date < ref,
     open_issue_count: openCount,
     has_open_issue: openCount > 0,
@@ -2437,7 +2460,7 @@ function hydrate(t, ref = today()) {
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
     stage: STAGE[t.status],
-    d_day: daysBetween(ref, t.due_date),
+    d_day: t.due_date ? daysBetween(ref, t.due_date) : null,
     collaborators: DB.collaborators
       .filter((c) => c.task_id === t.id)
       .map((c) => {
@@ -2488,8 +2511,11 @@ function listTasks(f = {}) {
   if (f.delayed) rows = rows.filter((t) => t.is_delayed);
   if (f.hasIssue) rows = rows.filter((t) => t.has_open_issue);
   if (!f.includeDone && !f.status?.length && f.stage !== 'DONE') rows = rows.filter((t) => t.status !== 'DONE');
-  if (f.dueFrom) rows = rows.filter((t) => t.due_date >= f.dueFrom);
-  if (f.dueTo) rows = rows.filter((t) => t.due_date <= f.dueTo);
+  // 백로그(마감일 미정)는 달력 위의 일이 아니다. 따로 달라고 해야 나온다.
+  if (f.backlog) rows = rows.filter((t) => !t.due_date);
+  else if (!f.includeBacklog) rows = rows.filter((t) => Boolean(t.due_date));
+  if (f.dueFrom) rows = rows.filter((t) => (t.due_date ?? '') >= f.dueFrom);
+  if (f.dueTo) rows = rows.filter((t) => (t.due_date ?? '') <= f.dueTo);
   if (f.q) {
     const q = f.q.toLowerCase();
     rows = rows.filter((t) => `${t.title} ${t.description ?? ''}`.toLowerCase().includes(q));
@@ -2497,7 +2523,8 @@ function listTasks(f = {}) {
 
   return rows.sort((a, b) =>
     (a.status === 'DONE') - (b.status === 'DONE')
-    || a.due_date.localeCompare(b.due_date)
+    || (!a.due_date) - (!b.due_date)          // 마감일 없는 것은 뒤로
+    || (a.due_date ?? '').localeCompare(b.due_date ?? '')
     || PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
     || a.created_at.localeCompare(b.created_at));
 }
@@ -2729,8 +2756,8 @@ function createTask(input, actor) {
   if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다. 영역 리드를 먼저 설정하거나 담당을 직접 골라 주세요.`);
   const status = input.status || defaultStatusFor(area);
   if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
-  const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null);
-  if (!due) throw new DemoError('마감일을 입력해 주세요.');
+  const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null) || null;
+  // 마감일을 비우면 백로그다 — 아직 언제 할지 안 정한 일.
   if (input.start_date && input.start_date > due) throw new DemoError('시작일은 마감일보다 늦을 수 없습니다.');
 
   const t = {
@@ -2773,7 +2800,8 @@ function updateTask(id, input, actor) {
     owner = areaLeadOf(area);
     if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
   }
-  const due = input.due_date ?? t.due_date;
+  // 빈 문자열로 오면 '비운다'는 뜻이다 (백로그로 내린다)
+  const due = input.due_date === undefined ? t.due_date : (input.due_date || null);
 
   Object.assign(t, {
     project_id: input.project_id ?? t.project_id,
@@ -3529,6 +3557,8 @@ function handle(method, path, body) {
       status: listParam(sp, 'status'), stage: sp.get('stage') || undefined,
       delayed: sp.get('delayed') === '1', hasIssue: sp.get('issue') === '1',
       includeDone: sp.get('done') === '1',
+      backlog: sp.get('backlog') === '1',
+      includeBacklog: sp.get('all_backlog') === '1',
       dueFrom: sp.get('due_from') || undefined, dueTo: sp.get('due_to') || undefined,
       q: sp.get('q') || undefined,
     });
@@ -4233,8 +4263,8 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
-          <span class="lab">마감일<span class="req">*</span></span>
-          <input type="date" name="due_date" required value="${esc(task?.due_date ?? defaults.due_date ?? '')}">
+          <span class="lab">마감일 <span class="hint" style="font-weight:400">비우면 백로그</span></span>
+          <input type="date" name="due_date" value="${esc(task?.due_date ?? defaults.due_date ?? '')}">
         </label>
 
         <label class="field span2">
@@ -4424,7 +4454,11 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
         if (!payload.project_id) return toast('프로젝트를 선택해 주세요.', true);
         if (!payload.owner_slack_user_id) return toast('담당을 골라 주세요.', true);
-        if (!payload.due_date && !payload.delivery_due_date) return toast('마감일을 입력해 주세요.', true);
+        // 마감일을 비우면 백로그로 들어간다 — 막지 않는다.
+        // 외주만은 납품 예정일이 곧 마감이라 하나는 있어야 한다.
+        if (payload.area === 'OUT' && !payload.due_date && !payload.delivery_due_date) {
+          return toast('납품 예정일이나 마감일 중 하나는 입력해 주세요.', true);
+        }
 
         try {
           const saved = editing
@@ -5321,24 +5355,31 @@ async function renderTasks(root, query) {
   // month=all 은 "달을 안 고름"이라는 뜻이다. 파라미터가 아예 없는 것과 구별해야
   // 전체를 눌렀을 때 이번 달로 다시 튕기지 않는다.
   const rawMonth = p.get('month');
-  const month = rawMonth && rawMonth !== 'all' ? rawMonth : null;
+  const backlog = rawMonth === 'backlog';
+  const month = rawMonth && rawMonth !== 'all' && !backlog ? rawMonth : null;
   const ask = new URLSearchParams(p);
   if (ask.get('month') === 'all') ask.delete('month');
+  // 백로그는 달이 아니다 — 달 자리에 얹어 두고 서버에는 따로 알린다
+  if (backlog) { ask.delete('month'); ask.set('backlog', '1'); }
 
   let rows;
   let months;
+  let backlogCount = 0;
   try {
-    [months, rows] = await Promise.all([
+    let backlogRows;
+    [months, rows, backlogRows] = await Promise.all([
       api.get('/api/task-months'),
       api.get(`/api/tasks?${ask.toString()}`),
+      api.get('/api/tasks?backlog=1&done=1'),
     ]);
+    backlogCount = backlogRows.length;
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
   }
 
   // 아무 조건 없이 들어오면 이번 달부터 보여 준다 — 대개 그걸 보러 온다
-  if (![...p.keys()].length && months.length) {
+  if (![...p.keys()].length && months.length && !backlog) {
     const now = (state.today ?? '').slice(0, 7);
     const pick = months.find((m) => m.month === now) ?? months[0];
     go(`#/project/tasks?month=${pick.month}`);
@@ -5420,8 +5461,9 @@ async function renderTasks(root, query) {
     <div class="page-head">
       <div>
         <h1>업무</h1>
-        <div class="sub">${month ? `${monthLabel(month)} ` : ''}${rows.length}건 · ${
-          manual ? '직접 정한 차례' : '마감일 순'} · 담당은 업무 영역의 리드가 맡습니다</div>
+        <div class="sub">${backlog ? '백로그 ' : month ? `${monthLabel(month)} ` : ''}${rows.length}건 · ${
+          backlog ? '마감일을 아직 안 정한 업무' : manual ? '직접 정한 차례' : '마감일 순'
+        } · 담당은 업무 영역의 리드가 맡습니다</div>
       </div>
       <div class="page-actions">
         <button class="btn" data-new-project>+ 프로젝트</button>
@@ -5430,11 +5472,14 @@ async function renderTasks(root, query) {
     </div>
 
     <div class="months" role="group" aria-label="월 선택">
-      <button data-month="all" class="${month ? '' : 'on'}">전체 <b>${months.reduce((n, m) => n + m.count, 0)}</b></button>
+      <button data-month="all" class="${month || backlog ? '' : 'on'}">전체 <b>${months.reduce((n, m) => n + m.count, 0)}</b></button>
       ${months.map((m) => `
         <button data-month="${esc(m.month)}" class="${m.month === month ? 'on' : ''}">
           ${monthLabel(m.month)} <b>${m.count}</b>${m.delayed ? `<i class="late">지연 ${m.delayed}</i>` : ''}
         </button>`).join('')}
+      <button data-month="backlog" class="bl ${backlog ? 'on' : ''}" title="마감일을 아직 안 정한 업무">
+        백로그${backlogCount ? ` <b>${backlogCount}</b>` : ''}
+      </button>
     </div>
 
     <div class="filters">
@@ -5478,8 +5523,9 @@ async function renderTasks(root, query) {
             <div class="tk-rows">${a.rows.map(taskRow).join('')}</div>
           </div>`).join('')}
       </section>`).join('') : empty({
-        title: month ? `${monthLabel(month)}에 마감인 업무가 없습니다` : '조건에 맞는 업무가 없습니다',
-        hint: '월을 바꾸거나 필터를 초기화해 보세요.',
+        title: backlog ? '백로그가 비어 있습니다'
+          : month ? `${monthLabel(month)}에 마감인 업무가 없습니다` : '조건에 맞는 업무가 없습니다',
+        hint: backlog ? '업무를 등록할 때 마감일을 비우면 여기로 들어옵니다.' : '월을 바꾸거나 필터를 초기화해 보세요.',
         action: '<button class="btn btn-primary" data-new-task>+ 업무 등록</button>',
       })}`;
 
@@ -6827,6 +6873,15 @@ async function renderTimeline(root) {
 
     <div class="tl-detail" id="tl-detail" hidden></div>
 
+    <details class="tl-backlog">
+      <summary>
+        <span class="lab">백로그</span>
+        <span class="n" id="tl-backlog-n">…</span>
+        <span class="hint">마감일을 아직 안 정한 업무</span>
+      </summary>
+      <div class="tl-backlog-body" id="tl-backlog-body">불러오는 중…</div>
+    </details>
+
     <details class="tl-table">
       <summary>표로 보기</summary>
       <div class="table-wrap">
@@ -7037,6 +7092,48 @@ async function renderTimeline(root) {
     }
     return undefined;
   });
+
+  // 백로그는 펼칠 때 한 번만 불러온다 — 타임라인을 여는 값이 아니라 곁들이는 값이다
+  (function enableBacklog() {
+    const box = root.querySelector('.tl-backlog');
+    const body = root.querySelector('#tl-backlog-body');
+    const nBox = root.querySelector('#tl-backlog-n');
+    let loaded = false;
+
+    const paint = (list) => {
+      nBox.textContent = `${list.length}건`;
+      body.innerHTML = list.length
+        ? `<div class="tk-rows">${list.map((t) => `
+            <div class="tld-task">
+              <span class="due num"><span class="due-view" data-due="${esc(t.id)}"
+                    data-date="" title="눌러서 마감일 정하기">미정</span></span>
+              <span class="ttl">
+                <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
+                       data-title="${esc(t.id)}" aria-label="업무명 수정">
+              </span>
+              <span class="st">${statusPick(t)}</span>
+              <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
+                      title="상세 편집">✎</button>
+            </div>`).join('')}</div>`
+        : '<p class="hint" style="padding:12px 2px">백로그가 비어 있습니다. 업무를 등록할 때 마감일을 비우면 여기로 들어옵니다.</p>';
+    };
+
+    const load = async () => {
+      try {
+        paint(await api.get('/api/tasks?backlog=1'));
+        loaded = true;
+      } catch (err) {
+        body.innerHTML = errorBox(err.message);
+      }
+    };
+
+    box.addEventListener('toggle', () => { if (box.open && !loaded) load(); });
+    // 몇 건인지는 접혀 있어도 보여 준다
+    api.get('/api/tasks?backlog=1').then((list) => {
+      nBox.textContent = `${list.length}건`;
+      if (box.open) { paint(list); loaded = true; }
+    }).catch(() => { nBox.textContent = ''; });
+  }());
 
   // 아까 열어 둔 페이즈가 아직 있으면 도로 펴 준다.
   // 저장하고 나면 화면을 다시 그리는데, 그때마다 표가 사라지면 고칠 수가 없다.
