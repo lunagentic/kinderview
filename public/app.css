@@ -518,6 +518,10 @@ details.more[open] > summary{color:var(--ink)}
 
 /* ── 타임라인: 백로그 ────────────────────────
    아직 언제 할지 안 정한 일. 달력 위에 자리를 잡지 못하니 맨 아래 한 줄로 접어 둔다. */
+/* 타임라인 프로젝트 머리의 수정 단추 — 어두운 바탕이라 색을 따로 준다 */
+.tl-group-head .pr-edit{align-self:baseline}
+.tl-group-head:hover .pr-edit{color:var(--muted)}
+
 .tl-backlog{margin-top:18px;background:var(--surface);border:1px solid var(--line);
   border-radius:var(--radius);overflow:hidden}
 .tl-backlog > summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
@@ -1053,7 +1057,7 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
 .tld-area-head .n{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
 .tld-area-head .lead{font-size:.75rem;color:var(--muted);margin-left:auto}
 
-.tld-task{display:grid;grid-template-columns:74px minmax(0,1fr) auto 26px;gap:10px;align-items:center;
+.tld-task{display:grid;grid-template-columns:74px minmax(0,1fr) auto 26px 24px;gap:10px;align-items:center;
   width:100%;text-align:left;background:none;border:none;cursor:pointer;
   padding:7px 4px;border-radius:var(--radius-sm);font:inherit}
 .tld-task:hover{background:var(--surface-2)}
@@ -1071,6 +1075,12 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
 .tld-task:hover .tld-edit{color:var(--muted)}
 .tld-edit:hover{color:var(--ink);background:var(--surface-2)}
 .tld-edit:focus-visible{color:var(--muted);outline:2px solid var(--focus)}
+/* 줄 삭제 — 평소에는 숨어 있다가 줄에 손이 가면 나타난다 */
+.tld-del{border:0;background:none;color:transparent;cursor:pointer;font-size:1.05rem;line-height:1;
+  padding:2px 5px;border-radius:6px;justify-self:end}
+.tld-task:hover .tld-del{color:var(--line)}
+.tld-del:hover{color:var(--s-delay);background:var(--surface-2)}
+.tld-del:focus-visible{color:var(--muted);outline:2px solid var(--focus)}
 /* 영역 이름은 그 영역 업무 전체로 가는 링크다 */
 .tld-area-head a.lab{color:inherit;text-decoration:none;border-bottom:1px dashed var(--line)}
 .tld-area-head a.lab:hover{border-bottom-color:var(--muted);color:var(--ink)}
@@ -1080,9 +1090,11 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
   .tld-head{padding:12px 14px}
   .tld-head .acts{margin-left:0;width:100%}
   .tld-area{padding:11px 14px 12px}
-  .tld-task{grid-template-columns:64px minmax(0,1fr) 28px;gap:6px 9px}
+  .tld-task{grid-template-columns:64px minmax(0,1fr) 28px 26px;gap:6px 9px}
   .tld-task .st{grid-column:2/3;justify-self:start}
   .tld-edit{grid-column:3/4;grid-row:1;color:var(--muted);min-height:32px;padding:5px 7px}
+  /* 손가락에는 hover 가 없다 */
+  .tld-del{grid-column:4/5;grid-row:1;color:var(--muted);min-height:32px;padding:5px 6px}
 }
 
 /* ── 주간 리포트: 진행 사항만 ─────────────

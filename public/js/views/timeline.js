@@ -2,9 +2,9 @@ import { api } from '../api.js';
 import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
-  statusChip, statusPick, go, toast, dueCell, bindDueEdit,
+  statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
 } from '../ui.js';
-import { phaseForm, milestoneForm } from '../forms.js';
+import { phaseForm, milestoneForm, projectForm } from '../forms.js';
 
 // 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 상태는 상태색으로 나눈다.
@@ -170,6 +170,8 @@ export async function renderTimeline(root) {
           <section class="tl-group" style="${projectStyle(r.id)}">
             <div class="tl-group-head">
               <h2>${projectName(r.id, r.name)}</h2>
+              <button class="pr-edit" data-edit-project="${esc(r.id)}"
+                      aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>
               <span class="tl-meta">${r.start_date ? `${shortDate(r.start_date)} ~ ${shortDate(r.end_date)}` : '일정 없음'}${
                 r.unphased ? ` · 페이즈 미지정 업무 ${r.unphased}` : ''}</span>
               <span class="tl-group-actions">
@@ -333,6 +335,7 @@ export async function renderTimeline(root) {
               <span class="st">${statusPick(t)}</span>
               <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                       title="상세 편집">✎</button>
+              <button class="tld-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
             </div>`).join('')}
         </section>`).join('')}</div>`
         : '<p class="hint" style="padding:14px 2px">이 페이즈에 배정된 업무가 없습니다.</p>'}`;
@@ -399,6 +402,26 @@ export async function renderTimeline(root) {
 
     if (e.target.closest('[data-close-detail]')) return closeDetail();
 
+    const delTask = e.target.closest('[data-del-task]');
+    if (delTask) {
+      const title = delTask.closest('.tld-task')?.querySelector('.ttl-edit')?.value ?? '이 업무';
+      return confirmModal(`「${title}」을(를) 삭제할까요? 연결된 이슈는 남습니다.`,
+        { confirmLabel: '삭제', danger: true }).then(async (ok) => {
+        if (!ok) return;
+        try {
+          await api.del(`/api/tasks/${delTask.dataset.delTask}`);
+          toast('업무를 삭제했습니다.');
+        } catch (err) { toast(err.message, true); }
+        reload();
+      });
+    }
+
+    const editPr = e.target.closest('[data-edit-project]');
+    if (editPr) {
+      const pr = state.projects.find((x) => x.id === editPr.dataset.editProject);
+      if (pr) return projectForm({ project: pr, onSaved: reload });
+    }
+
     const task = e.target.closest('[data-task]');
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
@@ -432,6 +455,7 @@ export async function renderTimeline(root) {
               <span class="st">${statusPick(t)}</span>
               <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                       title="상세 편집">✎</button>
+              <button class="tld-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
             </div>`).join('')}</div>`
         : '<p class="hint" style="padding:12px 2px">백로그가 비어 있습니다. 업무를 등록할 때 마감일을 비우면 여기로 들어옵니다.</p>';
     };
