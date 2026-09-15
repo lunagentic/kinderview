@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { state, areaMeta, coLeadsOf, leadOf } from '../state.js';
 import {
   esc, statusChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
+  titleCell, autoGrow, syncTitleCell,
 } from '../ui.js';
 import { taskForm, issueForm } from '../forms.js';
 
@@ -54,8 +55,7 @@ export async function renderTaskDetail(root, id) {
     <div class="page-head">
       <div>
         <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${esc(t.project_name)}</div>
-        <h1><input type="text" class="ttl-edit h1" maxlength="120" value="${esc(t.title)}"
-                   data-title aria-label="업무명 수정"></h1>
+        <h1>${titleCell(t, 'h1')}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           <span class="area-pick" title="업무 영역 변경">
             <select data-area aria-label="업무 영역 변경">
@@ -211,7 +211,7 @@ export async function renderTaskDetail(root, id) {
     }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
-      const next = ttl.value.trim();
+      const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다
       if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
       if (next === ttl.defaultValue) return undefined;
       try {
@@ -284,11 +284,13 @@ export async function renderTaskDetail(root, id) {
     } catch (err) { toast(err.message, true); }
   });
 
+  autoGrow(root);
+
   root.addEventListener('keydown', (e) => {
     const ttl = e.target.closest('[data-title]');
     if (!ttl) return;
     if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
   });
 
   root.addEventListener('click', async (e) => {

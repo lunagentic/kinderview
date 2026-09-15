@@ -3,6 +3,7 @@ import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
+  titleCell, autoGrow, syncTitleCell,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm } from '../forms.js';
 
@@ -328,10 +329,7 @@ export async function renderTimeline(root) {
           ${g.rows.map((t) => `
             <div class="tld-task">
               <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
-              <span class="ttl">
-                <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
-                       data-title="${esc(t.id)}" aria-label="업무명 수정">
-              </span>
+              <span class="ttl">${titleCell(t)}</span>
               <span class="st">${statusPick(t)}</span>
               <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                       title="상세 편집">✎</button>
@@ -354,7 +352,7 @@ export async function renderTimeline(root) {
     }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
-      const next = ttl.value.trim();
+      const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다
       if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
       if (next === ttl.defaultValue) return undefined;
       try {
@@ -366,6 +364,8 @@ export async function renderTimeline(root) {
     }
     return undefined;
   });
+
+  autoGrow(root);
 
   // 마감일은 누를 때 입력칸이 된다. 바뀌면 페이즈 기간·진행도 달라지므로 다시 불러온다.
   bindDueEdit(root, async (id, value) => {
@@ -381,7 +381,7 @@ export async function renderTimeline(root) {
     const ttl = e.target.closest('[data-title]');
     if (!ttl) return;
     if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
   });
 
   root.addEventListener('click', (e) => {
@@ -448,10 +448,7 @@ export async function renderTimeline(root) {
             <div class="tld-task">
               <span class="due num"><span class="due-view" data-due="${esc(t.id)}"
                     data-date="" title="눌러서 마감일 정하기">미정</span></span>
-              <span class="ttl">
-                <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
-                       data-title="${esc(t.id)}" aria-label="업무명 수정">
-              </span>
+              <span class="ttl">${titleCell(t)}</span>
               <span class="st">${statusPick(t)}</span>
               <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                       title="상세 편집">✎</button>

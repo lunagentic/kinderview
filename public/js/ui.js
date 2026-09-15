@@ -142,6 +142,25 @@ export function bindDueEdit(root, save) {
   });
 }
 
+/**
+ * 업무명 칸 — 길면 줄바꿈해서 다 보인다.
+ * input 은 한 줄뿐이라 긴 제목이 잘렸다. textarea 로 두고 내용만큼 키운다.
+ */
+export const titleCell = (t, extra = '') => `
+  <span class="ttl-wrap${extra ? ` ${extra}` : ''}" data-val="${esc(t.title)}">
+    <textarea class="ttl-edit" rows="1" maxlength="120"
+              data-title="${esc(t.id ?? '')}" aria-label="업무명 수정"
+              title="눌러서 업무명 고치기">${esc(t.title)}</textarea>
+  </span>`;
+
+/** 제목칸의 높이는 같은 자리에 겹쳐 둔 글자(::after)가 정한다.
+ *  재지 않고 그리므로 언제 그리든 줄 수가 맞는다 — 바뀐 글자만 여기서 옮겨 준다. */
+export const syncTitleCell = (el) => { if (el?.parentElement) el.parentElement.dataset.val = el.value; };
+
+export function autoGrow(root) {
+  root.addEventListener('input', (e) => syncTitleCell(e.target.closest('textarea.ttl-edit')));
+}
+
 export function hoverTip(root) {
   // 툴팁 좌표는 root 기준이다 — root 가 배치 기준이 되어야 어긋나지 않는다
   if (getComputedStyle(root).position === 'static') root.style.position = 'relative';

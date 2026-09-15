@@ -931,7 +931,7 @@ details.more[open] > summary{color:var(--ink)}
 .tk-area-head .lead{font-size:.75rem;color:var(--muted);margin-left:auto}
 
 .tk-rows{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-.tk-row{display:grid;align-items:center;gap:12px;padding:9px 14px;cursor:pointer;
+.tk-row{display:grid;align-items:start;gap:12px;padding:9px 14px;cursor:pointer;
   border-bottom:1px solid var(--line-soft);
   grid-template-columns:16px 104px minmax(0,1fr) 52px 132px 126px 44px 26px}
 /* 손잡이에서만 끌기를 받는다 — 줄 전체로 받으면 손가락으로 훑을 때 목록이 안 굴러간다 */
@@ -990,14 +990,23 @@ details.more[open] > summary{color:var(--ink)}
 .tk-due.late{color:var(--s-delay);font-weight:500}
 .tk-due.late .dday{color:var(--s-delay)}
 
-.tk-title{font-weight:500;display:flex;align-items:center;gap:7px;min-width:0}
+.tk-title{font-weight:500;display:flex;align-items:flex-start;gap:7px;min-width:0}
+.tk-title .tk-sub{margin-top:3px}
 /* 제목도 그 자리에서 고친다 — 평소에는 글자, 손대면 입력칸 */
-.ttl-edit{flex:1 1 auto;min-width:0;font:inherit;color:inherit;
-  border:1px solid transparent;background:none;border-radius:5px;
-  padding:2px 5px;margin-left:-5px;cursor:pointer;text-overflow:ellipsis}
+/* 제목은 줄여서 감추지 않는다 — 긴 이름은 줄을 바꿔 전부 보인다.
+   높이는 같은 칸에 겹쳐 둔 글자(::after)가 정한다. 재는 코드가 없으니 늘 맞는다. */
+.ttl-wrap{display:grid;flex:1 1 auto;min-width:0;margin-left:-5px}
+.ttl-wrap::after{content:attr(data-val) ' ';visibility:hidden}
+.ttl-wrap>.ttl-edit,.ttl-wrap::after{grid-area:1/1;
+  font:inherit;line-height:1.4;letter-spacing:inherit;
+  border:1px solid transparent;border-radius:5px;padding:2px 5px;
+  white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
+.ttl-edit{width:100%;min-width:0;min-height:0;color:inherit;background:none;
+  display:block;resize:none;overflow:hidden;cursor:pointer}
 .ttl-edit:hover{border-color:var(--line);background:var(--surface)}
 .ttl-edit:focus{border-color:var(--focus);background:var(--surface);outline:none;cursor:auto}
-h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
+h1 .ttl-wrap.h1{width:100%;margin-left:-6px}
+h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3}
 /* 하위 업무 진행 — 제목 옆에 붙는 작은 눈금 */
 .tk-sub{font-style:normal;font-family:var(--mono);font-size:.72rem;color:var(--muted);
   border:1px solid var(--line);border-radius:999px;padding:1px 6px;margin-left:6px;white-space:nowrap}
@@ -1023,19 +1032,26 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
 .months button{flex:0 0 auto;min-height:36px}
   .tk-row{grid-template-columns:22px 88px minmax(0,1fr) auto;gap:6px 10px;padding:11px 13px}
   /* 좁은 화면에서는 늘 보인다 — 손가락에는 hover 가 없다 */
-  .tk-del{grid-column:4/5;justify-self:end;color:var(--line);min-height:32px;padding:4px 8px}
+  .tk-del{grid-column:4/5;grid-row:3;justify-self:end;color:var(--line);min-height:32px;padding:4px 8px}
   /* 손가락으로 잡을 만큼은 돼야 한다 — 두 줄 높이를 다 쓴다 */
   .tk-grip{grid-row:span 2;color:var(--line);align-self:stretch;
     display:flex;align-items:center;justify-content:center}
   .tk-due{grid-row:span 2}
-  .tk-title{white-space:normal;font-size:.92rem}
-  .tk-pr{justify-self:end}
-  .tk-owner{grid-column:3/4;font-size:.79rem}
-  .tk-status{grid-column:4/5;justify-self:end}
+  /* 좁은 화면에서는 제목이 줄을 통째로 쓴다 — 줄여서 감추지 않으려면 자리를 줘야 한다 */
+  .tk-title{white-space:normal;font-size:.92rem;grid-column:3/5;grid-row:1}
+  /* 우선순위는 날짜 아래로 — 제목 자리를 뺏지 않는다 */
+  .tk-pr{grid-column:2/3;grid-row:3;justify-self:start;font-size:.74rem}
+  .tk-owner{grid-column:3/4;grid-row:2;font-size:.79rem}
+  .tk-status{grid-column:4/5;grid-row:2;justify-self:end}
   .tk-status select{min-width:104px;min-height:34px}
-  .tk-issue{grid-column:3/4;text-align:left}
+  .tk-issue{grid-column:3/4;grid-row:3;text-align:left}
   .tk-issue:empty{display:none}
   .tk-project-head .n{margin-left:0}
+}
+/* 아주 좁은 화면 — 상태칸이 자리를 다 먹으면 제목이 화면 밖으로 밀린다. 860px 규칙 뒤에 와야 이긴다. */
+@media (max-width:330px){
+  .tk-row{grid-template-columns:18px 64px minmax(0,1fr) auto;gap:5px 7px;padding:10px 9px}
+  .tk-status select{min-width:84px}
 }
 
 /* ── 타임라인: 페이즈 업무 패널 ──────────────
@@ -1062,7 +1078,7 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
 .tld-area-head .n{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
 .tld-area-head .lead{font-size:.75rem;color:var(--muted);margin-left:auto}
 
-.tld-task{display:grid;grid-template-columns:74px minmax(0,1fr) auto 26px 24px;gap:10px;align-items:center;
+.tld-task{display:grid;grid-template-columns:74px minmax(0,1fr) auto 26px 24px;gap:10px;align-items:start;
   width:100%;text-align:left;background:none;border:none;cursor:pointer;
   padding:7px 4px;border-radius:var(--radius-sm);font:inherit}
 .tld-task:hover{background:var(--surface-2)}
@@ -1070,9 +1086,8 @@ h1 .ttl-edit.h1{font:inherit;width:100%;padding:2px 6px;margin-left:-6px}
   display:flex;flex-direction:column;line-height:1.3;color:var(--ink-2)}
 .tld-task .due i{font-style:normal;font-size:.7rem;color:var(--muted)}
 .tld-task .due.late,.tld-task .due.late i{color:var(--s-delay)}
-.tld-task .ttl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.87rem}
 .tld-task .st{justify-self:end}
-.tld-task .ttl{display:flex;min-width:0}
+.tld-task .ttl{display:flex;min-width:0;font-size:.87rem}
 .tld-task .due .due-edit{font-size:.8rem}
 /* 상세 편집으로 가는 문 — 줄에 손이 가면 나타난다 */
 .tld-edit{border:0;background:none;color:transparent;cursor:pointer;font-size:.9rem;line-height:1;
@@ -4037,6 +4052,25 @@ function bindDueEdit(root, save) {
   });
 }
 
+/**
+ * 업무명 칸 — 길면 줄바꿈해서 다 보인다.
+ * input 은 한 줄뿐이라 긴 제목이 잘렸다. textarea 로 두고 내용만큼 키운다.
+ */
+const titleCell = (t, extra = '') => `
+  <span class="ttl-wrap${extra ? ` ${extra}` : ''}" data-val="${esc(t.title)}">
+    <textarea class="ttl-edit" rows="1" maxlength="120"
+              data-title="${esc(t.id ?? '')}" aria-label="업무명 수정"
+              title="눌러서 업무명 고치기">${esc(t.title)}</textarea>
+  </span>`;
+
+/** 제목칸의 높이는 같은 자리에 겹쳐 둔 글자(::after)가 정한다.
+ *  재지 않고 그리므로 언제 그리든 줄 수가 맞는다 — 바뀐 글자만 여기서 옮겨 준다. */
+const syncTitleCell = (el) => { if (el?.parentElement) el.parentElement.dataset.val = el.value; };
+
+function autoGrow(root) {
+  root.addEventListener('input', (e) => syncTitleCell(e.target.closest('textarea.ttl-edit')));
+}
+
 function hoverTip(root) {
   // 툴팁 좌표는 root 기준이다 — root 가 배치 기준이 되어야 어긋나지 않는다
   if (getComputedStyle(root).position === 'static') root.style.position = 'relative';
@@ -5451,8 +5485,7 @@ async function renderTasks(root, query) {
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
-        <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
-               data-title="${esc(t.id)}" aria-label="업무명 수정">
+        ${titleCell(t)}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
       <span class="tk-pr ${PR_TONE[t.priority] ?? ''}">${esc(
@@ -5761,7 +5794,7 @@ async function renderTasks(root, query) {
     if (ttl) {
       // 엔터는 확정, Esc 는 되돌리기. 줄 전체의 엔터(상세로 가기)와 겹치지 않게 여기서 끊는다.
       if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-      if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
       return;
     }
     const row = e.target.closest('[data-open]');
@@ -5770,6 +5803,8 @@ async function renderTasks(root, query) {
       go(`#/project/tasks/${row.dataset.open}`);
     }
   });
+
+  autoGrow(root);
 
   // 마감일은 누를 때 입력칸이 된다
   bindDueEdit(root, async (id, value) => {
@@ -5785,7 +5820,7 @@ async function renderTasks(root, query) {
   root.addEventListener('change', async (e) => {
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
-      const next = ttl.value.trim();
+      const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다
       if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
       if (next === ttl.defaultValue) return undefined;   // 손대기만 하고 그대로 둔 것
       try {
@@ -5873,8 +5908,7 @@ async function renderTaskDetail(root, id) {
     <div class="page-head">
       <div>
         <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${esc(t.project_name)}</div>
-        <h1><input type="text" class="ttl-edit h1" maxlength="120" value="${esc(t.title)}"
-                   data-title aria-label="업무명 수정"></h1>
+        <h1>${titleCell(t, 'h1')}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           <span class="area-pick" title="업무 영역 변경">
             <select data-area aria-label="업무 영역 변경">
@@ -6030,7 +6064,7 @@ async function renderTaskDetail(root, id) {
     }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
-      const next = ttl.value.trim();
+      const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다
       if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
       if (next === ttl.defaultValue) return undefined;
       try {
@@ -6103,11 +6137,13 @@ async function renderTaskDetail(root, id) {
     } catch (err) { toast(err.message, true); }
   });
 
+  autoGrow(root);
+
   root.addEventListener('keydown', (e) => {
     const ttl = e.target.closest('[data-title]');
     if (!ttl) return;
     if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
   });
 
   root.addEventListener('click', async (e) => {
@@ -7022,10 +7058,7 @@ async function renderTimeline(root) {
           ${g.rows.map((t) => `
             <div class="tld-task">
               <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
-              <span class="ttl">
-                <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
-                       data-title="${esc(t.id)}" aria-label="업무명 수정">
-              </span>
+              <span class="ttl">${titleCell(t)}</span>
               <span class="st">${statusPick(t)}</span>
               <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                       title="상세 편집">✎</button>
@@ -7048,7 +7081,7 @@ async function renderTimeline(root) {
     }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
-      const next = ttl.value.trim();
+      const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다
       if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
       if (next === ttl.defaultValue) return undefined;
       try {
@@ -7060,6 +7093,8 @@ async function renderTimeline(root) {
     }
     return undefined;
   });
+
+  autoGrow(root);
 
   // 마감일은 누를 때 입력칸이 된다. 바뀌면 페이즈 기간·진행도 달라지므로 다시 불러온다.
   bindDueEdit(root, async (id, value) => {
@@ -7075,7 +7110,7 @@ async function renderTimeline(root) {
     const ttl = e.target.closest('[data-title]');
     if (!ttl) return;
     if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
   });
 
   root.addEventListener('click', (e) => {
@@ -7142,10 +7177,7 @@ async function renderTimeline(root) {
             <div class="tld-task">
               <span class="due num"><span class="due-view" data-due="${esc(t.id)}"
                     data-date="" title="눌러서 마감일 정하기">미정</span></span>
-              <span class="ttl">
-                <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
-                       data-title="${esc(t.id)}" aria-label="업무명 수정">
-              </span>
+              <span class="ttl">${titleCell(t)}</span>
               <span class="st">${statusPick(t)}</span>
               <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                       title="상세 편집">✎</button>

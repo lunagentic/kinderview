@@ -3,6 +3,7 @@ import { state, activeProjects, areaMeta, leadNames } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
+  titleCell, autoGrow, syncTitleCell,
 } from '../ui.js';
 import { taskForm, projectForm } from '../forms.js';
 
@@ -131,8 +132,7 @@ export async function renderTasks(root, query) {
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
-        <input type="text" class="ttl-edit" maxlength="120" value="${esc(t.title)}"
-               data-title="${esc(t.id)}" aria-label="업무명 수정">
+        ${titleCell(t)}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
       <span class="tk-pr ${PR_TONE[t.priority] ?? ''}">${esc(
@@ -441,7 +441,7 @@ export async function renderTasks(root, query) {
     if (ttl) {
       // 엔터는 확정, Esc 는 되돌리기. 줄 전체의 엔터(상세로 가기)와 겹치지 않게 여기서 끊는다.
       if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-      if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; ttl.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
       return;
     }
     const row = e.target.closest('[data-open]');
@@ -450,6 +450,8 @@ export async function renderTasks(root, query) {
       go(`#/project/tasks/${row.dataset.open}`);
     }
   });
+
+  autoGrow(root);
 
   // 마감일은 누를 때 입력칸이 된다
   bindDueEdit(root, async (id, value) => {
@@ -465,7 +467,7 @@ export async function renderTasks(root, query) {
   root.addEventListener('change', async (e) => {
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
-      const next = ttl.value.trim();
+      const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다
       if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
       if (next === ttl.defaultValue) return undefined;   // 손대기만 하고 그대로 둔 것
       try {
