@@ -569,6 +569,21 @@ body[data-gate="edit"] .tld-del{display:none}
 .rp-what b{font-size:.88rem;font-weight:600;overflow-wrap:anywhere}
 .rp-meta{font-size:.75rem;color:var(--muted)}
 .rp-go{color:var(--s-delay);min-height:30px;padding:4px 9px}
+/* 나눠 준 코드 */
+.gate-codes{margin-bottom:20px}
+.gate-codes h3{font-size:.95rem;font-weight:700}
+.gc-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;
+  padding:9px 13px;background:var(--surface)}
+.gc-row.off{opacity:.55}
+.gc-name{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gc-name b{font-size:.88rem;font-weight:600;overflow-wrap:anywhere}
+.gc-when{font-family:var(--mono);font-size:.74rem;white-space:nowrap}
+.gc-go{min-height:30px;padding:4px 9px;color:var(--muted)}
+.gc-row.off .gc-go{color:var(--accent)}
+@media (max-width:520px){
+  .gc-row{grid-template-columns:minmax(0,1fr) auto}
+  .gc-when{grid-column:1/3;order:3}
+}
 @media (max-width:520px){
   .rp-row{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px}
   .rp-when{grid-column:1/3;font-size:.74rem}
@@ -2000,7 +2015,7 @@ function install({ verify: fn, open = false }) {
 async function resume() {
   if (role || !verify || !code) return role;
   try {
-    role = (await verify(code)) ?? null;
+    role = (await verify(code, { claim: false })) ?? null;
     if (!role) {
       // 코드가 바뀌었다 — 들고 있어 봐야 소용없다
       code = null;
@@ -2023,7 +2038,7 @@ async function unlock(input) {
   const next = String(input ?? '').trim();
   if (!next) return null;
   if (!verify) return null;
-  const got = (await verify(next)) ?? null;
+  const got = (await verify(next, { claim: true })) ?? null;
   if (got) {
     role = got;
     code = next;
@@ -2075,6 +2090,7 @@ const ADMIN_ONLY = [
   (m, p) => m !== 'GET' && /^\/api\/(projects|members|area-leads|vendors)(\/|$)/.test(p),
   // 저장점을 남기는 것은 누구든 좋다. 되돌리는 것만 관리자다.
   (m, p) => m !== 'GET' && /^\/api\/restore-points\/[^/]+\/restore$/.test(p),
+  (m, p) => m !== 'GET' && /^\/api\/gate-codes/.test(p),
 ];
 const needsAdmin = (method, path) => ADMIN_ONLY.some((f) => f(method, path));
 
@@ -2405,12 +2421,18 @@ const sbFetch = (path, init = {}) => {
   });
 };
 
-/** 저장소에 코드를 물어본다. 해시는 내려오지 않는다 — 등급만 온다. */
-async function sbVerify(code) {
-  const res = await fetch(`${SB_URL}/rest/v1/rpc/kf_role`, {
+/**
+ * 저장소에 코드를 물어본다. 해시는 내려오지 않는다 — 등급만 온다.
+ * 직접 넣어 들어올 때(claim)는 누가 그 코드를 쓰는지도 함께 남긴다.
+ * 창을 다시 열며 조용히 확인할 때(kf_role)는 남기지 않는다 — 새로고침마다 쌓일 이유가 없다.
+ */
+async function sbVerify(code, { claim = false } = {}) {
+  const fn = claim ? 'kf_gate_claim' : 'kf_role';
+  const args = claim ? { code, who: member(currentMe())?.display_name ?? currentMe() } : { code };
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify(args),
   });
   if (!res.ok) throw new Error('코드를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
   return (await res.json()) ?? null;
@@ -3837,6 +3859,16 @@ function handle(method, path, body) {
   const p = url.pathname;
   const me = currentMe();
   const seg = p.split('/').filter(Boolean); // ['api', ...]
+
+  // ── 나눠 준 코드 ─────────────────────────────────────
+  // 코드 자체는 해시로만 있어 되돌릴 수 없다. 여기서 보이는 것은 누가 쓰는지와 상태뿐이다.
+  if (p === '/api/gate-codes' && method === 'GET') {
+    return sbRpc('kf_gate_list').then((rows) => rows ?? []);
+  }
+  if (method === 'PATCH' && seg[1] === 'gate-codes' && seg[2]) {
+    return sbRpc('kf_gate_set_active', { p_id: Number(seg[2]), p_active: Boolean(body?.active) })
+      .then((active) => ({ active }));
+  }
 
   // ── 저장점 ───────────────────────────────────────────
   // 언제 무엇이 저장됐는지 보고, 그 시점으로 통째로 되돌린다.
@@ -7976,6 +8008,21 @@ async function renderInvoice(root, query) {
 
 const SNAP_KIND = { AUTO: '자동', MANUAL: '직접 저장', PRE_RESTORE: '되돌리기 직전' };
 
+// 나눠 준 코드 한 줄. 코드 자체는 해시로만 있어 여기에도 나오지 않는다 —
+// 누구에게 준 것인지(label)와 실제로 누가 쓰고 있는지만 보인다.
+const codeRow = (c) => `
+  <li class="gc-row${c.active ? '' : ' off'}">
+    <span class="gc-name">
+      <b>${esc(c.label ?? '이름 없음')}</b>
+      <span class="rp-meta">${c.role === 'ADMIN' ? '관리자' : '편집'}${
+        c.claimed_by ? ` · ${esc(c.claimed_by)}` : ' · 아직 안 씀'}${
+        c.use_count ? ` · ${esc(c.use_count)}회` : ''}</span>
+    </span>
+    <span class="rp-meta gc-when">${c.last_used_at ? esc(dateTime(c.last_used_at)) : '-'}</span>
+    <button class="btn btn-ghost gc-go" data-code="${esc(c.id)}" data-next="${c.active ? '0' : '1'}">${
+      c.active ? '정지' : '다시 쓰기'}</button>
+  </li>`;
+
 const pointRow = (r) => `
   <li class="rp-row" data-point="${esc(r.id)}">
     <span class="rp-when">${esc(dateTime(r.taken_at))}</span>
@@ -8015,6 +8062,13 @@ function gatePanel() {
         </form>
       `}
 
+      ${canAdmin() ? `
+      <section class="gate-codes">
+        <h3>나눠 준 코드</h3>
+        <p class="hint">코드는 해시로만 저장돼 다시 보여 줄 수 없습니다. 잃어버리면 정지시키고 새로 만들어 주세요.</p>
+        <ul class="rp-list gc-list" data-codes><li class="hint">불러오는 중…</li></ul>
+      </section>` : ''}
+
       <section class="gate-points">
         <div class="gate-points-head">
           <h3>저장점</h3>
@@ -8029,7 +8083,22 @@ function gatePanel() {
     title: '편집 권한 · 저장점',
     body: body(),
     onMount: ({ root, close }) => {
-      const paint = () => { root.querySelector('.modal-body').innerHTML = body(); loadPoints(); };
+      const paint = () => {
+        root.querySelector('.modal-body').innerHTML = body();
+        loadPoints();
+        loadCodes();
+      };
+
+      const loadCodes = async () => {
+        const box = root.querySelector('[data-codes]');
+        if (!box) return;
+        try {
+          const rows = await api.get('/api/gate-codes');
+          box.innerHTML = rows.length ? rows.map(codeRow).join('') : '<li class="hint">코드가 없습니다.</li>';
+        } catch (err) {
+          box.innerHTML = `<li class="hint">${esc(err.message)}</li>`;
+        }
+      };
 
       const loadPoints = async () => {
         const box = root.querySelector('[data-points]');
@@ -8044,6 +8113,7 @@ function gatePanel() {
         }
       };
       loadPoints();
+      loadCodes();
 
       root.addEventListener('submit', async (e) => {
         const form = e.target.closest('[data-unlock]');
@@ -8088,6 +8158,22 @@ function gatePanel() {
             loadPoints();
           } catch (err) { toast(err.message, true); }
           take.disabled = false;
+          return;
+        }
+
+        const code = e.target.closest('[data-code]');
+        if (code) {
+          const on = code.dataset.next === '1';
+          if (!on && !await confirmModal(
+            '이 코드를 정지합니다. 그 코드를 들고 있는 사람은 다음부터 보기 전용이 됩니다.',
+            { confirmLabel: '정지', danger: true })) return;
+          code.disabled = true;
+          try {
+            await api.patch(`/api/gate-codes/${code.dataset.code}`, { active: on });
+            toast(on ? '다시 쓸 수 있게 했습니다.' : '코드를 정지했습니다.');
+          } catch (err) { toast(err.message, true); }
+          code.disabled = false;
+          loadCodes();
           return;
         }
 

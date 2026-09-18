@@ -322,12 +322,18 @@ const sbFetch = (path, init = {}) => {
   });
 };
 
-/** 저장소에 코드를 물어본다. 해시는 내려오지 않는다 — 등급만 온다. */
-async function sbVerify(code) {
-  const res = await fetch(`${SB_URL}/rest/v1/rpc/kf_role`, {
+/**
+ * 저장소에 코드를 물어본다. 해시는 내려오지 않는다 — 등급만 온다.
+ * 직접 넣어 들어올 때(claim)는 누가 그 코드를 쓰는지도 함께 남긴다.
+ * 창을 다시 열며 조용히 확인할 때(kf_role)는 남기지 않는다 — 새로고침마다 쌓일 이유가 없다.
+ */
+async function sbVerify(code, { claim = false } = {}) {
+  const fn = claim ? 'kf_gate_claim' : 'kf_role';
+  const args = claim ? { code, who: member(currentMe())?.display_name ?? currentMe() } : { code };
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify(args),
   });
   if (!res.ok) throw new Error('코드를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
   return (await res.json()) ?? null;
@@ -1754,6 +1760,16 @@ function handle(method, path, body) {
   const p = url.pathname;
   const me = currentMe();
   const seg = p.split('/').filter(Boolean); // ['api', ...]
+
+  // ── 나눠 준 코드 ─────────────────────────────────────
+  // 코드 자체는 해시로만 있어 되돌릴 수 없다. 여기서 보이는 것은 누가 쓰는지와 상태뿐이다.
+  if (p === '/api/gate-codes' && method === 'GET') {
+    return sbRpc('kf_gate_list').then((rows) => rows ?? []);
+  }
+  if (method === 'PATCH' && seg[1] === 'gate-codes' && seg[2]) {
+    return sbRpc('kf_gate_set_active', { p_id: Number(seg[2]), p_active: Boolean(body?.active) })
+      .then((active) => ({ active }));
+  }
 
   // ── 저장점 ───────────────────────────────────────────
   // 언제 무엇이 저장됐는지 보고, 그 시점으로 통째로 되돌린다.

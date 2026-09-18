@@ -35,7 +35,7 @@ export function install({ verify: fn, open = false }) {
 export async function resume() {
   if (role || !verify || !code) return role;
   try {
-    role = (await verify(code)) ?? null;
+    role = (await verify(code, { claim: false })) ?? null;
     if (!role) {
       // 코드가 바뀌었다 — 들고 있어 봐야 소용없다
       code = null;
@@ -58,7 +58,7 @@ export async function unlock(input) {
   const next = String(input ?? '').trim();
   if (!next) return null;
   if (!verify) return null;
-  const got = (await verify(next)) ?? null;
+  const got = (await verify(next, { claim: true })) ?? null;
   if (got) {
     role = got;
     code = next;
@@ -110,5 +110,6 @@ const ADMIN_ONLY = [
   (m, p) => m !== 'GET' && /^\/api\/(projects|members|area-leads|vendors)(\/|$)/.test(p),
   // 저장점을 남기는 것은 누구든 좋다. 되돌리는 것만 관리자다.
   (m, p) => m !== 'GET' && /^\/api\/restore-points\/[^/]+\/restore$/.test(p),
+  (m, p) => m !== 'GET' && /^\/api\/gate-codes/.test(p),
 ];
 const needsAdmin = (method, path) => ADMIN_ONLY.some((f) => f(method, path));
