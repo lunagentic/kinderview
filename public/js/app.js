@@ -1,5 +1,5 @@
 import { state, loadBootstrap, setMe } from './state.js';
-import { esc, toast, errorBox, loading, readPref, writePref } from './ui.js';
+import { esc, toast, errorBox, loading, empty, readPref, writePref } from './ui.js';
 import { taskForm } from './forms.js';
 import { renderOverview } from './views/overview.js';
 import { renderTasks } from './views/tasks.js';
@@ -11,7 +11,7 @@ import { renderTimeline } from './views/timeline.js';
 import { renderTime } from './views/time.js';
 import { renderInvoice } from './views/invoice.js';
 import { gatePanel } from './views/gatePanel.js';
-import { currentRole, resume, roleLabel, canEdit } from './gate.js';
+import { currentRole, resume, roleLabel, canEdit, canSeeMoney } from './gate.js';
 
 const view = document.getElementById('view');
 
@@ -222,8 +222,16 @@ async function render() {
       return;
     }
     switch (top) {
-      case 'time': await renderTime(fresh, query); break;
-      case 'invoice': await renderInvoice(fresh, query); break;
+      // 돈 이야기는 관리자만 연다. 탭은 그대로 둔다 —
+      // 없는 것처럼 감추면 "인보이싱이 어디 갔냐"는 질문만 늘어난다.
+      case 'time':
+        if (!canSeeMoney()) { fresh.innerHTML = moneyLocked('타임트래킹'); break; }
+        await renderTime(fresh, query);
+        break;
+      case 'invoice':
+        if (!canSeeMoney()) { fresh.innerHTML = moneyLocked('인보이싱'); break; }
+        await renderInvoice(fresh, query);
+        break;
       case 'notifications': await renderNotifications(fresh); break;
       default:
         fresh.innerHTML = errorBox('없는 화면입니다.');
@@ -233,6 +241,15 @@ async function render() {
     console.error(err);
   }
 }
+
+const moneyLocked = (what) => `
+  <div class="page-head"><div><h1>${esc(what)}</h1>
+    <div class="sub">경비·지급 금액이 있는 화면입니다</div></div></div>
+  ${empty({
+    title: '관리자만 볼 수 있습니다',
+    hint: '관리자 코드를 넣으면 열립니다. 코드가 없으면 인보이싱 담당에게 요청해 주세요.',
+    action: '<button class="btn btn-primary" data-open-gate>관리자 코드 넣기</button>',
+  })}`;
 
 function renderMePicker() {
   const sel = document.getElementById('me-select');
@@ -272,6 +289,7 @@ document.getElementById('btn-new-task').addEventListener('click', () => {
 
 // 각 뷰의 "+ 업무 등록" 버튼 (위임)
 view.addEventListener('click', (e) => {
+  if (e.target.closest('[data-open-gate]')) return void gatePanel();
   if (!canEdit() && e.target.closest('[data-new-task], [data-new-issue]')) {
     e.preventDefault();
     e.stopPropagation();

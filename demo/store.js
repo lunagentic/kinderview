@@ -303,6 +303,12 @@ const ROW_KEY = {
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
+// 경비는 관리자에게만 내려온다(저장소 정책). 그래서 올릴 때도 관리자일 때만 실어야 한다 —
+// 한쪽만 걸러 두면 "내려오지 않은 줄"을 "지워진 줄"로 착각해 공유본에서 지워 버린다.
+const ADMIN_ONLY_COLLECTIONS = ['expenses'];
+const visibleCollections = () =>
+  (canAdmin() ? COLLECTIONS : COLLECTIONS.filter((c) => !ADMIN_ONLY_COLLECTIONS.includes(c)));
+
 let remoteOk = false;      // 한 번이라도 닿았는가
 let remoteWarned = false;
 let lastSeen = null;       // 남이 고친 것을 알아채는 기준 시각
@@ -379,6 +385,9 @@ async function refreshFromRemote() {
   flushAgain = false;
   try {
     const rows = await remoteReadAll();
+    // 아무것도 안 내려왔다면 그것은 "다 지워졌다"는 뜻이 아니라 아직 아무도 안 올렸다는 뜻이다.
+    // 여기서 통째로 갈아 끼우면 이 브라우저에 있던 것까지 날아간다.
+    if (!rows.length) { window.dispatchEvent(new Event('kf:reload')); return; }
     DB = unflatten(rows);
     save(DB, { push: false });
     shadow = snapshot(flatten(DB));
@@ -416,7 +425,7 @@ async function remoteReadAll() {
 /** 저장된 판을 kf_rows 줄 목록으로 편다 */
 function flatten(db) {
   const out = [];
-  for (const c of COLLECTIONS) {
+  for (const c of visibleCollections()) {
     for (const r of db[c] ?? []) out.push({ collection: c, id: String(ROW_KEY[c](r)), data: r });
   }
   out.push({ collection: 'meta', id: 'anchor', data: { value: db.anchor } });
@@ -430,6 +439,8 @@ function flatten(db) {
 function unflatten(rows) {
   const db = { anchor: today() };
   for (const c of COLLECTIONS) db[c] = [];
+  // 관리자가 아니면 경비는 아예 안 내려온다. 빈 채로 두면 된다 —
+  // 그 화면은 어차피 잠겨 있고, 올릴 때도 같이 빠지므로 공유본은 다치지 않는다.
   for (const r of rows) {
     if (r.collection === 'meta') {
       if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value;
@@ -553,13 +564,26 @@ async function pollRemote() {
     const [top] = await res.json();
     if (!top || !lastSeen || top.updated_at <= lastSeen) return;
     const rows = await remoteReadAll();
+    if (!rows.length) return;   // 빈 응답을 '전부 지워졌다'로 읽지 않는다
     DB = unflatten(rows);
-    save();
+    save(DB, { push: false });
     shadow = snapshot(flatten(DB));
     lastSeen = top.updated_at;
     window.dispatchEvent(new Event('kf:reload'));
   } catch { /* 잠깐 못 닿는 것은 넘어간다 */ }
 }
+
+// 등급이 바뀌면 받을 수 있는 줄이 달라진다 — 관리자가 되거나 그만둘 때만 다시 읽는다.
+// 편집↔보기 전환에서는 읽어 올 것이 같으므로 건드리지 않는다(올리려던 것을 버리게 된다).
+let wasAdmin = canAdmin();
+try {
+  window.addEventListener('kf:gate', () => {
+    const now = canAdmin();
+    if (now === wasAdmin) return;
+    wasAdmin = now;
+    if (remoteOk) refreshFromRemote();
+  });
+} catch { /* 창이 없으면 넘어간다 */ }
 
 let readyPromise = null;
 const ensureReady = () => (readyPromise ??= resume().then(syncFromRemote).then(() => {

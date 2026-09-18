@@ -2073,6 +2073,10 @@ const roleLabel = () => (role === 'ADMIN' ? '관리자' : role === 'EDIT' ? '편
  * 화면이 실수로 편집칸을 열어 두었더라도 여기서 걸린다.
  */
 function assertCan(method, path) {
+  // 돈 이야기는 읽는 것부터 관리자다 — 다른 화면과 달리 여기는 GET 도 막는다
+  if (adminOnlyRead(path) && !canAdmin()) {
+    throw new Error('인보이싱은 관리자 코드가 있어야 볼 수 있습니다.');
+  }
   if (method === 'GET') return;
   if (!canEdit()) {
     throw new Error('보기 전용입니다. 오른쪽 위 「편집하기」에서 코드를 넣어 주세요.');
@@ -2093,6 +2097,13 @@ const ADMIN_ONLY = [
   (m, p) => m !== 'GET' && /^\/api\/gate-codes/.test(p),
 ];
 const needsAdmin = (method, path) => ADMIN_ONLY.some((f) => f(method, path));
+
+// 경비·지급은 화면을 여는 것 자체가 관리자 일이다.
+// 저장소에서도 경비는 관리자에게만 내려온다 — 여기서 막는 것은 그 앞단이다.
+const ADMIN_ONLY_READ = /^\/api\/(payments|expenses)(\/|\?|$)/;
+const adminOnlyRead = (path) => ADMIN_ONLY_READ.test(String(path ?? ''));
+/** 이 화면을 지금 열 수 있나 */
+const canSeeMoney = () => canAdmin();
 
 
 /* ── 브라우저 저장소 (demo/store.js) ────────────────── */
@@ -2402,6 +2413,12 @@ const ROW_KEY = {
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
+// 경비는 관리자에게만 내려온다(저장소 정책). 그래서 올릴 때도 관리자일 때만 실어야 한다 —
+// 한쪽만 걸러 두면 "내려오지 않은 줄"을 "지워진 줄"로 착각해 공유본에서 지워 버린다.
+const ADMIN_ONLY_COLLECTIONS = ['expenses'];
+const visibleCollections = () =>
+  (canAdmin() ? COLLECTIONS : COLLECTIONS.filter((c) => !ADMIN_ONLY_COLLECTIONS.includes(c)));
+
 let remoteOk = false;      // 한 번이라도 닿았는가
 let remoteWarned = false;
 let lastSeen = null;       // 남이 고친 것을 알아채는 기준 시각
@@ -2478,6 +2495,9 @@ async function refreshFromRemote() {
   flushAgain = false;
   try {
     const rows = await remoteReadAll();
+    // 아무것도 안 내려왔다면 그것은 "다 지워졌다"는 뜻이 아니라 아직 아무도 안 올렸다는 뜻이다.
+    // 여기서 통째로 갈아 끼우면 이 브라우저에 있던 것까지 날아간다.
+    if (!rows.length) { window.dispatchEvent(new Event('kf:reload')); return; }
     DB = unflatten(rows);
     save(DB, { push: false });
     shadow = snapshot(flatten(DB));
@@ -2515,7 +2535,7 @@ async function remoteReadAll() {
 /** 저장된 판을 kf_rows 줄 목록으로 편다 */
 function flatten(db) {
   const out = [];
-  for (const c of COLLECTIONS) {
+  for (const c of visibleCollections()) {
     for (const r of db[c] ?? []) out.push({ collection: c, id: String(ROW_KEY[c](r)), data: r });
   }
   out.push({ collection: 'meta', id: 'anchor', data: { value: db.anchor } });
@@ -2529,6 +2549,8 @@ function flatten(db) {
 function unflatten(rows) {
   const db = { anchor: today() };
   for (const c of COLLECTIONS) db[c] = [];
+  // 관리자가 아니면 경비는 아예 안 내려온다. 빈 채로 두면 된다 —
+  // 그 화면은 어차피 잠겨 있고, 올릴 때도 같이 빠지므로 공유본은 다치지 않는다.
   for (const r of rows) {
     if (r.collection === 'meta') {
       if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value;
@@ -2652,13 +2674,26 @@ async function pollRemote() {
     const [top] = await res.json();
     if (!top || !lastSeen || top.updated_at <= lastSeen) return;
     const rows = await remoteReadAll();
+    if (!rows.length) return;   // 빈 응답을 '전부 지워졌다'로 읽지 않는다
     DB = unflatten(rows);
-    save();
+    save(DB, { push: false });
     shadow = snapshot(flatten(DB));
     lastSeen = top.updated_at;
     window.dispatchEvent(new Event('kf:reload'));
   } catch { /* 잠깐 못 닿는 것은 넘어간다 */ }
 }
+
+// 등급이 바뀌면 받을 수 있는 줄이 달라진다 — 관리자가 되거나 그만둘 때만 다시 읽는다.
+// 편집↔보기 전환에서는 읽어 올 것이 같으므로 건드리지 않는다(올리려던 것을 버리게 된다).
+let wasAdmin = canAdmin();
+try {
+  window.addEventListener('kf:gate', () => {
+    const now = canAdmin();
+    if (now === wasAdmin) return;
+    wasAdmin = now;
+    if (remoteOk) refreshFromRemote();
+  });
+} catch { /* 창이 없으면 넘어간다 */ }
 
 let readyPromise = null;
 const ensureReady = () => (readyPromise ??= resume().then(syncFromRemote).then(() => {
@@ -8430,8 +8465,16 @@ async function render() {
       return;
     }
     switch (top) {
-      case 'time': await renderTime(fresh, query); break;
-      case 'invoice': await renderInvoice(fresh, query); break;
+      // 돈 이야기는 관리자만 연다. 탭은 그대로 둔다 —
+      // 없는 것처럼 감추면 "인보이싱이 어디 갔냐"는 질문만 늘어난다.
+      case 'time':
+        if (!canSeeMoney()) { fresh.innerHTML = moneyLocked('타임트래킹'); break; }
+        await renderTime(fresh, query);
+        break;
+      case 'invoice':
+        if (!canSeeMoney()) { fresh.innerHTML = moneyLocked('인보이싱'); break; }
+        await renderInvoice(fresh, query);
+        break;
       case 'notifications': await renderNotifications(fresh); break;
       default:
         fresh.innerHTML = errorBox('없는 화면입니다.');
@@ -8441,6 +8484,15 @@ async function render() {
     console.error(err);
   }
 }
+
+const moneyLocked = (what) => `
+  <div class="page-head"><div><h1>${esc(what)}</h1>
+    <div class="sub">경비·지급 금액이 있는 화면입니다</div></div></div>
+  ${empty({
+    title: '관리자만 볼 수 있습니다',
+    hint: '관리자 코드를 넣으면 열립니다. 코드가 없으면 인보이싱 담당에게 요청해 주세요.',
+    action: '<button class="btn btn-primary" data-open-gate>관리자 코드 넣기</button>',
+  })}`;
 
 function renderMePicker() {
   const sel = document.getElementById('me-select');
@@ -8480,6 +8532,7 @@ document.getElementById('btn-new-task').addEventListener('click', () => {
 
 // 각 뷰의 "+ 업무 등록" 버튼 (위임)
 view.addEventListener('click', (e) => {
+  if (e.target.closest('[data-open-gate]')) return void gatePanel();
   if (!canEdit() && e.target.closest('[data-new-task], [data-new-issue]')) {
     e.preventDefault();
     e.stopPropagation();

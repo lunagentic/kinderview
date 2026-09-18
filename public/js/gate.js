@@ -93,6 +93,10 @@ export const roleLabel = () => (role === 'ADMIN' ? '관리자' : role === 'EDIT'
  * 화면이 실수로 편집칸을 열어 두었더라도 여기서 걸린다.
  */
 export function assertCan(method, path) {
+  // 돈 이야기는 읽는 것부터 관리자다 — 다른 화면과 달리 여기는 GET 도 막는다
+  if (adminOnlyRead(path) && !canAdmin()) {
+    throw new Error('인보이싱은 관리자 코드가 있어야 볼 수 있습니다.');
+  }
   if (method === 'GET') return;
   if (!canEdit()) {
     throw new Error('보기 전용입니다. 오른쪽 위 「편집하기」에서 코드를 넣어 주세요.');
@@ -113,3 +117,10 @@ const ADMIN_ONLY = [
   (m, p) => m !== 'GET' && /^\/api\/gate-codes/.test(p),
 ];
 const needsAdmin = (method, path) => ADMIN_ONLY.some((f) => f(method, path));
+
+// 경비·지급은 화면을 여는 것 자체가 관리자 일이다.
+// 저장소에서도 경비는 관리자에게만 내려온다 — 여기서 막는 것은 그 앞단이다.
+const ADMIN_ONLY_READ = /^\/api\/(payments|expenses)(\/|\?|$)/;
+export const adminOnlyRead = (path) => ADMIN_ONLY_READ.test(String(path ?? ''));
+/** 이 화면을 지금 열 수 있나 */
+export const canSeeMoney = () => canAdmin();
