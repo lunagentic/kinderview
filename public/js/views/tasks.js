@@ -105,7 +105,18 @@ export async function renderTasks(root, query) {
     return ra === rb ? 0 : ra - rb;
   };
 
+  const NO_PROJECT = { id: '', name: '프로젝트 미정', task_count: 0 };
   const groups = [];
+  // 프로젝트를 아직 안 정한 업무 — 맨 앞에 둔다. 자리를 못 잡은 일이라 먼저 보여야 한다.
+  const loose = rows.filter((t) => !t.project_id);
+  if (loose.length) {
+    const areas = [];
+    for (const a of state.meta.areas) {
+      const inArea = loose.filter((t) => t.area === a.code);
+      if (inArea.length) areas.push({ area: a, rows: rank.size ? inArea.sort(byRank) : inArea });
+    }
+    groups.push({ project: NO_PROJECT, count: loose.length, areas, loose: true });
+  }
   for (const pr of ordered) {
     const mine = rows.filter((t) => t.project_id === pr.id);
     // 업무가 아직 하나도 없는 프로젝트도 보여 준다. 안 보이면 방금 만든 프로젝트가
@@ -191,12 +202,14 @@ export async function renderTasks(root, query) {
     </div>
 
     ${groups.length ? groups.map((g) => `
-      <section class="tk-project" data-project="${esc(g.project.id)}" style="${projectStyle(g.project.id)}">
-        <div class="tk-project-head" title="끌어서 프로젝트 차례를 바꿉니다">
-          <span class="grip" aria-hidden="true">⠿</span>
-          <h2>${projectName(g.project.id, g.project.name)}</h2>
-          <button class="pr-edit" data-edit-project="${esc(g.project.id)}"
-                  aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>
+      <section class="tk-project${g.loose ? ' loose' : ''}" data-project="${esc(g.project.id)}"
+               style="${projectStyle(g.project.id)}">
+        <div class="tk-project-head"${g.loose ? '' : ' title="끌어서 프로젝트 차례를 바꿉니다"'}>
+          ${g.loose ? '' : '<span class="grip" aria-hidden="true">⠿</span>'}
+          <h2>${g.loose ? esc(g.project.name) : projectName(g.project.id, g.project.name)}</h2>
+          ${g.loose ? '<span class="hint">업무를 열어 프로젝트를 정해 주세요</span>'
+            : `<button class="pr-edit" data-edit-project="${esc(g.project.id)}"
+                  aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>`}
           <span class="n">${g.count}건</span>
         </div>
         ${g.areas.length ? '' : `
@@ -229,12 +242,14 @@ export async function renderTasks(root, query) {
     let key = null;
     let moved = false;
     let startY = 0;
-    const sections = () => [...root.querySelectorAll('.tk-project')];
+    // 프로젝트 미정 묶음은 차례가 없다 — 끌기에서 뺀다
+    const sections = () => [...root.querySelectorAll('.tk-project:not(.loose)')];
     const order = () => sections().map((el) => el.dataset.project);
 
     root.addEventListener('pointerdown', (e) => {
       const head = e.target.closest('.tk-project-head');
-      if (!head || e.target.closest('button')) return;   // 단추는 눌리는 것이지 끌리는 것이 아니다
+      if (!head || head.closest('.tk-project.loose')) return;
+      if (e.target.closest('button')) return;   // 단추는 눌리는 것이지 끌리는 것이 아니다
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       key = head.closest('.tk-project').dataset.project;
       moved = false;

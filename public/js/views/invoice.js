@@ -1,6 +1,8 @@
 import { api } from '../api.js';
 import { state } from '../state.js';
-import { esc, loading, errorBox, empty, toast, shortDate, go, projectName, progressBar } from '../ui.js';
+import {
+  esc, loading, errorBox, empty, toast, shortDate, go, projectName, projectLabel, progressBar,
+} from '../ui.js';
 import { expenseForm } from '../forms.js';
 
 const PAY = [
@@ -77,7 +79,7 @@ export async function renderInvoice(root, query) {
               <tr>
                 <td class="title-cell"><a href="#/project/tasks/${esc(r.task_id)}">${esc(r.title)}</a></td>
                 <td data-label="업체">${esc(r.vendor_name)}${r.vendor_worker_name ? `<span class="hint"> · ${esc(r.vendor_worker_name)}</span>` : ''}</td>
-                <td data-label="프로젝트">${projectName(r.project_id, r.project_name)}</td>
+                <td data-label="프로젝트">${projectName(r.project_id, projectLabel(r.project_name))}</td>
                 <td data-label="납품 예정" class="nowrap num ${r.delivery_due_date < state.today && r.payment_status !== 'PAID' ? 'late' : ''}">
                   ${shortDate(r.delivery_due_date)}</td>
                 <td data-label="검수" class="nowrap">
@@ -123,7 +125,7 @@ export async function renderInvoice(root, query) {
         <div class="bars" style="margin-top:12px">
           ${spend.summary.projects.map((r) => `
             <div class="bar" style="cursor:default">
-              <span class="name">${projectName(r.key, r.label)}</span>
+              <span class="name">${projectName(r.key, projectLabel(r.label))}</span>
               ${progressBar(spend.summary.total ? Math.round((r.amount / spend.summary.total) * 100) : 0)}
               <span class="pct">${wonText(r.amount)}</span>
             </div>`).join('')}

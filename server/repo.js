@@ -508,8 +508,9 @@ export function taskMonths(ref = today()) {
             SUM(CASE WHEN t.status <> 'DONE' AND t.due_date < :today THEN 1 ELSE 0 END) AS delayed,
             SUM(CASE WHEN t.status = 'DONE' THEN 1 ELSE 0 END) AS done
      FROM task t
-     JOIN project p ON p.id = t.project_id
-     WHERE t.deleted_at IS NULL AND p.is_archived = 0 AND t.due_date IS NOT NULL
+     LEFT JOIN project p ON p.id = t.project_id
+     WHERE t.deleted_at IS NULL AND (p.is_archived = 0 OR t.project_id IS NULL)
+       AND t.due_date IS NOT NULL
      GROUP BY month
      ORDER BY month`,
     { today: ref },
@@ -532,7 +533,7 @@ const TASK_SELECT = `
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id AND s.is_done = 1) AS subtask_done,
          ${CASE_WEIGHT} AS progress_weight
   FROM task t
-  JOIN project p   ON p.id = t.project_id
+  LEFT JOIN project p ON p.id = t.project_id
   LEFT JOIN phase ph ON ph.id = t.phase_id
   JOIN member m    ON m.slack_user_id = t.owner_slack_user_id
   LEFT JOIN outsourcing o ON o.task_id = t.id
@@ -614,7 +615,7 @@ export const tasks = {
     const params = { today: filter.today || today() };
     const where = ['t.deleted_at IS NULL'];
 
-    if (!filter.includeArchivedProjects) where.push('p.is_archived = 0');
+    if (!filter.includeArchivedProjects) where.push('(p.is_archived = 0 OR t.project_id IS NULL)');
     if (filter.project?.length) where.push(`t.project_id IN ${inClause('pj', filter.project, params)}`);
     if (filter.area?.length) where.push(`t.area IN ${inClause('ar', filter.area, params)}`);
     if (filter.phase?.length) where.push(`t.phase_id IN ${inClause('phz', filter.phase, params)}`);
@@ -662,7 +663,7 @@ export const tasks = {
     const area = input.area;
     if (!AREAS.some((a) => a.code === area)) throw new HttpError(400, '업무 영역을 선택해 주세요.');
     if (!input.title?.trim()) throw new HttpError(400, '업무명을 입력해 주세요.');
-    if (!input.project_id) throw new HttpError(400, '프로젝트를 선택해 주세요.');
+    // 프로젝트는 비워 둘 수 있다 — 어디에 붙일지 나중에 정하는 일도 일단 받아 적는다.
 
     // 담당은 기본이 그 영역의 리드다. 다른 사람을 고르면 그 사람이 맡는다.
     // 담당자 없는 업무는 여전히 만들 수 없다 (원칙 1).
@@ -690,8 +691,9 @@ export const tasks = {
                  :start_date, :due_date, :description, :completed_at, :actor, :at, :at)`,
         {
           id,
-          project_id: input.project_id,
-          phase_id: input.phase_id || null,
+          project_id: input.project_id || null,
+          // 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 못 고른다.
+          phase_id: (input.project_id && input.phase_id) || null,
           title: input.title.trim(),
           area,
           owner,
@@ -748,6 +750,8 @@ export const tasks = {
       const at = nowISO();
       // 빈 문자열로 오면 '비운다'는 뜻이다 (백로그로 내린다)
       const dueDate = input.due_date === undefined ? cur.due_date : (input.due_date || null);
+      // 프로젝트도 마찬가지 — 빈 값이 오면 프로젝트 미정으로 내린다
+      const projectId = input.project_id === undefined ? cur.project_id : (input.project_id || null);
       const completedAt = status === 'DONE' ? (cur.completed_at || at) : null;
 
       run(
@@ -758,8 +762,10 @@ export const tasks = {
          WHERE id = :id`,
         {
           id,
-          project_id: input.project_id ?? cur.project_id,
-          phase_id: input.phase_id === undefined ? cur.phase_id : (input.phase_id || null),
+          project_id: projectId,
+          // 프로젝트를 떼면 그 안에 있던 페이즈도 같이 뗀다
+          phase_id: !projectId ? null
+            : (input.phase_id === undefined ? cur.phase_id : (input.phase_id || null)),
           title: (input.title ?? cur.title).trim(),
           area,
           owner,

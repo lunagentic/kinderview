@@ -91,10 +91,11 @@ CREATE TABLE IF NOT EXISTS vendor (
 
 -- 업무: 기본 관리 단위.
 -- owner_slack_user_id 는 NOT NULL — 담당자 없는 업무는 만들 수 없다 (원칙 1).
--- project_id 는 NOT NULL — 프로젝트에 속하지 않은 업무는 만들 수 없다 (원칙 2).
+-- project_id 는 비워 둘 수 있다 — 어디에 붙일지 아직 못 정한 일도 일단 받아 적는다.
+--   비면 '프로젝트 미정'으로 모인다. 페이즈는 프로젝트에 딸린 값이라 같이 비운다.
 CREATE TABLE IF NOT EXISTS task (
   id                  TEXT PRIMARY KEY,
-  project_id          TEXT NOT NULL REFERENCES project(id),
+  project_id          TEXT REFERENCES project(id),
   phase_id            TEXT REFERENCES phase(id) ON DELETE SET NULL,
   title               TEXT NOT NULL,
   area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
@@ -111,6 +112,8 @@ CREATE TABLE IF NOT EXISTS task (
   updated_at          TEXT NOT NULL,
   deleted_at          TEXT,
   CHECK (start_date IS NULL OR due_date IS NULL OR start_date <= due_date),
+  -- 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 없다.
+  CHECK (project_id IS NOT NULL OR phase_id IS NULL),
   -- 상태 체계는 업무 영역에 따라 분리된다 (일반 4단계 / 외주 6단계)
   CHECK (
     (area =  'OUT' AND status IN ('REQUEST_PLANNED','REQUESTED','OUT_IN_PROGRESS','OUT_REVIEW','OUT_REVISION','DONE'))

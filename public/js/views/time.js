@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { state, areaMeta } from '../state.js';
 import {
   esc, loading, errorBox, empty, toast, go, projectName, projectTone,
-  progressBar, pctText, shortDate, confirmModal,
+  progressBar, pctText, shortDate, confirmModal, projectLabel,
 } from '../ui.js';
 import { expenseForm } from '../forms.js';
 
@@ -77,7 +77,7 @@ export async function renderTime(root, query) {
                 <tr>
                   <td class="title-cell">
                     <a href="#/project/tasks/${esc(r.task_id)}">${esc(r.title)}</a>
-                    <span class="sheet-sub">${projectName(r.project_id, r.project_name)} · ${esc(areaMeta(r.area).label)}</span>
+                    <span class="sheet-sub">${projectName(r.project_id, projectLabel(r.project_name))} · ${esc(areaMeta(r.area).label)}</span>
                   </td>
                   ${dates.map((d) => `<td class="num ${d === state.today ? 'is-today' : ''}">
                     <input type="text" inputmode="decimal" class="hcell"
@@ -168,7 +168,7 @@ export async function renderTime(root, query) {
               ${spend.rows.map((r) => `
                 <tr>
                   <td data-label="사용일" class="nowrap">${shortDate(r.spent_on)}</td>
-                  <td data-label="프로젝트">${projectName(r.project_id, r.project_name)}</td>
+                  <td data-label="프로젝트">${projectName(r.project_id, projectLabel(r.project_name))}</td>
                   <td data-label="분류">${esc(catLabel(r.category))}</td>
                   <td data-label="내용">${esc(r.memo || '-')}${
                     r.task_title ? `<span class="hint"> · ${esc(r.task_title)}</span>` : ''}</td>

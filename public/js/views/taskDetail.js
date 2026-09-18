@@ -54,7 +54,7 @@ export async function renderTaskDetail(root, id) {
   root.innerHTML = `
     <div class="page-head">
       <div>
-        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${esc(t.project_name)}</div>
+        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}</div>
         <h1>${titleCell(t, 'h1')}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           <span class="area-pick" title="업무 영역 변경">

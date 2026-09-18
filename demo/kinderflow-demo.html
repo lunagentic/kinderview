@@ -2467,7 +2467,7 @@ function hydrate(t, ref = today()) {
   const openCount = openIssuesOf(t.id).length;
   return {
     ...t,
-    project_name: p?.name ?? '-', project_code: p?.code ?? null,
+    project_name: p?.name ?? null, project_code: p?.code ?? null,
     project_channel: p?.slack_channel_id ?? null, project_lead: p?.lead_slack_user_id ?? null,
     phase_name: DB.phases?.find((ph) => ph.id === t.phase_id)?.name ?? null,
     owner_name: m?.display_name ?? t.owner_slack_user_id,
@@ -2520,7 +2520,7 @@ function listTasks(f = {}) {
   const ref = f.today || today();
   let rows = DB.tasks.filter((t) => !t.deleted_at).map((t) => hydrate(t, ref));
   const archived = new Set(DB.projects.filter((p) => p.is_archived).map((p) => p.id));
-  rows = rows.filter((t) => !archived.has(t.project_id));
+  rows = rows.filter((t) => !t.project_id || !archived.has(t.project_id));
 
   if (f.project?.length) rows = rows.filter((t) => f.project.includes(t.project_id));
   if (f.phase?.length) rows = rows.filter((t) => f.phase.includes(t.phase_id));
@@ -2775,7 +2775,7 @@ function upsertOutsourcing(taskId, input) {
 
 function createTask(input, actor) {
   if (!input.title?.trim()) throw new DemoError('업무명을 입력해 주세요.');
-  if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
+  // 프로젝트는 비워 둘 수 있다 — 어디에 붙일지 나중에 정하는 일도 일단 받아 적는다.
   const area = input.area;
   if (!AREAS.some((a) => a.code === area)) throw new DemoError('업무 영역을 선택해 주세요.');
   // 담당은 기본이 그 영역의 리드다. 다른 사람을 고르면 그 사람이 맡는다.
@@ -2788,7 +2788,9 @@ function createTask(input, actor) {
   if (input.start_date && input.start_date > due) throw new DemoError('시작일은 마감일보다 늦을 수 없습니다.');
 
   const t = {
-    id: uid(), project_id: input.project_id, phase_id: input.phase_id || null,
+    id: uid(), project_id: input.project_id || null,
+    // 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 못 고른다.
+    phase_id: (input.project_id && input.phase_id) || null,
     title: input.title.trim(), area, owner_slack_user_id: owner, status,
     priority: input.priority || 'NORMAL',
     start_date: input.start_date || null, due_date: due,
@@ -2829,10 +2831,13 @@ function updateTask(id, input, actor) {
   }
   // 빈 문자열로 오면 '비운다'는 뜻이다 (백로그로 내린다)
   const due = input.due_date === undefined ? t.due_date : (input.due_date || null);
+  // 프로젝트도 마찬가지 — 빈 값이 오면 프로젝트 미정으로 내린다
+  const pid = input.project_id === undefined ? t.project_id : (input.project_id || null);
 
   Object.assign(t, {
-    project_id: input.project_id ?? t.project_id,
-    phase_id: input.phase_id === undefined ? t.phase_id : (input.phase_id || null),
+    project_id: pid,
+    // 프로젝트를 떼면 그 안에 있던 페이즈도 같이 뗀다
+    phase_id: !pid ? null : (input.phase_id === undefined ? t.phase_id : (input.phase_id || null)),
     title: (input.title ?? t.title).trim(),
     area, owner_slack_user_id: owner, status,
     priority: input.priority ?? t.priority,
@@ -2953,10 +2958,10 @@ function timeSummary(from, to) {
   const rows = (DB.time_entries ?? []).filter((e) => e.work_date >= from && e.work_date <= to)
     .map((e) => {
       const t = DB.tasks.find((x) => x.id === e.task_id && !x.deleted_at);
-      const p = t ? project(t.project_id) : null;
-      return t && p && !p.is_archived
+      const p = t?.project_id ? project(t.project_id) : null;
+      return t && (!t.project_id ? true : (p && !p.is_archived))
         ? { hours: e.hours, slack_user_id: e.slack_user_id, area: t.area,
-            project_id: t.project_id, project_name: p.name,
+            project_id: t.project_id, project_name: p?.name ?? null,
             display_name: member(e.slack_user_id)?.display_name ?? e.slack_user_id }
         : null;
     }).filter(Boolean);
@@ -3956,6 +3961,8 @@ const projectStyle = (id) => `--pc:var(--p${projectTone(id)})`;
 /** 색 점 + 이름 */
 const projectName = (id, name) =>
   `<span class="pname" style="${projectStyle(id)}"><i class="pdot"></i>${esc(name ?? '')}</span>`;
+/** 프로젝트를 아직 안 정한 업무도 있다 — 빈 칸 대신 그렇게 적는다 */
+const projectLabel = (name) => (name ? String(name) : '프로젝트 미정');
 
 // ── 조각 ────────────────────────────────────────────────
 const avatar = (member, cls = '') => {
@@ -4287,9 +4294,9 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
-          <span class="lab">프로젝트<span class="req">*</span></span>
-          <select name="project_id" required>
-            <option value="">선택</option>
+          <span class="lab">프로젝트 <span class="hint" style="font-weight:400">나중에 정해도 됩니다</span></span>
+          <select name="project_id">
+            <option value="">아직 안 정함</option>
             ${opts(activeProjects(), task?.project_id ?? defaults.project_id ?? defaultProjectId(), { value: 'id', label: 'name' })}
           </select>
         </label>
@@ -4498,7 +4505,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         payload.collaborators = collabPicker.value;
 
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
-        if (!payload.project_id) return toast('프로젝트를 선택해 주세요.', true);
+        // 프로젝트는 비워 둬도 된다 — '프로젝트 미정'으로 들어간다
         if (!payload.owner_slack_user_id) return toast('담당을 골라 주세요.', true);
         // 마감일을 비우면 백로그로 들어간다 — 막지 않는다.
         // 외주만은 납품 예정일이 곧 마감이라 하나는 있어야 한다.
@@ -5167,7 +5174,7 @@ function boardMap(ov) {
         <div class="bm-tiles">
           ${shown.map((t) => {
             i += 1;
-            const tip = `<b>${esc(t.title)}</b><br><span class="tip-sub">${esc(t.project_name)} · ${esc(t.owner_name)}`
+            const tip = `<b>${esc(t.title)}</b><br><span class="tip-sub">${esc(projectLabel(t.project_name))} · ${esc(t.owner_name)}`
               + `${t.due_date ? ` · ${esc(shortDate(t.due_date))}` : ''}</span>`
               + `${t.is_delayed ? '<br>⚠ 지연' : ''}${t.has_open_issue ? '<br>🔥 이슈' : ''}`;
             return `<button class="bm-tile${t.is_delayed ? ' late' : ''}"
@@ -5458,7 +5465,18 @@ async function renderTasks(root, query) {
     return ra === rb ? 0 : ra - rb;
   };
 
+  const NO_PROJECT = { id: '', name: '프로젝트 미정', task_count: 0 };
   const groups = [];
+  // 프로젝트를 아직 안 정한 업무 — 맨 앞에 둔다. 자리를 못 잡은 일이라 먼저 보여야 한다.
+  const loose = rows.filter((t) => !t.project_id);
+  if (loose.length) {
+    const areas = [];
+    for (const a of state.meta.areas) {
+      const inArea = loose.filter((t) => t.area === a.code);
+      if (inArea.length) areas.push({ area: a, rows: rank.size ? inArea.sort(byRank) : inArea });
+    }
+    groups.push({ project: NO_PROJECT, count: loose.length, areas, loose: true });
+  }
   for (const pr of ordered) {
     const mine = rows.filter((t) => t.project_id === pr.id);
     // 업무가 아직 하나도 없는 프로젝트도 보여 준다. 안 보이면 방금 만든 프로젝트가
@@ -5544,12 +5562,14 @@ async function renderTasks(root, query) {
     </div>
 
     ${groups.length ? groups.map((g) => `
-      <section class="tk-project" data-project="${esc(g.project.id)}" style="${projectStyle(g.project.id)}">
-        <div class="tk-project-head" title="끌어서 프로젝트 차례를 바꿉니다">
-          <span class="grip" aria-hidden="true">⠿</span>
-          <h2>${projectName(g.project.id, g.project.name)}</h2>
-          <button class="pr-edit" data-edit-project="${esc(g.project.id)}"
-                  aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>
+      <section class="tk-project${g.loose ? ' loose' : ''}" data-project="${esc(g.project.id)}"
+               style="${projectStyle(g.project.id)}">
+        <div class="tk-project-head"${g.loose ? '' : ' title="끌어서 프로젝트 차례를 바꿉니다"'}>
+          ${g.loose ? '' : '<span class="grip" aria-hidden="true">⠿</span>'}
+          <h2>${g.loose ? esc(g.project.name) : projectName(g.project.id, g.project.name)}</h2>
+          ${g.loose ? '<span class="hint">업무를 열어 프로젝트를 정해 주세요</span>'
+            : `<button class="pr-edit" data-edit-project="${esc(g.project.id)}"
+                  aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>`}
           <span class="n">${g.count}건</span>
         </div>
         ${g.areas.length ? '' : `
@@ -5582,12 +5602,14 @@ async function renderTasks(root, query) {
     let key = null;
     let moved = false;
     let startY = 0;
-    const sections = () => [...root.querySelectorAll('.tk-project')];
+    // 프로젝트 미정 묶음은 차례가 없다 — 끌기에서 뺀다
+    const sections = () => [...root.querySelectorAll('.tk-project:not(.loose)')];
     const order = () => sections().map((el) => el.dataset.project);
 
     root.addEventListener('pointerdown', (e) => {
       const head = e.target.closest('.tk-project-head');
-      if (!head || e.target.closest('button')) return;   // 단추는 눌리는 것이지 끌리는 것이 아니다
+      if (!head || head.closest('.tk-project.loose')) return;
+      if (e.target.closest('button')) return;   // 단추는 눌리는 것이지 끌리는 것이 아니다
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       key = head.closest('.tk-project').dataset.project;
       moved = false;
@@ -5907,7 +5929,7 @@ async function renderTaskDetail(root, id) {
   root.innerHTML = `
     <div class="page-head">
       <div>
-        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${esc(t.project_name)}</div>
+        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}</div>
         <h1>${titleCell(t, 'h1')}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           <span class="area-pick" title="업무 영역 변경">
@@ -6363,7 +6385,7 @@ const deltaTag = (d) => {
 
 const taskLine = (t, extra = '') => `
   <li><a href="#/project/tasks/${esc(t.id)}" style="text-decoration:underline">${esc(t.title)}</a>
-    <span style="color:var(--muted)">· ${esc(t.project_name)} · ${esc(t.owner_name)} · ${esc(t.status_label)}${extra}</span></li>`;
+    <span style="color:var(--muted)">· ${esc(projectLabel(t.project_name))} · ${esc(t.owner_name)} · ${esc(t.status_label)}${extra}</span></li>`;
 
 async function renderWeekly(root, query) {
   let brief = readPref(BRIEF_KEY) !== 'off';   // 기본은 진행 사항만
@@ -7301,7 +7323,7 @@ async function renderTime(root, query) {
                 <tr>
                   <td class="title-cell">
                     <a href="#/project/tasks/${esc(r.task_id)}">${esc(r.title)}</a>
-                    <span class="sheet-sub">${projectName(r.project_id, r.project_name)} · ${esc(areaMeta(r.area).label)}</span>
+                    <span class="sheet-sub">${projectName(r.project_id, projectLabel(r.project_name))} · ${esc(areaMeta(r.area).label)}</span>
                   </td>
                   ${dates.map((d) => `<td class="num ${d === state.today ? 'is-today' : ''}">
                     <input type="text" inputmode="decimal" class="hcell"
@@ -7392,7 +7414,7 @@ async function renderTime(root, query) {
               ${spend.rows.map((r) => `
                 <tr>
                   <td data-label="사용일" class="nowrap">${shortDate(r.spent_on)}</td>
-                  <td data-label="프로젝트">${projectName(r.project_id, r.project_name)}</td>
+                  <td data-label="프로젝트">${projectName(r.project_id, projectLabel(r.project_name))}</td>
                   <td data-label="분류">${esc(catLabel(r.category))}</td>
                   <td data-label="내용">${esc(r.memo || '-')}${
                     r.task_title ? `<span class="hint"> · ${esc(r.task_title)}</span>` : ''}</td>
@@ -7555,7 +7577,7 @@ async function renderInvoice(root, query) {
               <tr>
                 <td class="title-cell"><a href="#/project/tasks/${esc(r.task_id)}">${esc(r.title)}</a></td>
                 <td data-label="업체">${esc(r.vendor_name)}${r.vendor_worker_name ? `<span class="hint"> · ${esc(r.vendor_worker_name)}</span>` : ''}</td>
-                <td data-label="프로젝트">${projectName(r.project_id, r.project_name)}</td>
+                <td data-label="프로젝트">${projectName(r.project_id, projectLabel(r.project_name))}</td>
                 <td data-label="납품 예정" class="nowrap num ${r.delivery_due_date < state.today && r.payment_status !== 'PAID' ? 'late' : ''}">
                   ${shortDate(r.delivery_due_date)}</td>
                 <td data-label="검수" class="nowrap">
@@ -7601,7 +7623,7 @@ async function renderInvoice(root, query) {
         <div class="bars" style="margin-top:12px">
           ${spend.summary.projects.map((r) => `
             <div class="bar" style="cursor:default">
-              <span class="name">${projectName(r.key, r.label)}</span>
+              <span class="name">${projectName(r.key, projectLabel(r.label))}</span>
               ${progressBar(spend.summary.total ? Math.round((r.amount / spend.summary.total) * 100) : 0)}
               <span class="pct">${wonText(r.amount)}</span>
             </div>`).join('')}

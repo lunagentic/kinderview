@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { state, leadOf, coLeadsOf } from '../state.js';
 import {
   esc, avatar, progressBar, pctText, loading, errorBox, empty, shortDate,
-  go, projectStyle, projectName, hoverTip,
+  go, projectStyle, projectName, projectLabel, hoverTip,
 } from '../ui.js';
 import { projectForm, areaLeadsForm } from '../forms.js';
 import { riskSection } from './risks.js';
@@ -49,7 +49,7 @@ function boardMap(ov) {
         <div class="bm-tiles">
           ${shown.map((t) => {
             i += 1;
-            const tip = `<b>${esc(t.title)}</b><br><span class="tip-sub">${esc(t.project_name)} · ${esc(t.owner_name)}`
+            const tip = `<b>${esc(t.title)}</b><br><span class="tip-sub">${esc(projectLabel(t.project_name))} · ${esc(t.owner_name)}`
               + `${t.due_date ? ` · ${esc(shortDate(t.due_date))}` : ''}</span>`
               + `${t.is_delayed ? '<br>⚠ 지연' : ''}${t.has_open_issue ? '<br>🔥 이슈' : ''}`;
             return `<button class="bm-tile${t.is_delayed ? ' late' : ''}"

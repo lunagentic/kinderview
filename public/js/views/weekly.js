@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { state } from '../state.js';
 import {
   esc, shortDate, dateTime, person, loading, errorBox, toast, pctText, progressBar, go,
-  projectStyle, readPref, writePref,
+  projectStyle, projectLabel, readPref, writePref,
 } from '../ui.js';
 
 // 주간보고에 옮겨 적는 건 "진행 사항"이다 — 이번 주 완료 / 진행·지연 / 다음 주.
@@ -23,7 +23,7 @@ const deltaTag = (d) => {
 
 const taskLine = (t, extra = '') => `
   <li><a href="#/project/tasks/${esc(t.id)}" style="text-decoration:underline">${esc(t.title)}</a>
-    <span style="color:var(--muted)">· ${esc(t.project_name)} · ${esc(t.owner_name)} · ${esc(t.status_label)}${extra}</span></li>`;
+    <span style="color:var(--muted)">· ${esc(projectLabel(t.project_name))} · ${esc(t.owner_name)} · ${esc(t.status_label)}${extra}</span></li>`;
 
 export async function renderWeekly(root, query) {
   let brief = readPref(BRIEF_KEY) !== 'off';   // 기본은 진행 사항만

@@ -579,7 +579,7 @@ function hydrate(t, ref = today()) {
   const openCount = openIssuesOf(t.id).length;
   return {
     ...t,
-    project_name: p?.name ?? '-', project_code: p?.code ?? null,
+    project_name: p?.name ?? null, project_code: p?.code ?? null,
     project_channel: p?.slack_channel_id ?? null, project_lead: p?.lead_slack_user_id ?? null,
     phase_name: DB.phases?.find((ph) => ph.id === t.phase_id)?.name ?? null,
     owner_name: m?.display_name ?? t.owner_slack_user_id,
@@ -632,7 +632,7 @@ function listTasks(f = {}) {
   const ref = f.today || today();
   let rows = DB.tasks.filter((t) => !t.deleted_at).map((t) => hydrate(t, ref));
   const archived = new Set(DB.projects.filter((p) => p.is_archived).map((p) => p.id));
-  rows = rows.filter((t) => !archived.has(t.project_id));
+  rows = rows.filter((t) => !t.project_id || !archived.has(t.project_id));
 
   if (f.project?.length) rows = rows.filter((t) => f.project.includes(t.project_id));
   if (f.phase?.length) rows = rows.filter((t) => f.phase.includes(t.phase_id));
@@ -887,7 +887,7 @@ function upsertOutsourcing(taskId, input) {
 
 function createTask(input, actor) {
   if (!input.title?.trim()) throw new DemoError('업무명을 입력해 주세요.');
-  if (!input.project_id) throw new DemoError('프로젝트를 선택해 주세요.');
+  // 프로젝트는 비워 둘 수 있다 — 어디에 붙일지 나중에 정하는 일도 일단 받아 적는다.
   const area = input.area;
   if (!AREAS.some((a) => a.code === area)) throw new DemoError('업무 영역을 선택해 주세요.');
   // 담당은 기본이 그 영역의 리드다. 다른 사람을 고르면 그 사람이 맡는다.
@@ -900,7 +900,9 @@ function createTask(input, actor) {
   if (input.start_date && input.start_date > due) throw new DemoError('시작일은 마감일보다 늦을 수 없습니다.');
 
   const t = {
-    id: uid(), project_id: input.project_id, phase_id: input.phase_id || null,
+    id: uid(), project_id: input.project_id || null,
+    // 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 못 고른다.
+    phase_id: (input.project_id && input.phase_id) || null,
     title: input.title.trim(), area, owner_slack_user_id: owner, status,
     priority: input.priority || 'NORMAL',
     start_date: input.start_date || null, due_date: due,
@@ -941,10 +943,13 @@ function updateTask(id, input, actor) {
   }
   // 빈 문자열로 오면 '비운다'는 뜻이다 (백로그로 내린다)
   const due = input.due_date === undefined ? t.due_date : (input.due_date || null);
+  // 프로젝트도 마찬가지 — 빈 값이 오면 프로젝트 미정으로 내린다
+  const pid = input.project_id === undefined ? t.project_id : (input.project_id || null);
 
   Object.assign(t, {
-    project_id: input.project_id ?? t.project_id,
-    phase_id: input.phase_id === undefined ? t.phase_id : (input.phase_id || null),
+    project_id: pid,
+    // 프로젝트를 떼면 그 안에 있던 페이즈도 같이 뗀다
+    phase_id: !pid ? null : (input.phase_id === undefined ? t.phase_id : (input.phase_id || null)),
     title: (input.title ?? t.title).trim(),
     area, owner_slack_user_id: owner, status,
     priority: input.priority ?? t.priority,
@@ -1065,10 +1070,10 @@ function timeSummary(from, to) {
   const rows = (DB.time_entries ?? []).filter((e) => e.work_date >= from && e.work_date <= to)
     .map((e) => {
       const t = DB.tasks.find((x) => x.id === e.task_id && !x.deleted_at);
-      const p = t ? project(t.project_id) : null;
-      return t && p && !p.is_archived
+      const p = t?.project_id ? project(t.project_id) : null;
+      return t && (!t.project_id ? true : (p && !p.is_archived))
         ? { hours: e.hours, slack_user_id: e.slack_user_id, area: t.area,
-            project_id: t.project_id, project_name: p.name,
+            project_id: t.project_id, project_name: p?.name ?? null,
             display_name: member(e.slack_user_id)?.display_name ?? e.slack_user_id }
         : null;
     }).filter(Boolean);

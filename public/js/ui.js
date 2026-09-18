@@ -46,6 +46,8 @@ export const projectStyle = (id) => `--pc:var(--p${projectTone(id)})`;
 /** 색 점 + 이름 */
 export const projectName = (id, name) =>
   `<span class="pname" style="${projectStyle(id)}"><i class="pdot"></i>${esc(name ?? '')}</span>`;
+/** 프로젝트를 아직 안 정한 업무도 있다 — 빈 칸 대신 그렇게 적는다 */
+export const projectLabel = (name) => (name ? String(name) : '프로젝트 미정');
 
 // ── 조각 ────────────────────────────────────────────────
 export const avatar = (member, cls = '') => {

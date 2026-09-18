@@ -103,9 +103,9 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
-          <span class="lab">프로젝트<span class="req">*</span></span>
-          <select name="project_id" required>
-            <option value="">선택</option>
+          <span class="lab">프로젝트 <span class="hint" style="font-weight:400">나중에 정해도 됩니다</span></span>
+          <select name="project_id">
+            <option value="">아직 안 정함</option>
             ${opts(activeProjects(), task?.project_id ?? defaults.project_id ?? defaultProjectId(), { value: 'id', label: 'name' })}
           </select>
         </label>
@@ -314,7 +314,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         payload.collaborators = collabPicker.value;
 
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
-        if (!payload.project_id) return toast('프로젝트를 선택해 주세요.', true);
+        // 프로젝트는 비워 둬도 된다 — '프로젝트 미정'으로 들어간다
         if (!payload.owner_slack_user_id) return toast('담당을 골라 주세요.', true);
         // 마감일을 비우면 백로그로 들어간다 — 막지 않는다.
         // 외주만은 납품 예정일이 곧 마감이라 하나는 있어야 한다.

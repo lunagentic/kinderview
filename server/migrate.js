@@ -183,6 +183,65 @@ function migrateBacklog() {
   return '마감일 없는 업무(백로그) 허용';
 }
 
+/** 프로젝트를 아직 안 정한 업무 — project_id 의 NOT NULL 을 푼다 */
+function migrateProjectOptional() {
+  const sql = tableSql('task');
+  if (!sql || !/project_id\s+TEXT NOT NULL/.test(sql)) return null;
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN');
+  try {
+    db.exec(`
+      CREATE TABLE task_pj_migrated (
+        id                  TEXT PRIMARY KEY,
+        project_id          TEXT REFERENCES project(id),
+        phase_id            TEXT REFERENCES phase(id) ON DELETE SET NULL,
+        title               TEXT NOT NULL,
+        area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
+        owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
+        status              TEXT NOT NULL,
+        priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),
+        start_date          TEXT,
+        due_date            TEXT,
+        description         TEXT,
+        completed_at        TEXT,
+        created_by          TEXT NOT NULL REFERENCES member(slack_user_id),
+        created_at          TEXT NOT NULL,
+        updated_at          TEXT NOT NULL,
+        deleted_at          TEXT,
+        CHECK (start_date IS NULL OR due_date IS NULL OR start_date <= due_date),
+        CHECK (project_id IS NOT NULL OR phase_id IS NULL),
+        CHECK (
+          (area =  'OUT' AND status IN ('REQUEST_PLANNED','REQUESTED','OUT_IN_PROGRESS','OUT_REVIEW','OUT_REVISION','DONE'))
+          OR
+          (area <> 'OUT' AND status IN ('TODO','IN_PROGRESS','REVIEW','DONE'))
+        ),
+        CHECK (
+          (status =  'DONE' AND completed_at IS NOT NULL) OR
+          (status <> 'DONE' AND completed_at IS NULL)
+        )
+      )`);
+    const have = new Set(db.prepare('PRAGMA table_info(task)').all().map((c) => c.name));
+    const cols = db
+      .prepare('PRAGMA table_info(task_pj_migrated)')
+      .all()
+      .map((c) => c.name)
+      .filter((name) => have.has(name))
+      .join(', ');
+    db.exec(`INSERT INTO task_pj_migrated (${cols}) SELECT ${cols} FROM task`);
+    db.exec('DROP TABLE task');
+    db.exec('ALTER TABLE task_pj_migrated RENAME TO task');
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    db.exec('PRAGMA foreign_keys = ON');
+    throw err;
+  }
+  db.exec('PRAGMA foreign_keys = ON');
+
+  return '프로젝트 미정 업무 허용';
+}
+
 /** 외주 지급 정보 — 컬럼 추가는 테이블 재생성이 필요 없다 */
 function addOutsourcingPayment() {
   const sql = tableSql('outsourcing');
@@ -215,7 +274,8 @@ function ensureConstraints() {
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
-  const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(), migrateBacklog()]
+  const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
+    migrateBacklog(), migrateProjectOptional()]
     .filter(Boolean);
   ensureConstraints();
   for (const note of notes) console.log(`[migrate] ${note}`);
