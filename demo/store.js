@@ -307,20 +307,79 @@ let remoteOk = false;      // 한 번이라도 닿았는가
 let remoteWarned = false;
 let lastSeen = null;       // 남이 고친 것을 알아채는 기준 시각
 
-const sbFetch = (path, init = {}) => fetch(`${SB_URL}/rest/v1/${path}`, {
-  ...init,
-  headers: {
-    apikey: SB_KEY,
-    Authorization: `Bearer ${SB_KEY}`,
-    'Content-Type': 'application/json',
-    ...(init.headers ?? {}),
-  },
-});
+const sbFetch = (path, init = {}) => {
+  // 들고 있는 코드를 그대로 실어 보낸다. 맞는지 판단하는 곳은 저장소다.
+  const code = currentCode();
+  return fetch(`${SB_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      ...(code ? { 'x-kf-code': code } : {}),
+      ...(init.headers ?? {}),
+    },
+  });
+};
+
+/** 저장소에 코드를 물어본다. 해시는 내려오지 않는다 — 등급만 온다. */
+async function sbVerify(code) {
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/kf_role`, {
+    method: 'POST',
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) throw new Error('코드를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+  return (await res.json()) ?? null;
+}
+install({ verify: sbVerify });
+
+/** 저장점 함수를 부른다 */
+async function sbRpc(fn, args = {}) {
+  const res = await sbFetch(`rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let msg = '';
+    try { msg = JSON.parse(text).message ?? ''; } catch { msg = ''; }
+    throw new DemoError(msg || `저장점 작업에 실패했습니다. (${res.status})`);
+  }
+  return res.json().catch(() => null);
+}
 
 /** 지금 공유되고 있는지 화면에 알린다 — 모르고 쓰면 "공유된 줄 알았는데"가 생긴다 */
 const tellSync = (ok) => {
   try { window.dispatchEvent(new CustomEvent('kf:sync', { detail: { ok } })); } catch { /* 창이 없으면 넘어간다 */ }
 };
+
+/**
+ * 저장소가 쓰기를 거절했다 — 코드가 바뀌었거나 등급이 모자란다.
+ * 이 브라우저에만 남은 변경은 버리고 공유본을 다시 읽는다.
+ * 여기서 그냥 두면 "내 화면에만 있는 사실"이 생긴다. 그게 제일 나쁘다.
+ */
+function writeDenied() {
+  lock();
+  try {
+    window.dispatchEvent(new CustomEvent('kf:denied', {
+      detail: { message: '편집 권한이 확인되지 않아 되돌렸습니다. 코드를 다시 넣어 주세요.' },
+    }));
+  } catch { /* 창이 없으면 넘어간다 */ }
+  return refreshFromRemote();
+}
+
+/** 공유본을 다시 읽어 화면을 새로 그린다 */
+async function refreshFromRemote() {
+  // 올리려고 대기 중이던 것은 버린다 — 지금 읽어 올 것이 정답이다
+  clearTimeout(flushTimer);
+  flushAgain = false;
+  try {
+    const rows = await remoteReadAll();
+    DB = unflatten(rows);
+    save(DB, { push: false });
+    shadow = snapshot(flatten(DB));
+    lastSeen = rows[rows.length - 1]?.updated_at ?? lastSeen;
+    window.dispatchEvent(new Event('kf:reload'));
+  } catch { /* 못 닿으면 다음 순번에 다시 맞춘다 */ }
+}
 
 function remoteDown(err) {
   const was = remoteOk;
@@ -384,14 +443,26 @@ let flushing = false;
 let flushAgain = false;
 
 /** 바뀐 줄만 올린다. 여러 번 불려도 한 번으로 모은다. */
+// 하루에 한 번이면 충분하다 — 창을 열어 둔 채로 계속 부르지 않게 한 번만 시도한다
+let autoSnapTried = false;
+async function autoSnapshot() {
+  if (autoSnapTried) return;
+  autoSnapTried = true;
+  try {
+    await sbRpc('kf_snapshot_take', { p_kind: 'AUTO', p_label: '자동 저장', p_by: null });
+  } catch { /* 저장점을 못 남겨도 저장 자체는 막지 않는다 */ }
+}
+
 function scheduleFlush() {
   if (!remoteOk) return;
+  if (!canEdit()) return;   // 보기 전용 — 올릴 것이 없다
   clearTimeout(flushTimer);
   flushTimer = setTimeout(() => { flush(); }, 350);
 }
 
 async function flush() {
   if (!remoteOk) return;
+  if (!canEdit()) return;
   if (flushing) { flushAgain = true; return; }
   flushing = true;
   try {
@@ -399,6 +470,10 @@ async function flush() {
     const now = snapshot(rows);
     const upserts = rows.filter((r) => now.get(`${r.collection}/${r.id}`) !== shadow.get(`${r.collection}/${r.id}`));
     const gone = [...shadow.keys()].filter((k) => !now.has(k));
+
+    // 오늘 처음 손대는 것이면 손대기 전 상태를 저장점으로 남긴다.
+    // 저장소가 6시간 안에 저장점이 있으면 알아서 건너뛴다.
+    if (upserts.length || gone.length) await autoSnapshot();
 
     if (upserts.length) {
       // 저장된 시각을 되돌려 받는다. 브라우저 시계로 기준을 잡으면 시계가 어긋난 만큼
@@ -408,6 +483,7 @@ async function flush() {
         headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
         body: JSON.stringify(upserts),
       });
+      if (res.status === 401 || res.status === 403) return writeDenied();
       if (!res.ok) throw new Error(`쓰기 실패 ${res.status} ${await res.text()}`);
       const saved = await res.json().catch(() => []);
       for (const r of saved) if (!lastSeen || r.updated_at > lastSeen) lastSeen = r.updated_at;
@@ -420,6 +496,7 @@ async function flush() {
         `${SB_TABLE}?collection=eq.${encodeURIComponent(collection)}&id=eq.${encodeURIComponent(id)}`,
         { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
       );
+      if (res.status === 401 || res.status === 403) return writeDenied();
       if (!res.ok) throw new Error(`삭제 실패 ${res.status}`);
     }
     shadow = now;
@@ -479,7 +556,7 @@ async function pollRemote() {
 }
 
 let readyPromise = null;
-const ensureReady = () => (readyPromise ??= syncFromRemote().then(() => {
+const ensureReady = () => (readyPromise ??= resume().then(syncFromRemote).then(() => {
   setInterval(pollRemote, 15_000);
 }));
 
@@ -507,10 +584,11 @@ function load() {
   return fresh;
 }
 
-function save(db = DB) {
+function save(db = DB, { push = true } = {}) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(db)); } catch { /* 용량 초과 시 메모리만 사용 */ }
-  // 공유 저장소에는 바뀐 줄만, 잠깐 모았다가 한 번에 올린다
-  scheduleFlush();
+  // 공유 저장소에는 바뀐 줄만, 잠깐 모았다가 한 번에 올린다.
+  // 공유본을 방금 읽어 온 참이면 되돌려 보낼 것이 없다(push:false).
+  if (push) scheduleFlush();
 }
 
 // DB 는 위의 선언들이 모두 준비된 뒤에 읽는다 —
@@ -1677,6 +1755,34 @@ function handle(method, path, body) {
   const me = currentMe();
   const seg = p.split('/').filter(Boolean); // ['api', ...]
 
+  // ── 저장점 ───────────────────────────────────────────
+  // 언제 무엇이 저장됐는지 보고, 그 시점으로 통째로 되돌린다.
+  if (p === '/api/restore-points') {
+    if (method === 'GET') {
+      return sbRpc('kf_snapshot_list', { limit_n: 60 }).then((rows) => (rows ?? []).map((r) => ({
+        id: r.id, taken_at: r.taken_at, kind: r.kind,
+        label: r.label ?? (r.kind === 'AUTO' ? '자동 저장' : r.kind === 'PRE_RESTORE' ? '되돌리기 직전' : '저장점'),
+        taken_by: r.taken_by, row_count: r.row_count,
+      })));
+    }
+    if (method === 'POST') {
+      // 아직 안 올린 변경이 있으면 먼저 올린다. 저장점은 "지금 화면"이어야 한다.
+      return flush().then(() => sbRpc('kf_snapshot_take', {
+        p_kind: 'MANUAL',
+        p_label: body?.label ?? null,
+        p_by: (member(currentMe())?.display_name ?? currentMe()),
+      })).then((id) => ({ id }));
+    }
+  }
+  if (method === 'POST' && seg[1] === 'restore-points' && seg[3] === 'restore') {
+    return sbRpc('kf_snapshot_restore', { p_id: Number(seg[2]), p_by: (member(currentMe())?.display_name ?? currentMe()) })
+      .then(async (rows) => {
+        const r = Array.isArray(rows) ? rows[0] : rows;
+        await refreshFromRemote();
+        return { restored: r?.restored ?? 0, backup_id: r?.backup_id ?? null };
+      });
+  }
+
   if (method === 'GET' && p === '/api/bootstrap') {
     return {
       me, today: today(),
@@ -1942,7 +2048,10 @@ function handle(method, path, body) {
 // 첫 요청 때 공유 저장소를 먼저 맞춘다. 화면은 원래도 기다리게 되어 있어 손댈 것이 없다.
 const call = async (method, p, b) => {
   await ensureReady();
-  return handle(method, p, b);
+  // 화면이 실수로 편집칸을 열어 두었더라도 여기서 걸린다.
+  // 진짜로 막는 곳은 저장소지만, 여기서 걸러야 "고쳐진 것처럼 보였다가 사라지는" 일이 없다.
+  assertCan(method, p);
+  return handle(method, p, b);   // 저장점 호출처럼 기다려야 하는 것은 Promise 로 돌아온다
 };
 
 export const api = {

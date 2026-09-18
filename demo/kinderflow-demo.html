@@ -398,7 +398,10 @@ details.more[open] > summary{color:var(--ink)}
   }
   .brand{grid-area:brand;min-width:0}
   .brand-sub{display:none}
-  .topbar-right{grid-area:right;gap:8px;min-width:0}
+  /* 상단바 오른쪽은 칸이 모자라면 줄을 바꾼다 — 밀어내면 페이지 전체가 넓어진다 */
+  .topbar-right{grid-area:right;gap:6px 8px;min-width:0;flex-wrap:wrap;justify-content:flex-end}
+  .me-picker{min-width:0}
+  #me-select{flex:0 1 auto;min-width:0}
   .gnb{
     grid-area:nav;flex-wrap:nowrap;overflow-x:auto;gap:2px;min-width:0;
     margin:0 -14px;padding:0 14px 2px;scrollbar-width:none;
@@ -494,13 +497,86 @@ details.more[open] > summary{color:var(--ink)}
   .topbar{padding:8px 12px;gap:8px 10px}
   #btn-new-task .wide{display:none}   /* '+ 업무 등록' → '+ 업무' */
   #me-select{max-width:84px}
-  /* 공유 상태 — 닿아 있으면 조용히, 끊기면 눈에 띄게 */
+}
+
+/* 공유 상태 — 닿아 있으면 조용히, 끊기면 눈에 띄게 */
 .sync-badge{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
   font-size:.72rem;color:var(--on-chrome-muted);padding:2px 9px;border-radius:999px;
   border:1px solid rgba(255,255,255,.18)}
 .sync-badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
 .sync-badge.off{color:var(--s-issue);border-color:currentColor;font-weight:600}
 @media (max-width:420px){ .sync-badge{padding:2px 7px;font-size:.68rem} }
+
+/* ── 편집 코드 문 ────────────────────────────────────
+   보기는 누구나, 고치기는 코드를 아는 사람만.
+   잠겨 있을 때 편집칸은 사라지지 않고 그냥 글자가 된다 —
+   무엇이 있는지는 다 보이되 손이 닿지 않는 상태가 읽기 좋다. */
+.gate-badge{font:inherit;font-size:.72rem;white-space:nowrap;cursor:pointer;
+  color:var(--on-chrome-muted);background:none;padding:3px 10px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.18)}
+.gate-badge:hover{color:#fff;border-color:rgba(255,255,255,.4)}
+.gate-badge.on{color:var(--s-done);border-color:currentColor;font-weight:600}
+@media (max-width:420px){ .gate-badge{padding:3px 8px;font-size:.68rem} }
+
+body[data-gate="view"] .ttl-edit,
+body[data-gate="view"] .due-view,
+body[data-gate="view"] .chip-select,
+body[data-gate="view"] .status-select{pointer-events:none}
+body[data-gate="view"] .ttl-edit{cursor:default}
+body[data-gate="view"] .ttl-edit:hover{border-color:transparent;background:none}
+body[data-gate="view"] .due-view:hover{border-color:transparent;background:none}
+/* 고르는 칸은 화살표를 지워 '고를 수 있다'는 신호를 없앤다 */
+body[data-gate="view"] .chip-select,
+body[data-gate="view"] .status-select{appearance:none;-webkit-appearance:none;
+  background-image:none;text-align:left;padding-right:10px}
+/* 고르는 칸도 글자처럼 — 테두리가 남으면 '눌러 보라'는 말이 된다 */
+body[data-gate="view"] .chip-select,
+body[data-gate="view"] .status-select{border-color:transparent;background:none;
+  box-shadow:none;width:auto;min-width:0;padding-left:0}
+/* 지우기·프로젝트 수정처럼 되돌리기 어려운 단추는 아예 감춘다 */
+body[data-gate="view"] .tk-del,
+body[data-gate="view"] .tld-del,
+body[data-gate="view"] .pr-edit,
+body[data-gate="view"] [data-add-phase],
+body[data-gate="view"] [data-add-milestone],
+body[data-gate="view"] [data-new-project]{display:none}
+/* 끌기 손잡이는 자리를 지킨 채 사라진다 —
+   display:none 으로 빼면 격자 칸이 하나씩 밀려 날짜와 제목이 겹친다 */
+body[data-gate="view"] .tk-grip,
+body[data-gate="view"] .tk-project-head .grip{visibility:hidden}
+/* 편집이지만 관리자는 아닌 사람 — 지우기만 감춘다 */
+body[data-gate="edit"] .tk-del,
+body[data-gate="edit"] .tld-del{display:none}
+
+/* 문 패널 */
+.gate-now{display:flex;flex-direction:column;gap:3px;padding:11px 13px;margin-bottom:14px;
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
+.gate-now.on{border-color:var(--s-done)}
+.gate-now b{font-size:.95rem}
+.gate-form{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px}
+.gate-form .field{flex:1 1 200px;min-width:0}
+.gate-acts{margin-bottom:16px}
+.gate-points-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.gate-points-head h3{font-size:.95rem;font-weight:700}
+.gate-points-head .btn{margin-left:auto}
+.rp-list{list-style:none;margin-top:10px;padding:0;display:flex;flex-direction:column;gap:1px;
+  background:var(--line-soft);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.rp-list .hint{padding:12px 13px;background:var(--surface)}
+.rp-row{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px;align-items:center;
+  padding:9px 13px;background:var(--surface)}
+.rp-when{font-family:var(--mono);font-size:.78rem;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.rp-what{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rp-what b{font-size:.88rem;font-weight:600;overflow-wrap:anywhere}
+.rp-meta{font-size:.75rem;color:var(--muted)}
+.rp-go{color:var(--s-delay);min-height:30px;padding:4px 9px}
+@media (max-width:520px){
+  .rp-row{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px}
+  .rp-when{grid-column:1/3;font-size:.74rem}
+}
+
+/* 좁은 폭에서 이어지는 상단바·본문 규칙 */
+@media (max-width:420px){
+
 .topbar-util{font-size:.78rem}
   .view{padding:16px 12px 72px}
   .gnb,.filter-row,.quick,.months{margin:0 -12px;padding:0 12px 2px}
@@ -1171,6 +1247,7 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
     </nav>
     <div class="topbar-right">
       <span class="sync-badge" id="sync-badge" hidden></span>
+      <button class="gate-badge" id="gate-badge" title="편집 권한">보기 전용</button>
       <a class="topbar-util" href="#/notifications" data-nav="notifications" title="알림함">알림함</a>
       <button class="btn btn-primary" id="btn-new-task">+ 업무<span class="wide"> 등록</span></button>
       <label class="me-picker">
@@ -1884,6 +1961,124 @@ function parseCapture(text, ctx) {
 }
 
 
+/* ── 편집 코드 문 (public/js/gate.js) ───────────────── */
+
+// 보기는 누구나, 고치기는 코드를 아는 사람만.
+//
+// 여기는 "지금 무엇을 할 수 있는가"만 들고 있다. 코드가 맞는지 확인하는 일은
+// 데이터 층이 맡는다(install) — 공유 저장소를 쓰는 배포본은 Supabase 에 물어보고,
+// 내 컴퓨터에서 돌리는 서버판은 물어볼 곳이 없으니 그냥 열어 둔다.
+//
+// 화면에서 편집칸을 감추는 것은 실수를 막을 뿐이다. 진짜로 막는 곳은 저장소다 —
+// 코드 없는 쓰기는 Supabase 의 정책이 거절한다. 둘 다 있어야 한다.
+
+const CODE_KEY = 'kf.gate.code';
+const ROLE_KEY = 'kf.gate.role';
+
+const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const write = (k, v) => {
+  try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); }
+  catch { /* 저장이 막힌 창에서는 이번 세션만 유지된다 */ }
+};
+
+let role = null;          // null(보기) | 'EDIT' | 'ADMIN'
+let code = read(CODE_KEY);
+let verify = null;        // (code) => Promise<'EDIT'|'ADMIN'|null>
+
+const tell = () => {
+  try { window.dispatchEvent(new CustomEvent('kf:gate', { detail: { role } })); } catch { /* 창이 없으면 넘어간다 */ }
+};
+
+/** 데이터 층이 코드 확인 방법을 알려 준다 */
+function install({ verify: fn, open = false }) {
+  verify = fn;
+  // 물어볼 곳이 없는 판(내 컴퓨터의 서버)은 처음부터 열려 있다
+  if (open) { role = 'ADMIN'; tell(); }
+}
+
+/** 저장해 둔 코드로 조용히 다시 들어간다. 창을 새로 열 때마다 부른다. */
+async function resume() {
+  if (role || !verify || !code) return role;
+  try {
+    role = (await verify(code)) ?? null;
+    if (!role) {
+      // 코드가 바뀌었다 — 들고 있어 봐야 소용없다
+      code = null;
+      write(CODE_KEY, null);
+      write(ROLE_KEY, null);
+    } else {
+      write(ROLE_KEY, role);
+    }
+  } catch {
+    // 저장소에 못 닿았을 뿐이다. 지난번 등급으로 일단 연다 —
+    // 틀렸더라도 저장소가 쓰기를 거절하고(kf:denied) 그때 다시 잠긴다.
+    role = read(ROLE_KEY);
+  }
+  tell();
+  return role;
+}
+
+/** 코드를 받아 연다. 맞으면 등급, 틀리면 null. */
+async function unlock(input) {
+  const next = String(input ?? '').trim();
+  if (!next) return null;
+  if (!verify) return null;
+  const got = (await verify(next)) ?? null;
+  if (got) {
+    role = got;
+    code = next;
+    write(CODE_KEY, next);
+    write(ROLE_KEY, got);
+    tell();
+  }
+  return got;
+}
+
+/** 다시 보기 전용으로 */
+function lock() {
+  role = null;
+  code = null;
+  write(CODE_KEY, null);
+  write(ROLE_KEY, null);
+  tell();
+}
+
+const currentRole = () => role;
+const currentCode = () => (role ? code : null);
+
+/** 지금 고칠 수 있나 */
+const canEdit = () => role === 'EDIT' || role === 'ADMIN';
+/** 지우기·프로젝트/구성원 관리처럼 되돌리기 어려운 일 */
+const canAdmin = () => role === 'ADMIN';
+
+const roleLabel = () => (role === 'ADMIN' ? '관리자' : role === 'EDIT' ? '편집' : '보기 전용');
+
+/**
+ * 쓰기를 시작하기 전에 통과해야 하는 문.
+ * 화면이 실수로 편집칸을 열어 두었더라도 여기서 걸린다.
+ */
+function assertCan(method, path) {
+  if (method === 'GET') return;
+  if (!canEdit()) {
+    throw new Error('보기 전용입니다. 오른쪽 위 「편집하기」에서 코드를 넣어 주세요.');
+  }
+  if (!canAdmin() && needsAdmin(method, path)) {
+    throw new Error('이 작업은 관리자 코드가 있어야 합니다.');
+  }
+}
+
+// 되돌리기 어려운 일만 관리자에게 맡긴다.
+// 업무를 지우는 것은 되살릴 수 있지만(휴지통), 프로젝트·구성원·영역 리드는
+// 한 번 건드리면 모두의 화면이 같이 움직인다.
+const ADMIN_ONLY = [
+  (m, p) => m === 'DELETE' && /^\/api\/(tasks|projects|issues|phases|milestones|members)\//.test(p),
+  (m, p) => m !== 'GET' && /^\/api\/(projects|members|area-leads|vendors)(\/|$)/.test(p),
+  // 저장점을 남기는 것은 누구든 좋다. 되돌리는 것만 관리자다.
+  (m, p) => m !== 'GET' && /^\/api\/restore-points\/[^/]+\/restore$/.test(p),
+];
+const needsAdmin = (method, path) => ADMIN_ONLY.some((f) => f(method, path));
+
+
 /* ── 브라우저 저장소 (demo/store.js) ────────────────── */
 
 // 브라우저 데모용 저장소.
@@ -2195,20 +2390,79 @@ let remoteOk = false;      // 한 번이라도 닿았는가
 let remoteWarned = false;
 let lastSeen = null;       // 남이 고친 것을 알아채는 기준 시각
 
-const sbFetch = (path, init = {}) => fetch(`${SB_URL}/rest/v1/${path}`, {
-  ...init,
-  headers: {
-    apikey: SB_KEY,
-    Authorization: `Bearer ${SB_KEY}`,
-    'Content-Type': 'application/json',
-    ...(init.headers ?? {}),
-  },
-});
+const sbFetch = (path, init = {}) => {
+  // 들고 있는 코드를 그대로 실어 보낸다. 맞는지 판단하는 곳은 저장소다.
+  const code = currentCode();
+  return fetch(`${SB_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      ...(code ? { 'x-kf-code': code } : {}),
+      ...(init.headers ?? {}),
+    },
+  });
+};
+
+/** 저장소에 코드를 물어본다. 해시는 내려오지 않는다 — 등급만 온다. */
+async function sbVerify(code) {
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/kf_role`, {
+    method: 'POST',
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) throw new Error('코드를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+  return (await res.json()) ?? null;
+}
+install({ verify: sbVerify });
+
+/** 저장점 함수를 부른다 */
+async function sbRpc(fn, args = {}) {
+  const res = await sbFetch(`rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let msg = '';
+    try { msg = JSON.parse(text).message ?? ''; } catch { msg = ''; }
+    throw new DemoError(msg || `저장점 작업에 실패했습니다. (${res.status})`);
+  }
+  return res.json().catch(() => null);
+}
 
 /** 지금 공유되고 있는지 화면에 알린다 — 모르고 쓰면 "공유된 줄 알았는데"가 생긴다 */
 const tellSync = (ok) => {
   try { window.dispatchEvent(new CustomEvent('kf:sync', { detail: { ok } })); } catch { /* 창이 없으면 넘어간다 */ }
 };
+
+/**
+ * 저장소가 쓰기를 거절했다 — 코드가 바뀌었거나 등급이 모자란다.
+ * 이 브라우저에만 남은 변경은 버리고 공유본을 다시 읽는다.
+ * 여기서 그냥 두면 "내 화면에만 있는 사실"이 생긴다. 그게 제일 나쁘다.
+ */
+function writeDenied() {
+  lock();
+  try {
+    window.dispatchEvent(new CustomEvent('kf:denied', {
+      detail: { message: '편집 권한이 확인되지 않아 되돌렸습니다. 코드를 다시 넣어 주세요.' },
+    }));
+  } catch { /* 창이 없으면 넘어간다 */ }
+  return refreshFromRemote();
+}
+
+/** 공유본을 다시 읽어 화면을 새로 그린다 */
+async function refreshFromRemote() {
+  // 올리려고 대기 중이던 것은 버린다 — 지금 읽어 올 것이 정답이다
+  clearTimeout(flushTimer);
+  flushAgain = false;
+  try {
+    const rows = await remoteReadAll();
+    DB = unflatten(rows);
+    save(DB, { push: false });
+    shadow = snapshot(flatten(DB));
+    lastSeen = rows[rows.length - 1]?.updated_at ?? lastSeen;
+    window.dispatchEvent(new Event('kf:reload'));
+  } catch { /* 못 닿으면 다음 순번에 다시 맞춘다 */ }
+}
 
 function remoteDown(err) {
   const was = remoteOk;
@@ -2272,14 +2526,26 @@ let flushing = false;
 let flushAgain = false;
 
 /** 바뀐 줄만 올린다. 여러 번 불려도 한 번으로 모은다. */
+// 하루에 한 번이면 충분하다 — 창을 열어 둔 채로 계속 부르지 않게 한 번만 시도한다
+let autoSnapTried = false;
+async function autoSnapshot() {
+  if (autoSnapTried) return;
+  autoSnapTried = true;
+  try {
+    await sbRpc('kf_snapshot_take', { p_kind: 'AUTO', p_label: '자동 저장', p_by: null });
+  } catch { /* 저장점을 못 남겨도 저장 자체는 막지 않는다 */ }
+}
+
 function scheduleFlush() {
   if (!remoteOk) return;
+  if (!canEdit()) return;   // 보기 전용 — 올릴 것이 없다
   clearTimeout(flushTimer);
   flushTimer = setTimeout(() => { flush(); }, 350);
 }
 
 async function flush() {
   if (!remoteOk) return;
+  if (!canEdit()) return;
   if (flushing) { flushAgain = true; return; }
   flushing = true;
   try {
@@ -2287,6 +2553,10 @@ async function flush() {
     const now = snapshot(rows);
     const upserts = rows.filter((r) => now.get(`${r.collection}/${r.id}`) !== shadow.get(`${r.collection}/${r.id}`));
     const gone = [...shadow.keys()].filter((k) => !now.has(k));
+
+    // 오늘 처음 손대는 것이면 손대기 전 상태를 저장점으로 남긴다.
+    // 저장소가 6시간 안에 저장점이 있으면 알아서 건너뛴다.
+    if (upserts.length || gone.length) await autoSnapshot();
 
     if (upserts.length) {
       // 저장된 시각을 되돌려 받는다. 브라우저 시계로 기준을 잡으면 시계가 어긋난 만큼
@@ -2296,6 +2566,7 @@ async function flush() {
         headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
         body: JSON.stringify(upserts),
       });
+      if (res.status === 401 || res.status === 403) return writeDenied();
       if (!res.ok) throw new Error(`쓰기 실패 ${res.status} ${await res.text()}`);
       const saved = await res.json().catch(() => []);
       for (const r of saved) if (!lastSeen || r.updated_at > lastSeen) lastSeen = r.updated_at;
@@ -2308,6 +2579,7 @@ async function flush() {
         `${SB_TABLE}?collection=eq.${encodeURIComponent(collection)}&id=eq.${encodeURIComponent(id)}`,
         { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
       );
+      if (res.status === 401 || res.status === 403) return writeDenied();
       if (!res.ok) throw new Error(`삭제 실패 ${res.status}`);
     }
     shadow = now;
@@ -2367,7 +2639,7 @@ async function pollRemote() {
 }
 
 let readyPromise = null;
-const ensureReady = () => (readyPromise ??= syncFromRemote().then(() => {
+const ensureReady = () => (readyPromise ??= resume().then(syncFromRemote).then(() => {
   setInterval(pollRemote, 15_000);
 }));
 
@@ -2395,10 +2667,11 @@ function load() {
   return fresh;
 }
 
-function save(db = DB) {
+function save(db = DB, { push = true } = {}) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(db)); } catch { /* 용량 초과 시 메모리만 사용 */ }
-  // 공유 저장소에는 바뀐 줄만, 잠깐 모았다가 한 번에 올린다
-  scheduleFlush();
+  // 공유 저장소에는 바뀐 줄만, 잠깐 모았다가 한 번에 올린다.
+  // 공유본을 방금 읽어 온 참이면 되돌려 보낼 것이 없다(push:false).
+  if (push) scheduleFlush();
 }
 
 // DB 는 위의 선언들이 모두 준비된 뒤에 읽는다 —
@@ -3565,6 +3838,34 @@ function handle(method, path, body) {
   const me = currentMe();
   const seg = p.split('/').filter(Boolean); // ['api', ...]
 
+  // ── 저장점 ───────────────────────────────────────────
+  // 언제 무엇이 저장됐는지 보고, 그 시점으로 통째로 되돌린다.
+  if (p === '/api/restore-points') {
+    if (method === 'GET') {
+      return sbRpc('kf_snapshot_list', { limit_n: 60 }).then((rows) => (rows ?? []).map((r) => ({
+        id: r.id, taken_at: r.taken_at, kind: r.kind,
+        label: r.label ?? (r.kind === 'AUTO' ? '자동 저장' : r.kind === 'PRE_RESTORE' ? '되돌리기 직전' : '저장점'),
+        taken_by: r.taken_by, row_count: r.row_count,
+      })));
+    }
+    if (method === 'POST') {
+      // 아직 안 올린 변경이 있으면 먼저 올린다. 저장점은 "지금 화면"이어야 한다.
+      return flush().then(() => sbRpc('kf_snapshot_take', {
+        p_kind: 'MANUAL',
+        p_label: body?.label ?? null,
+        p_by: (member(currentMe())?.display_name ?? currentMe()),
+      })).then((id) => ({ id }));
+    }
+  }
+  if (method === 'POST' && seg[1] === 'restore-points' && seg[3] === 'restore') {
+    return sbRpc('kf_snapshot_restore', { p_id: Number(seg[2]), p_by: (member(currentMe())?.display_name ?? currentMe()) })
+      .then(async (rows) => {
+        const r = Array.isArray(rows) ? rows[0] : rows;
+        await refreshFromRemote();
+        return { restored: r?.restored ?? 0, backup_id: r?.backup_id ?? null };
+      });
+  }
+
   if (method === 'GET' && p === '/api/bootstrap') {
     return {
       me, today: today(),
@@ -3830,7 +4131,10 @@ function handle(method, path, body) {
 // 첫 요청 때 공유 저장소를 먼저 맞춘다. 화면은 원래도 기다리게 되어 있어 손댈 것이 없다.
 const call = async (method, p, b) => {
   await ensureReady();
-  return handle(method, p, b);
+  // 화면이 실수로 편집칸을 열어 두었더라도 여기서 걸린다.
+  // 진짜로 막는 곳은 저장소지만, 여기서 걸러야 "고쳐진 것처럼 보였다가 사라지는" 일이 없다.
+  assertCan(method, p);
+  return handle(method, p, b);   // 저장점 호출처럼 기다려야 하는 것은 Promise 로 돌아온다
 };
 
 const api = {
@@ -7663,6 +7967,161 @@ async function renderInvoice(root, query) {
 }
 
 
+// 편집 코드와 저장점을 한 자리에서 다룬다.
+// 오른쪽 위 등급 표시를 누르면 열린다.
+
+
+
+
+
+const SNAP_KIND = { AUTO: '자동', MANUAL: '직접 저장', PRE_RESTORE: '되돌리기 직전' };
+
+const pointRow = (r) => `
+  <li class="rp-row" data-point="${esc(r.id)}">
+    <span class="rp-when">${esc(dateTime(r.taken_at))}</span>
+    <span class="rp-what">
+      <b>${esc(r.label ?? '저장점')}</b>
+      <span class="rp-meta">${esc(SNAP_KIND[r.kind] ?? r.kind)} · ${esc(r.row_count)}건${
+        r.taken_by ? ` · ${esc(r.taken_by)}` : ''}</span>
+    </span>
+    ${canAdmin()
+      ? `<button class="btn btn-ghost rp-go" data-restore="${esc(r.id)}">되돌리기</button>`
+      : '<span class="rp-meta">관리자만</span>'}
+  </li>`;
+
+function gatePanel() {
+  const body = () => {
+    const role = currentRole();
+    return `
+      <div class="gate-now ${role ? 'on' : ''}">
+        <b>${esc(roleLabel())}</b>
+        <span class="hint">${role
+          ? '이 브라우저에 기억됩니다. 공용 컴퓨터라면 쓰고 나서 나가 주세요.'
+          : '보기는 누구나 됩니다. 고치려면 코드가 필요합니다.'}</span>
+      </div>
+
+      ${role ? `
+        <div class="gate-acts">
+          <button class="btn btn-ghost" data-lock>보기 전용으로 나가기</button>
+        </div>
+      ` : `
+        <form class="gate-form" data-unlock>
+          <label class="field">
+            <span class="lab">편집 코드</span>
+            <input type="password" name="code" autocomplete="one-time-code"
+                   placeholder="예: kv-••••-••••" autocapitalize="off" spellcheck="false">
+          </label>
+          <button class="btn btn-primary" type="submit">들어가기</button>
+        </form>
+      `}
+
+      <section class="gate-points">
+        <div class="gate-points-head">
+          <h3>저장점</h3>
+          ${canEdit() ? '<button class="btn btn-ghost" data-take>지금 상태 저장</button>' : ''}
+        </div>
+        <p class="hint">여기 있는 시점으로 전체를 되돌릴 수 있습니다. 되돌리기 직전 상태도 저장점으로 남습니다.</p>
+        <ul class="rp-list" data-points><li class="hint">불러오는 중…</li></ul>
+      </section>`;
+  };
+
+  const m = modal({
+    title: '편집 권한 · 저장점',
+    body: body(),
+    onMount: ({ root, close }) => {
+      const paint = () => { root.querySelector('.modal-body').innerHTML = body(); loadPoints(); };
+
+      const loadPoints = async () => {
+        const box = root.querySelector('[data-points]');
+        if (!box) return;
+        try {
+          const rows = await api.get('/api/restore-points');
+          box.innerHTML = rows.length
+            ? rows.map(pointRow).join('')
+            : '<li class="hint">아직 저장점이 없습니다.</li>';
+        } catch (err) {
+          box.innerHTML = `<li class="hint">${esc(err.message)}</li>`;
+        }
+      };
+      loadPoints();
+
+      root.addEventListener('submit', async (e) => {
+        const form = e.target.closest('[data-unlock]');
+        if (!form) return;
+        e.preventDefault();
+        const btn = form.querySelector('button[type=submit]');
+        btn.disabled = true;
+        btn.textContent = '확인 중…';
+        try {
+          const got = await unlock(form.querySelector('[name=code]').value);
+          if (!got) {
+            toast('코드가 맞지 않습니다.', true);
+            btn.disabled = false;
+            btn.textContent = '들어가기';
+            return;
+          }
+          toast(got === 'ADMIN' ? '관리자로 들어왔습니다.' : '편집 모드로 들어왔습니다.');
+          paint();
+          window.dispatchEvent(new Event('kf:reload'));
+        } catch (err) {
+          toast(err.message, true);
+          btn.disabled = false;
+          btn.textContent = '들어가기';
+        }
+      });
+
+      root.addEventListener('click', async (e) => {
+        if (e.target.closest('[data-lock]')) {
+          lock();
+          toast('보기 전용으로 바꿨습니다.');
+          paint();
+          window.dispatchEvent(new Event('kf:reload'));
+          return;
+        }
+
+        const take = e.target.closest('[data-take]');
+        if (take) {
+          take.disabled = true;
+          try {
+            await api.post('/api/restore-points', { label: `${new Date().getMonth() + 1}월 ${new Date().getDate()}일 저장` });
+            toast('지금 상태를 저장점으로 남겼습니다.');
+            loadPoints();
+          } catch (err) { toast(err.message, true); }
+          take.disabled = false;
+          return;
+        }
+
+        const go = e.target.closest('[data-restore]');
+        if (go) {
+          const row = go.closest('.rp-row');
+          const when = row.querySelector('.rp-when').textContent;
+          const ok = await confirmModal(
+            `${when} 시점으로 전체를 되돌립니다. 그 뒤에 바꾼 내용은 모두 사라집니다. 되돌리기 직전 상태는 저장점으로 남습니다.`,
+            { confirmLabel: '되돌리기', danger: true },
+          );
+          if (!ok) return;
+          go.disabled = true;
+          go.textContent = '되돌리는 중…';
+          try {
+            const r = await api.post(`/api/restore-points/${go.dataset.restore}/restore`);
+            toast(`${r.restored}건을 되돌렸습니다.`);
+            close();
+            window.dispatchEvent(new Event('kf:reload'));
+          } catch (err) {
+            toast(err.message, true);
+            go.disabled = false;
+            go.textContent = '되돌리기';
+          }
+        }
+      });
+    },
+  });
+  return m;
+}
+
+
+
+
 
 
 
@@ -7691,6 +8150,49 @@ window.addEventListener('kf:sync', (e) => {
   badge.title = ok
     ? '바꾼 내용이 팀 모두에게 보입니다.'
     : '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.';
+});
+
+// 지금 무엇을 할 수 있는지 한 곳에 적어 둔다. CSS 가 이것을 보고 편집칸을 열고 닫는다.
+function paintGate() {
+  const role = currentRole();
+  document.body.dataset.gate = role ? role.toLowerCase() : 'view';
+  const badge = document.getElementById('gate-badge');
+  if (!badge) return;
+  badge.textContent = roleLabel();
+  badge.classList.toggle('on', Boolean(role));
+  badge.title = canEdit()
+    ? '편집할 수 있습니다. 눌러서 저장점을 보거나 보기 전용으로 나갑니다.'
+    : '보기 전용입니다. 눌러서 편집 코드를 넣습니다.';
+}
+window.addEventListener('kf:gate', paintGate);
+document.getElementById('gate-badge')?.addEventListener('click', () => gatePanel());
+
+// 보기 전용일 때 편집칸에 손이 가면, 아무 일도 안 일어나는 대신 문을 연다.
+// CSS 로도 잠그지만 그것만으로는 키보드가 남는다 — 여기서 확실히 끊는다.
+const EDIT_TARGETS = [
+  '[data-new-task]', '[data-new-issue]', '[data-new-project]', '[data-edit-project]',
+  '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
+  '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
+  '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]',
+].join(',');
+
+const blockWhenLocked = (e) => {
+  if (canEdit()) return;
+  if (e.target.closest('#modal-root')) return;   // 문 자체는 열려 있어야 한다
+  if (!e.target.closest(EDIT_TARGETS)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.type === 'click') gatePanel();
+};
+for (const type of ['click', 'change', 'keydown', 'pointerdown']) {
+  document.addEventListener(type, blockWhenLocked, true);
+}
+
+// 저장소가 쓰기를 거절하면 바로 알린다 — 조용히 사라지는 것이 제일 나쁘다
+window.addEventListener('kf:denied', (e) => {
+  toast(e.detail?.message ?? '편집 권한이 확인되지 않았습니다.', true);
+  paintGate();
 });
 
 const PROJECT_TABS = [
@@ -7864,13 +8366,18 @@ function renderMePicker() {
 
 async function boot() {
   view.innerHTML = loading();
+  paintGate();
   try {
+    // 저장해 둔 코드가 있으면 조용히 다시 들어간다
+    await resume().catch(() => null);
+    paintGate();
     await loadBootstrap();
   } catch (err) {
     view.innerHTML = errorBox(`${err.message} — 서버가 실행 중인지 확인해 주세요.`);
     return;
   }
   renderMePicker();
+  paintGate();
   await render();
 }
 
@@ -7881,11 +8388,17 @@ document.getElementById('me-select').addEventListener('change', async (e) => {
 
 // 로그인 대신 현재 사용자를 고르는 구조이므로, 바뀌면 화면을 다시 그린다
 document.getElementById('btn-new-task').addEventListener('click', () => {
+  if (!canEdit()) return gatePanel();
   taskForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
 });
 
 // 각 뷰의 "+ 업무 등록" 버튼 (위임)
 view.addEventListener('click', (e) => {
+  if (!canEdit() && e.target.closest('[data-new-task], [data-new-issue]')) {
+    e.preventDefault();
+    e.stopPropagation();
+    return void gatePanel();
+  }
   if (e.target.closest('[data-new-task]')) {
     taskForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
   } else if (e.target.closest('[data-new-issue]')) {
@@ -7897,6 +8410,7 @@ window.addEventListener('hashchange', render);
 window.addEventListener('kf:reload', async () => {
   await loadBootstrap().catch(() => {});
   renderMePicker();
+  paintGate();
   render();
 });
 

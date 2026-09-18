@@ -42,6 +42,9 @@ const parts = [
   `const SEED = { ${seedKeys.join(', ')} };`,
   '/* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */',
   flatten(read('server/ai/rules.js')),
+  // 코드 문은 저장소보다 먼저 준비돼야 한다 — store.js 가 여는 즉시 install 을 부른다
+  '/* ── 편집 코드 문 (public/js/gate.js) ───────────────── */',
+  flatten(read('public/js/gate.js')),
   '/* ── 브라우저 저장소 (demo/store.js) ────────────────── */',
   dedupeDomain(flatten(read('demo/store.js'))),
   '/* ── 화면 (public/js/**) ────────────────────────────── */',
@@ -58,6 +61,7 @@ const parts = [
   flatten(read('public/js/views/timeline.js')),
   flatten(read('public/js/views/time.js')),
   flatten(read('public/js/views/invoice.js')),
+  flatten(read('public/js/views/gatePanel.js')),
   // 동적 import 는 번들에서 직접 호출로 바꾼다
   flatten(read('public/js/app.js')).replace(
     /import\('\.\/forms\.js'\)\.then\(\(\{ issueForm \}\) =>\s*\n?\s*issueForm\(\{ onSaved: \(\) => window\.dispatchEvent\(new Event\('kf:reload'\)\) \}\)\);/,
@@ -67,6 +71,17 @@ const parts = [
 
 if (parts.includes("import('./forms.js')")) {
   throw new Error('동적 import 치환에 실패했습니다. app.js 변경 후 build-demo.mjs 를 확인하세요.');
+}
+
+// 모듈을 한 스코프로 이어 붙이므로 같은 이름이 두 번 나오면 번들 전체가 죽는다.
+// 브라우저에서야 알면 늦다 — 여기서 잡는다. (gatePanel 의 KIND_LABEL 이 그랬다)
+const declared = new Map();
+for (const m of parts.matchAll(/^(?:const|let|function|class)\s+([A-Za-z_$][\w$]*)/gm)) {
+  declared.set(m[1], (declared.get(m[1]) ?? 0) + 1);
+}
+const clashes = [...declared].filter(([, n]) => n > 1).map(([name, n]) => `${name}×${n}`);
+if (clashes.length) {
+  throw new Error(`이름이 겹칩니다 — 한쪽 이름을 바꿔 주세요: ${clashes.join(', ')}`);
 }
 
 const css = read('public/app.css');

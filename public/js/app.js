@@ -10,6 +10,8 @@ import { renderNotifications } from './views/notifications.js';
 import { renderTimeline } from './views/timeline.js';
 import { renderTime } from './views/time.js';
 import { renderInvoice } from './views/invoice.js';
+import { gatePanel } from './views/gatePanel.js';
+import { currentRole, resume, roleLabel, canEdit } from './gate.js';
 
 const view = document.getElementById('view');
 
@@ -26,6 +28,49 @@ window.addEventListener('kf:sync', (e) => {
   badge.title = ok
     ? '바꾼 내용이 팀 모두에게 보입니다.'
     : '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.';
+});
+
+// 지금 무엇을 할 수 있는지 한 곳에 적어 둔다. CSS 가 이것을 보고 편집칸을 열고 닫는다.
+function paintGate() {
+  const role = currentRole();
+  document.body.dataset.gate = role ? role.toLowerCase() : 'view';
+  const badge = document.getElementById('gate-badge');
+  if (!badge) return;
+  badge.textContent = roleLabel();
+  badge.classList.toggle('on', Boolean(role));
+  badge.title = canEdit()
+    ? '편집할 수 있습니다. 눌러서 저장점을 보거나 보기 전용으로 나갑니다.'
+    : '보기 전용입니다. 눌러서 편집 코드를 넣습니다.';
+}
+window.addEventListener('kf:gate', paintGate);
+document.getElementById('gate-badge')?.addEventListener('click', () => gatePanel());
+
+// 보기 전용일 때 편집칸에 손이 가면, 아무 일도 안 일어나는 대신 문을 연다.
+// CSS 로도 잠그지만 그것만으로는 키보드가 남는다 — 여기서 확실히 끊는다.
+const EDIT_TARGETS = [
+  '[data-new-task]', '[data-new-issue]', '[data-new-project]', '[data-edit-project]',
+  '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
+  '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
+  '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]',
+].join(',');
+
+const blockWhenLocked = (e) => {
+  if (canEdit()) return;
+  if (e.target.closest('#modal-root')) return;   // 문 자체는 열려 있어야 한다
+  if (!e.target.closest(EDIT_TARGETS)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.type === 'click') gatePanel();
+};
+for (const type of ['click', 'change', 'keydown', 'pointerdown']) {
+  document.addEventListener(type, blockWhenLocked, true);
+}
+
+// 저장소가 쓰기를 거절하면 바로 알린다 — 조용히 사라지는 것이 제일 나쁘다
+window.addEventListener('kf:denied', (e) => {
+  toast(e.detail?.message ?? '편집 권한이 확인되지 않았습니다.', true);
+  paintGate();
 });
 
 const PROJECT_TABS = [
@@ -199,13 +244,18 @@ function renderMePicker() {
 
 async function boot() {
   view.innerHTML = loading();
+  paintGate();
   try {
+    // 저장해 둔 코드가 있으면 조용히 다시 들어간다
+    await resume().catch(() => null);
+    paintGate();
     await loadBootstrap();
   } catch (err) {
     view.innerHTML = errorBox(`${err.message} — 서버가 실행 중인지 확인해 주세요.`);
     return;
   }
   renderMePicker();
+  paintGate();
   await render();
 }
 
@@ -216,11 +266,17 @@ document.getElementById('me-select').addEventListener('change', async (e) => {
 
 // 로그인 대신 현재 사용자를 고르는 구조이므로, 바뀌면 화면을 다시 그린다
 document.getElementById('btn-new-task').addEventListener('click', () => {
+  if (!canEdit()) return gatePanel();
   taskForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
 });
 
 // 각 뷰의 "+ 업무 등록" 버튼 (위임)
 view.addEventListener('click', (e) => {
+  if (!canEdit() && e.target.closest('[data-new-task], [data-new-issue]')) {
+    e.preventDefault();
+    e.stopPropagation();
+    return void gatePanel();
+  }
   if (e.target.closest('[data-new-task]')) {
     taskForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
   } else if (e.target.closest('[data-new-issue]')) {
@@ -233,6 +289,7 @@ window.addEventListener('hashchange', render);
 window.addEventListener('kf:reload', async () => {
   await loadBootstrap().catch(() => {});
   renderMePicker();
+  paintGate();
   render();
 });
 
