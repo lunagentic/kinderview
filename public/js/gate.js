@@ -18,6 +18,7 @@ const write = (k, v) => {
 };
 
 let role = null;          // null(보기) | 'EDIT' | 'ADMIN'
+let localOnly = false;    // 공유 저장소가 없는 자리(미리보기)에서 열어 둔 상태
 let boundMember = null;   // 이 코드에 묶인 사람. 있으면 그게 곧 내 신원이다.
 let code = read(CODE_KEY);
 let verify = null;        // (code) => Promise<등급 | {role, member_id, label} | null>
@@ -41,6 +42,21 @@ export function install({ verify: fn, open = false }) {
   // 물어볼 곳이 없는 판(내 컴퓨터의 서버)은 처음부터 열려 있다
   if (open) { role = 'ADMIN'; tell(); }
 }
+
+/**
+ * 공유 저장소에 닿지 못했다 — 미리보기(아티팩트)이거나 저장소가 잠깐 쉬는 중이다.
+ *
+ * 이 문은 공유본을 지키려고 있다. 공유본이 없는 자리에서는 지킬 것도 없으므로
+ * 열어 둔다. 대신 아무것도 올리지 않는다(flush 가 건너뛴다) — 코드를 넣어야
+ * 공유본에 닿는다. 잠가 두면 미리보기로 아무것도 못 해 쓸모가 없어진다.
+ */
+export function openLocal() {
+  if (role || localOnly) return;   // 이미 코드로 들어와 있으면 건드리지 않는다
+  localOnly = true;
+  role = 'ADMIN';
+  tell();
+}
+export const isLocalOnly = () => localOnly;
 
 /** 저장해 둔 코드로 조용히 다시 들어간다. 창을 새로 열 때마다 부른다. */
 export async function resume() {
@@ -78,6 +94,7 @@ export async function unlock(input) {
   if (!verify) return null;
   const got = shape(await verify(next, { claim: true }));
   if (got) {
+    localOnly = false;
     role = got.role;
     boundMember = got.member_id;
     code = next;
@@ -92,6 +109,7 @@ export async function unlock(input) {
 /** 다시 보기 전용으로 */
 export function lock() {
   role = null;
+  localOnly = false;
   boundMember = null;
   code = null;
   write(CODE_KEY, null);
@@ -110,7 +128,8 @@ export const canEdit = () => role === 'EDIT' || role === 'ADMIN';
 /** 지우기·프로젝트/구성원 관리처럼 되돌리기 어려운 일 */
 export const canAdmin = () => role === 'ADMIN';
 
-export const roleLabel = () => (role === 'ADMIN' ? '관리자' : role === 'EDIT' ? '편집' : '보기 전용');
+export const roleLabel = () => (
+  localOnly ? '미리보기' : role === 'ADMIN' ? '관리자' : role === 'EDIT' ? '편집' : '보기 전용');
 
 /**
  * 쓰기를 시작하기 전에 통과해야 하는 문.

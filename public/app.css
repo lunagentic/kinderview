@@ -524,6 +524,7 @@ details.more[open] > summary{color:var(--ink)}
   border:1px solid rgba(255,255,255,.18)}
 .gate-badge:hover{color:#fff;border-color:rgba(255,255,255,.4)}
 .gate-badge.on{color:var(--s-done);border-color:currentColor;font-weight:600}
+.gate-badge.local{color:var(--s-issue);border-color:currentColor;font-weight:600}
 @media (max-width:420px){ .gate-badge{padding:3px 8px;font-size:.68rem} }
 
 body[data-gate="view"] .ttl-edit,
@@ -574,6 +575,7 @@ body[data-gate="edit"] .btn-danger{display:none}
 .gate-now{display:flex;flex-direction:column;gap:3px;padding:11px 13px;margin-bottom:14px;
   border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
 .gate-now.on{border-color:var(--s-done)}
+.gate-now.local{border-color:var(--s-issue)}
 .gate-now b{font-size:.95rem}
 .gate-form{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px}
 .gate-form .field{flex:1 1 200px;min-width:0}

@@ -335,11 +335,18 @@ const sbFetch = (path, init = {}) => {
  * 창을 다시 열며 조용히 확인할 때(kf_role)는 남기지 않는다 — 새로고침마다 쌓일 이유가 없다.
  */
 async function sbVerify(code, { claim = false } = {}) {
-  const res = await fetch(`${SB_URL}/rest/v1/rpc/kf_identity`, {
-    method: 'POST',
-    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, claim, who: member(currentMe())?.display_name ?? currentMe() }),
-  });
+  let res;
+  try {
+    res = await fetch(`${SB_URL}/rest/v1/rpc/kf_identity`, {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, claim, who: member(currentMe())?.display_name ?? currentMe() }),
+    });
+  } catch {
+    // 코드가 틀린 것과 저장소에 못 닿은 것은 다른 일이다.
+    // 'Failed to fetch' 를 그대로 보여 주면 코드를 의심하게 된다.
+    throw new Error('공유 저장소에 닿지 못해 코드를 확인할 수 없습니다. 미리보기 화면에서는 코드가 필요 없습니다 — 바꾼 내용이 이 브라우저에만 남을 뿐입니다.');
+  }
   if (!res.ok) throw new Error('코드를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
   return (await res.json()) ?? null;
 }
@@ -398,6 +405,8 @@ async function refreshFromRemote() {
 function remoteDown(err) {
   const was = remoteOk;
   remoteOk = false;
+  // 공유본이 없는 자리에서는 잠글 것도 없다 — 미리보기로 열어 둔다
+  openLocal();
   if (was || !remoteWarned) tellSync(false);
   if (!remoteWarned) {
     remoteWarned = true;
@@ -471,13 +480,15 @@ async function autoSnapshot() {
 
 function scheduleFlush() {
   if (!remoteOk) return;
-  if (!canEdit()) return;   // 보기 전용 — 올릴 것이 없다
+  if (isLocalOnly()) return;   // 미리보기 — 이 브라우저에만 남는다
+  if (!canEdit()) return;      // 보기 전용 — 올릴 것이 없다
   clearTimeout(flushTimer);
   flushTimer = setTimeout(() => { flush(); }, 350);
 }
 
 async function flush() {
   if (!remoteOk) return;
+  if (isLocalOnly()) return;
   if (!canEdit()) return;
   if (flushing) { flushAgain = true; return; }
   flushing = true;

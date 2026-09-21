@@ -11,7 +11,7 @@ import { renderTimeline } from './views/timeline.js';
 import { renderTime } from './views/time.js';
 import { renderInvoice } from './views/invoice.js';
 import { gatePanel } from './views/gatePanel.js';
-import { currentRole, currentMember, resume, roleLabel, canEdit, canSeeMoney } from './gate.js';
+import { currentRole, currentMember, resume, roleLabel, canEdit, canSeeMoney, isLocalOnly } from './gate.js';
 
 const view = document.getElementById('view');
 
@@ -37,10 +37,13 @@ function paintGate() {
   const badge = document.getElementById('gate-badge');
   if (!badge) return;
   badge.textContent = roleLabel();
-  badge.classList.toggle('on', Boolean(role));
-  badge.title = canEdit()
-    ? '편집할 수 있습니다. 눌러서 저장점을 보거나 보기 전용으로 나갑니다.'
-    : '보기 전용입니다. 눌러서 편집 코드를 넣습니다.';
+  badge.classList.toggle('on', Boolean(role) && !isLocalOnly());
+  badge.classList.toggle('local', isLocalOnly());
+  badge.title = isLocalOnly()
+    ? '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.'
+    : canEdit()
+      ? '편집할 수 있습니다. 눌러서 저장점을 보거나 보기 전용으로 나갑니다.'
+      : '보기 전용입니다. 눌러서 편집 코드를 넣습니다.';
 }
 window.addEventListener('kf:gate', () => {
   paintGate();

@@ -529,6 +529,7 @@ details.more[open] > summary{color:var(--ink)}
   border:1px solid rgba(255,255,255,.18)}
 .gate-badge:hover{color:#fff;border-color:rgba(255,255,255,.4)}
 .gate-badge.on{color:var(--s-done);border-color:currentColor;font-weight:600}
+.gate-badge.local{color:var(--s-issue);border-color:currentColor;font-weight:600}
 @media (max-width:420px){ .gate-badge{padding:3px 8px;font-size:.68rem} }
 
 body[data-gate="view"] .ttl-edit,
@@ -579,6 +580,7 @@ body[data-gate="edit"] .btn-danger{display:none}
 .gate-now{display:flex;flex-direction:column;gap:3px;padding:11px 13px;margin-bottom:14px;
   border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
 .gate-now.on{border-color:var(--s-done)}
+.gate-now.local{border-color:var(--s-issue)}
 .gate-now b{font-size:.95rem}
 .gate-form{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px}
 .gate-form .field{flex:1 1 200px;min-width:0}
@@ -2113,6 +2115,7 @@ const write = (k, v) => {
 };
 
 let role = null;          // null(보기) | 'EDIT' | 'ADMIN'
+let localOnly = false;    // 공유 저장소가 없는 자리(미리보기)에서 열어 둔 상태
 let boundMember = null;   // 이 코드에 묶인 사람. 있으면 그게 곧 내 신원이다.
 let code = read(CODE_KEY);
 let verify = null;        // (code) => Promise<등급 | {role, member_id, label} | null>
@@ -2136,6 +2139,21 @@ function install({ verify: fn, open = false }) {
   // 물어볼 곳이 없는 판(내 컴퓨터의 서버)은 처음부터 열려 있다
   if (open) { role = 'ADMIN'; tell(); }
 }
+
+/**
+ * 공유 저장소에 닿지 못했다 — 미리보기(아티팩트)이거나 저장소가 잠깐 쉬는 중이다.
+ *
+ * 이 문은 공유본을 지키려고 있다. 공유본이 없는 자리에서는 지킬 것도 없으므로
+ * 열어 둔다. 대신 아무것도 올리지 않는다(flush 가 건너뛴다) — 코드를 넣어야
+ * 공유본에 닿는다. 잠가 두면 미리보기로 아무것도 못 해 쓸모가 없어진다.
+ */
+function openLocal() {
+  if (role || localOnly) return;   // 이미 코드로 들어와 있으면 건드리지 않는다
+  localOnly = true;
+  role = 'ADMIN';
+  tell();
+}
+const isLocalOnly = () => localOnly;
 
 /** 저장해 둔 코드로 조용히 다시 들어간다. 창을 새로 열 때마다 부른다. */
 async function resume() {
@@ -2173,6 +2191,7 @@ async function unlock(input) {
   if (!verify) return null;
   const got = shape(await verify(next, { claim: true }));
   if (got) {
+    localOnly = false;
     role = got.role;
     boundMember = got.member_id;
     code = next;
@@ -2187,6 +2206,7 @@ async function unlock(input) {
 /** 다시 보기 전용으로 */
 function lock() {
   role = null;
+  localOnly = false;
   boundMember = null;
   code = null;
   write(CODE_KEY, null);
@@ -2205,7 +2225,8 @@ const canEdit = () => role === 'EDIT' || role === 'ADMIN';
 /** 지우기·프로젝트/구성원 관리처럼 되돌리기 어려운 일 */
 const canAdmin = () => role === 'ADMIN';
 
-const roleLabel = () => (role === 'ADMIN' ? '관리자' : role === 'EDIT' ? '편집' : '보기 전용');
+const roleLabel = () => (
+  localOnly ? '미리보기' : role === 'ADMIN' ? '관리자' : role === 'EDIT' ? '편집' : '보기 전용');
 
 /**
  * 쓰기를 시작하기 전에 통과해야 하는 문.
@@ -2584,11 +2605,18 @@ const sbFetch = (path, init = {}) => {
  * 창을 다시 열며 조용히 확인할 때(kf_role)는 남기지 않는다 — 새로고침마다 쌓일 이유가 없다.
  */
 async function sbVerify(code, { claim = false } = {}) {
-  const res = await fetch(`${SB_URL}/rest/v1/rpc/kf_identity`, {
-    method: 'POST',
-    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, claim, who: member(currentMe())?.display_name ?? currentMe() }),
-  });
+  let res;
+  try {
+    res = await fetch(`${SB_URL}/rest/v1/rpc/kf_identity`, {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, claim, who: member(currentMe())?.display_name ?? currentMe() }),
+    });
+  } catch {
+    // 코드가 틀린 것과 저장소에 못 닿은 것은 다른 일이다.
+    // 'Failed to fetch' 를 그대로 보여 주면 코드를 의심하게 된다.
+    throw new Error('공유 저장소에 닿지 못해 코드를 확인할 수 없습니다. 미리보기 화면에서는 코드가 필요 없습니다 — 바꾼 내용이 이 브라우저에만 남을 뿐입니다.');
+  }
   if (!res.ok) throw new Error('코드를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
   return (await res.json()) ?? null;
 }
@@ -2647,6 +2675,8 @@ async function refreshFromRemote() {
 function remoteDown(err) {
   const was = remoteOk;
   remoteOk = false;
+  // 공유본이 없는 자리에서는 잠글 것도 없다 — 미리보기로 열어 둔다
+  openLocal();
   if (was || !remoteWarned) tellSync(false);
   if (!remoteWarned) {
     remoteWarned = true;
@@ -2720,13 +2750,15 @@ async function autoSnapshot() {
 
 function scheduleFlush() {
   if (!remoteOk) return;
-  if (!canEdit()) return;   // 보기 전용 — 올릴 것이 없다
+  if (isLocalOnly()) return;   // 미리보기 — 이 브라우저에만 남는다
+  if (!canEdit()) return;      // 보기 전용 — 올릴 것이 없다
   clearTimeout(flushTimer);
   flushTimer = setTimeout(() => { flush(); }, 350);
 }
 
 async function flush() {
   if (!remoteOk) return;
+  if (isLocalOnly()) return;
   if (!canEdit()) return;
   if (flushing) { flushAgain = true; return; }
   flushing = true;
@@ -8756,21 +8788,23 @@ function gatePanel() {
   const body = () => {
     const role = currentRole();
     return `
-      <div class="gate-now ${role ? 'on' : ''}">
+      <div class="gate-now ${isLocalOnly() ? 'local' : role ? 'on' : ''}">
         <b>${esc(roleLabel())}</b>
-        <span class="hint">${role
-          ? '이 브라우저에 기억됩니다. 공용 컴퓨터라면 쓰고 나서 나가 주세요.'
-          : '보기는 누구나 됩니다. 고치려면 코드가 필요합니다.'}</span>
+        <span class="hint">${isLocalOnly()
+          ? '공유 저장소에 닿지 못했습니다. 여기서는 마음껏 고쳐 봐도 되지만, 바꾼 내용은 이 브라우저에만 남고 팀에는 가지 않습니다. 실제로 함께 쓰려면 배포 주소에서 열어 주세요.'
+          : role
+            ? '이 브라우저에 기억됩니다. 공용 컴퓨터라면 쓰고 나서 나가 주세요.'
+            : '보기는 누구나 됩니다. 고치려면 코드가 필요합니다.'}</span>
       </div>
 
-      ${role ? `
+      ${role && !isLocalOnly() ? `
         <div class="gate-acts">
           <button class="btn btn-ghost" data-lock>보기 전용으로 나가기</button>
         </div>
       ` : `
         <form class="gate-form" data-unlock>
           <label class="field">
-            <span class="lab">편집 코드</span>
+            <span class="lab">${isLocalOnly() ? '편집 코드 (저장소가 돌아왔다면)' : '편집 코드'}</span>
             <input type="password" name="code" autocomplete="one-time-code"
                    placeholder="예: kv-••••-••••" autocapitalize="off" spellcheck="false">
           </label>
@@ -8778,7 +8812,11 @@ function gatePanel() {
         </form>
       `}
 
-      ${canAdmin() ? `
+      ${isLocalOnly() ? `
+        <p class="hint" style="margin-bottom:16px">저장점과 코드 관리는 공유 저장소에 닿아야 쓸 수 있습니다.</p>` : ''}
+
+
+      ${canAdmin() && !isLocalOnly() ? `
       <section class="gate-codes">
         <h3>나눠 준 코드</h3>
         <p class="hint">코드에 사람을 묶으면 그 코드로 들어온 사람은 그 이름으로 고정됩니다 —
@@ -8786,6 +8824,7 @@ function gatePanel() {
         <ul class="rp-list gc-list" data-codes><li class="hint">불러오는 중…</li></ul>
       </section>` : ''}
 
+      ${isLocalOnly() ? '' : `
       <section class="gate-points">
         <div class="gate-points-head">
           <h3>저장점</h3>
@@ -8793,7 +8832,7 @@ function gatePanel() {
         </div>
         <p class="hint">여기 있는 시점으로 전체를 되돌릴 수 있습니다. 되돌리기 직전 상태도 저장점으로 남습니다.</p>
         <ul class="rp-list" data-points><li class="hint">불러오는 중…</li></ul>
-      </section>`;
+      </section>`}`;
   };
 
   const m = modal({
@@ -8974,10 +9013,13 @@ function paintGate() {
   const badge = document.getElementById('gate-badge');
   if (!badge) return;
   badge.textContent = roleLabel();
-  badge.classList.toggle('on', Boolean(role));
-  badge.title = canEdit()
-    ? '편집할 수 있습니다. 눌러서 저장점을 보거나 보기 전용으로 나갑니다.'
-    : '보기 전용입니다. 눌러서 편집 코드를 넣습니다.';
+  badge.classList.toggle('on', Boolean(role) && !isLocalOnly());
+  badge.classList.toggle('local', isLocalOnly());
+  badge.title = isLocalOnly()
+    ? '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.'
+    : canEdit()
+      ? '편집할 수 있습니다. 눌러서 저장점을 보거나 보기 전용으로 나갑니다.'
+      : '보기 전용입니다. 눌러서 편집 코드를 넣습니다.';
 }
 window.addEventListener('kf:gate', () => {
   paintGate();

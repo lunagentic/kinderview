@@ -4,7 +4,7 @@
 import { api } from '../api.js';
 import { state } from '../state.js';
 import { esc, modal, toast, dateTime, confirmModal } from '../ui.js';
-import { currentRole, unlock, lock, canEdit, canAdmin, roleLabel } from '../gate.js';
+import { currentRole, unlock, lock, canEdit, canAdmin, roleLabel, isLocalOnly } from '../gate.js';
 
 const SNAP_KIND = { AUTO: '자동', MANUAL: '직접 저장', PRE_RESTORE: '되돌리기 직전' };
 
@@ -47,21 +47,23 @@ export function gatePanel() {
   const body = () => {
     const role = currentRole();
     return `
-      <div class="gate-now ${role ? 'on' : ''}">
+      <div class="gate-now ${isLocalOnly() ? 'local' : role ? 'on' : ''}">
         <b>${esc(roleLabel())}</b>
-        <span class="hint">${role
-          ? '이 브라우저에 기억됩니다. 공용 컴퓨터라면 쓰고 나서 나가 주세요.'
-          : '보기는 누구나 됩니다. 고치려면 코드가 필요합니다.'}</span>
+        <span class="hint">${isLocalOnly()
+          ? '공유 저장소에 닿지 못했습니다. 여기서는 마음껏 고쳐 봐도 되지만, 바꾼 내용은 이 브라우저에만 남고 팀에는 가지 않습니다. 실제로 함께 쓰려면 배포 주소에서 열어 주세요.'
+          : role
+            ? '이 브라우저에 기억됩니다. 공용 컴퓨터라면 쓰고 나서 나가 주세요.'
+            : '보기는 누구나 됩니다. 고치려면 코드가 필요합니다.'}</span>
       </div>
 
-      ${role ? `
+      ${role && !isLocalOnly() ? `
         <div class="gate-acts">
           <button class="btn btn-ghost" data-lock>보기 전용으로 나가기</button>
         </div>
       ` : `
         <form class="gate-form" data-unlock>
           <label class="field">
-            <span class="lab">편집 코드</span>
+            <span class="lab">${isLocalOnly() ? '편집 코드 (저장소가 돌아왔다면)' : '편집 코드'}</span>
             <input type="password" name="code" autocomplete="one-time-code"
                    placeholder="예: kv-••••-••••" autocapitalize="off" spellcheck="false">
           </label>
@@ -69,7 +71,11 @@ export function gatePanel() {
         </form>
       `}
 
-      ${canAdmin() ? `
+      ${isLocalOnly() ? `
+        <p class="hint" style="margin-bottom:16px">저장점과 코드 관리는 공유 저장소에 닿아야 쓸 수 있습니다.</p>` : ''}
+
+
+      ${canAdmin() && !isLocalOnly() ? `
       <section class="gate-codes">
         <h3>나눠 준 코드</h3>
         <p class="hint">코드에 사람을 묶으면 그 코드로 들어온 사람은 그 이름으로 고정됩니다 —
@@ -77,6 +83,7 @@ export function gatePanel() {
         <ul class="rp-list gc-list" data-codes><li class="hint">불러오는 중…</li></ul>
       </section>` : ''}
 
+      ${isLocalOnly() ? '' : `
       <section class="gate-points">
         <div class="gate-points-head">
           <h3>저장점</h3>
@@ -84,7 +91,7 @@ export function gatePanel() {
         </div>
         <p class="hint">여기 있는 시점으로 전체를 되돌릴 수 있습니다. 되돌리기 직전 상태도 저장점으로 남습니다.</p>
         <ul class="rp-list" data-points><li class="hint">불러오는 중…</li></ul>
-      </section>`;
+      </section>`}`;
   };
 
   const m = modal({
