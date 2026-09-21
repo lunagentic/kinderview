@@ -6327,13 +6327,8 @@ async function renderTasks(root, query) {
     return;
   }
 
-  // 아무 조건 없이 들어오면 이번 달부터 보여 준다 — 대개 그걸 보러 온다
-  if (![...p.keys()].length && months.length && !backlog) {
-    const now = (state.today ?? '').slice(0, 7);
-    const pick = months.find((m) => m.month === now) ?? months[0];
-    go(`#/project/tasks?month=${pick.month}`);
-    return;
-  }
+  // 아무 조건 없이 들어오면 전체를 보여 준다. 달로 좁혀 놓으면 다른 달에 있는 일이
+  // 없는 것처럼 보이고, 방금 등록한 업무가 어디 갔는지부터 찾게 된다.
 
   const setParam = (patch) => {
     const next = new URLSearchParams(p);
