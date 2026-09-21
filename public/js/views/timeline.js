@@ -3,7 +3,7 @@ import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
-  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryPick,
+  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryPick, categoryStyle,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm } from '../forms.js';
 import { bindComments } from '../comments.js';
@@ -302,7 +302,10 @@ export async function renderTimeline(root) {
 
     let rows;
     try {
-      rows = await api.get(`/api/tasks?phase=${encodeURIComponent(phaseId)}&done=1`);
+      // 이 페이즈의 업무는 전부 보여야 한다. 완료한 것도, 마감일을 아직 안 정한 것도 —
+      // 페이즈에 넣어 둔 이상 그 페이즈의 일이다. 목록이 달 기준으로 걸러지면
+      // 분명히 넣었는데 안 보이는 업무가 생긴다.
+      rows = await api.get(`/api/tasks?phase=${encodeURIComponent(phaseId)}&done=1&all_backlog=1`);
     } catch (err) {
       detail.innerHTML = errorBox(err.message);
       return undefined;
@@ -330,6 +333,7 @@ export async function renderTimeline(root) {
     // 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
     const taskLine = (t) => `
       <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0">
+        <span class="cat">${categoryPick(t, { blank: '분류 지정' })}</span>
         <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
         <span class="ttl">${titleCell(t)}</span>
         ${t.subtask_total
@@ -340,7 +344,6 @@ export async function renderTimeline(root) {
         <button class="tld-cm${t.comment_count ? ' on' : ''}" data-cm="${esc(t.id)}" aria-expanded="false"
                 title="디렉터 코멘트${t.comment_count ? ` ${t.comment_count}건` : ' 남기기'}"
                 >💬${t.comment_count ? ` ${t.comment_count}` : ''}</button>
-        <span class="cat">${categoryPick(t, { blank: '분류 지정' })}</span>
         <span class="st">${statusPick(t)}</span>
         <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                 title="상세 편집">✎</button>
@@ -368,7 +371,7 @@ export async function renderTimeline(root) {
             <span class="lead">${esc(leadNames(g.area.code))}</span>
           </div>
           ${g.groups.map((cg) => `
-            <div class="tld-cat${cg.code ? '' : ' none'}">
+            <div class="tld-cat${cg.code ? '' : ' none'}" style="${categoryStyle(cg.code)}">
               <div class="tld-cat-head">
                 <span class="lab">${esc(cg.label)}</span>
                 <span class="n">${cg.rows.length}건</span>

@@ -3,7 +3,7 @@ import { state, activeProjects, areaMeta, leadNames } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
-  titleCell, autoGrow, syncTitleCell, categoryPick,
+  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle,
 } from '../ui.js';
 import { taskForm, projectForm } from '../forms.js';
 
@@ -519,6 +519,10 @@ export async function renderTasks(root, query) {
     if (cat) {
       try {
         await api.patch(`/api/tasks/${cat.dataset.category}`, { category: cat.value || null });
+        // 색은 분류를 따라간다 — 다시 그리지 않고 여기서 바로 맞춘다
+        cat.dataset.cat = cat.value;
+        cat.classList.toggle('none', !cat.value);
+        cat.style.cssText = categoryStyle(cat.value || null);
         toast('분류를 바꿨습니다.');
       } catch (err) { toast(err.message, true); reload(); }
       return undefined;
