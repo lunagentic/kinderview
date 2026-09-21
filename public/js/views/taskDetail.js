@@ -115,7 +115,7 @@ export async function renderTaskDetail(root, id) {
         </div>
 
         <div class="panel" data-comments-panel>
-          <h3>코멘트</h3>
+          <h3>디렉터 코멘트</h3>
           <div data-comments></div>
         </div>
 

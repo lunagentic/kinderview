@@ -1253,6 +1253,8 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
   width:100%;text-align:left;background:none;border:none;cursor:pointer;
   padding:7px 4px;border-radius:var(--radius-sm);font:inherit}
 .tld-task:hover{background:var(--surface-2)}
+/* 줄 자체가 상세로 가는 문이다 — 키보드에도 그 사실이 보여야 한다 */
+.tld-task:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .tld-task .due{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.8rem;
   display:flex;flex-direction:column;line-height:1.3;color:var(--ink-2)}
 .tld-task .due i{font-style:normal;font-size:.7rem;color:var(--muted)}
@@ -5710,7 +5712,7 @@ function expenseForm({ defaults = {}, onSaved }) {
 }
 
 
-// 업무에 달리는 코멘트. 업무 상세와 타임라인이 같은 것을 쓴다 —
+// 디렉터 코멘트 — 업무에 달리는 의견. 업무 상세와 타임라인이 같은 것을 쓴다 —
 // 한쪽에서 남긴 말이 다른 쪽에서 안 보이면 코멘트가 아니라 메모가 된다.
 //
 // 대댓글은 한 단계까지다. 답글에 또 답글을 달면 자료 층이 뿌리 글에 붙여 준다.
@@ -5760,14 +5762,14 @@ function commentList(rows) {
   const live = rows.filter((c) => !c.deleted_at).length;
   return `
     ${shown.length ? `<ul class="cm-list">${shown.map((c) => one(c)).join('')}</ul>` : ''}
-    ${!live && !shown.length ? '<p class="empty-line">아직 코멘트가 없습니다.</p>' : ''}
+    ${!live && !shown.length ? '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>' : ''}
     ${canEdit()
       ? `<form class="cm-add" data-cm-add>
            <textarea name="body" rows="2" maxlength="2000"
-                     placeholder="이 업무에 대한 의견을 남겨 주세요" aria-label="코멘트"></textarea>
+                     placeholder="이 업무에 대한 의견을 남겨 주세요" aria-label="디렉터 코멘트"></textarea>
            <button class="btn btn-ghost" type="submit">남기기</button>
          </form>`
-      : '<p class="hint">코멘트를 남기려면 편집 코드가 필요합니다.</p>'}`;
+      : '<p class="hint">디렉터 코멘트를 남기려면 편집 코드가 필요합니다.</p>'}`;
 }
 
 /**
@@ -5853,7 +5855,7 @@ function bindComments(box, taskId, { onChange } = {}) {
       acts.hidden = true;
       li.insertAdjacentHTML('beforeend', `
         <form class="cm-sub" data-cm-edit-form="${esc(row.id)}">
-          <textarea name="body" rows="2" maxlength="2000" aria-label="코멘트 수정"></textarea>
+          <textarea name="body" rows="2" maxlength="2000" aria-label="디렉터 코멘트 수정"></textarea>
           <button class="btn btn-ghost" type="submit">저장</button>
           <button class="lnk" type="button" data-cm-cancel>취소</button>
         </form>`);
@@ -6340,7 +6342,7 @@ async function renderTasks(root, query) {
         ${titleCell(t)}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}${
-          t.comment_count ? `<i class="tk-cm" title="코멘트 ${t.comment_count}건">💬 ${t.comment_count}</i>` : ''}</span>
+          t.comment_count ? `<i class="tk-cm" title="디렉터 코멘트 ${t.comment_count}건">💬 ${t.comment_count}</i>` : ''}</span>
       <span class="tk-cat">${categoryPick(t)}</span>
       <span class="tk-pr ${PR_TONE[t.priority] ?? ''}">${esc(
         (state.meta.priorities.find((x) => x.code === t.priority) ?? {}).label ?? t.priority)}</span>
@@ -6851,7 +6853,7 @@ async function renderTaskDetail(root, id) {
         </div>
 
         <div class="panel" data-comments-panel>
-          <h3>코멘트</h3>
+          <h3>디렉터 코멘트</h3>
           <div data-comments></div>
         </div>
 
@@ -7647,6 +7649,12 @@ async function renderNotifications(root) {
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 상태는 상태색으로 나눈다.
 // 막대에는 늘 이름이 붙는다 — 색만으로 구분되는 곳은 없다.
 
+// 줄 안에서 제 일을 하는 것들 — 여기를 누른 것은 '상세로 가자'가 아니다
+const TASK_LINE_CONTROLS = [
+  'select', 'input', 'textarea',
+  '.due-view', '.due-edit', '.ttl-edit', '.tld-subs', '.tld-cm', '.tld-del', '.tld-edit',
+].join(',');
+
 const TL_DAY = 86_400_000;
 const tlParse = (iso) => Date.parse(`${String(iso).slice(0, 10)}T00:00:00Z`);
 const tlAdd = (iso, n) => new Date(tlParse(iso) + n * TL_DAY).toISOString().slice(0, 10);
@@ -7958,7 +7966,7 @@ async function renderTimeline(root) {
     // 하위 업무는 평소에 접어 둔다. 몇 개인지만 보이고, 누르면 그 자리에서 펼쳐진다 —
     // 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
     const taskLine = (t) => `
-      <div class="tld-task" data-line="${esc(t.id)}">
+      <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0">
         <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
         <span class="ttl">${titleCell(t)}</span>
         ${t.subtask_total
@@ -7967,7 +7975,7 @@ async function renderTimeline(root) {
                      >하위 ${t.subtask_done}/${t.subtask_total}</button>`
           : '<span class="tld-subs empty"></span>'}
         <button class="tld-cm${t.comment_count ? ' on' : ''}" data-cm="${esc(t.id)}" aria-expanded="false"
-                title="코멘트${t.comment_count ? ` ${t.comment_count}건` : ' 남기기'}"
+                title="디렉터 코멘트${t.comment_count ? ` ${t.comment_count}건` : ' 남기기'}"
                 >💬${t.comment_count ? ` ${t.comment_count}` : ''}</button>
         <span class="cat">${categoryPick(t, { blank: '분류 지정' })}</span>
         <span class="st">${statusPick(t)}</span>
@@ -8056,9 +8064,16 @@ async function renderTimeline(root) {
 
   root.addEventListener('keydown', (e) => {
     const ttl = e.target.closest('[data-title]');
-    if (!ttl) return;
-    if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
+    if (ttl) {
+      if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
+      return;
+    }
+    const line = e.target.closest('.tld-task');
+    if (line && (e.key === 'Enter' || e.key === ' ') && !e.target.closest(TASK_LINE_CONTROLS)) {
+      e.preventDefault();
+      go(`#/project/tasks/${line.dataset.line}`);
+    }
   });
 
   // 코멘트를 그 자리에서 펼친다. 업무 상세와 같은 것을 쓴다 —
@@ -8162,6 +8177,13 @@ async function renderTimeline(root) {
 
     const task = e.target.closest('[data-task]');
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
+
+    // 줄 아무 데나 눌러도 상세가 열린다. ✎ 를 정확히 겨냥하게 하는 것은
+    // 손가락에게 특히 가혹하다. 다만 줄 안의 편집칸들은 제 일을 해야 한다.
+    const line = e.target.closest('.tld-task');
+    if (line && !e.target.closest(TASK_LINE_CONTROLS)) {
+      return go(`#/project/tasks/${line.dataset.line}`);
+    }
 
     const ms = e.target.closest('[data-milestone], [data-milestone-row]');
     if (ms) {
@@ -8725,7 +8747,7 @@ function gatePanel() {
       <section class="gate-codes">
         <h3>나눠 준 코드</h3>
         <p class="hint">코드에 사람을 묶으면 그 코드로 들어온 사람은 그 이름으로 고정됩니다 —
-          코멘트 작성자를 믿을 수 있게 됩니다. 코드 자체는 해시로만 저장돼 다시 보여 줄 수 없습니다.</p>
+          디렉터 코멘트 작성자를 믿을 수 있게 됩니다. 코드 자체는 해시로만 저장돼 다시 보여 줄 수 없습니다.</p>
         <ul class="rp-list gc-list" data-codes><li class="hint">불러오는 중…</li></ul>
       </section>` : ''}
 

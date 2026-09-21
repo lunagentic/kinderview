@@ -73,7 +73,7 @@ export function gatePanel() {
       <section class="gate-codes">
         <h3>나눠 준 코드</h3>
         <p class="hint">코드에 사람을 묶으면 그 코드로 들어온 사람은 그 이름으로 고정됩니다 —
-          코멘트 작성자를 믿을 수 있게 됩니다. 코드 자체는 해시로만 저장돼 다시 보여 줄 수 없습니다.</p>
+          디렉터 코멘트 작성자를 믿을 수 있게 됩니다. 코드 자체는 해시로만 저장돼 다시 보여 줄 수 없습니다.</p>
         <ul class="rp-list gc-list" data-codes><li class="hint">불러오는 중…</li></ul>
       </section>` : ''}
 

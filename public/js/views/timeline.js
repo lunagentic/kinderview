@@ -12,6 +12,12 @@ import { bindComments } from '../comments.js';
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 상태는 상태색으로 나눈다.
 // 막대에는 늘 이름이 붙는다 — 색만으로 구분되는 곳은 없다.
 
+// 줄 안에서 제 일을 하는 것들 — 여기를 누른 것은 '상세로 가자'가 아니다
+const TASK_LINE_CONTROLS = [
+  'select', 'input', 'textarea',
+  '.due-view', '.due-edit', '.ttl-edit', '.tld-subs', '.tld-cm', '.tld-del', '.tld-edit',
+].join(',');
+
 const TL_DAY = 86_400_000;
 const tlParse = (iso) => Date.parse(`${String(iso).slice(0, 10)}T00:00:00Z`);
 const tlAdd = (iso, n) => new Date(tlParse(iso) + n * TL_DAY).toISOString().slice(0, 10);
@@ -323,7 +329,7 @@ export async function renderTimeline(root) {
     // 하위 업무는 평소에 접어 둔다. 몇 개인지만 보이고, 누르면 그 자리에서 펼쳐진다 —
     // 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
     const taskLine = (t) => `
-      <div class="tld-task" data-line="${esc(t.id)}">
+      <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0">
         <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
         <span class="ttl">${titleCell(t)}</span>
         ${t.subtask_total
@@ -332,7 +338,7 @@ export async function renderTimeline(root) {
                      >하위 ${t.subtask_done}/${t.subtask_total}</button>`
           : '<span class="tld-subs empty"></span>'}
         <button class="tld-cm${t.comment_count ? ' on' : ''}" data-cm="${esc(t.id)}" aria-expanded="false"
-                title="코멘트${t.comment_count ? ` ${t.comment_count}건` : ' 남기기'}"
+                title="디렉터 코멘트${t.comment_count ? ` ${t.comment_count}건` : ' 남기기'}"
                 >💬${t.comment_count ? ` ${t.comment_count}` : ''}</button>
         <span class="cat">${categoryPick(t, { blank: '분류 지정' })}</span>
         <span class="st">${statusPick(t)}</span>
@@ -421,9 +427,16 @@ export async function renderTimeline(root) {
 
   root.addEventListener('keydown', (e) => {
     const ttl = e.target.closest('[data-title]');
-    if (!ttl) return;
-    if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
+    if (ttl) {
+      if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
+      return;
+    }
+    const line = e.target.closest('.tld-task');
+    if (line && (e.key === 'Enter' || e.key === ' ') && !e.target.closest(TASK_LINE_CONTROLS)) {
+      e.preventDefault();
+      go(`#/project/tasks/${line.dataset.line}`);
+    }
   });
 
   // 코멘트를 그 자리에서 펼친다. 업무 상세와 같은 것을 쓴다 —
@@ -527,6 +540,13 @@ export async function renderTimeline(root) {
 
     const task = e.target.closest('[data-task]');
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
+
+    // 줄 아무 데나 눌러도 상세가 열린다. ✎ 를 정확히 겨냥하게 하는 것은
+    // 손가락에게 특히 가혹하다. 다만 줄 안의 편집칸들은 제 일을 해야 한다.
+    const line = e.target.closest('.tld-task');
+    if (line && !e.target.closest(TASK_LINE_CONTROLS)) {
+      return go(`#/project/tasks/${line.dataset.line}`);
+    }
 
     const ms = e.target.closest('[data-milestone], [data-milestone-row]');
     if (ms) {

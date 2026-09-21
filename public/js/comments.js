@@ -1,4 +1,4 @@
-// 업무에 달리는 코멘트. 업무 상세와 타임라인이 같은 것을 쓴다 —
+// 디렉터 코멘트 — 업무에 달리는 의견. 업무 상세와 타임라인이 같은 것을 쓴다 —
 // 한쪽에서 남긴 말이 다른 쪽에서 안 보이면 코멘트가 아니라 메모가 된다.
 //
 // 대댓글은 한 단계까지다. 답글에 또 답글을 달면 자료 층이 뿌리 글에 붙여 준다.
@@ -48,14 +48,14 @@ export function commentList(rows) {
   const live = rows.filter((c) => !c.deleted_at).length;
   return `
     ${shown.length ? `<ul class="cm-list">${shown.map((c) => one(c)).join('')}</ul>` : ''}
-    ${!live && !shown.length ? '<p class="empty-line">아직 코멘트가 없습니다.</p>' : ''}
+    ${!live && !shown.length ? '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>' : ''}
     ${canEdit()
       ? `<form class="cm-add" data-cm-add>
            <textarea name="body" rows="2" maxlength="2000"
-                     placeholder="이 업무에 대한 의견을 남겨 주세요" aria-label="코멘트"></textarea>
+                     placeholder="이 업무에 대한 의견을 남겨 주세요" aria-label="디렉터 코멘트"></textarea>
            <button class="btn btn-ghost" type="submit">남기기</button>
          </form>`
-      : '<p class="hint">코멘트를 남기려면 편집 코드가 필요합니다.</p>'}`;
+      : '<p class="hint">디렉터 코멘트를 남기려면 편집 코드가 필요합니다.</p>'}`;
 }
 
 /**
@@ -141,7 +141,7 @@ export function bindComments(box, taskId, { onChange } = {}) {
       acts.hidden = true;
       li.insertAdjacentHTML('beforeend', `
         <form class="cm-sub" data-cm-edit-form="${esc(row.id)}">
-          <textarea name="body" rows="2" maxlength="2000" aria-label="코멘트 수정"></textarea>
+          <textarea name="body" rows="2" maxlength="2000" aria-label="디렉터 코멘트 수정"></textarea>
           <button class="btn btn-ghost" type="submit">저장</button>
           <button class="lnk" type="button" data-cm-cancel>취소</button>
         </form>`);
