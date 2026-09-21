@@ -47,6 +47,19 @@ export const ISSUE_STATUSES = [
   { code: 'RESOLVED', label: '해결',   tone: 'done' },
 ];
 
+/**
+ * 업무 분류 — 이 일이 무엇인가. 영역(누가 하나)과는 다른 축이다.
+ * 업무당 하나만 고른다. 여러 개 붙으면 타임라인에서 어느 줄에 놓을지 정할 수 없다.
+ * 안 고르면 '분류 없음'이다 — 처음에는 다 그 상태이고, 보면서 하나씩 정하면 된다.
+ *
+ * DB 의 CHECK 로 묶지 않았다. 여기에 한 줄 더하는 일이 표를 통째로 다시 만드는
+ * 일이 되면 안 된다. 값 검사는 repo·store 양쪽에서 이 목록으로 한다.
+ */
+export const CATEGORIES = [
+  { code: 'NEW',     label: '신규 기능' },
+  { code: 'IMPROVE', label: '기능 개선' },
+];
+
 export const PRIORITIES = [
   { code: 'HIGH',   label: '높음' },
   { code: 'NORMAL', label: '보통' },

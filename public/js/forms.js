@@ -134,6 +134,14 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
+          <span class="lab">분류 <span class="hint" style="font-weight:400">나중에 정해도 됩니다</span></span>
+          <select name="category">
+            <option value="">분류 없음</option>
+            ${opts(state.meta.categories ?? [], task?.category ?? defaults.category ?? '')}
+          </select>
+        </label>
+
+        <label class="field">
           <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
           <select name="owner_slack_user_id" data-owner>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${

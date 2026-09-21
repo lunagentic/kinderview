@@ -1,7 +1,7 @@
 import { all, one, run, tx, uid, nowISO, today, addDays } from './db.js';
 import {
   PROGRESS_WEIGHT, STAGE, WAIT_STATUSES, IN_PROGRESS_STATUSES, REVIEW_STAGE_STATUSES,
-  defaultStatusFor, statusesFor, AREAS,
+  defaultStatusFor, statusesFor, AREAS, CATEGORIES,
 } from './domain.js';
 
 // ── 공통 ────────────────────────────────────────────────
@@ -392,6 +392,13 @@ export const vendors = {
 // 업무의 담당자는 사람을 고르는 것이 아니라 "그 영역의 리드가 누구인가"로 정해진다.
 
 /** 담당으로 세울 수 있는 사람인지 본다 — 담당 없는 업무는 만들 수 없다(원칙 1) */
+/** 분류 값을 받아 준다. 빈 값은 '분류 없음'이고, 모르는 값은 막는다. */
+function takeCategory(v) {
+  const code = v || null;
+  if (code && !CATEGORIES.some((c) => c.code === code)) throw new HttpError(400, '없는 분류입니다.');
+  return code;
+}
+
 function ensureMember(slackUserId) {
   const m = one('SELECT slack_user_id FROM member WHERE slack_user_id = :id AND is_active = 1',
     { id: slackUserId });
@@ -703,6 +710,15 @@ export const tasks = {
     if (!filter.includeArchivedProjects) where.push('(p.is_archived = 0 OR t.project_id IS NULL)');
     if (filter.project?.length) where.push(`t.project_id IN ${inClause('pj', filter.project, params)}`);
     if (filter.area?.length) where.push(`t.area IN ${inClause('ar', filter.area, params)}`);
+    if (filter.category?.length) {
+      // 'NONE' 은 분류를 아직 안 정한 업무를 뜻한다
+      const wants = filter.category.filter((c) => c !== 'NONE');
+      const none = filter.category.includes('NONE');
+      const parts = [];
+      if (wants.length) parts.push(`t.category IN ${inClause('cat', wants, params)}`);
+      if (none) parts.push('t.category IS NULL');
+      if (parts.length) where.push(`(${parts.join(' OR ')})`);
+    }
     if (filter.phase?.length) where.push(`t.phase_id IN ${inClause('phz', filter.phase, params)}`);
     if (filter.owner?.length) where.push(`t.owner_slack_user_id IN ${inClause('ow', filter.owner, params)}`);
     if (filter.status?.length) where.push(`t.status IN ${inClause('st', filter.status, params)}`);
@@ -770,15 +786,16 @@ export const tasks = {
       const id = uid();
       const at = nowISO();
       run(
-        `INSERT INTO task (id, project_id, phase_id, title, area, owner_slack_user_id, status, priority,
+        `INSERT INTO task (id, project_id, phase_id, title, area, category, owner_slack_user_id, status, priority,
                            start_date, due_date, description, completed_at, created_by, created_at, updated_at)
-         VALUES (:id, :project_id, :phase_id, :title, :area, :owner, :status, :priority,
+         VALUES (:id, :project_id, :phase_id, :title, :area, :category, :owner, :status, :priority,
                  :start_date, :due_date, :description, :completed_at, :actor, :at, :at)`,
         {
           id,
           project_id: input.project_id || null,
           // 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 못 고른다.
           phase_id: (input.project_id && input.phase_id) || null,
+          category: takeCategory(input.category),
           title: input.title.trim(),
           area,
           owner,
@@ -841,6 +858,7 @@ export const tasks = {
 
       run(
         `UPDATE task SET project_id = :project_id, phase_id = :phase_id, title = :title, area = :area,
+           category = :category,
            owner_slack_user_id = :owner, status = :status, priority = :priority,
            start_date = :start_date, due_date = :due_date, description = :description,
            completed_at = :completed_at, updated_at = :at
@@ -853,6 +871,7 @@ export const tasks = {
             : (input.phase_id === undefined ? cur.phase_id : (input.phase_id || null)),
           title: (input.title ?? cur.title).trim(),
           area,
+          category: input.category === undefined ? cur.category : takeCategory(input.category),
           owner,
           status,
           priority: input.priority ?? cur.priority,

@@ -252,6 +252,14 @@ function addOutsourcingPayment() {
   return '외주 지급 컬럼 추가 (amount · payment_status · paid_at)';
 }
 
+/** 업무 분류 — 비어 있어도 되므로 컬럼만 더하면 된다 */
+function addTaskCategory() {
+  const sql = tableSql('task');
+  if (!sql || sql.includes('category')) return null;
+  db.exec('ALTER TABLE task ADD COLUMN category TEXT');
+  return '업무 분류 컬럼 추가 (기존 업무는 분류 없음)';
+}
+
 /** 업무를 페이즈에 묶는 컬럼 — 비어 있어도 되므로 컬럼만 더하면 된다 */
 function addTaskPhase() {
   const sql = tableSql('task');
@@ -275,7 +283,7 @@ function ensureConstraints() {
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
-    migrateBacklog(), migrateProjectOptional()]
+    migrateBacklog(), migrateProjectOptional(), addTaskCategory()]
     .filter(Boolean);
   ensureConstraints();
   for (const note of notes) console.log(`[migrate] ${note}`);

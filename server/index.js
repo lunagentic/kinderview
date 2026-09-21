@@ -17,7 +17,7 @@ import * as ai from './ai/index.js';
 import * as slackCommands from './slack-commands.js';
 import {
   AREAS, NORMAL_STATUSES, OUT_STATUSES, REVIEW_STATUSES, ISSUE_STATUSES,
-  PRIORITIES, PROJECT_STATUSES, PROGRESS_WEIGHT,
+  PRIORITIES, PROJECT_STATUSES, PROGRESS_WEIGHT, CATEGORIES,
 } from './domain.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -87,6 +87,7 @@ route('GET', '/api/bootstrap', (ctx) => ({
     out_statuses: OUT_STATUSES,
     review_statuses: REVIEW_STATUSES,
     issue_statuses: ISSUE_STATUSES,
+    categories: CATEGORIES,
     priorities: PRIORITIES,
     project_statuses: PROJECT_STATUSES,
     progress_weight: PROGRESS_WEIGHT,
@@ -108,6 +109,7 @@ route('GET', '/api/tasks', (ctx) => {
     phase: listParam(u, 'phase'),
     month: u.searchParams.get('month') || undefined,
     area: listParam(u, 'area'),
+    category: listParam(u, 'category'),
     owner,
     status: listParam(u, 'status'),
     stage: u.searchParams.get('stage') || undefined,

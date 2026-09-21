@@ -826,6 +826,10 @@ function listTasks(f = {}) {
     rows = rows.filter((t) => (t.due_date ?? '').slice(0, 7) === f.month);
   }
   if (f.area?.length) rows = rows.filter((t) => f.area.includes(t.area));
+  // 'NONE' 은 분류를 아직 안 정한 업무를 뜻한다
+  if (f.category?.length) {
+    rows = rows.filter((t) => (t.category ? f.category.includes(t.category) : f.category.includes('NONE')));
+  }
   if (f.owner?.length) rows = rows.filter((t) => f.owner.includes(t.owner_slack_user_id));
   if (f.status?.length) rows = rows.filter((t) => f.status.includes(t.status));
   if (f.stage === 'WAIT') rows = rows.filter((t) => WAIT_STATUSES.includes(t.status));
@@ -1070,6 +1074,13 @@ function upsertOutsourcing(taskId, input) {
   else DB.outsourcing.push(row);
 }
 
+/** 분류 값을 받아 준다. 빈 값은 '분류 없음'이고, 모르는 값은 막는다. */
+function takeCategory(v) {
+  const code = v || null;
+  if (code && !CATEGORIES.some((c) => c.code === code)) throw new DemoError('없는 분류입니다.');
+  return code;
+}
+
 function createTask(input, actor) {
   if (!input.title?.trim()) throw new DemoError('업무명을 입력해 주세요.');
   // 프로젝트는 비워 둘 수 있다 — 어디에 붙일지 나중에 정하는 일도 일단 받아 적는다.
@@ -1088,7 +1099,8 @@ function createTask(input, actor) {
     id: uid(), project_id: input.project_id || null,
     // 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 못 고른다.
     phase_id: (input.project_id && input.phase_id) || null,
-    title: input.title.trim(), area, owner_slack_user_id: owner, status,
+    title: input.title.trim(), area, category: takeCategory(input.category),
+    owner_slack_user_id: owner, status,
     priority: input.priority || 'NORMAL',
     start_date: input.start_date || null, due_date: due,
     description: input.description || null,
@@ -1136,7 +1148,9 @@ function updateTask(id, input, actor) {
     // 프로젝트를 떼면 그 안에 있던 페이즈도 같이 뗀다
     phase_id: !pid ? null : (input.phase_id === undefined ? t.phase_id : (input.phase_id || null)),
     title: (input.title ?? t.title).trim(),
-    area, owner_slack_user_id: owner, status,
+    area,
+    category: input.category === undefined ? t.category : takeCategory(input.category),
+    owner_slack_user_id: owner, status,
     priority: input.priority ?? t.priority,
     start_date: input.start_date === undefined ? t.start_date : (input.start_date || null),
     due_date: due,
@@ -1909,6 +1923,7 @@ function handle(method, path, body) {
       meta: {
         areas: AREAS, normal_statuses: NORMAL_STATUSES, out_statuses: OUT_STATUSES,
         review_statuses: REVIEW_STATUSES, issue_statuses: ISSUE_STATUSES,
+        categories: CATEGORIES,
         priorities: PRIORITIES, project_statuses: PROJECT_STATUSES, progress_weight: PROGRESS_WEIGHT,
         expense_categories: EXPENSE_CATEGORIES,
       },

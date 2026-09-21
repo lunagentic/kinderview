@@ -63,6 +63,13 @@ export async function renderTaskDetail(root, id) {
                 a.code === t.area ? ' selected' : ''}>${esc(a.full)}</option>`).join('')}
             </select>
           </span>
+          <span class="area-pick" title="분류 변경">
+            <select data-category aria-label="분류 변경">
+              <option value=""${t.category ? '' : ' selected'}>분류 없음</option>
+              ${(state.meta.categories ?? []).map((c) => `<option value="${esc(c.code)}"${
+                c.code === t.category ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}
+            </select>
+          </span>
           ${t.is_delayed ? '<span class="chip delay">⚠ 지연</span>' : ''}
           ${t.has_open_issue ? `<span class="chip issue">🔥 미해결 이슈 ${t.open_issue_count}</span>` : ''}
         </div>
@@ -206,6 +213,14 @@ export async function renderTaskDetail(root, id) {
       try {
         await api.patch(`/api/tasks/${t.id}`, { area: next });
         toast(`영역을 ${areaMeta(next).full}(으)로 바꿨습니다. 담당은 ${lead.display_name}입니다.`);
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
+    const cat = e.target.closest('[data-category]');
+    if (cat) {
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { category: cat.value || null });
+        toast('분류를 바꿨습니다.');
       } catch (err) { toast(err.message, true); }
       return reload();
     }

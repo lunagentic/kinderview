@@ -3,7 +3,7 @@ import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
-  titleCell, autoGrow, syncTitleCell,
+  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryPick,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm } from '../forms.js';
 
@@ -302,9 +302,40 @@ export async function renderTimeline(root) {
     }
     if (openId !== phaseId) return undefined;   // 그새 다른 걸 눌렀으면 버린다
 
+    // 영역 › 분류 › 업무. 「서비스기획 - 신규 기능 - 갤러리 소셜화」를 한눈에 읽으려면
+    // 분류가 업무 위에 한 단으로 서야 한다. 분류를 아직 안 정한 것은 맨 아래로 모은다.
+    const catOrder = [...(state.meta?.categories ?? []).map((c) => c.code), null];
     const areas = (state.meta?.areas ?? [])
-      .map((a) => ({ area: a, rows: rows.filter((t) => t.area === a.code) }))
+      .map((a) => {
+        const mine = rows.filter((t) => t.area === a.code);
+        const groups = catOrder
+          .map((code) => ({
+            code,
+            label: code ? categoryLabel(code) : '분류 없음',
+            rows: mine.filter((t) => (t.category ?? null) === code),
+          }))
+          .filter((g) => g.rows.length);
+        return { area: a, rows: mine, groups };
+      })
       .filter((g) => g.rows.length);
+
+    // 하위 업무는 평소에 접어 둔다. 몇 개인지만 보이고, 누르면 그 자리에서 펼쳐진다 —
+    // 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
+    const taskLine = (t) => `
+      <div class="tld-task" data-line="${esc(t.id)}">
+        <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
+        <span class="ttl">${titleCell(t)}</span>
+        ${t.subtask_total
+          ? `<button class="tld-subs" data-subs="${esc(t.id)}" aria-expanded="false"
+                     title="하위 업무 ${t.subtask_done}/${t.subtask_total} — 눌러서 펼치기"
+                     >하위 ${t.subtask_done}/${t.subtask_total}</button>`
+          : '<span class="tld-subs empty"></span>'}
+        <span class="cat">${categoryPick(t, { blank: '분류 지정' })}</span>
+        <span class="st">${statusPick(t)}</span>
+        <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
+                title="상세 편집">✎</button>
+        <button class="tld-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
+      </div>`;
 
     const range = ph.start_date ? `${shortDate(ph.start_date)} ~ ${shortDate(ph.end_date)}` : '기간 미정';
 
@@ -326,14 +357,13 @@ export async function renderTimeline(root) {
             <span class="n">${g.rows.length}건</span>
             <span class="lead">${esc(leadNames(g.area.code))}</span>
           </div>
-          ${g.rows.map((t) => `
-            <div class="tld-task">
-              <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
-              <span class="ttl">${titleCell(t)}</span>
-              <span class="st">${statusPick(t)}</span>
-              <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
-                      title="상세 편집">✎</button>
-              <button class="tld-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
+          ${g.groups.map((cg) => `
+            <div class="tld-cat${cg.code ? '' : ' none'}">
+              <div class="tld-cat-head">
+                <span class="lab">${esc(cg.label)}</span>
+                <span class="n">${cg.rows.length}건</span>
+              </div>
+              ${cg.rows.map(taskLine).join('')}
             </div>`).join('')}
         </section>`).join('')}</div>`
         : '<p class="hint" style="padding:14px 2px">이 페이즈에 배정된 업무가 없습니다.</p>'}`;
@@ -349,6 +379,14 @@ export async function renderTimeline(root) {
       } catch (err) { toast(err.message, true); }
       // 페이즈 진행률이 함께 달라진다
       return reload();
+    }
+    const cat = e.target.closest('[data-category]');
+    if (cat) {
+      try {
+        await api.patch(`/api/tasks/${cat.dataset.category}`, { category: cat.value || null });
+        toast('분류를 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();   // 분류가 바뀌면 묶음이 달라진다
     }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
@@ -382,6 +420,40 @@ export async function renderTimeline(root) {
     if (!ttl) return;
     if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
     if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
+  });
+
+  // 하위 업무를 그 자리에서 펼친다. 한 번 읽어 오면 접었다 펴는 동안 다시 읽지 않는다.
+  root.addEventListener('click', async (e) => {
+    const sb = e.target.closest('[data-subs]');
+    if (!sb) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const line = sb.closest('.tld-task');
+    const open = sb.getAttribute('aria-expanded') === 'true';
+    const box = line.nextElementSibling?.classList.contains('tld-sublist')
+      ? line.nextElementSibling : null;
+
+    if (open) {
+      box?.remove();
+      sb.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    sb.setAttribute('aria-expanded', 'true');
+    const holder = document.createElement('div');
+    holder.className = 'tld-sublist';
+    holder.innerHTML = '<span class="hint">불러오는 중…</span>';
+    line.after(holder);
+    try {
+      const subs = await api.get(`/api/tasks/${sb.dataset.subs}/subtasks`);
+      holder.innerHTML = subs.length
+        ? subs.map((x) => `<div class="tld-sub${x.is_done ? ' done' : ''}">
+             <span class="mark" aria-hidden="true">${x.is_done ? '✓' : '·'}</span>
+             <span class="t">${esc(x.title)}</span>
+           </div>`).join('')
+        : '<span class="hint">하위 업무가 없습니다.</span>';
+    } catch (err) {
+      holder.innerHTML = `<span class="hint">${esc(err.message)}</span>`;
+    }
   });
 
   root.addEventListener('click', (e) => {

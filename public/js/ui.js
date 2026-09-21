@@ -84,6 +84,20 @@ export const statusPick = (t) => {
   </select>`;
 };
 
+/** 분류 — 상태 칩과 같은 방식으로, 눌러서 그 자리에서 바꾼다 */
+export const categoryLabel = (code) =>
+  (state.meta?.categories ?? []).find((c) => c.code === code)?.label ?? '분류 없음';
+
+/** blank: 분류가 없을 때 뭐라고 쓸지. 묶음 제목이 이미 '분류 없음'인 곳에서는
+ *  같은 말을 두 번 하지 않도록 「분류 지정」처럼 할 일로 적는다. */
+export const categoryPick = (t, { blank = '분류 없음' } = {}) => `
+  <select class="chip-select cat${t.category ? '' : ' none'}" data-category="${esc(t.id)}"
+          aria-label="분류 변경" title="눌러서 분류 바꾸기">
+    <option value=""${t.category ? '' : ' selected'}>${esc(blank)}</option>
+    ${(state.meta?.categories ?? []).map((c) => `<option value="${esc(c.code)}"${
+      c.code === t.category ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}
+  </select>`;
+
 export const issueChip = (code) => {
   const s = issueStatusMeta(code);
   return `<span class="chip ${s.tone}">${esc(s.label)}</span>`;

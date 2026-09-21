@@ -99,6 +99,9 @@ CREATE TABLE IF NOT EXISTS task (
   phase_id            TEXT REFERENCES phase(id) ON DELETE SET NULL,
   title               TEXT NOT NULL,
   area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
+  -- 분류(신규 기능·기능 개선 …). 값 집합은 domain.js 가 들고 있다 —
+  -- 여기 CHECK 로 묶으면 분류를 하나 더할 때마다 표를 다시 만들어야 한다.
+  category            TEXT,
   owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
   status              TEXT NOT NULL,
   priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),

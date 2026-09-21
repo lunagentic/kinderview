@@ -3,7 +3,7 @@ import { state, activeProjects, areaMeta, leadNames } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
-  titleCell, autoGrow, syncTitleCell,
+  titleCell, autoGrow, syncTitleCell, categoryPick,
 } from '../ui.js';
 import { taskForm, projectForm } from '../forms.js';
 
@@ -150,6 +150,7 @@ export async function renderTasks(root, query) {
         ${titleCell(t)}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
+      <span class="tk-cat">${categoryPick(t)}</span>
       <span class="tk-pr ${PR_TONE[t.priority] ?? ''}">${esc(
         (state.meta.priorities.find((x) => x.code === t.priority) ?? {}).label ?? t.priority)}</span>
       <span class="tk-owner">${person(t.owner_slack_user_id, t.owner_name)}</span>
@@ -510,6 +511,14 @@ export async function renderTasks(root, query) {
         await api.patch(`/api/tasks/${ttl.dataset.title}`, { title: next });
         ttl.defaultValue = next;
         toast('업무명을 바꿨습니다.');
+      } catch (err) { toast(err.message, true); reload(); }
+      return undefined;
+    }
+    const cat = e.target.closest('[data-category]');
+    if (cat) {
+      try {
+        await api.patch(`/api/tasks/${cat.dataset.category}`, { category: cat.value || null });
+        toast('분류를 바꿨습니다.');
       } catch (err) { toast(err.message, true); reload(); }
       return undefined;
     }
