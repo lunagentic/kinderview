@@ -242,6 +242,27 @@ async function render() {
   }
 }
 
+/**
+ * 등록한 업무가 있는 곳으로 목록을 옮긴다.
+ * 만들어 놓고 못 찾으면 만든 보람이 없다 — 마감일이 없으면 백로그로,
+ * 다른 달이면 그 달로 옮기고 방금 만든 줄을 짚어 준다.
+ *
+ * 목록을 보고 있지 않을 때는 끌고 가지 않는다. 타임라인에서 등록했는데
+ * 갑자기 업무 목록으로 튀면 하던 일을 잃는다 — 그때는 토스트가 어디로
+ * 갔는지 말해 준다.
+ */
+function revealTask(saved) {
+  const onList = /^#\/project\/tasks(\?|$)/.test(window.location.hash);
+  if (!saved?.id || !onList) {
+    window.dispatchEvent(new Event('kf:reload'));
+    return;
+  }
+  const q = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  q.set('month', saved.due_date ? saved.due_date.slice(0, 7) : 'backlog');
+  q.set('new', saved.id);           // 여기 있다고 짚어 주는 표시
+  window.location.hash = `#/project/tasks?${q.toString()}`;   // hashchange 가 다시 그린다
+}
+
 const moneyLocked = (what) => `
   <div class="page-head"><div><h1>${esc(what)}</h1>
     <div class="sub">경비·지급 금액이 있는 화면입니다</div></div></div>
@@ -284,7 +305,7 @@ document.getElementById('me-select').addEventListener('change', async (e) => {
 // 로그인 대신 현재 사용자를 고르는 구조이므로, 바뀌면 화면을 다시 그린다
 document.getElementById('btn-new-task').addEventListener('click', () => {
   if (!canEdit()) return gatePanel();
-  taskForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
+  taskForm({ onSaved: revealTask });
 });
 
 // 각 뷰의 "+ 업무 등록" 버튼 (위임)
@@ -296,7 +317,7 @@ view.addEventListener('click', (e) => {
     return void gatePanel();
   }
   if (e.target.closest('[data-new-task]')) {
-    taskForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
+    taskForm({ onSaved: revealTask });
   } else if (e.target.closest('[data-new-issue]')) {
     import('./forms.js').then(({ issueForm }) =>
       issueForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) }));

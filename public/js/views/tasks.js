@@ -50,6 +50,10 @@ export async function renderTasks(root, query) {
   const rawMonth = p.get('month');
   const backlog = rawMonth === 'backlog';
   const month = rawMonth && rawMonth !== 'all' && !backlog ? rawMonth : null;
+  // 방금 등록한 업무를 짚어 주기 위한 표시. 조건이 아니므로 여기서 떼어 낸다 —
+  // 그래야 서버에도 안 가고, 달을 다시 고를 때 따라붙지도 않는다.
+  const justMade = p.get('new');
+  p.delete('new');
   const ask = new URLSearchParams(p);
   if (ask.get('month') === 'all') ask.delete('month');
   // 백로그는 달이 아니다 — 달 자리에 얹어 두고 서버에는 따로 알린다
@@ -465,6 +469,23 @@ export async function renderTasks(root, query) {
       go(`#/project/tasks/${row.dataset.open}`);
     }
   });
+
+  // ── 방금 등록한 업무 짚어 주기 ──────────────────────
+  // 주소에서 표시는 지운다. 새로고침할 때마다 다시 반짝이면 성가시다.
+  if (justMade) {
+    // 주소에서 표시를 지운다. 새로고침할 때마다 다시 반짝이면 성가시다.
+    const hash = `#/project/tasks${p.toString() ? `?${p.toString()}` : ''}`;
+    try { window.history.replaceState(null, '', hash); } catch { /* 주소를 못 고쳐도 화면은 그대로다 */ }
+
+    const row = root.querySelector(`.tk-row[data-open="${CSS.escape(justMade)}"]`);
+    if (row) {
+      row.classList.add('landed');
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else if (!rows.some((t) => t.id === justMade)) {
+      // 달은 맞춰 왔는데도 안 보인다 = 다른 필터가 가리고 있다
+      toast('등록한 업무가 지금 필터에 가려 있습니다. 「필터 초기화」를 눌러 보세요.');
+    }
+  }
 
   autoGrow(root);
 

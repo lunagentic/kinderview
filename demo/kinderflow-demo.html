@@ -5826,6 +5826,10 @@ async function renderTasks(root, query) {
   const rawMonth = p.get('month');
   const backlog = rawMonth === 'backlog';
   const month = rawMonth && rawMonth !== 'all' && !backlog ? rawMonth : null;
+  // 방금 등록한 업무를 짚어 주기 위한 표시. 조건이 아니므로 여기서 떼어 낸다 —
+  // 그래야 서버에도 안 가고, 달을 다시 고를 때 따라붙지도 않는다.
+  const justMade = p.get('new');
+  p.delete('new');
   const ask = new URLSearchParams(p);
   if (ask.get('month') === 'all') ask.delete('month');
   // 백로그는 달이 아니다 — 달 자리에 얹어 두고 서버에는 따로 알린다
@@ -6241,6 +6245,23 @@ async function renderTasks(root, query) {
       go(`#/project/tasks/${row.dataset.open}`);
     }
   });
+
+  // ── 방금 등록한 업무 짚어 주기 ──────────────────────
+  // 주소에서 표시는 지운다. 새로고침할 때마다 다시 반짝이면 성가시다.
+  if (justMade) {
+    // 주소에서 표시를 지운다. 새로고침할 때마다 다시 반짝이면 성가시다.
+    const hash = `#/project/tasks${p.toString() ? `?${p.toString()}` : ''}`;
+    try { window.history.replaceState(null, '', hash); } catch { /* 주소를 못 고쳐도 화면은 그대로다 */ }
+
+    const row = root.querySelector(`.tk-row[data-open="${CSS.escape(justMade)}"]`);
+    if (row) {
+      row.classList.add('landed');
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else if (!rows.some((t) => t.id === justMade)) {
+      // 달은 맞춰 왔는데도 안 보인다 = 다른 필터가 가리고 있다
+      toast('등록한 업무가 지금 필터에 가려 있습니다. 「필터 초기화」를 눌러 보세요.');
+    }
+  }
 
   autoGrow(root);
 
@@ -8530,6 +8551,27 @@ async function render() {
   }
 }
 
+/**
+ * 등록한 업무가 있는 곳으로 목록을 옮긴다.
+ * 만들어 놓고 못 찾으면 만든 보람이 없다 — 마감일이 없으면 백로그로,
+ * 다른 달이면 그 달로 옮기고 방금 만든 줄을 짚어 준다.
+ *
+ * 목록을 보고 있지 않을 때는 끌고 가지 않는다. 타임라인에서 등록했는데
+ * 갑자기 업무 목록으로 튀면 하던 일을 잃는다 — 그때는 토스트가 어디로
+ * 갔는지 말해 준다.
+ */
+function revealTask(saved) {
+  const onList = /^#\/project\/tasks(\?|$)/.test(window.location.hash);
+  if (!saved?.id || !onList) {
+    window.dispatchEvent(new Event('kf:reload'));
+    return;
+  }
+  const q = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  q.set('month', saved.due_date ? saved.due_date.slice(0, 7) : 'backlog');
+  q.set('new', saved.id);           // 여기 있다고 짚어 주는 표시
+  window.location.hash = `#/project/tasks?${q.toString()}`;   // hashchange 가 다시 그린다
+}
+
 const moneyLocked = (what) => `
   <div class="page-head"><div><h1>${esc(what)}</h1>
     <div class="sub">경비·지급 금액이 있는 화면입니다</div></div></div>
@@ -8572,7 +8614,7 @@ document.getElementById('me-select').addEventListener('change', async (e) => {
 // 로그인 대신 현재 사용자를 고르는 구조이므로, 바뀌면 화면을 다시 그린다
 document.getElementById('btn-new-task').addEventListener('click', () => {
   if (!canEdit()) return gatePanel();
-  taskForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
+  taskForm({ onSaved: revealTask });
 });
 
 // 각 뷰의 "+ 업무 등록" 버튼 (위임)
@@ -8584,7 +8626,7 @@ view.addEventListener('click', (e) => {
     return void gatePanel();
   }
   if (e.target.closest('[data-new-task]')) {
-    taskForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
+    taskForm({ onSaved: revealTask });
   } else if (e.target.closest('[data-new-issue]')) {
     issueForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
   }
