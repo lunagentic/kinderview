@@ -1,6 +1,23 @@
 import { api } from './api.js';
 import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal } from './ui.js';
+import { canEdit, canAdmin } from './gate.js';
+import { gatePanel } from './views/gatePanel.js';
+
+/**
+ * 폼은 무언가를 바꾸러 여는 창이다. 열리게 두었다가 저장할 때 거절하면
+ * 다 쓰고 나서 "저장이 안 된다"가 된다 — 열기 전에 막는 것이 맞다.
+ *
+ * 막을 것을 하나씩 나열하지 않는다. 폼이 곧 쓰기의 입구이므로 여기 한 곳이면 된다.
+ */
+const openable = (needAdmin = false) => {
+  if (needAdmin ? canAdmin() : canEdit()) return true;
+  toast(needAdmin
+    ? '이 작업은 관리자 코드가 있어야 합니다.'
+    : '보기 전용입니다. 편집 코드를 넣어 주세요.', true);
+  gatePanel();
+  return false;
+};
 
 // ── Slack 멤버 검색 선택기 ──────────────────────────────
 // 별도 구성원 DB 없이 Slack 멤버 목록에서 고른다.
@@ -81,6 +98,7 @@ const opts = (list, selected, { value = 'code', label = 'label' } = {}) =>
 
 // ── 업무 등록 / 수정 ────────────────────────────────────
 export function taskForm({ task = null, defaults = {}, onSaved }) {
+  if (!openable()) return;
   const editing = Boolean(task);
   const area0 = task?.area ?? defaults.area ?? 'PLAN';
 
@@ -326,7 +344,14 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           const saved = editing
             ? await api.patch(`/api/tasks/${task.id}`, payload)
             : await api.post('/api/tasks', payload);
-          toast(editing ? '업무를 저장했습니다.' : '업무를 등록했습니다.');
+          // 등록한 업무가 지금 보고 있는 목록에 안 잡히면 그대로 사라진 것처럼 보인다.
+          // 어디로 갔는지 말해 준다 — 목록을 마음대로 옮기는 것보다 이쪽이 덜 놀랍다.
+          const landed = !saved.due_date ? '백로그'
+            : saved.due_date.slice(0, 7) !== (state.today ?? '').slice(0, 7)
+              ? `${Number(saved.due_date.slice(5, 7))}월` : null;
+          toast(editing ? '업무를 저장했습니다.'
+            : landed ? `업무를 등록했습니다 — ${landed}에 들어갔습니다.`
+            : '업무를 등록했습니다.');
           const keepOpen = root.querySelector('#keep-open')?.checked;
           if (!editing && keepOpen) {
             close();
@@ -348,6 +373,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
 
 // ── 이슈 등록 / 수정 ────────────────────────────────────
 export function issueForm({ issue = null, defaults = {}, onSaved }) {
+  if (!openable()) return;
   const editing = Boolean(issue);
   const projectId = issue?.project_id ?? defaults.project_id ?? defaultProjectId();
 
@@ -454,6 +480,7 @@ export function issueForm({ issue = null, defaults = {}, onSaved }) {
 
 // ── 프로젝트 등록 ───────────────────────────────────────
 export function projectForm({ project = null, onSaved }) {
+  if (!openable(true)) return;
   const editing = Boolean(project);
   const body = `
     <form id="project-form">
@@ -563,6 +590,7 @@ const coPersonRow = (m, areas = new Set()) => `
 
 // 업무마다 사람을 고르는 대신 여기서 영역별 책임자를 정한다.
 export function areaLeadsForm({ onSaved }) {
+  if (!openable(true)) return;
   const current = Object.fromEntries(
     state.areaLeads.filter((l) => (l.role ?? 'LEAD') === 'LEAD').map((l) => [l.area, l.slack_user_id]));
   // 공동 리드는 사람마다 서는 영역이 다르다 — 사람 → 영역 집합으로 들고 있는다
@@ -649,6 +677,7 @@ export function areaLeadsForm({ onSaved }) {
 // ── 페이즈 ──────────────────────────────────────────────
 // 기간을 비워 두면 그 페이즈에 속한 업무 일정에서 자동으로 유도된다.
 export function phaseForm({ phase = null, projectId, onSaved }) {
+  if (!openable()) return;
   const editing = Boolean(phase);
   const body = `
     <form id="phase-form">
@@ -707,6 +736,7 @@ export function phaseForm({ phase = null, projectId, onSaved }) {
 
 // ── 마일스톤 ────────────────────────────────────────────
 export function milestoneForm({ milestone = null, projectId, phases = [], onSaved }) {
+  if (!openable()) return;
   const editing = Boolean(milestone);
   const pid = projectId ?? milestone?.project_id;
   const mine = phases.filter((p) => p.project_id === pid);
@@ -781,6 +811,7 @@ export function milestoneForm({ milestone = null, projectId, phases = [], onSave
 // ── 경비 ────────────────────────────────────────────────
 // 실비만 다룬다. 요율·인건비는 넣지 않는다 (docs/13-time-invoice-spec.md).
 export function expenseForm({ defaults = {}, onSaved }) {
+  if (!openable(true)) return;
   const cats = state.meta?.expense_categories ?? [];
   const body = `
     <form id="expense-form">

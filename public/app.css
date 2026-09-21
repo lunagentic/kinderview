@@ -539,9 +539,23 @@ body[data-gate="view"] [data-new-project]{display:none}
    display:none 으로 빼면 격자 칸이 하나씩 밀려 날짜와 제목이 겹친다 */
 body[data-gate="view"] .tk-grip,
 body[data-gate="view"] .tk-project-head .grip{visibility:hidden}
+/* 폼을 여는 단추도 보기 전용에서는 감춘다.
+   진짜로 막는 곳은 폼 자체와 저장소다 — 여기는 "눌러도 되는 것처럼" 보이지 않게 하는 일이다. */
+body[data-gate="view"] [data-phase],
+body[data-gate="view"] [data-milestone],
+body[data-gate="view"] [data-edit],
+body[data-gate="view"] [data-new-issue],
+body[data-gate="view"] .sub-add,
+body[data-gate="view"] .btn-danger{display:none}
+/* 고르는 칸은 글자로 — 상세의 담당·영역이 그렇다 */
+body[data-gate="view"] [data-owner],
+body[data-gate="view"] [data-area]{pointer-events:none;appearance:none;-webkit-appearance:none;
+  border-color:transparent;background:none;padding-left:0}
+
 /* 편집이지만 관리자는 아닌 사람 — 지우기만 감춘다 */
 body[data-gate="edit"] .tk-del,
-body[data-gate="edit"] .tld-del{display:none}
+body[data-gate="edit"] .tld-del,
+body[data-gate="edit"] .btn-danger{display:none}
 
 /* 문 패널 */
 .gate-now{display:flex;flex-direction:column;gap:3px;padding:11px 13px;margin-bottom:14px;
