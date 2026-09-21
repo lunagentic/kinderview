@@ -3,7 +3,7 @@ import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
-  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryPick, categoryStyle,
+  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryStyle,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm } from '../forms.js';
 import { bindComments } from '../comments.js';
@@ -14,7 +14,7 @@ import { bindComments } from '../comments.js';
 
 // 줄 안에서 제 일을 하는 것들 — 여기를 누른 것은 '상세로 가자'가 아니다
 const TASK_LINE_CONTROLS = [
-  'select', 'input', 'textarea',
+  'select', 'input', 'textarea',   // 상태 칸이 여기 든다
   '.due-view', '.due-edit', '.ttl-edit', '.tld-subs', '.tld-cm', '.tld-del', '.tld-edit',
 ].join(',');
 
@@ -333,7 +333,6 @@ export async function renderTimeline(root) {
     // 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
     const taskLine = (t) => `
       <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0">
-        <span class="cat">${categoryPick(t, { blank: '분류 지정' })}</span>
         <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
         <span class="ttl">${titleCell(t)}</span>
         ${t.subtask_total
@@ -392,14 +391,6 @@ export async function renderTimeline(root) {
       } catch (err) { toast(err.message, true); }
       // 페이즈 진행률이 함께 달라진다
       return reload();
-    }
-    const cat = e.target.closest('[data-category]');
-    if (cat) {
-      try {
-        await api.patch(`/api/tasks/${cat.dataset.category}`, { category: cat.value || null });
-        toast('분류를 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      return reload();   // 분류가 바뀌면 묶음이 달라진다
     }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
