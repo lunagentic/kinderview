@@ -2415,6 +2415,7 @@ const ROW_KEY = {
   milestones: (r) => r.id,
   tasks: (r) => r.id,
   subtasks: (r) => r.id,
+  comments: (r) => r.id,
   issues: (r) => r.id,
   events: (r) => r.id,
   expenses: (r) => r.id,
@@ -2762,6 +2763,81 @@ const outOf = (taskId) => DB.outsourcing.find((o) => o.task_id === taskId) || nu
 const liveIssues = () => DB.issues.filter((i) => !i.deleted_at);
 const openIssuesOf = (taskId) => liveIssues().filter((i) => i.task_id === taskId && i.status !== 'RESOLVED');
 
+// ── 코멘트 ─────────────────────────────────────────────
+// 서버(server/repo.js 의 comments)와 같은 규칙이다.
+// 대댓글은 한 단계까지, 지운 글은 자리만 남긴다.
+const commentsOf = (taskId) => (DB.comments ?? [])
+  .filter((c) => c.task_id === taskId)
+  .sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+const dressComment = (c) => {
+  const m = member(c.author_slack_user_id);
+  return {
+    ...c,
+    body: c.deleted_at ? '' : c.body,
+    author_name: m?.display_name ?? c.author_slack_user_id,
+    author_avatar: m?.avatar_url ?? null,
+  };
+};
+
+function listComments(taskId) {
+  return commentsOf(taskId).map(dressComment);
+}
+
+function createComment(taskId, input, actor) {
+  const body = String(input.body ?? '').trim();
+  if (!body) throw new DemoError('내용을 입력해 주세요.');
+  if (body.length > 2000) throw new DemoError('코멘트는 2000자까지 쓸 수 있습니다.');
+  const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
+  if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
+
+  // 답글의 답글은 뿌리 글에 붙인다 — 화면이 끝없이 들여쓰이지 않게
+  let parent = null;
+  if (input.parent_id) {
+    const pc = (DB.comments ?? []).find((c) => c.id === input.parent_id && c.task_id === taskId);
+    if (!pc) throw new DemoError('답글을 달 코멘트를 찾을 수 없습니다.');
+    parent = pc.parent_id ?? pc.id;
+  }
+
+  const at = nowISO();
+  const row = {
+    id: uid(), task_id: taskId, parent_id: parent, body,
+    author_slack_user_id: actor, created_at: at, updated_at: at,
+    edited_at: null, deleted_at: null,
+  };
+  (DB.comments ??= []).push(row);
+  save();
+  return dressComment(row);
+}
+
+function updateComment(id, input, actor) {
+  const c = (DB.comments ?? []).find((x) => x.id === id);
+  if (!c) throw new DemoError('코멘트를 찾을 수 없습니다.');
+  if (c.deleted_at) throw new DemoError('지운 코멘트는 고칠 수 없습니다.');
+  // 남의 말을 고치면 그때부터 기록이 아니다
+  if (c.author_slack_user_id !== actor) throw new DemoError('내가 쓴 코멘트만 고칠 수 있습니다.');
+  const body = String(input.body ?? '').trim();
+  if (!body) throw new DemoError('내용을 입력해 주세요.');
+  if (body.length > 2000) throw new DemoError('코멘트는 2000자까지 쓸 수 있습니다.');
+  const at = nowISO();
+  Object.assign(c, { body, updated_at: at, edited_at: at });
+  save();
+  return dressComment(c);
+}
+
+function removeComment(id, actor) {
+  const c = (DB.comments ?? []).find((x) => x.id === id);
+  if (!c) throw new DemoError('코멘트를 찾을 수 없습니다.');
+  if (!canAdmin() && c.author_slack_user_id !== actor) {
+    throw new DemoError('내가 쓴 코멘트만 지울 수 있습니다.');
+  }
+  // 행을 없애지 않는다 — 답글이 딸려 있으면 대화가 끊긴다
+  const at = nowISO();
+  Object.assign(c, { deleted_at: at, updated_at: at });
+  save();
+  return { ok: true };
+}
+
 // ── 하위 업무 ───────────────────────────────────────────
 // 서버(server/repo.js 의 subtasks)와 같은 규칙이다.
 const subtasksOf = (taskId) => (DB.subtasks ?? [])
@@ -2827,6 +2903,7 @@ function hydrate(t, ref = today()) {
     is_delivery_delayed: Boolean(o) && t.status !== 'DONE' && o.delivery_due_date < ref,
     open_issue_count: openCount,
     has_open_issue: openCount > 0,
+    comment_count: commentsOf(t.id).filter((c) => !c.deleted_at).length,
     subtask_total: subtasksOf(t.id).length,
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
@@ -3979,6 +4056,15 @@ function handle(method, path, body) {
   }
   if (p === '/api/tasks' && method === 'POST') return createTask(body, me);
 
+  if (seg[1] === 'tasks' && seg[2] && seg[3] === 'comments') {
+    if (method === 'GET') return listComments(seg[2]);
+    if (method === 'POST') return createComment(seg[2], body, me);
+  }
+  if (seg[1] === 'comments' && seg[2]) {
+    if (method === 'PATCH') return updateComment(seg[2], body, me);
+    if (method === 'DELETE') return removeComment(seg[2], me);
+  }
+
   if (seg[1] === 'tasks' && seg[2] && seg[3] === 'subtasks') {
     if (method === 'GET') return subtasksOf(seg[2]);
     if (method === 'POST') return createSubtask(seg[2], body);
@@ -4000,6 +4086,7 @@ function handle(method, path, body) {
           .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)),
         issues: listIssues({ task_id: id, includeResolved: true }),
         subtasks: subtasksOf(id),
+        comments: listComments(id),
       };
     }
     if (method === 'PATCH') return updateTask(id, body, me);

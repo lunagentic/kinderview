@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dbFile, today, applySchema, weekStart, addDays } from './db.js';
 import { runMigrations } from './migrate.js';
 import {
-  members, projects, vendors, tasks, subtasks, issues, overview, areaLeads,
+  members, projects, vendors, tasks, subtasks, comments, issues, overview, areaLeads,
   timeEntries, payments, phases, milestones, timeline, expenses,
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
@@ -138,10 +138,18 @@ route('GET', '/api/tasks/:id', (ctx) => {
     events: tasks.events(t.id),
     issues: issues.list({ task_id: t.id, includeResolved: true }),
     subtasks: subtasks.list(t.id),
+    comments: comments.list(t.id),
   };
 });
 
 // ── 하위 업무 ───────────────────────────────────────────
+// 코멘트 — 읽기는 누구나, 쓰기는 화면·저장소 쪽 문이 막는다.
+// 서버판은 내 컴퓨터에서 도는 것이라 여기서 따로 등급을 묻지 않는다.
+route('GET', '/api/tasks/:id/comments', (ctx) => comments.list(ctx.params.id));
+route('POST', '/api/tasks/:id/comments', (ctx) => comments.create(ctx.params.id, ctx.body, ctx.me));
+route('PATCH', '/api/comments/:id', (ctx) => comments.update(ctx.params.id, ctx.body, ctx.me));
+route('DELETE', '/api/comments/:id', (ctx) => comments.remove(ctx.params.id, ctx.me, true));
+
 route('GET', '/api/tasks/:id/subtasks', (ctx) => subtasks.list(ctx.params.id));
 route('POST', '/api/tasks/:id/subtasks', (ctx) => subtasks.create(ctx.params.id, ctx.body));
 route('PATCH', '/api/subtasks/:id', (ctx) => subtasks.update(ctx.params.id, ctx.body));

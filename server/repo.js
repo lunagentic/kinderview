@@ -531,6 +531,7 @@ const TASK_SELECT = `
             WHERE i.task_id = t.id AND i.deleted_at IS NULL AND i.status <> 'RESOLVED') AS open_issue_count,
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id) AS subtask_total,
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id AND s.is_done = 1) AS subtask_done,
+         (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL) AS comment_count,
          ${CASE_WEIGHT} AS progress_weight
   FROM task t
   LEFT JOIN project p ON p.id = t.project_id
@@ -545,6 +546,7 @@ const decorate = (row) => {
   row.is_delayed = !!row.is_delayed;
   row.is_delivery_delayed = !!row.is_delivery_delayed;
   row.has_open_issue = row.open_issue_count > 0;
+  row.comment_count = row.comment_count ?? 0;
   row.subtask_total = row.subtask_total ?? 0;
   row.subtask_done = row.subtask_done ?? 0;
   row.owner_active = !!row.owner_active;
@@ -563,6 +565,89 @@ const decorate = (row) => {
 // ── 하위 업무 ───────────────────────────────────────────
 // 업무 하나를 이루는 작은 항목이다. 담당·마감을 갖지 않는다 —
 // 그것이 서로 달라야 하는 순간 그건 하위 업무가 아니라 별개의 업무다.
+/**
+ * 코멘트 — 업무 한 건에 달리는 의견.
+ * 대댓글은 한 단계까지다. 답글에 또 답글을 달면 뿌리 글에 붙인다.
+ * 지울 때는 행을 없애지 않는다. 답글이 딸려 있으면 대화가 끊기기 때문이다.
+ */
+export const comments = {
+  list(taskId) {
+    return all(
+      `SELECT c.*, m.display_name AS author_name, m.avatar_url AS author_avatar
+         FROM comment c
+         LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
+        WHERE c.task_id = :t
+        ORDER BY c.created_at`,
+      { t: taskId },
+    ).map(strip);
+  },
+
+  create(taskId, input, actor) {
+    const body = String(input.body ?? '').trim();
+    if (!body) throw new HttpError(400, '내용을 입력해 주세요.');
+    if (body.length > 2000) throw new HttpError(400, '코멘트는 2000자까지 쓸 수 있습니다.');
+    const task = one('SELECT id FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
+    if (!task) throw new HttpError(404, '업무를 찾을 수 없습니다.');
+    const author = ensureMember(actor);
+    if (!author) throw new HttpError(400, '누구로 쓰는지 알 수 없습니다.');
+
+    // 답글의 답글은 뿌리 글에 붙인다 — 화면이 끝없이 들여쓰이지 않게
+    let parent = null;
+    if (input.parent_id) {
+      const p = one('SELECT id, parent_id, task_id FROM comment WHERE id = :id', { id: input.parent_id });
+      if (!p || p.task_id !== taskId) throw new HttpError(400, '답글을 달 코멘트를 찾을 수 없습니다.');
+      parent = p.parent_id ?? p.id;
+    }
+
+    const id = uid();
+    const at = nowISO();
+    run(
+      `INSERT INTO comment (id, task_id, parent_id, body, author_slack_user_id, created_at, updated_at)
+       VALUES (:id, :t, :p, :body, :author, :at, :at)`,
+      { id, t: taskId, p: parent, body, author, at },
+    );
+    return comments.get(id);
+  },
+
+  get(id) {
+    return strip(one(
+      `SELECT c.*, m.display_name AS author_name, m.avatar_url AS author_avatar
+         FROM comment c
+         LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
+        WHERE c.id = :id`,
+      { id },
+    ));
+  },
+
+  update(id, patch, actor) {
+    const cur = one('SELECT * FROM comment WHERE id = :id', { id });
+    if (!cur) throw new HttpError(404, '코멘트를 찾을 수 없습니다.');
+    if (cur.deleted_at) throw new HttpError(400, '지운 코멘트는 고칠 수 없습니다.');
+    // 남의 말을 고치면 그때부터 기록이 아니다
+    if (cur.author_slack_user_id !== actor) throw new HttpError(403, '내가 쓴 코멘트만 고칠 수 있습니다.');
+    const body = String(patch.body ?? '').trim();
+    if (!body) throw new HttpError(400, '내용을 입력해 주세요.');
+    if (body.length > 2000) throw new HttpError(400, '코멘트는 2000자까지 쓸 수 있습니다.');
+    const at = nowISO();
+    run('UPDATE comment SET body = :body, updated_at = :at, edited_at = :at WHERE id = :id', { id, body, at });
+    return comments.get(id);
+  },
+
+  remove(id, actor, isAdmin = false) {
+    const cur = one('SELECT * FROM comment WHERE id = :id', { id });
+    if (!cur) throw new HttpError(404, '코멘트를 찾을 수 없습니다.');
+    if (!isAdmin && cur.author_slack_user_id !== actor) {
+      throw new HttpError(403, '내가 쓴 코멘트만 지울 수 있습니다.');
+    }
+    run('UPDATE comment SET deleted_at = :at, updated_at = :at WHERE id = :id AND deleted_at IS NULL',
+      { id, at: nowISO() });
+    return { ok: true };
+  },
+};
+
+// 지운 글은 내용을 내보내지 않는다 — 자리만 남긴다
+const strip = (c) => (c && c.deleted_at ? { ...c, body: '' } : c);
+
 export const subtasks = {
   list(taskId) {
     return all(

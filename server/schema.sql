@@ -160,6 +160,22 @@ CREATE TABLE IF NOT EXISTS subtask (
 );
 CREATE INDEX IF NOT EXISTS idx_subtask_task ON subtask(task_id, sort_order);
 
+-- 코멘트: 업무 한 건에 달리는 의견. 대댓글은 한 단계까지만 —
+-- 더 깊어지면 화면에서 읽기 어렵고, 실제로 그만큼 깊게 달지도 않는다.
+-- 지운 글은 행을 없애지 않고 deleted_at 만 찍는다. 대댓글이 딸려 있으면 흐름이 끊긴다.
+CREATE TABLE IF NOT EXISTS comment (
+  id                   TEXT PRIMARY KEY,
+  task_id              TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+  parent_id            TEXT REFERENCES comment(id) ON DELETE CASCADE,
+  body                 TEXT NOT NULL,
+  author_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
+  created_at           TEXT NOT NULL,
+  updated_at           TEXT NOT NULL,
+  edited_at            TEXT,
+  deleted_at           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_comment_task ON comment(task_id, created_at);
+
 CREATE TABLE IF NOT EXISTS task_collaborator (
   task_id       TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
   slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
