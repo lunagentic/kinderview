@@ -160,7 +160,12 @@ function buildSeed() {
   return {
     anchor: T, members, projects, vendors, tasks, collaborators, outsourcing, issues, events,
     area_leads: areaLeadRows, time_entries: timeRows, notifications: [], weekly_reports: [],
-    phases, milestones, expenses, subtasks,
+    phases, milestones, expenses, subtasks, comments: [],
+    // 업무 분류 — 처음 둘은 심어 두고, 나머지는 쓰면서 더한다
+    categories: [
+      { id: 'NEW', label: '신규 기능', sort_order: 1, created_at: nowISO() },
+      { id: 'IMPROVE', label: '기능 개선', sort_order: 2, created_at: nowISO() },
+    ],
   };
 }
 
@@ -174,6 +179,17 @@ const RENAMED_PROJECTS = { '콘텐츠 패키지': '상위 기획 및 리소스' 
  */
 function reconcile(db) {
   let changed = false;
+
+  // 분류 표가 비어 있으면 처음 둘을 심는다. 이미 쓰던 것이 있으면 건드리지 않는다 —
+  // 팀이 직접 더한 분류를 시드가 밀어내면 안 된다.
+  if (!(db.categories ?? []).length) {
+    const at = nowISO();
+    db.categories = [
+      { id: 'NEW', label: '신규 기능', sort_order: 1, created_at: at },
+      { id: 'IMPROVE', label: '기능 개선', sort_order: 2, created_at: at },
+    ];
+    changed = true;
+  }
 
   for (const m of SEED.MEMBERS ?? []) {
     const row = (db.members ?? []).find((x) => x.slack_user_id === m.id);
@@ -292,6 +308,7 @@ const ROW_KEY = {
   tasks: (r) => r.id,
   subtasks: (r) => r.id,
   comments: (r) => r.id,
+  categories: (r) => r.id,
   issues: (r) => r.id,
   events: (r) => r.id,
   expenses: (r) => r.id,
@@ -1085,9 +1102,30 @@ function upsertOutsourcing(taskId, input) {
 
 /** 분류 값을 받아 준다. 빈 값은 '분류 없음'이고, 모르는 값은 막는다. */
 function takeCategory(v) {
-  const code = v || null;
-  if (code && !CATEGORIES.some((c) => c.code === code)) throw new DemoError('없는 분류입니다.');
-  return code;
+  const id = v || null;
+  if (id && !(DB.categories ?? []).some((c) => c.id === id)) throw new DemoError('없는 분류입니다.');
+  return id;
+}
+
+// ── 업무 분류 ───────────────────────────────────────────
+// 서버(server/repo.js 의 categories)와 같은 규칙이다.
+const categoryRows = () => (DB.categories ?? [])
+  .slice()
+  .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at))
+  .map((c) => ({ code: c.id, label: c.label, sort_order: c.sort_order }));
+
+function createCategory(input) {
+  const label = String(input.label ?? '').trim().replace(/\s+/g, ' ');
+  if (!label) throw new DemoError('분류 이름을 입력해 주세요.');
+  if (label.length > 20) throw new DemoError('분류 이름은 20자까지 쓸 수 있습니다.');
+  // 같은 이름을 또 만들면 목록만 지저분해진다 — 있던 것을 돌려준다
+  const dup = (DB.categories ?? []).find((c) => c.label === label);
+  if (dup) return { code: dup.id, label: dup.label, sort_order: dup.sort_order };
+  const next = (DB.categories ?? []).reduce((n, c) => Math.max(n, c.sort_order), 0) + 1;
+  const row = { id: uid(), label, sort_order: next, created_at: nowISO() };
+  (DB.categories ??= []).push(row);
+  save();
+  return { code: row.id, label, sort_order: next };
 }
 
 function createTask(input, actor) {
@@ -1940,7 +1978,7 @@ function handle(method, path, body) {
       meta: {
         areas: AREAS, normal_statuses: NORMAL_STATUSES, out_statuses: OUT_STATUSES,
         review_statuses: REVIEW_STATUSES, issue_statuses: ISSUE_STATUSES,
-        categories: CATEGORIES,
+        categories: categoryRows(),
         priorities: PRIORITIES, project_statuses: PROJECT_STATUSES, progress_weight: PROGRESS_WEIGHT,
         expense_categories: EXPENSE_CATEGORIES,
       },
@@ -1963,6 +2001,11 @@ function handle(method, path, body) {
     });
   }
   if (p === '/api/tasks' && method === 'POST') return createTask(body, me);
+
+  if (p === '/api/categories') {
+    if (method === 'GET') return categoryRows();
+    if (method === 'POST') return createCategory(body);
+  }
 
   if (seg[1] === 'tasks' && seg[2] && seg[3] === 'comments') {
     if (method === 'GET') return listComments(seg[2]);

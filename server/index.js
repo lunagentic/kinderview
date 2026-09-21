@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dbFile, today, applySchema, weekStart, addDays } from './db.js';
 import { runMigrations } from './migrate.js';
 import {
-  members, projects, vendors, tasks, subtasks, comments, issues, overview, areaLeads,
+  members, projects, vendors, tasks, subtasks, comments, categories, issues, overview, areaLeads,
   timeEntries, payments, phases, milestones, timeline, expenses,
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
@@ -17,7 +17,7 @@ import * as ai from './ai/index.js';
 import * as slackCommands from './slack-commands.js';
 import {
   AREAS, NORMAL_STATUSES, OUT_STATUSES, REVIEW_STATUSES, ISSUE_STATUSES,
-  PRIORITIES, PROJECT_STATUSES, PROGRESS_WEIGHT, CATEGORIES,
+  PRIORITIES, PROJECT_STATUSES, PROGRESS_WEIGHT,
 } from './domain.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -87,7 +87,7 @@ route('GET', '/api/bootstrap', (ctx) => ({
     out_statuses: OUT_STATUSES,
     review_statuses: REVIEW_STATUSES,
     issue_statuses: ISSUE_STATUSES,
-    categories: CATEGORIES,
+    categories: categories.list(),
     priorities: PRIORITIES,
     project_statuses: PROJECT_STATUSES,
     progress_weight: PROGRESS_WEIGHT,
@@ -147,6 +147,10 @@ route('GET', '/api/tasks/:id', (ctx) => {
 // ── 하위 업무 ───────────────────────────────────────────
 // 코멘트 — 읽기는 누구나, 쓰기는 화면·저장소 쪽 문이 막는다.
 // 서버판은 내 컴퓨터에서 도는 것이라 여기서 따로 등급을 묻지 않는다.
+// 분류 — 목록은 누구나, 더하는 것은 화면·저장소 쪽 문이 막는다
+route('GET', '/api/categories', () => categories.list());
+route('POST', '/api/categories', (ctx) => categories.create(ctx.body));
+
 route('GET', '/api/tasks/:id/comments', (ctx) => comments.list(ctx.params.id));
 route('POST', '/api/tasks/:id/comments', (ctx) => comments.create(ctx.params.id, ctx.body, ctx.me));
 route('PATCH', '/api/comments/:id', (ctx) => comments.update(ctx.params.id, ctx.body, ctx.me));

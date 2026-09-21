@@ -1,7 +1,7 @@
 import { all, one, run, tx, uid, nowISO, today, addDays } from './db.js';
 import {
   PROGRESS_WEIGHT, STAGE, WAIT_STATUSES, IN_PROGRESS_STATUSES, REVIEW_STAGE_STATUSES,
-  defaultStatusFor, statusesFor, AREAS, CATEGORIES,
+  defaultStatusFor, statusesFor, AREAS,
 } from './domain.js';
 
 // ── 공통 ────────────────────────────────────────────────
@@ -264,7 +264,9 @@ export function timeline() {
   const projectRows = projects.list();
   const phaseRows = phases.list();
   const milestoneRows = milestones.list();
-  const openTasks = tasks.list({ includeDone: true });
+  // 마감일 없는 업무도 센다. 페이즈 막대의 '업무 N건'은 이미 그것까지 세고 있어서,
+  // 여기서만 빼면 '페이즈 미지정' 수가 실제보다 적게 나온다.
+  const openTasks = tasks.list({ includeDone: true, includeBacklog: true });
 
   return projectRows.map((p) => {
     const ps = phaseRows.filter((ph) => ph.project_id === p.id).map((ph) => ({
@@ -394,10 +396,36 @@ export const vendors = {
 /** 담당으로 세울 수 있는 사람인지 본다 — 담당 없는 업무는 만들 수 없다(원칙 1) */
 /** 분류 값을 받아 준다. 빈 값은 '분류 없음'이고, 모르는 값은 막는다. */
 function takeCategory(v) {
-  const code = v || null;
-  if (code && !CATEGORIES.some((c) => c.code === code)) throw new HttpError(400, '없는 분류입니다.');
-  return code;
+  const id = v || null;
+  if (id && !one('SELECT id FROM category WHERE id = :id', { id })) {
+    throw new HttpError(400, '없는 분류입니다.');
+  }
+  return id;
 }
+
+/**
+ * 업무 분류 — 쓰다 보면 늘어난다. 지우거나 이름을 바꾸는 길은 아직 없다.
+ * 이미 그 분류를 달고 있는 업무들이 함께 흔들리는 일이라, 필요해지면 그때 따로 만든다.
+ */
+export const categories = {
+  list() {
+    return all('SELECT id AS code, label, sort_order FROM category ORDER BY sort_order, created_at');
+  },
+
+  create(input) {
+    const label = String(input.label ?? '').trim().replace(/\s+/g, ' ');
+    if (!label) throw new HttpError(400, '분류 이름을 입력해 주세요.');
+    if (label.length > 20) throw new HttpError(400, '분류 이름은 20자까지 쓸 수 있습니다.');
+    // 같은 이름을 또 만들면 목록만 지저분해진다 — 있던 것을 돌려준다
+    const dup = one('SELECT id AS code, label, sort_order FROM category WHERE label = :label', { label });
+    if (dup) return dup;
+    const next = one('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM category').n;
+    const id = uid();
+    run('INSERT INTO category (id, label, sort_order, created_at) VALUES (:id, :label, :n, :at)',
+      { id, label, n: next, at: nowISO() });
+    return { code: id, label, sort_order: next };
+  },
+};
 
 function ensureMember(slackUserId) {
   const m = one('SELECT slack_user_id FROM member WHERE slack_user_id = :id AND is_active = 1',

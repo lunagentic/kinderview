@@ -163,6 +163,18 @@ CREATE TABLE IF NOT EXISTS subtask (
 );
 CREATE INDEX IF NOT EXISTS idx_subtask_task ON subtask(task_id, sort_order);
 
+-- 업무 분류: 이 일이 무엇인가(신규 기능·기능 개선 …).
+-- 쓰다 보면 늘어난다. 상수로 두면 한 줄 더하는 데 배포가 필요해서 표로 옮겼다.
+-- id 는 지어 준 값이다 — 처음 둘(NEW·IMPROVE)은 이름을 그대로 썼고,
+-- 나중에 더하는 것은 uid 를 받는다. 업무가 들고 있는 값이 바뀌면 안 되기 때문이다.
+CREATE TABLE IF NOT EXISTS category (
+  id         TEXT PRIMARY KEY,
+  label      TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_category_order ON category(sort_order);
+
 -- 코멘트: 업무 한 건에 달리는 의견. 대댓글은 한 단계까지만 —
 -- 더 깊어지면 화면에서 읽기 어렵고, 실제로 그만큼 깊게 달지도 않는다.
 -- 지운 글은 행을 없애지 않고 deleted_at 만 찍는다. 대댓글이 딸려 있으면 흐름이 끊긴다.

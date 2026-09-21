@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf } from './state.js';
+import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal } from './ui.js';
 import { canEdit, canAdmin } from './gate.js';
 import { gatePanel } from './views/gatePanel.js';
@@ -135,10 +135,15 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
 
         <label class="field">
           <span class="lab">분류 <span class="hint" style="font-weight:400">나중에 정해도 됩니다</span></span>
-          <select name="category">
+          <select name="category" data-cat-select>
             <option value="">분류 없음</option>
             ${opts(state.meta.categories ?? [], task?.category ?? defaults.category ?? '')}
+            <option value="__new__">+ 새 분류 만들기…</option>
           </select>
+          <span class="cat-new" data-cat-new hidden>
+            <input type="text" maxlength="20" placeholder="예: 오류 수정" aria-label="새 분류 이름">
+            <button type="button" class="btn btn-ghost" data-cat-add>더하기</button>
+          </span>
         </label>
 
         <label class="field">
@@ -172,7 +177,11 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           <label class="field">
             <span class="lab">페이즈</span>
             <select name="phase_id"><option value="">지정 안 함</option></select>
-            <span class="hint">프로젝트를 고르면 채워집니다 · 타임라인에서 묶이는 단위</span>
+            <span class="cat-new" data-phase-new hidden>
+              <input type="text" maxlength="60" placeholder="예: 9월" aria-label="새 페이즈 이름">
+              <button type="button" class="btn btn-ghost" data-phase-add>더하기</button>
+            </span>
+            <span class="hint" data-phase-hint>프로젝트를 고르면 채워집니다 · 타임라인에서 묶이는 단위</span>
           </label>
           <label class="field">
             <span class="lab">우선순위</span>
@@ -278,21 +287,110 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       syncArea();
       syncLead();
 
+      // 분류는 쓰다 보면 늘어난다. 등록하다 말고 다른 화면으로 가지 않아도 되게
+      // 여기서 바로 더한다. 더하면 곧바로 골라진 상태가 된다.
+      const catSel = form.querySelector('[data-cat-select]');
+      const catNew = form.querySelector('[data-cat-new]');
+      const catInput = catNew.querySelector('input');
+      let lastCat = catSel.value;
+
+      const addCategory = async () => {
+        const label = catInput.value.trim();
+        if (!label) { catInput.focus(); return; }
+        const btn = catNew.querySelector('[data-cat-add]');
+        btn.disabled = true;
+        try {
+          const made = await api.post('/api/categories', { label });
+          await reloadMeta();
+          // 목록을 다시 그리고 방금 만든 것을 고른 채로 둔다
+          const keep = made.code;
+          catSel.innerHTML = `<option value="">분류 없음</option>${
+            opts(state.meta.categories ?? [], keep)}<option value="__new__">+ 새 분류 만들기…</option>`;
+          catSel.value = keep;
+          lastCat = keep;
+          catInput.value = '';
+          catNew.hidden = true;
+          toast(`「${made.label}」 분류를 더했습니다.`);
+        } catch (err) { toast(err.message, true); }
+        btn.disabled = false;
+      };
+
+      catSel.addEventListener('change', () => {
+        if (catSel.value !== '__new__') { lastCat = catSel.value; catNew.hidden = true; return; }
+        // '만들기'는 고른 값이 아니다 — 쓰던 값으로 돌려 두고 입력칸만 연다
+        catSel.value = lastCat;
+        catNew.hidden = false;
+        catInput.focus();
+      });
+      catNew.querySelector('[data-cat-add]').addEventListener('click', addCategory);
+      catInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addCategory(); }
+        if (e.key === 'Escape') { e.preventDefault(); catNew.hidden = true; catSel.focus(); }
+      });
+
       // 페이즈는 프로젝트에 딸린 값이라 프로젝트가 바뀔 때마다 다시 불러온다
       const projectSel = form.querySelector('[name=project_id]');
       const phaseSel = form.querySelector('[name=phase_id]');
+      const phaseNew = form.querySelector('[data-phase-new]');
+      const phaseInput = phaseNew.querySelector('input');
+      const phaseHint = form.querySelector('[data-phase-hint]');
+      let lastPhase = '';
+
       const syncPhases = async () => {
         const pid = projectSel.value;
         const want = phaseSel.dataset.want ?? task?.phase_id ?? '';
         phaseSel.innerHTML = '<option value="">지정 안 함</option>';
-        if (!pid) return;
+        phaseNew.hidden = true;
+        if (!pid) {
+          phaseHint.textContent = '프로젝트를 고르면 채워집니다 · 타임라인에서 묶이는 단위';
+          return;
+        }
         try {
           const list = await api.get(`/api/phases?project=${encodeURIComponent(pid)}`);
           phaseSel.insertAdjacentHTML('beforeend',
             list.map((ph) => `<option value="${esc(ph.id)}">${esc(ph.name)}</option>`).join(''));
+          phaseSel.insertAdjacentHTML('beforeend', '<option value="__new__">+ 새 페이즈 만들기…</option>');
           if (want && list.some((ph) => ph.id === want)) phaseSel.value = want;
+          lastPhase = phaseSel.value;
+          // 페이즈가 없는 프로젝트에 넣으면 타임라인에서 '미지정'으로 남는다.
+          // 왜 그런지 여기서 미리 말해 준다 — 나중에 타임라인에서 알면 늦다.
+          phaseHint.textContent = list.length
+            ? '타임라인에서 묶이는 단위'
+            : '이 프로젝트에는 페이즈가 없습니다. 안 만들면 타임라인에서 「페이즈 미지정」으로 남습니다.';
         } catch { /* 페이즈를 못 불러와도 업무는 저장할 수 있다 */ }
       };
+
+      const addPhase = async () => {
+        const name = phaseInput.value.trim();
+        if (!name) { phaseInput.focus(); return; }
+        const btn = phaseNew.querySelector('[data-phase-add]');
+        btn.disabled = true;
+        try {
+          // 기간은 비워 둔다 — 이 페이즈에 든 업무의 마감일에서 저절로 계산된다
+          const made = await api.post('/api/phases', { project_id: projectSel.value, name });
+          phaseSel.dataset.want = made.id;
+          await syncPhases();
+          delete phaseSel.dataset.want;
+          phaseSel.value = made.id;
+          lastPhase = made.id;
+          phaseInput.value = '';
+          phaseNew.hidden = true;
+          toast(`「${made.name}」 페이즈를 더했습니다.`);
+        } catch (err) { toast(err.message, true); }
+        btn.disabled = false;
+      };
+
+      phaseSel.addEventListener('change', () => {
+        if (phaseSel.value !== '__new__') { lastPhase = phaseSel.value; phaseNew.hidden = true; return; }
+        phaseSel.value = lastPhase;
+        phaseNew.hidden = false;
+        phaseInput.focus();
+      });
+      phaseNew.querySelector('[data-phase-add]').addEventListener('click', addPhase);
+      phaseInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addPhase(); }
+        if (e.key === 'Escape') { e.preventDefault(); phaseNew.hidden = true; phaseSel.focus(); }
+      });
       projectSel.addEventListener('change', () => { delete phaseSel.dataset.want; syncPhases(); });
       syncPhases();
 

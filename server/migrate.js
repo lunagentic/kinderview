@@ -272,6 +272,17 @@ function addTaskPhase() {
  * 스키마 적용(db.js)보다 늦게 걸어야 하는 제약들.
  * 여기 있는 것은 언제 돌려도 안전하고, 옮길 것이 없어도 매번 확인한다.
  */
+/** 분류 표가 비어 있으면 처음 둘을 심는다. 이미 쓰던 값이 있으면 건드리지 않는다. */
+function seedCategories() {
+  if (!tableSql('category')) return null;   // 아직 표가 없다 — applySchema 뒤에 다시 온다
+  const n = one('SELECT COUNT(*) AS n FROM category').n;
+  if (n) return null;
+  const at = new Date().toISOString();
+  run("INSERT INTO category (id, label, sort_order, created_at) VALUES ('NEW', '신규 기능', 1, :at)", { at });
+  run("INSERT INTO category (id, label, sort_order, created_at) VALUES ('IMPROVE', '기능 개선', 2, :at)", { at });
+  return '업무 분류 두 가지 심기 (신규 기능 · 기능 개선)';
+}
+
 function ensureConstraints() {
   // 대표 리드는 영역마다 한 명 — area_lead 에 role 이 생긴 뒤에야 걸 수 있다
   if (tableSql('area_lead').includes('role')) {
@@ -286,6 +297,8 @@ export function runMigrations() {
     migrateBacklog(), migrateProjectOptional(), addTaskCategory()]
     .filter(Boolean);
   ensureConstraints();
+  const seeded = seedCategories();
+  if (seeded) notes.push(seeded);
   for (const note of notes) console.log(`[migrate] ${note}`);
   return notes;
 }

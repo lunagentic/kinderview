@@ -92,7 +92,7 @@ export const categoryLabel = (code) =>
  *  같은 말을 두 번 하지 않도록 「분류 지정」처럼 할 일로 적는다. */
 /** 분류마다 같은 색. 목록에서 같은 종류가 한눈에 묶여 보이게 한다.
  *  색은 분류가 이미 가진 차례를 따른다 — 분류를 더해도 기존 색이 안 밀린다. */
-const CATEGORY_TONES = 2;
+const CATEGORY_TONES = 6;
 export const categoryTone = (code) => {
   const i = (state.meta?.categories ?? []).findIndex((c) => c.code === code);
   return i < 0 ? null : i % CATEGORY_TONES;

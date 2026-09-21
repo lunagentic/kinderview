@@ -40,8 +40,10 @@
      프로젝트 이름이 함께 나온다. 로즈는 넣지 않는다: 지연(빨강)과 섞여 경고로 읽힌다.
      대비·색각 검증을 통과한 값이다. 바꾸려면 다시 검증할 것. */
   --p0:#3B2FC8; --p1:#CE5EC6; --p2:#0E9384; --p3:#C77B12;
-  /* 업무 분류 — 상태·프로젝트가 안 쓰는 색이라야 서로 안 헷갈린다 */
-  --c0:#1D6FD4; --c1:#C2410C;
+  /* 업무 분류 — 상태·프로젝트가 안 쓰는 색이라야 서로 안 헷갈린다.
+     분류는 팀이 직접 더하므로 넉넉히 둔다. 넘치면 처음 색부터 다시 돈다. */
+  --c0:#1D6FD4; --c1:#C2410C; --c2:#0F766E;
+  --c3:#9333EA; --c4:#B45309; --c5:#BE185D;
 
   /* 상태 */
   --s-wait:#858CA6;
@@ -69,7 +71,8 @@
     --indigo:#7C72F5; --orchid:#E27BE8; --amber:#F5BE55;
     --teal:#2DD4BF; --purple:#A188EC; --rose:#F2697F;
     --p0:#6055DE; --p1:#C85FC0; --p2:#17A187; --p3:#C08722;
-    --c0:#5AA5F0; --c1:#EE8A55;
+    --c0:#5AA5F0; --c1:#EE8A55; --c2:#2DD4BF;
+    --c3:#C084FC; --c4:#E0A83E; --c5:#F472B6;
     --s-wait:#949BB4; --s-prog:#7C72F5; --s-review:#A188EC;
     --s-done:#2DD4BF; --s-delay:#F2697F; --s-issue:#E0A83E;
     --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
@@ -84,7 +87,8 @@
   --indigo:#7C72F5; --orchid:#E27BE8; --amber:#F5BE55;
   --teal:#2DD4BF; --purple:#A188EC; --rose:#F2697F;
   --p0:#6055DE; --p1:#C85FC0; --p2:#17A187; --p3:#C08722;
-  --c0:#5AA5F0; --c1:#EE8A55;
+  --c0:#5AA5F0; --c1:#EE8A55; --c2:#2DD4BF;
+  --c3:#C084FC; --c4:#E0A83E; --c5:#F472B6;
   --s-wait:#949BB4; --s-prog:#7C72F5; --s-review:#A188EC;
   --s-done:#2DD4BF; --s-delay:#F2697F; --s-issue:#E0A83E;
   --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.4);
@@ -1128,6 +1132,11 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tk-sub{font-style:normal;font-family:var(--mono);font-size:.72rem;color:var(--muted);
   border:1px solid var(--line);border-radius:999px;padding:1px 6px;margin-left:6px;white-space:nowrap}
 .tk-sub.all{color:var(--s-done);border-color:var(--s-done)}
+/* 등록하다 말고 다른 화면으로 가지 않게, 새 분류를 이 자리에서 더한다 */
+.cat-new{display:flex;gap:6px;margin-top:6px}
+.cat-new input{flex:1 1 auto;min-width:0}
+.cat-new .btn{flex:0 0 auto;white-space:nowrap}
+
 .tk-cat{min-width:0}
 .tk-pr{font-size:.76rem;white-space:nowrap}
 .tk-pr.pr-high{color:var(--s-delay);font-weight:600}

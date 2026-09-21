@@ -29,6 +29,13 @@ export async function loadBootstrap() {
   return data;
 }
 
+/** 분류처럼 화면 중간에 늘어나는 값만 다시 읽는다 — 화면 전체를 다시 그리지 않으려고 */
+export async function reloadMeta() {
+  const data = await api.get('/api/bootstrap');
+  state.meta = data.meta;
+  return data.meta;
+}
+
 export function setMe(id) {
   state.me = id;
   writeStored('kf.me', id);
