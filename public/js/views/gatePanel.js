@@ -2,6 +2,7 @@
 // 오른쪽 위 등급 표시를 누르면 열린다.
 
 import { api } from '../api.js';
+import { state } from '../state.js';
 import { esc, modal, toast, dateTime, confirmModal } from '../ui.js';
 import { currentRole, unlock, lock, canEdit, canAdmin, roleLabel } from '../gate.js';
 
@@ -16,6 +17,13 @@ const codeRow = (c) => `
       <span class="rp-meta">${c.role === 'ADMIN' ? '관리자' : '편집'}${
         c.claimed_by ? ` · ${esc(c.claimed_by)}` : ' · 아직 안 씀'}${
         c.use_count ? ` · ${esc(c.use_count)}회` : ''}</span>
+    </span>
+    <span class="gc-who">
+      <select data-code-member="${esc(c.id)}" aria-label="이 코드를 쓸 사람">
+        <option value="">사람 미지정</option>
+        ${(state.members ?? []).filter((m) => m.is_active).map((m) => `<option value="${esc(m.slack_user_id)}"${
+          m.slack_user_id === c.member_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+      </select>
     </span>
     <span class="rp-meta gc-when">${c.last_used_at ? esc(dateTime(c.last_used_at)) : '-'}</span>
     <button class="btn btn-ghost gc-go" data-code="${esc(c.id)}" data-next="${c.active ? '0' : '1'}">${
@@ -64,7 +72,8 @@ export function gatePanel() {
       ${canAdmin() ? `
       <section class="gate-codes">
         <h3>나눠 준 코드</h3>
-        <p class="hint">코드는 해시로만 저장돼 다시 보여 줄 수 없습니다. 잃어버리면 정지시키고 새로 만들어 주세요.</p>
+        <p class="hint">코드에 사람을 묶으면 그 코드로 들어온 사람은 그 이름으로 고정됩니다 —
+          코멘트 작성자를 믿을 수 있게 됩니다. 코드 자체는 해시로만 저장돼 다시 보여 줄 수 없습니다.</p>
         <ul class="rp-list gc-list" data-codes><li class="hint">불러오는 중…</li></ul>
       </section>` : ''}
 
@@ -137,6 +146,18 @@ export function gatePanel() {
           btn.disabled = false;
           btn.textContent = '들어가기';
         }
+      });
+
+      root.addEventListener('change', async (e) => {
+        const who = e.target.closest('[data-code-member]');
+        if (!who) return;
+        who.disabled = true;
+        try {
+          await api.patch(`/api/gate-codes/${who.dataset.codeMember}`, { member_id: who.value || null });
+          toast(who.value ? '코드에 사람을 묶었습니다.' : '사람 지정을 풀었습니다.');
+        } catch (err) { toast(err.message, true); }
+        who.disabled = false;
+        loadCodes();
       });
 
       root.addEventListener('click', async (e) => {

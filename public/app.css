@@ -585,7 +585,8 @@ body[data-gate="edit"] .btn-danger{display:none}
 /* 나눠 준 코드 */
 .gate-codes{margin-bottom:20px}
 .gate-codes h3{font-size:.95rem;font-weight:700}
-.gc-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;
+.gc-who select{font-size:.78rem;padding:3px 6px;max-width:110px}
+.gc-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;align-items:center;
   padding:9px 13px;background:var(--surface)}
 .gc-row.off{opacity:.55}
 .gc-name{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -595,7 +596,8 @@ body[data-gate="edit"] .btn-danger{display:none}
 .gc-row.off .gc-go{color:var(--accent)}
 @media (max-width:520px){
   .gc-row{grid-template-columns:minmax(0,1fr) auto}
-  .gc-when{grid-column:1/3;order:3}
+  .gc-who{grid-column:1/2;order:3}
+  .gc-when{grid-column:2/3;order:4;justify-self:end}
 }
 @media (max-width:520px){
   .rp-row{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px}
@@ -1194,6 +1196,39 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tld-cat.none .tld-cat-head{border-left-style:dashed;border-left-color:var(--line)}
 .tld-cat.none .tld-cat-head .lab{color:var(--muted);font-weight:600}
 
+/* ── 코멘트 ─────────────────────────────────────────
+   업무 상세와 타임라인이 같은 모양을 쓴다. 답글은 한 단만 들여쓴다. */
+.cm-list{list-style:none;padding:0;margin:0 0 12px;display:flex;flex-direction:column;gap:2px}
+.cm{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;padding:8px 0;
+  border-top:1px solid var(--line-soft)}
+.cm:first-child{border-top:0}
+.cm.re{margin-left:22px;padding-left:11px;border-left:2px solid var(--line)}
+.cm.gone .cm-main{opacity:.6}
+.cm-main{min-width:0}
+.cm-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.cm-head b{font-size:.85rem;font-weight:600}
+.cm-when{font-size:.72rem;color:var(--muted);font-family:var(--mono)}
+.cm-body{font-size:.87rem;line-height:1.55;margin-top:3px;overflow-wrap:anywhere;white-space:pre-wrap}
+.cm-body.gone{color:var(--muted);font-style:italic}
+.cm-acts{display:flex;gap:10px;margin-top:4px}
+.cm .lnk{font:inherit;font-size:.75rem;color:var(--muted);background:none;border:0;
+  padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.cm .lnk:hover{color:var(--ink-2)}
+.cm .lnk.bad:hover{color:var(--s-delay)}
+.cm-add,.cm-sub{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px}
+.cm-add textarea,.cm-sub textarea{flex:1 1 220px;min-width:0;font:inherit;font-size:.87rem;
+  line-height:1.5;min-height:0;resize:vertical}
+.cm-sub{grid-column:2/3}
+/* 타임라인 줄 아래에서 펼쳐지는 코멘트 */
+.tld-cmbox{margin:0 0 8px 78px;padding:6px 0 8px 10px;border-left:1px dashed var(--line)}
+.tld-cm{font:inherit;font-size:.72rem;white-space:nowrap;color:var(--muted);
+  background:none;border:1px solid transparent;border-radius:999px;padding:1px 6px;cursor:pointer}
+.tld-cm:hover{border-color:var(--line);color:var(--ink-2)}
+.tld-cm.on{color:var(--ink-2);border-color:var(--line)}
+.tld-cm[aria-expanded="true"]{border-color:var(--pc,var(--muted));color:var(--ink)}
+/* 업무 목록 제목 옆 코멘트 수 */
+.tk-cm{font-style:normal;font-size:.72rem;color:var(--muted);white-space:nowrap;margin-left:6px}
+
 /* 하위 업무 — 몇 개인지만 보이고, 누르면 그 자리에서 펼쳐진다 */
 .tld-subs{font:inherit;font-size:.72rem;font-family:var(--mono);white-space:nowrap;
   color:var(--muted);background:none;border:1px solid var(--line);border-radius:999px;
@@ -1209,7 +1244,7 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tld-sub.done .t{text-decoration:line-through}
 .tld-sublist .hint{font-size:.78rem}
 
-.tld-task{display:grid;grid-template-columns:74px minmax(0,1fr) auto auto auto 26px 24px;gap:8px;align-items:start;
+.tld-task{display:grid;grid-template-columns:74px minmax(0,1fr) auto auto auto auto 26px 24px;gap:8px;align-items:start;
   width:100%;text-align:left;background:none;border:none;cursor:pointer;
   padding:7px 4px;border-radius:var(--radius-sm);font:inherit}
 .tld-task:hover{background:var(--surface-2)}
@@ -1245,6 +1280,8 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
   .tld-task .st{grid-column:2/3;grid-row:2;justify-self:start}
   .tld-task .cat{grid-column:2/3;grid-row:3;justify-self:start}
   .tld-subs{grid-column:3/5;grid-row:2;justify-self:end}
+  .tld-cm{grid-column:3/5;grid-row:3;justify-self:end}
+  .tld-cmbox{margin-left:20px}
   .tld-sublist{margin-left:20px}
   .tld-edit{grid-column:3/4;grid-row:1;color:var(--muted);min-height:32px;padding:5px 7px}
   /* 손가락에는 hover 가 없다 */

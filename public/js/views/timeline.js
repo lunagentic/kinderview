@@ -6,6 +6,7 @@ import {
   titleCell, autoGrow, syncTitleCell, categoryLabel, categoryPick,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm } from '../forms.js';
+import { bindComments } from '../comments.js';
 
 // 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 상태는 상태색으로 나눈다.
@@ -330,6 +331,9 @@ export async function renderTimeline(root) {
                      title="하위 업무 ${t.subtask_done}/${t.subtask_total} — 눌러서 펼치기"
                      >하위 ${t.subtask_done}/${t.subtask_total}</button>`
           : '<span class="tld-subs empty"></span>'}
+        <button class="tld-cm${t.comment_count ? ' on' : ''}" data-cm="${esc(t.id)}" aria-expanded="false"
+                title="코멘트${t.comment_count ? ` ${t.comment_count}건` : ' 남기기'}"
+                >💬${t.comment_count ? ` ${t.comment_count}` : ''}</button>
         <span class="cat">${categoryPick(t, { blank: '분류 지정' })}</span>
         <span class="st">${statusPick(t)}</span>
         <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
@@ -420,6 +424,33 @@ export async function renderTimeline(root) {
     if (!ttl) return;
     if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
     if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
+  });
+
+  // 코멘트를 그 자리에서 펼친다. 업무 상세와 같은 것을 쓴다 —
+  // 한쪽에서 남긴 말이 다른 쪽에서 안 보이면 코멘트가 아니라 메모가 된다.
+  root.addEventListener('click', (e) => {
+    const cb = e.target.closest('[data-cm]');
+    if (!cb) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const line = cb.closest('.tld-task');
+    const open = cb.getAttribute('aria-expanded') === 'true';
+    const next = line.nextElementSibling;
+    if (open) {
+      if (next?.classList.contains('tld-cmbox')) next.remove();
+      cb.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    cb.setAttribute('aria-expanded', 'true');
+    const holder = document.createElement('div');
+    holder.className = 'tld-cmbox';
+    line.after(holder);
+    bindComments(holder, cb.dataset.cm, {
+      onChange: (n) => {
+        cb.textContent = n ? `💬 ${n}` : '💬';
+        cb.classList.toggle('on', Boolean(n));
+      },
+    });
   });
 
   // 하위 업무를 그 자리에서 펼친다. 한 번 읽어 오면 접었다 펴는 동안 다시 읽지 않는다.

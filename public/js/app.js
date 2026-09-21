@@ -11,7 +11,7 @@ import { renderTimeline } from './views/timeline.js';
 import { renderTime } from './views/time.js';
 import { renderInvoice } from './views/invoice.js';
 import { gatePanel } from './views/gatePanel.js';
-import { currentRole, resume, roleLabel, canEdit, canSeeMoney } from './gate.js';
+import { currentRole, currentMember, resume, roleLabel, canEdit, canSeeMoney } from './gate.js';
 
 const view = document.getElementById('view');
 
@@ -42,7 +42,10 @@ function paintGate() {
     ? '편집할 수 있습니다. 눌러서 저장점을 보거나 보기 전용으로 나갑니다.'
     : '보기 전용입니다. 눌러서 편집 코드를 넣습니다.';
 }
-window.addEventListener('kf:gate', paintGate);
+window.addEventListener('kf:gate', () => {
+  paintGate();
+  if (state.members?.length) renderMePicker();
+});
 document.getElementById('gate-badge')?.addEventListener('click', () => gatePanel());
 
 // 보기 전용일 때 편집칸에 손이 가면, 아무 일도 안 일어나는 대신 문을 연다.
@@ -274,10 +277,18 @@ const moneyLocked = (what) => `
 
 function renderMePicker() {
   const sel = document.getElementById('me-select');
-  sel.innerHTML = state.members
-    .filter((m) => m.is_active)
+  // 코드에 사람이 묶여 있으면 그 사람으로 고정한다. 코멘트에 이름이 박히는데
+  // 드롭다운으로 남이 될 수 있으면 그 이름을 믿을 수 없다.
+  const bound = currentMember();
+  const active = state.members.filter((m) => m.is_active);
+  const fixed = bound && active.some((m) => m.slack_user_id === bound) ? bound : null;
+  if (fixed && state.me !== fixed) setMe(fixed);
+
+  sel.innerHTML = active
     .map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === state.me ? ' selected' : ''}>${esc(m.display_name)}</option>`)
     .join('');
+  sel.disabled = Boolean(fixed);
+  sel.title = fixed ? '편집 코드에 묶인 사람입니다. 코드를 바꾸면 함께 바뀝니다.' : '현재 사용자';
 }
 
 async function boot() {

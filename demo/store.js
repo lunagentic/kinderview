@@ -335,12 +335,10 @@ const sbFetch = (path, init = {}) => {
  * 창을 다시 열며 조용히 확인할 때(kf_role)는 남기지 않는다 — 새로고침마다 쌓일 이유가 없다.
  */
 async function sbVerify(code, { claim = false } = {}) {
-  const fn = claim ? 'kf_gate_claim' : 'kf_role';
-  const args = claim ? { code, who: member(currentMe())?.display_name ?? currentMe() } : { code };
-  const res = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/kf_identity`, {
     method: 'POST',
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
+    body: JSON.stringify({ code, claim, who: member(currentMe())?.display_name ?? currentMe() }),
   });
   if (!res.ok) throw new Error('코드를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
   return (await res.json()) ?? null;
@@ -1652,6 +1650,10 @@ function weeklyShare(id) {
 // ── api 라우터 (서버 REST 와 같은 모양) ─────────────────
 // 현재 사용자는 화면(state.js)이 localStorage 에 넣어 둔 값을 그대로 읽는다.
 const currentMe = () => {
+  // 코드에 사람이 묶여 있으면 그게 나다. 화면의 드롭다운보다 세다 —
+  // 코멘트 작성자를 믿으려면 여기가 한 곳으로 정해져야 한다.
+  const bound = currentMember();
+  if (bound && DB.members.some((m) => m.slack_user_id === bound && m.is_active)) return bound;
   let id = null;
   try { id = localStorage.getItem('kf.me'); } catch { /* 접근 불가 시 기본값 */ }
   if (id && DB.members.some((m) => m.slack_user_id === id && m.is_active)) return id;
@@ -1882,6 +1884,10 @@ function handle(method, path, body) {
     return sbRpc('kf_gate_list').then((rows) => rows ?? []);
   }
   if (method === 'PATCH' && seg[1] === 'gate-codes' && seg[2]) {
+    if (body && 'member_id' in body) {
+      return sbRpc('kf_gate_set_member', { p_id: Number(seg[2]), p_member: body.member_id || null })
+        .then((member_id) => ({ member_id }));
+    }
     return sbRpc('kf_gate_set_active', { p_id: Number(seg[2]), p_active: Boolean(body?.active) })
       .then((active) => ({ active }));
   }

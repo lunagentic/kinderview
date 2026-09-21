@@ -9,6 +9,7 @@
 
 const CODE_KEY = 'kf.gate.code';
 const ROLE_KEY = 'kf.gate.role';
+const WHO_KEY = 'kf.gate.member';
 
 const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k, v) => {
@@ -17,11 +18,21 @@ const write = (k, v) => {
 };
 
 let role = null;          // null(보기) | 'EDIT' | 'ADMIN'
+let boundMember = null;   // 이 코드에 묶인 사람. 있으면 그게 곧 내 신원이다.
 let code = read(CODE_KEY);
-let verify = null;        // (code) => Promise<'EDIT'|'ADMIN'|null>
+let verify = null;        // (code) => Promise<등급 | {role, member_id, label} | null>
+
+// 저장소는 등급만 주기도 하고 신원까지 주기도 한다. 한 모양으로 맞춘다.
+const shape = (v) => {
+  if (!v) return null;
+  if (typeof v === 'string') return { role: v, member_id: null, label: null };
+  return v.role ? { role: v.role, member_id: v.member_id ?? null, label: v.label ?? null } : null;
+};
 
 const tell = () => {
-  try { window.dispatchEvent(new CustomEvent('kf:gate', { detail: { role } })); } catch { /* 창이 없으면 넘어간다 */ }
+  try {
+    window.dispatchEvent(new CustomEvent('kf:gate', { detail: { role, member: boundMember } }));
+  } catch { /* 창이 없으면 넘어간다 */ }
 };
 
 /** 데이터 층이 코드 확인 방법을 알려 준다 */
@@ -35,19 +46,26 @@ export function install({ verify: fn, open = false }) {
 export async function resume() {
   if (role || !verify || !code) return role;
   try {
-    role = (await verify(code, { claim: false })) ?? null;
-    if (!role) {
+    const got = shape(await verify(code, { claim: false }));
+    if (!got) {
       // 코드가 바뀌었다 — 들고 있어 봐야 소용없다
       code = null;
+      role = null;
+      boundMember = null;
       write(CODE_KEY, null);
       write(ROLE_KEY, null);
+      write(WHO_KEY, null);
     } else {
+      role = got.role;
+      boundMember = got.member_id;
       write(ROLE_KEY, role);
+      write(WHO_KEY, boundMember);
     }
   } catch {
     // 저장소에 못 닿았을 뿐이다. 지난번 등급으로 일단 연다 —
     // 틀렸더라도 저장소가 쓰기를 거절하고(kf:denied) 그때 다시 잠긴다.
     role = read(ROLE_KEY);
+    boundMember = read(WHO_KEY);
   }
   tell();
   return role;
@@ -58,27 +76,33 @@ export async function unlock(input) {
   const next = String(input ?? '').trim();
   if (!next) return null;
   if (!verify) return null;
-  const got = (await verify(next, { claim: true })) ?? null;
+  const got = shape(await verify(next, { claim: true }));
   if (got) {
-    role = got;
+    role = got.role;
+    boundMember = got.member_id;
     code = next;
     write(CODE_KEY, next);
-    write(ROLE_KEY, got);
+    write(ROLE_KEY, role);
+    write(WHO_KEY, boundMember);
     tell();
   }
-  return got;
+  return got?.role ?? null;
 }
 
 /** 다시 보기 전용으로 */
 export function lock() {
   role = null;
+  boundMember = null;
   code = null;
   write(CODE_KEY, null);
   write(ROLE_KEY, null);
+  write(WHO_KEY, null);
   tell();
 }
 
 export const currentRole = () => role;
+/** 코드에 사람이 묶여 있으면 그 사람이 곧 나다. 안 묶여 있으면 null. */
+export const currentMember = () => (role ? boundMember : null);
 export const currentCode = () => (role ? code : null);
 
 /** 지금 고칠 수 있나 */

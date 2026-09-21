@@ -5,6 +5,7 @@ import {
   titleCell, autoGrow, syncTitleCell,
 } from '../ui.js';
 import { taskForm, issueForm } from '../forms.js';
+import { bindComments } from '../comments.js';
 
 const EVENT_LABEL = {
   CREATED: '업무 등록',
@@ -111,6 +112,11 @@ export async function renderTaskDetail(root, id) {
             ${t.completed_at ? `<dt>완료</dt><dd class="num">${dateTime(t.completed_at)}</dd>` : ''}
           </dl>
           ${t.description ? `<p style="margin-top:14px;white-space:pre-wrap;color:var(--ink-2)">${esc(t.description)}</p>` : ''}
+        </div>
+
+        <div class="panel" data-comments-panel>
+          <h3>코멘트</h3>
+          <div data-comments></div>
         </div>
 
         <div class="panel" data-subs-panel>
@@ -298,6 +304,8 @@ export async function renderTaskDetail(root, id) {
       input.focus();   // 여러 개를 잇달아 넣는 일이 많다
     } catch (err) { toast(err.message, true); }
   });
+
+  bindComments(root.querySelector('[data-comments]'), t.id);
 
   autoGrow(root);
 

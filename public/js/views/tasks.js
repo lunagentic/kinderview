@@ -149,7 +149,8 @@ export async function renderTasks(root, query) {
       <span class="tk-title">
         ${titleCell(t)}
         ${flags(t)}${t.subtask_total
-          ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}</span>
+          ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}${
+          t.comment_count ? `<i class="tk-cm" title="코멘트 ${t.comment_count}건">💬 ${t.comment_count}</i>` : ''}</span>
       <span class="tk-cat">${categoryPick(t)}</span>
       <span class="tk-pr ${PR_TONE[t.priority] ?? ''}">${esc(
         (state.meta.priorities.find((x) => x.code === t.priority) ?? {}).label ?? t.priority)}</span>
