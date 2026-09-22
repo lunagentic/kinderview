@@ -636,10 +636,13 @@ export const comments = {
 
     const id = uid();
     const at = nowISO();
+    // 어느 코드로 남긴 말인지. 아는 값만 받는다 — 화면이 보낸 글자를 그대로 믿지 않는다.
+    const role = ['EDIT', 'DIRECTOR', 'ADMIN'].includes(input.author_role) ? input.author_role : null;
     run(
-      `INSERT INTO comment (id, task_id, parent_id, body, author_slack_user_id, created_at, updated_at)
-       VALUES (:id, :t, :p, :body, :author, :at, :at)`,
-      { id, t: taskId, p: parent, body, author, at },
+      `INSERT INTO comment (id, task_id, parent_id, body, author_slack_user_id, author_role,
+                            created_at, updated_at)
+       VALUES (:id, :t, :p, :body, :author, :role, :at, :at)`,
+      { id, t: taskId, p: parent, body, author, role, at },
     );
     return comments.get(id);
   },

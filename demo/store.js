@@ -702,9 +702,11 @@ function createComment(taskId, input, actor) {
   }
 
   const at = nowISO();
+  // 어느 코드로 남긴 말인지. 아는 값만 받는다 — 서버(server/repo.js)와 같은 규칙이다.
+  const role = ['EDIT', 'DIRECTOR', 'ADMIN'].includes(input.author_role) ? input.author_role : null;
   const row = {
     id: uid(), task_id: taskId, parent_id: parent, body,
-    author_slack_user_id: actor, created_at: at, updated_at: at,
+    author_slack_user_id: actor, author_role: role, created_at: at, updated_at: at,
     edited_at: null, deleted_at: null,
   };
   (DB.comments ??= []).push(row);

@@ -7,6 +7,7 @@ import { esc, modal, toast, dateTime, confirmModal } from '../ui.js';
 import { currentRole, unlock, lock, canEdit, canAdmin, roleLabel, isLocalOnly } from '../gate.js';
 
 const SNAP_KIND = { AUTO: '자동', MANUAL: '직접 저장', PRE_RESTORE: '되돌리기 직전' };
+const GC_ROLE = { ADMIN: '관리자', DIRECTOR: '디렉터', EDIT: '편집' };
 
 // 나눠 준 코드 한 줄. 코드 자체는 해시로만 있어 여기에도 나오지 않는다 —
 // 누구에게 준 것인지(label)와 실제로 누가 쓰고 있는지만 보인다.
@@ -14,7 +15,7 @@ const codeRow = (c) => `
   <li class="gc-row${c.active ? '' : ' off'}">
     <span class="gc-name">
       <b>${esc(c.label ?? '이름 없음')}</b>
-      <span class="rp-meta">${c.role === 'ADMIN' ? '관리자' : '편집'}${
+      <span class="rp-meta">${GC_ROLE[c.role] ?? c.role}${
         c.claimed_by ? ` · ${esc(c.claimed_by)}` : ' · 아직 안 씀'}${
         c.use_count ? ` · ${esc(c.use_count)}회` : ''}</span>
     </span>
@@ -145,7 +146,7 @@ export function gatePanel() {
             btn.textContent = '들어가기';
             return;
           }
-          toast(got === 'ADMIN' ? '관리자로 들어왔습니다.' : '편집 모드로 들어왔습니다.');
+          toast(`${GC_ROLE[got] ?? '편집'}(으)로 들어왔습니다.`);
           paint();
           window.dispatchEvent(new Event('kf:reload'));
         } catch (err) {

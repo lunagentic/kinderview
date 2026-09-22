@@ -17,7 +17,10 @@ const write = (k, v) => {
   catch { /* 저장이 막힌 창에서는 이번 세션만 유지된다 */ }
 };
 
-let role = null;          // null(보기) | 'EDIT' | 'ADMIN'
+// 등급은 셋이다. 디렉터는 편집과 같은 힘을 갖되 이름이 다르다 —
+// 디렉터 코멘트를 누가 남겼는지가 글의 무게를 바꾸기 때문이다.
+// 관리자만 할 수 있는 일(지우기·프로젝트·인보이싱)은 그대로 관리자 몫이다.
+let role = null;          // null(보기) | 'EDIT' | 'DIRECTOR' | 'ADMIN'
 let localOnly = false;    // 공유 저장소가 없는 자리(미리보기)에서 열어 둔 상태
 let boundMember = null;   // 이 코드에 묶인 사람. 있으면 그게 곧 내 신원이다.
 let code = read(CODE_KEY);
@@ -124,12 +127,16 @@ export const currentMember = () => (role ? boundMember : null);
 export const currentCode = () => (role ? code : null);
 
 /** 지금 고칠 수 있나 */
-export const canEdit = () => role === 'EDIT' || role === 'ADMIN';
+const WRITERS = ['EDIT', 'DIRECTOR', 'ADMIN'];
+export const canEdit = () => WRITERS.includes(role);
+/** 디렉터 코드로 들어왔나 — 코멘트에 이름표를 달아 주는 쪽이 본다 */
+export const isDirector = () => role === 'DIRECTOR';
 /** 지우기·프로젝트/구성원 관리처럼 되돌리기 어려운 일 */
 export const canAdmin = () => role === 'ADMIN';
 
+const ROLE_LABEL = { ADMIN: '관리자', DIRECTOR: '디렉터', EDIT: '편집' };
 export const roleLabel = () => (
-  localOnly ? '미리보기' : role === 'ADMIN' ? '관리자' : role === 'EDIT' ? '편집' : '보기 전용');
+  localOnly ? '미리보기' : ROLE_LABEL[role] ?? '보기 전용');
 
 /**
  * 쓰기를 시작하기 전에 통과해야 하는 문.

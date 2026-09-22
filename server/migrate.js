@@ -269,6 +269,17 @@ function addTaskPhase() {
 }
 
 /**
+ * 코멘트를 남긴 사람이 그때 어느 코드로 들어와 있었는지.
+ * 등급은 나중에 바뀔 수 있으므로 글에 함께 적어 둔다 — 값이 없어도 되니 컬럼만 더한다.
+ */
+function addCommentAuthorRole() {
+  const sql = tableSql('comment');
+  if (!sql || sql.includes('author_role')) return null;
+  db.exec('ALTER TABLE comment ADD COLUMN author_role TEXT');
+  return '코멘트에 작성 당시 등급 컬럼 추가';
+}
+
+/**
  * 스키마 적용(db.js)보다 늦게 걸어야 하는 제약들.
  * 여기 있는 것은 언제 돌려도 안전하고, 옮길 것이 없어도 매번 확인한다.
  */
@@ -294,7 +305,7 @@ function ensureConstraints() {
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
-    migrateBacklog(), migrateProjectOptional(), addTaskCategory()]
+    migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();
