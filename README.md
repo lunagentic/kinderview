@@ -7,6 +7,8 @@
 
 ## 배포
 
+운영 주소: **https://kinderview.vercel.app** — 이 저장소에 푸시하면 Vercel 이 자동으로 다시 올린다.
+
 정적 브라우저 모드는 **설정 없이 Vercel 에 바로 배포된다.**
 
 ```bash

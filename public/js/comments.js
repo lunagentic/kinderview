@@ -34,16 +34,22 @@ const cmIcon = (name) => `<svg class="cm-i" viewBox="0 0 24 24" fill="none" stro
 // 엔터로 저장한다는 것은 한 번 보여 줘야 안다. 줄바꿈을 잃었다고 여기면 안 쓰게 된다.
 const CM_TIP = '<span class="cm-tip">Enter 저장 · Shift+Enter 줄바꿈</span>';
 
+// 디렉터 코드로 남긴 글은 사람 이름 대신 「디렉터」로만 선다.
+// 디렉터 코멘트는 개인의 감상이 아니라 자리에서 내는 말이다 —
+// 이름이 붙으면 "정 선생님 의견"이 되고, 자리가 붙으면 결정이 된다.
+const isDir = (c) => c.author_role === 'DIRECTOR';
+
 const one = (c, { reply = true } = {}) => {
   const gone = Boolean(c.deleted_at);
   return `
-  <li class="cm${gone ? ' gone' : ''}${c.parent_id ? ' re' : ''}" data-comment="${esc(c.id)}">
-    <span class="cm-who">${avatar(memberOf(c.author_slack_user_id), 'sm')}</span>
+  <li class="cm${gone ? ' gone' : ''}${c.parent_id ? ' re' : ''}${isDir(c) ? ' dir' : ''}" data-comment="${esc(c.id)}">
+    <span class="cm-who">${isDir(c)
+      ? `<span class="avatar sm cm-av-dir" title="디렉터">${cmIcon('director')}</span>`
+      : avatar(memberOf(c.author_slack_user_id), 'sm')}</span>
     <div class="cm-main">
       <div class="cm-head">
-        <b>${esc(c.author_name ?? c.author_slack_user_id)}</b>
-        ${c.author_role === 'DIRECTOR'
-          ? `<span class="cm-tag" title="디렉터 코드로 남긴 글입니다">${cmIcon('director')}디렉터</span>` : ''}
+        <b${isDir(c) ? ' class="cm-dir"' : ''}>${isDir(c)
+          ? '디렉터' : esc(c.author_name ?? c.author_slack_user_id)}</b>
         <span class="cm-when">${esc(dateTime(c.created_at))}</span>
         ${c.edited_at && !gone ? '<span class="cm-when">고침</span>' : ''}
       </div>

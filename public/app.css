@@ -1239,10 +1239,10 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .cm .lnk.bad:hover{color:var(--s-delay)}
 /* 손짓 아이콘 — 글씨 옆에 붙어 글자 크기를 따라간다 */
 .cm-i{width:1.05em;height:1.05em;flex:none}
-/* 디렉터 코드로 남긴 글 */
-.cm-tag{display:inline-flex;align-items:center;gap:2px;font-size:.68rem;font-weight:600;
-  color:var(--indigo);border:1px solid currentColor;border-radius:999px;
-  padding:0 5px;line-height:1.5;opacity:.85}
+/* 디렉터 코드로 남긴 글 — 사람 이름 대신 자리 이름이 선다 */
+.cm-dir{color:var(--indigo)}
+.cm-av-dir{color:var(--indigo);background:color-mix(in srgb, var(--indigo) 12%, var(--surface))}
+.cm-av-dir .cm-i{width:12px;height:12px}
 .cm-tip{flex:1 0 100%;font-size:.7rem;color:var(--muted);font-family:var(--mono)}
 .cm-add,.cm-sub{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px}
 .cm-add textarea,.cm-sub textarea{flex:1 1 220px;min-width:0;font:inherit;font-size:.87rem;
