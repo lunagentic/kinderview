@@ -6,13 +6,30 @@ import {
   titleCell, autoGrow, syncTitleCell, categoryLabel, categoryStyle,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm } from '../forms.js';
-import { bindComments } from '../comments.js';
+import { bindComments, directorIcon } from '../comments.js';
 
 // 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 상태는 상태색으로 나눈다.
 // 막대에는 늘 이름이 붙는다 — 색만으로 구분되는 곳은 없다.
 
 // 줄 안에서 제 일을 하는 것들 — 여기를 누른 것은 '상세로 가자'가 아니다
+/**
+ * 줄 끝의 코멘트 뱃지.
+ * 디렉터 말이 달린 업무는 「디렉터 2」로 크게 서고, 그냥 코멘트는 작게 센다.
+ * 아무것도 없으면 말풍선만 — 누르면 그 자리에서 남길 수 있다는 뜻이다.
+ */
+const cmBadge = (t) => {
+  const dir = t.director_comment_count ?? 0;
+  const all = t.comment_count ?? 0;
+  return `<button class="tld-cm${dir ? ' dir' : all ? ' on' : ''}" data-cm="${esc(t.id)}"
+     aria-expanded="false" title="${dir ? `디렉터 코멘트 ${dir}건 — 눌러서 읽기`
+       : all ? `코멘트 ${all}건 — 눌러서 읽기` : '디렉터 코멘트 남기기'}"
+     >${cmBadgeText(dir, all)}</button>`;
+};
+const cmBadgeText = (dir, all) => (dir
+  ? `${directorIcon()}디렉터 ${dir}`
+  : `💬${all ? ` ${all}` : ''}`);
+
 const TASK_LINE_CONTROLS = [
   'select', 'input', 'textarea',   // 상태 칸이 여기 든다
   '.due-view', '.due-edit', '.ttl-edit', '.tld-subs', '.tld-cm', '.tld-del', '.tld-edit',
@@ -312,6 +329,12 @@ export async function renderTimeline(root) {
     }
     if (openId !== phaseId) return undefined;   // 그새 다른 걸 눌렀으면 버린다
 
+    // 디렉터가 뭔가 말해 둔 업무를 분류 묶음 맨 위로 올린다.
+    // 같은 묶음 안의 나머지 순서(마감 · 우선순위)는 그대로다 —
+    // 디렉터 말은 대개 "이것부터 보라"는 뜻이라 스크롤 아래에 있으면 늦는다.
+    const dirFirst = (list) => [...list].sort(
+      (a, b) => Boolean(b.director_comment_count) - Boolean(a.director_comment_count));
+
     // 영역 › 분류 › 업무. 「서비스기획 - 신규 기능 - 갤러리 소셜화」를 한눈에 읽으려면
     // 분류가 업무 위에 한 단으로 서야 한다. 분류를 아직 안 정한 것은 맨 아래로 모은다.
     const catOrder = [...(state.meta?.categories ?? []).map((c) => c.code), null];
@@ -322,7 +345,7 @@ export async function renderTimeline(root) {
           .map((code) => ({
             code,
             label: code ? categoryLabel(code) : '분류 없음',
-            rows: mine.filter((t) => (t.category ?? null) === code),
+            rows: dirFirst(mine.filter((t) => (t.category ?? null) === code)),
           }))
           .filter((g) => g.rows.length);
         return { area: a, rows: mine, groups };
@@ -332,7 +355,8 @@ export async function renderTimeline(root) {
     // 하위 업무는 평소에 접어 둔다. 몇 개인지만 보이고, 누르면 그 자리에서 펼쳐진다 —
     // 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
     const taskLine = (t) => `
-      <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0">
+      <div class="tld-task${t.director_comment_count ? ' has-dir' : ''}"
+           data-line="${esc(t.id)}" role="button" tabindex="0">
         <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
         <span class="ttl">${titleCell(t)}</span>
         ${t.subtask_total
@@ -340,9 +364,7 @@ export async function renderTimeline(root) {
                      title="하위 업무 ${t.subtask_done}/${t.subtask_total} — 눌러서 펼치기"
                      >하위 ${t.subtask_done}/${t.subtask_total}</button>`
           : '<span class="tld-subs empty"></span>'}
-        <button class="tld-cm${t.comment_count ? ' on' : ''}" data-cm="${esc(t.id)}" aria-expanded="false"
-                title="디렉터 코멘트${t.comment_count ? ` ${t.comment_count}건` : ' 남기기'}"
-                >💬${t.comment_count ? ` ${t.comment_count}` : ''}</button>
+        ${cmBadge(t)}
         <span class="st">${statusPick(t)}</span>
         <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
                 title="상세 편집">✎</button>
@@ -453,9 +475,13 @@ export async function renderTimeline(root) {
     holder.className = 'tld-cmbox';
     line.after(holder);
     bindComments(holder, cb.dataset.cm, {
-      onChange: (n) => {
-        cb.textContent = n ? `💬 ${n}` : '💬';
-        cb.classList.toggle('on', Boolean(n));
+      onChange: ({ total, director }) => {
+        cb.innerHTML = cmBadgeText(director, total);
+        cb.classList.toggle('dir', Boolean(director));
+        cb.classList.toggle('on', Boolean(total) && !director);
+        // 줄 자체의 강조도 같이 따라간다. 자리는 다음에 펼칠 때 바뀐다 —
+        // 읽는 도중에 줄이 움직이면 어디를 보고 있었는지 잃는다.
+        line.classList.toggle('has-dir', Boolean(director));
       },
     });
   });

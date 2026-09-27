@@ -810,6 +810,8 @@ function hydrate(t, ref = today()) {
     open_issue_count: openCount,
     has_open_issue: openCount > 0,
     comment_count: commentsOf(t.id).filter((c) => !c.deleted_at).length,
+    director_comment_count: commentsOf(t.id)
+      .filter((c) => !c.deleted_at && c.author_role === 'DIRECTOR').length,
     subtask_total: subtasksOf(t.id).length,
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',

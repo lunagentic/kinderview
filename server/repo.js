@@ -567,6 +567,8 @@ const TASK_SELECT = `
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id) AS subtask_total,
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id AND s.is_done = 1) AS subtask_done,
          (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL) AS comment_count,
+         (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL
+            AND c.author_role = 'DIRECTOR') AS director_comment_count,
          ${CASE_WEIGHT} AS progress_weight
   FROM task t
   LEFT JOIN project p ON p.id = t.project_id
@@ -582,6 +584,7 @@ const decorate = (row) => {
   row.is_delivery_delayed = !!row.is_delivery_delayed;
   row.has_open_issue = row.open_issue_count > 0;
   row.comment_count = row.comment_count ?? 0;
+  row.director_comment_count = row.director_comment_count ?? 0;
   row.subtask_total = row.subtask_total ?? 0;
   row.subtask_done = row.subtask_done ?? 0;
   row.owner_active = !!row.owner_active;

@@ -31,6 +31,9 @@ const cmIcon = (name) => `<svg class="cm-i" viewBox="0 0 24 24" fill="none" stro
   stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
   ><path d="${CM_ICON[name]}"/></svg>`;
 
+/** 디렉터 표. 타임라인 줄의 뱃지가 같은 그림을 쓴다. */
+export const directorIcon = () => cmIcon('director');
+
 // 엔터로 저장한다는 것은 한 번 보여 줘야 안다. 줄바꿈을 잃었다고 여기면 안 쓰게 된다.
 const CM_TIP = '<span class="cm-tip">Enter 저장 · Shift+Enter 줄바꿈</span>';
 
@@ -96,7 +99,9 @@ export function commentList(rows) {
 
 /**
  * 코멘트 영역을 살린다. box 안을 다시 그리고 손짓을 받는다.
- * onChange 는 코멘트 수가 달라졌을 때 부른다 — 뱃지를 고쳐 달아야 하는 쪽이 있다.
+ * onChange 는 코멘트 수가 달라졌을 때 { total, director } 로 부른다 —
+ * 뱃지를 고쳐 달아야 하는 쪽이 있다. 디렉터 것은 따로 센다: 타임라인 줄에서
+ * 디렉터 말이 달린 업무는 먼저 눈에 들어와야 한다.
  */
 export function bindComments(box, taskId, { onChange } = {}) {
   let rows = [];
@@ -122,6 +127,11 @@ export function bindComments(box, taskId, { onChange } = {}) {
     }
   };
 
+  const tally = () => ({
+    total: rows.filter((c) => !c.deleted_at).length,
+    director: rows.filter((c) => !c.deleted_at && c.author_role === 'DIRECTOR').length,
+  });
+
   const post = async (body, parentId) => {
     const text = String(body ?? '').trim();
     if (!text) return false;
@@ -134,7 +144,7 @@ export function bindComments(box, taskId, { onChange } = {}) {
         author_title: currentLabel(),
       });
       await load();
-      onChange?.(rows.filter((c) => !c.deleted_at).length);
+      onChange?.(tally());
       return true;
     } catch (err) { toast(err.message, true); return false; }
   };
@@ -243,7 +253,7 @@ export function bindComments(box, taskId, { onChange } = {}) {
       try {
         await api.del(`/api/comments/${del.dataset.cmDel}`);
         await load();
-        onChange?.(rows.filter((c) => !c.deleted_at).length);
+        onChange?.(tally());
       } catch (err) { toast(err.message, true); }
     }
   });
