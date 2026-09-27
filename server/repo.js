@@ -636,13 +636,16 @@ export const comments = {
 
     const id = uid();
     const at = nowISO();
-    // 어느 코드로 남긴 말인지. 아는 값만 받는다 — 화면이 보낸 글자를 그대로 믿지 않는다.
+    // 어느 자리에서 남긴 말인지. 아는 값만 받는다 — 화면이 보낸 글자를 그대로 믿지 않는다.
     const role = ['EDIT', 'DIRECTOR', 'ADMIN'].includes(input.author_role) ? input.author_role : null;
+    // 이름표는 코드에 달린 글자라 정해진 목록이 없다. 길이만 자른다 —
+    // 화면 한 줄을 넘기면 자리 이름이 아니라 문장이 된다.
+    const title = role === 'DIRECTOR' ? titleOf(input.author_title) : null;
     run(
       `INSERT INTO comment (id, task_id, parent_id, body, author_slack_user_id, author_role,
-                            created_at, updated_at)
-       VALUES (:id, :t, :p, :body, :author, :role, :at, :at)`,
-      { id, t: taskId, p: parent, body, author, role, at },
+                            author_title, created_at, updated_at)
+       VALUES (:id, :t, :p, :body, :author, :role, :title, :at, :at)`,
+      { id, t: taskId, p: parent, body, author, role, title, at },
     );
     return comments.get(id);
   },
@@ -685,6 +688,12 @@ export const comments = {
 
 // 지운 글은 내용을 내보내지 않는다 — 자리만 남긴다
 const strip = (c) => (c && c.deleted_at ? { ...c, body: '' } : c);
+
+/** 코드 이름표를 한 줄 길이로 자른다. 빈 글자는 없는 것으로 본다. */
+const titleOf = (v) => {
+  const t = String(v ?? '').trim().slice(0, 24);
+  return t || null;
+};
 
 export const subtasks = {
   list(taskId) {

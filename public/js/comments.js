@@ -10,7 +10,7 @@
 import { api } from './api.js';
 import { esc, avatar, dateTime, toast, confirmModal } from './ui.js';
 import { state, memberOf } from './state.js';
-import { canEdit, canAdmin, currentRole } from './gate.js';
+import { canEdit, canAdmin, currentRole, currentLabel } from './gate.js';
 
 const mine = (c) => c.author_slack_user_id === state.me;
 
@@ -34,10 +34,14 @@ const cmIcon = (name) => `<svg class="cm-i" viewBox="0 0 24 24" fill="none" stro
 // 엔터로 저장한다는 것은 한 번 보여 줘야 안다. 줄바꿈을 잃었다고 여기면 안 쓰게 된다.
 const CM_TIP = '<span class="cm-tip">Enter 저장 · Shift+Enter 줄바꿈</span>';
 
-// 디렉터 코드로 남긴 글은 사람 이름 대신 「디렉터」로만 선다.
+// 디렉터 코드로 남긴 글은 사람 이름 대신 자리 이름으로 선다.
 // 디렉터 코멘트는 개인의 감상이 아니라 자리에서 내는 말이다 —
 // 이름이 붙으면 "정 선생님 의견"이 되고, 자리가 붙으면 결정이 된다.
+//
+// 어느 자리인지는 코드에 달린 이름표가 정한다(디렉터 · 서브디렉터 1 · 서브디렉터 2).
+// 이름표가 없던 시절에 쓴 글은 그냥 「디렉터」다.
 const isDir = (c) => c.author_role === 'DIRECTOR';
+const dirName = (c) => c.author_title || '디렉터';
 
 const one = (c, { reply = true } = {}) => {
   const gone = Boolean(c.deleted_at);
@@ -48,8 +52,8 @@ const one = (c, { reply = true } = {}) => {
       : avatar(memberOf(c.author_slack_user_id), 'sm')}</span>
     <div class="cm-main">
       <div class="cm-head">
-        <b${isDir(c) ? ' class="cm-dir"' : ''}>${isDir(c)
-          ? '디렉터' : esc(c.author_name ?? c.author_slack_user_id)}</b>
+        <b${isDir(c) ? ' class="cm-dir"' : ''}>${esc(isDir(c)
+          ? dirName(c) : (c.author_name ?? c.author_slack_user_id))}</b>
         <span class="cm-when">${esc(dateTime(c.created_at))}</span>
         ${c.edited_at && !gone ? '<span class="cm-when">고침</span>' : ''}
       </div>
@@ -125,8 +129,9 @@ export function bindComments(box, taskId, { onChange } = {}) {
       await api.post(`/api/tasks/${taskId}/comments`, {
         body: text,
         parent_id: parentId ?? null,
-        // 어느 코드로 남긴 말인지 함께 적는다 — 나중에 등급이 바뀌어도 그때의 자리가 남는다
+        // 어느 자리에서 남긴 말인지 함께 적는다 — 나중에 코드가 바뀌어도 그때의 자리가 남는다
         author_role: currentRole(),
+        author_title: currentLabel(),
       });
       await load();
       onChange?.(rows.filter((c) => !c.deleted_at).length);

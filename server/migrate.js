@@ -279,6 +279,14 @@ function addCommentAuthorRole() {
   return '코멘트에 작성 당시 등급 컬럼 추가';
 }
 
+/** 그 등급이 어느 자리였는지 — 디렉터가 여럿이면 등급만으로는 갈리지 않는다 */
+function addCommentAuthorTitle() {
+  const sql = tableSql('comment');
+  if (!sql || sql.includes('author_title')) return null;
+  db.exec('ALTER TABLE comment ADD COLUMN author_title TEXT');
+  return '코멘트에 작성 당시 자리 이름 컬럼 추가';
+}
+
 /**
  * 스키마 적용(db.js)보다 늦게 걸어야 하는 제약들.
  * 여기 있는 것은 언제 돌려도 안전하고, 옮길 것이 없어도 매번 확인한다.
@@ -305,7 +313,7 @@ function ensureConstraints() {
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
-    migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole()]
+    migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

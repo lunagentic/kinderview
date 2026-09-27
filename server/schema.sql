@@ -184,8 +184,10 @@ CREATE TABLE IF NOT EXISTS comment (
   parent_id            TEXT REFERENCES comment(id) ON DELETE CASCADE,
   body                 TEXT NOT NULL,
   author_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
-  -- 남길 때의 등급(EDIT · DIRECTOR · ADMIN). 나중에 코드가 바뀌어도 그때의 자리가 남는다.
+  -- 남길 때의 등급(EDIT · DIRECTOR · ADMIN)과 그 코드의 이름표(디렉터 · 서브디렉터 1 …).
+  -- 나중에 코드가 바뀌어도 그때의 자리가 남는다.
   author_role          TEXT,
+  author_title         TEXT,
   created_at           TEXT NOT NULL,
   updated_at           TEXT NOT NULL,
   edited_at            TEXT,

@@ -10,6 +10,7 @@
 const CODE_KEY = 'kf.gate.code';
 const ROLE_KEY = 'kf.gate.role';
 const WHO_KEY = 'kf.gate.member';
+const TAG_KEY = 'kf.gate.label';
 
 const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k, v) => {
@@ -23,6 +24,9 @@ const write = (k, v) => {
 let role = null;          // null(보기) | 'EDIT' | 'DIRECTOR' | 'ADMIN'
 let localOnly = false;    // 공유 저장소가 없는 자리(미리보기)에서 열어 둔 상태
 let boundMember = null;   // 이 코드에 묶인 사람. 있으면 그게 곧 내 신원이다.
+// 이 코드에 붙은 이름표(디렉터·서브디렉터 1 …). 자리 이름이 곧 화면에 서는 이름이다 —
+// 디렉터가 여럿일 때 누가 낸 말인지 갈리려면 등급만으로는 모자란다.
+let boundLabel = null;
 let code = read(CODE_KEY);
 let verify = null;        // (code) => Promise<등급 | {role, member_id, label} | null>
 
@@ -71,20 +75,25 @@ export async function resume() {
       code = null;
       role = null;
       boundMember = null;
+      boundLabel = null;
       write(CODE_KEY, null);
       write(ROLE_KEY, null);
       write(WHO_KEY, null);
+      write(TAG_KEY, null);
     } else {
       role = got.role;
       boundMember = got.member_id;
+      boundLabel = got.label;
       write(ROLE_KEY, role);
       write(WHO_KEY, boundMember);
+      write(TAG_KEY, boundLabel);
     }
   } catch {
     // 저장소에 못 닿았을 뿐이다. 지난번 등급으로 일단 연다 —
     // 틀렸더라도 저장소가 쓰기를 거절하고(kf:denied) 그때 다시 잠긴다.
     role = read(ROLE_KEY);
     boundMember = read(WHO_KEY);
+    boundLabel = read(TAG_KEY);
   }
   tell();
   return role;
@@ -100,10 +109,12 @@ export async function unlock(input) {
     localOnly = false;
     role = got.role;
     boundMember = got.member_id;
+    boundLabel = got.label;
     code = next;
     write(CODE_KEY, next);
     write(ROLE_KEY, role);
     write(WHO_KEY, boundMember);
+    write(TAG_KEY, boundLabel);
     tell();
   }
   return got?.role ?? null;
@@ -114,10 +125,12 @@ export function lock() {
   role = null;
   localOnly = false;
   boundMember = null;
+  boundLabel = null;
   code = null;
   write(CODE_KEY, null);
   write(ROLE_KEY, null);
   write(WHO_KEY, null);
+  write(TAG_KEY, null);
   tell();
 }
 
@@ -125,6 +138,8 @@ export const currentRole = () => role;
 /** 코드에 사람이 묶여 있으면 그 사람이 곧 나다. 안 묶여 있으면 null. */
 export const currentMember = () => (role ? boundMember : null);
 export const currentCode = () => (role ? code : null);
+/** 이 코드의 이름표. 디렉터 자리를 가르는 데 쓴다. */
+export const currentLabel = () => (role ? boundLabel : null);
 
 /** 지금 고칠 수 있나 */
 const WRITERS = ['EDIT', 'DIRECTOR', 'ADMIN'];
@@ -135,8 +150,12 @@ export const isDirector = () => role === 'DIRECTOR';
 export const canAdmin = () => role === 'ADMIN';
 
 const ROLE_LABEL = { ADMIN: '관리자', DIRECTOR: '디렉터', EDIT: '편집' };
-export const roleLabel = () => (
-  localOnly ? '미리보기' : ROLE_LABEL[role] ?? '보기 전용');
+export const roleLabel = () => {
+  if (localOnly) return '미리보기';
+  // 디렉터는 자리 이름이 곧 등급이다 — 서브디렉터도 이 문으로 들어온다
+  if (role === 'DIRECTOR') return boundLabel || '디렉터';
+  return ROLE_LABEL[role] ?? '보기 전용';
+};
 
 /**
  * 쓰기를 시작하기 전에 통과해야 하는 문.
