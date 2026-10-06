@@ -113,6 +113,23 @@ export async function renderTimeline(root) {
   }
   const todayAt = tlPoint(win, state.today);
 
+  // 주 칸 — 월요일에 선다. 창은 달 첫날에서 시작하니 첫 주는 앞쪽이 잘린다.
+  const weeks = [];
+  const lead = (new Date(tlParse(winStart)).getUTCDay() + 6) % 7;   // 월=0 … 일=6
+  for (let w = tlAdd(winStart, -lead); tlParse(w) <= tlParse(winEnd); w = tlAdd(w, 7)) {
+    const sun = tlAdd(w, 6);
+    const box = tlSpan(win, w, sun);
+    if (box) weeks.push({ start: w, edge: w >= winStart, now: w <= state.today && state.today <= sun, ...box });
+  }
+  const thisWeek = weeks.find((w) => w.now);
+  // 눈금: 주 경계는 옅게, 달 경계는 조금 진하게
+  const gridLines = () => [
+    ...weeks.filter((w) => w.edge).map((w) => `<i class="tl-grid" style="left:${w.left}%"></i>`),
+    ...months.map((m) => `<i class="tl-grid month" style="left:${m.left}%"></i>`),
+  ].join('');
+  // 줄 전체에 걸치는 것(오늘 선, 이번 주 띠)은 라벨 칸과 간격을 건너 트랙 위에 선다
+  const onTrack = (pct) => `calc(var(--tl-label) + var(--tl-gap) + (100% - var(--tl-label) - var(--tl-gap)) * ${pct / 100})`;
+
   const phaseRow = (r, ph) => {
     const box = ph.start_date && ph.end_date ? tlSpan(win, ph.start_date, ph.end_date) : null;
     const pct = ph.progress;
@@ -130,7 +147,7 @@ export async function renderTimeline(root) {
             pct === null ? '' : ` · ${pct}%`}</span>
         </div>
         <div class="tl-track">
-          ${months.map((m) => `<i class="tl-grid" style="left:${m.left}%"></i>`).join('')}
+          ${gridLines()}
           ${box ? `
             <div class="tl-bar${ph.derived ? ' is-derived' : ''}" style="left:${box.left}%;width:${box.width}%"
                  data-open-phase="${esc(ph.id)}" data-tip="${esc(tip)}" tabindex="0"
@@ -151,7 +168,7 @@ export async function renderTimeline(root) {
       <div class="tl-row tl-row-ms">
         <div class="tl-label"><span class="tl-meta">마일스톤 ${r.milestones.length}</span></div>
         <div class="tl-track">
-          ${months.map((m) => `<i class="tl-grid" style="left:${m.left}%"></i>`).join('')}
+          ${gridLines()}
           ${r.milestones.map((m) => {
             const at = tlPoint(win, m.due_date);
             if (at === null) return '';
@@ -179,13 +196,19 @@ export async function renderTimeline(root) {
     </div>
 
     <div class="tl-wrap">
-      <div class="tl-chart">
+      <div class="tl-chart" style="min-width:max(560px, calc(var(--tl-label) + var(--tl-gap) + ${weeks.length * 40}px))">
+        ${thisWeek ? `<i class="tl-week-now" style="left:${onTrack(thisWeek.left)};width:calc((100% - var(--tl-label) - var(--tl-gap)) * ${thisWeek.width / 100})"></i>` : ''}
         <div class="tl-row tl-axis">
           <div class="tl-label"></div>
           <div class="tl-track">
             ${months.map((m) => `
               <span class="tl-month" style="left:${m.left}%;width:${m.width}%">
                 ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}
+              </span>`).join('')}
+            ${weeks.map((w) => `
+              <span class="tl-week${w.now ? ' now' : ''}${w.edge ? '' : ' cut'}" style="left:${w.left}%;width:${w.width}%"
+                    title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">
+                ${w.edge ? `${Number(w.start.slice(5, 7))}/${Number(w.start.slice(8, 10))}` : ''}
               </span>`).join('')}
             ${todayAt === null ? '' : `<i class="tl-today-cap" style="left:${todayAt}%">오늘</i>`}
           </div>
@@ -207,12 +230,12 @@ export async function renderTimeline(root) {
             ${r.phases.length
               ? r.phases.map((ph) => phaseRow(r, ph)).join('')
               : `<div class="tl-row"><div class="tl-label"><span class="tl-meta">페이즈 없음</span></div>
-                 <div class="tl-track">${months.map((m) => `<i class="tl-grid" style="left:${m.left}%"></i>`).join('')}
+                 <div class="tl-track">${gridLines()}
                  <span class="tl-nodate">페이즈를 추가하면 기간이 그려집니다</span></div></div>`}
             ${milestoneLane(r)}
           </section>`).join('')}
 
-        ${todayAt === null ? '' : `<i class="tl-today" style="left:calc(var(--tl-label) + (100% - var(--tl-label)) * ${todayAt / 100})"></i>`}
+        ${todayAt === null ? '' : `<i class="tl-today" style="left:${onTrack(todayAt)}"></i>`}
       </div>
     </div>
 
@@ -278,6 +301,13 @@ export async function renderTimeline(root) {
 `;
 
   hoverTip(root);
+
+  // 주 칸으로 나누면 차트가 화면보다 넓어진다. 처음엔 오늘이 보이게 둔다.
+  const wrap = root.querySelector('.tl-wrap');
+  const todayLine = root.querySelector('.tl-today');
+  if (wrap && todayLine && wrap.scrollWidth > wrap.clientWidth) {
+    wrap.scrollLeft = Math.max(0, todayLine.offsetLeft - wrap.clientWidth * 0.35);
+  }
 
   // ── 편집 ──────────────────────────────────────────────
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
