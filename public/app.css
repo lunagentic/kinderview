@@ -410,9 +410,11 @@ details.more[open] > summary{color:var(--ink)}
 @media (max-width:860px){
   .topbar{
     gap:10px 12px;padding:9px 14px;
-    display:grid;grid-template-columns:1fr auto;grid-template-areas:"brand right" "nav nav";
+    display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"brand right" "nav nav";
+    align-items:start;
   }
-  .brand{grid-area:brand;min-width:0}
+  /* 오른쪽이 두 줄로 접혀도 로고는 첫 줄에 선다 */
+  .brand{grid-area:brand;min-width:0;padding-top:6px}
   .brand-sub{display:none}
   /* 상단바 오른쪽은 칸이 모자라면 줄을 바꾼다 — 밀어내면 페이지 전체가 넓어진다 */
   .topbar-right{grid-area:right;gap:6px 8px;min-width:0;flex-wrap:wrap;justify-content:flex-end}
@@ -870,8 +872,8 @@ body[data-gate="edit"] .btn-danger{display:none}
 
 .tl-row{display:grid;grid-template-columns:var(--tl-label) 1fr;align-items:center;gap:var(--tl-gap);min-height:30px}
 /* 라벨 칸은 붙박이다 — 차트가 넓어져도 페이즈 이름은 자리를 지킨다 */
-.tl-label{min-width:0;display:flex;flex-direction:column;gap:1px;padding:3px 0 3px 16px;
-  position:sticky;left:0;z-index:3;background:var(--surface)}
+.tl-label{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:3px 0 3px 16px;
+  position:sticky;left:0;z-index:3;background:var(--surface);align-self:stretch}
 /* 라벨과 트랙 사이 틈도 라벨이 덮는다 — 왼쪽으로 지나간 막대가 틈으로 비치면 안 된다 */
 .tl-label::after{content:"";position:absolute;left:100%;top:-4px;bottom:-4px;width:var(--tl-gap);background:var(--surface)}
 .tl-group-head{position:sticky;left:0;z-index:3;width:max-content;max-width:calc(100vw - 64px);
@@ -1494,7 +1496,41 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
 .tlg-legend i.done{background:var(--s-done)} .tlg-legend i.late{background:var(--s-delay)}
 
 @media (max-width:860px){
-  .tlg{--tlg-left:280px}
+  /* ── 타임라인 모바일 ──
+     세로 공간이 귀하다. 도구줄은 한 줄, 범례는 가로로 넘기고, 안내 문구는 뺀다. */
+  .subnav{flex-wrap:nowrap}
+  .tl-scale{gap:6px 10px;margin-bottom:8px}
+  .tl-seg button{padding:6px 12px;min-height:36px}
+  .tl-nav .btn{min-height:36px;padding:4px 8px}
+  .tl-range-now{margin-left:4px;font-size:.74rem}
+  .tl-scale .hint{display:none}
+  .tl-legend{flex-wrap:nowrap;overflow-x:auto;gap:6px 14px;margin:0 -14px 8px;padding:0 14px 2px;
+    scrollbar-width:none;font-size:.72rem}
+  .tl-legend::-webkit-scrollbar{display:none}
+  .tl-legend .tl-key{flex:0 0 auto;white-space:nowrap}
+  .tl-hint{display:none}
+  .tl-wrap{padding:4px 0 10px;border-radius:var(--radius-sm)}
+  .tl-group{padding:8px 0 10px}
+  .tl-group-head{max-width:calc(100vw - 44px);padding-left:14px;gap:6px 10px}
+  .tl-group-head h2{font-size:.9rem}
+  .tl-label{padding-left:14px}
+  .tl-name{font-size:.88rem}
+  .tl-meta{font-size:.7rem}
+  /* 페이즈 패널: 왼쪽 표를 줄여 격자가 더 보이게. 담당은 영역 줄의 리드로 충분하다 */
+  .tlg{--tlg-left:250px}
+  .tlg-l{padding:0 8px 0 10px;gap:6px}
+  .tlg-row.tld-task .tlg-l{padding-left:12px}
+  .tlg-cat .tlg-l{padding-left:18px}
+  .tlg-area-row .lead{font-size:.72rem}
+  .tkey{font-size:.66rem;padding:0 4px;margin-right:4px}
+  /* 업무 줄은 두 줄로 — 첫 줄 번호·업무명, 둘째 줄 뱃지·상태·단추. 한 줄에 다 넣으면 격자를 덮는다 */
+  .tlg-row.tld-task .tlg-l{flex-wrap:wrap;row-gap:2px;padding-top:4px;padding-bottom:4px}
+  .tlg-row.tld-task .ttl{flex:1 1 calc(100% - 70px);font-size:.84rem}
+  .tlg-row.tld-task .tld-subs{margin-left:auto}
+  .tlg-row.tld-task .st .chip-select{font-size:.72rem;padding:2px 20px 2px 8px}
+  .tld-head{padding:10px 12px}
+  .tld-head h3{font-size:.92rem}
+  .tlg-legend{padding:6px 12px 8px;gap:4px 10px;font-size:.7rem}
   .tlg-own,.tlg-axis .tlg-l span:nth-child(3){display:none}
   .tlg-axis .tlg-l{grid-template-columns:1fr 72px 50px}
   .tlg-row.tld-task .tld-edit,.tlg-row.tld-task .tld-del{color:var(--muted);min-height:32px;padding:5px 6px}

@@ -414,9 +414,11 @@ details.more[open] > summary{color:var(--ink)}
 @media (max-width:860px){
   .topbar{
     gap:10px 12px;padding:9px 14px;
-    display:grid;grid-template-columns:1fr auto;grid-template-areas:"brand right" "nav nav";
+    display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"brand right" "nav nav";
+    align-items:start;
   }
-  .brand{grid-area:brand;min-width:0}
+  /* 오른쪽이 두 줄로 접혀도 로고는 첫 줄에 선다 */
+  .brand{grid-area:brand;min-width:0;padding-top:6px}
   .brand-sub{display:none}
   /* 상단바 오른쪽은 칸이 모자라면 줄을 바꾼다 — 밀어내면 페이지 전체가 넓어진다 */
   .topbar-right{grid-area:right;gap:6px 8px;min-width:0;flex-wrap:wrap;justify-content:flex-end}
@@ -874,8 +876,8 @@ body[data-gate="edit"] .btn-danger{display:none}
 
 .tl-row{display:grid;grid-template-columns:var(--tl-label) 1fr;align-items:center;gap:var(--tl-gap);min-height:30px}
 /* 라벨 칸은 붙박이다 — 차트가 넓어져도 페이즈 이름은 자리를 지킨다 */
-.tl-label{min-width:0;display:flex;flex-direction:column;gap:1px;padding:3px 0 3px 16px;
-  position:sticky;left:0;z-index:3;background:var(--surface)}
+.tl-label{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:3px 0 3px 16px;
+  position:sticky;left:0;z-index:3;background:var(--surface);align-self:stretch}
 /* 라벨과 트랙 사이 틈도 라벨이 덮는다 — 왼쪽으로 지나간 막대가 틈으로 비치면 안 된다 */
 .tl-label::after{content:"";position:absolute;left:100%;top:-4px;bottom:-4px;width:var(--tl-gap);background:var(--surface)}
 .tl-group-head{position:sticky;left:0;z-index:3;width:max-content;max-width:calc(100vw - 64px);
@@ -1498,7 +1500,41 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
 .tlg-legend i.done{background:var(--s-done)} .tlg-legend i.late{background:var(--s-delay)}
 
 @media (max-width:860px){
-  .tlg{--tlg-left:280px}
+  /* ── 타임라인 모바일 ──
+     세로 공간이 귀하다. 도구줄은 한 줄, 범례는 가로로 넘기고, 안내 문구는 뺀다. */
+  .subnav{flex-wrap:nowrap}
+  .tl-scale{gap:6px 10px;margin-bottom:8px}
+  .tl-seg button{padding:6px 12px;min-height:36px}
+  .tl-nav .btn{min-height:36px;padding:4px 8px}
+  .tl-range-now{margin-left:4px;font-size:.74rem}
+  .tl-scale .hint{display:none}
+  .tl-legend{flex-wrap:nowrap;overflow-x:auto;gap:6px 14px;margin:0 -14px 8px;padding:0 14px 2px;
+    scrollbar-width:none;font-size:.72rem}
+  .tl-legend::-webkit-scrollbar{display:none}
+  .tl-legend .tl-key{flex:0 0 auto;white-space:nowrap}
+  .tl-hint{display:none}
+  .tl-wrap{padding:4px 0 10px;border-radius:var(--radius-sm)}
+  .tl-group{padding:8px 0 10px}
+  .tl-group-head{max-width:calc(100vw - 44px);padding-left:14px;gap:6px 10px}
+  .tl-group-head h2{font-size:.9rem}
+  .tl-label{padding-left:14px}
+  .tl-name{font-size:.88rem}
+  .tl-meta{font-size:.7rem}
+  /* 페이즈 패널: 왼쪽 표를 줄여 격자가 더 보이게. 담당은 영역 줄의 리드로 충분하다 */
+  .tlg{--tlg-left:250px}
+  .tlg-l{padding:0 8px 0 10px;gap:6px}
+  .tlg-row.tld-task .tlg-l{padding-left:12px}
+  .tlg-cat .tlg-l{padding-left:18px}
+  .tlg-area-row .lead{font-size:.72rem}
+  .tkey{font-size:.66rem;padding:0 4px;margin-right:4px}
+  /* 업무 줄은 두 줄로 — 첫 줄 번호·업무명, 둘째 줄 뱃지·상태·단추. 한 줄에 다 넣으면 격자를 덮는다 */
+  .tlg-row.tld-task .tlg-l{flex-wrap:wrap;row-gap:2px;padding-top:4px;padding-bottom:4px}
+  .tlg-row.tld-task .ttl{flex:1 1 calc(100% - 70px);font-size:.84rem}
+  .tlg-row.tld-task .tld-subs{margin-left:auto}
+  .tlg-row.tld-task .st .chip-select{font-size:.72rem;padding:2px 20px 2px 8px}
+  .tld-head{padding:10px 12px}
+  .tld-head h3{font-size:.92rem}
+  .tlg-legend{padding:6px 12px 8px;gap:4px 10px;font-size:.7rem}
   .tlg-own,.tlg-axis .tlg-l span:nth-child(3){display:none}
   .tlg-axis .tlg-l{grid-template-columns:1fr 72px 50px}
   .tlg-row.tld-task .tld-edit,.tlg-row.tld-task .tld-del{color:var(--muted);min-height:32px;padding:5px 6px}
@@ -8459,7 +8495,6 @@ let tlAnchor = null;   // 주간 창의 기준 월요일(화면 왼쪽에 오는
 let lastOpenPhase = null;
 // 패널 안에서 접은 영역도 같이 기억한다 — 상태 하나 바꿨다고 다 접히면 안 된다.
 const foldedAreas = new Set();
-const TLG_LEFT = 480;   // 패널 왼쪽 표(업무 · 상태 · 담당)의 폭
 
 async function renderTimeline(root) {
   root.innerHTML = loading();
@@ -8552,7 +8587,7 @@ async function renderTimeline(root) {
             ${weekly ? days.map((d) => {
               const dow = new Date(tlParse(d.date)).getUTCDay();
               return `<span class="tl-day${d.date === state.today ? ' now' : ''}${dow === 0 || dow === 6 ? ' we' : ''}"
-                        style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
+                        data-date="${d.date}" style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
             }).join('') : weeks.map((w) => `
               <span class="tl-week${w.now ? ' now' : ''}${w.edge ? '' : ' cut'}" style="left:${w.left}%;width:${w.width}%"
                     title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">
@@ -8763,9 +8798,12 @@ async function renderTimeline(root) {
     if (!box || pct === null) return;
     const track = box.querySelector(trackSel);
     if (!track || box.scrollWidth <= box.clientWidth) return;
-    // 라벨 칸은 붙박이라, 트랙의 pct 지점이 트랙 시작 자리에 오게 민다 (월간은 조금 왼쪽에 여유를 둔다)
+    // 라벨 칸은 붙박이라, 트랙의 pct 지점이 트랙 시작 자리에 오게 민다 (월간은 조금 왼쪽에 여유를 둔다).
+    // 주간은 기준 날짜 칸의 실제 위치를 쓴다 — 비율 계산은 반 칸쯤 어긋날 수 있다.
     const left = track.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft;
-    box.scrollLeft = Math.max(0, track.clientWidth * (pct / 100) - (weekly ? 0 : (box.clientWidth - left) * 0.35));
+    const dayEl = weekly ? track.querySelector(`.tl-day[data-date="${anchor}"]`) : null;
+    box.scrollLeft = Math.max(0, dayEl ? dayEl.offsetLeft
+      : track.clientWidth * (pct / 100) - (weekly ? 0 : (box.clientWidth - left) * 0.35));
   };
   scrollTo(wrap, '.tl-axis .tl-track', weekly ? anchorAt : todayAt);
   const syncScroll = (from, to, fromSel, toSel) => {
@@ -8920,7 +8958,7 @@ async function renderTimeline(root) {
       </div>
       ${areas.length ? `
       <div class="tlg-scroll">
-        <div class="tlg${weekly ? ' is-weekly' : ''}" style="--tlg-left:${TLG_LEFT}px;min-width:calc(var(--tlg-left) + ${trackMin}px)">
+        <div class="tlg${weekly ? ' is-weekly' : ''}" style="min-width:calc(var(--tlg-left) + ${trackMin}px)">
           ${thisWeek ? `<i class="tl-week-now" style="left:${onPanel(thisWeek.left)};width:calc((100% - var(--tlg-left)) * ${thisWeek.width / 100})"></i>` : ''}
           ${todayAt === null ? '' : `<i class="tlg-today" style="left:${onPanel(todayAt)}"></i>`}
           <div class="tlg-row tlg-axis">

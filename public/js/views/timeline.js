@@ -86,7 +86,6 @@ let tlAnchor = null;   // 주간 창의 기준 월요일(화면 왼쪽에 오는
 let lastOpenPhase = null;
 // 패널 안에서 접은 영역도 같이 기억한다 — 상태 하나 바꿨다고 다 접히면 안 된다.
 const foldedAreas = new Set();
-const TLG_LEFT = 480;   // 패널 왼쪽 표(업무 · 상태 · 담당)의 폭
 
 export async function renderTimeline(root) {
   root.innerHTML = loading();
@@ -179,7 +178,7 @@ export async function renderTimeline(root) {
             ${weekly ? days.map((d) => {
               const dow = new Date(tlParse(d.date)).getUTCDay();
               return `<span class="tl-day${d.date === state.today ? ' now' : ''}${dow === 0 || dow === 6 ? ' we' : ''}"
-                        style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
+                        data-date="${d.date}" style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
             }).join('') : weeks.map((w) => `
               <span class="tl-week${w.now ? ' now' : ''}${w.edge ? '' : ' cut'}" style="left:${w.left}%;width:${w.width}%"
                     title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">
@@ -390,9 +389,12 @@ export async function renderTimeline(root) {
     if (!box || pct === null) return;
     const track = box.querySelector(trackSel);
     if (!track || box.scrollWidth <= box.clientWidth) return;
-    // 라벨 칸은 붙박이라, 트랙의 pct 지점이 트랙 시작 자리에 오게 민다 (월간은 조금 왼쪽에 여유를 둔다)
+    // 라벨 칸은 붙박이라, 트랙의 pct 지점이 트랙 시작 자리에 오게 민다 (월간은 조금 왼쪽에 여유를 둔다).
+    // 주간은 기준 날짜 칸의 실제 위치를 쓴다 — 비율 계산은 반 칸쯤 어긋날 수 있다.
     const left = track.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft;
-    box.scrollLeft = Math.max(0, track.clientWidth * (pct / 100) - (weekly ? 0 : (box.clientWidth - left) * 0.35));
+    const dayEl = weekly ? track.querySelector(`.tl-day[data-date="${anchor}"]`) : null;
+    box.scrollLeft = Math.max(0, dayEl ? dayEl.offsetLeft
+      : track.clientWidth * (pct / 100) - (weekly ? 0 : (box.clientWidth - left) * 0.35));
   };
   scrollTo(wrap, '.tl-axis .tl-track', weekly ? anchorAt : todayAt);
   const syncScroll = (from, to, fromSel, toSel) => {
@@ -547,7 +549,7 @@ export async function renderTimeline(root) {
       </div>
       ${areas.length ? `
       <div class="tlg-scroll">
-        <div class="tlg${weekly ? ' is-weekly' : ''}" style="--tlg-left:${TLG_LEFT}px;min-width:calc(var(--tlg-left) + ${trackMin}px)">
+        <div class="tlg${weekly ? ' is-weekly' : ''}" style="min-width:calc(var(--tlg-left) + ${trackMin}px)">
           ${thisWeek ? `<i class="tl-week-now" style="left:${onPanel(thisWeek.left)};width:calc((100% - var(--tlg-left)) * ${thisWeek.width / 100})"></i>` : ''}
           ${todayAt === null ? '' : `<i class="tlg-today" style="left:${onPanel(todayAt)}"></i>`}
           <div class="tlg-row tlg-axis">
