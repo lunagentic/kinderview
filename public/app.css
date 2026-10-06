@@ -834,13 +834,13 @@ body[data-gate="edit"] .btn-danger{display:none}
    색 규칙은 화면 전체와 같다: 프로젝트 색은 정체성, 채움 길이는 진행률,
    상태색은 마일스톤 상태에만. 막대에는 늘 이름이 붙어 색만으로 구분되는 곳이 없다. */
 .tl-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-  padding:6px 16px 14px;overflow-x:auto;position:relative}
+  padding:6px 16px 14px 0;overflow-x:auto;position:relative}
 /* 가로 스크롤은 늘 보인다 — 지난 주가 왼쪽에 더 있다는 것을 막대 자체가 말해 준다 */
 .tl-wrap,.tlg-scroll{scrollbar-width:thin;scrollbar-color:var(--muted) var(--surface-2)}
 .tl-wrap::-webkit-scrollbar,.tlg-scroll::-webkit-scrollbar{height:10px}
 .tl-wrap::-webkit-scrollbar-track,.tlg-scroll::-webkit-scrollbar-track{background:var(--surface-2);border-radius:5px}
 .tl-wrap::-webkit-scrollbar-thumb,.tlg-scroll::-webkit-scrollbar-thumb{background:var(--muted);border-radius:5px;border:2px solid var(--surface-2)}
-.tl-chart{min-width:660px;position:relative;--tl-label:172px;--tl-gap:12px}
+.tl-chart{min-width:660px;position:relative;--tl-label:188px;--tl-gap:12px}
 
 /* 보기 단위 — 월간 / 주간 */
 .tl-scale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 2px 10px}
@@ -869,10 +869,12 @@ body[data-gate="edit"] .btn-danger{display:none}
 
 .tl-row{display:grid;grid-template-columns:var(--tl-label) 1fr;align-items:center;gap:var(--tl-gap);min-height:30px}
 /* 라벨 칸은 붙박이다 — 차트가 넓어져도 페이즈 이름은 자리를 지킨다 */
-.tl-label{min-width:0;display:flex;flex-direction:column;gap:1px;padding:3px 0;
+.tl-label{min-width:0;display:flex;flex-direction:column;gap:1px;padding:3px 0 3px 16px;
   position:sticky;left:0;z-index:3;background:var(--surface)}
+/* 라벨과 트랙 사이 틈도 라벨이 덮는다 — 왼쪽으로 지나간 막대가 틈으로 비치면 안 된다 */
+.tl-label::after{content:"";position:absolute;left:100%;top:-4px;bottom:-4px;width:var(--tl-gap);background:var(--surface)}
 .tl-group-head{position:sticky;left:0;z-index:3;width:max-content;max-width:calc(100vw - 64px);
-  background:var(--surface);padding-right:12px;border-radius:0 6px 6px 0}
+  background:var(--surface);padding:0 12px 0 16px;border-radius:0 6px 6px 0}
 .tl-name{background:none;border:none;padding:0;text-align:left;font:inherit;font-weight:500;
   color:var(--ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tl-name:hover{color:var(--indigo);text-decoration:underline}
@@ -957,7 +959,7 @@ body[data-gate="edit"] .btn-danger{display:none}
 .tl-table .table-wrap{margin-top:8px}
 
 @media (max-width:860px){
-  .tl-chart{--tl-label:112px;min-width:560px}
+  .tl-chart{--tl-label:128px;min-width:560px}
   .tl-group-actions{margin-left:0;width:100%}
 }
 
