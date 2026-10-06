@@ -56,9 +56,11 @@
   --radius:8px;
   --radius-sm:6px;
   --shadow:0 1px 2px rgba(21,26,45,.05), 0 10px 28px rgba(21,26,45,.07);
-  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
-  --display:"Gothic A1","Apple SD Gothic Neo",system-ui,sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,"D2Coding",monospace;
+  /* 글꼴은 프리텐다드 하나다. 숫자 칸(--mono)도 같은 글꼴에 고정폭 숫자(tnum)만 켠다 —
+     글꼴을 섞지 않아야 표와 본문이 한 화면으로 읽힌다 */
+  --sans:"Pretendard Variable",Pretendard,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --display:var(--sans);
+  --mono:var(--sans);
 }
 
 @media (prefers-color-scheme: dark){
@@ -102,6 +104,7 @@ html,body{margin:0;padding:0}
 body{
   background:var(--ground); color:var(--ink);
   font-family:var(--sans); font-size:14px; line-height:1.6;
+  font-variant-numeric:tabular-nums;
   -webkit-font-smoothing:antialiased;
 }
 h1,h2,h3,h4{font-family:var(--display);margin:0;line-height:1.3;letter-spacing:-.015em;text-wrap:balance}
@@ -832,6 +835,11 @@ body[data-gate="edit"] .btn-danger{display:none}
    상태색은 마일스톤 상태에만. 막대에는 늘 이름이 붙어 색만으로 구분되는 곳이 없다. */
 .tl-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
   padding:6px 16px 14px;overflow-x:auto;position:relative}
+/* 가로 스크롤은 늘 보인다 — 지난 주가 왼쪽에 더 있다는 것을 막대 자체가 말해 준다 */
+.tl-wrap,.tlg-scroll{scrollbar-width:thin;scrollbar-color:var(--muted) var(--surface-2)}
+.tl-wrap::-webkit-scrollbar,.tlg-scroll::-webkit-scrollbar{height:10px}
+.tl-wrap::-webkit-scrollbar-track,.tlg-scroll::-webkit-scrollbar-track{background:var(--surface-2);border-radius:5px}
+.tl-wrap::-webkit-scrollbar-thumb,.tlg-scroll::-webkit-scrollbar-thumb{background:var(--muted);border-radius:5px;border:2px solid var(--surface-2)}
 .tl-chart{min-width:660px;position:relative;--tl-label:172px;--tl-gap:12px}
 
 /* 보기 단위 — 월간 / 주간 */
@@ -860,7 +868,11 @@ body[data-gate="edit"] .btn-danger{display:none}
 .tl-key .k-today{width:2px;height:13px;background:var(--ink-2)}
 
 .tl-row{display:grid;grid-template-columns:var(--tl-label) 1fr;align-items:center;gap:var(--tl-gap);min-height:30px}
-.tl-label{min-width:0;display:flex;flex-direction:column;gap:1px;padding:3px 0}
+/* 라벨 칸은 붙박이다 — 차트가 넓어져도 페이즈 이름은 자리를 지킨다 */
+.tl-label{min-width:0;display:flex;flex-direction:column;gap:1px;padding:3px 0;
+  position:sticky;left:0;z-index:3;background:var(--surface)}
+.tl-group-head{position:sticky;left:0;z-index:3;width:max-content;max-width:calc(100vw - 64px);
+  background:var(--surface);padding-right:12px;border-radius:0 6px 6px 0}
 .tl-name{background:none;border:none;padding:0;text-align:left;font:inherit;font-weight:500;
   color:var(--ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tl-name:hover{color:var(--indigo);text-decoration:underline}

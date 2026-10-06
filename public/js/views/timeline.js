@@ -75,9 +75,11 @@ const tlWeekLabel = (monday) => `${tlMonthLabel(monday)} ${Math.ceil(Number(mond
 // 보기 단위. 월간은 모든 일정을 감싸는 긴 창(주 눈금), 주간은 4주를 하루 칸으로 편다.
 // 처음엔 주간 — 이번 주에 무엇이 걸려 있는지가 가장 자주 묻는 질문이다.
 // 단위는 보는 사람 취향이라 이 브라우저에 남기고, 넘겨 본 위치는 화면을 떠나면 이번 주로 돌아온다.
-const TL_WEEKS = 4;
+const TL_WEEKS = 4;        // 한 화면에 보이는 주
+const TL_BACK = 6;         // 그 앞으로 더 그려 두는 주 — 지난 페이즈는 스크롤로 본다
+const TL_FWD = 6;          // 그 뒤로 더 그려 두는 주
 let tlScale = readPref('kf.tl.scale') === 'month' ? 'month' : 'week';
-let tlAnchor = null;   // 주간 창의 첫 월요일. null 이면 이번 주
+let tlAnchor = null;   // 주간 창의 기준 월요일(화면 왼쪽에 오는 주). null 이면 이번 주
 
 // 열어 둔 페이즈를 기억한다. 화면을 다시 그릴 때마다 패널이 닫히면
 // 페이즈를 고치거나 업무 하나를 손볼 때마다 아래 표가 사라진다.
@@ -111,10 +113,12 @@ export async function renderTimeline(root) {
   const weekly = tlScale === 'week';
   let winStart;
   let winEnd;
+  const anchor = tlAnchor ?? tlMonday(state.today);
   if (weekly) {
-    // 주간 = 월요일부터 4주. 끝을 다음 월요일로 잡아야 마지막 날도 한 칸을 온전히 갖는다.
-    winStart = tlAnchor ?? tlMonday(state.today);
-    winEnd = tlAdd(winStart, TL_WEEKS * 7);
+    // 주간 = 기준 주 앞뒤로 넉넉히 그려 두고 가로로 스크롤한다. 처음엔 기준 주가 왼쪽에 온다.
+    // 끝을 월요일로 잡아야 마지막 날도 한 칸을 온전히 갖는다.
+    winStart = tlAdd(anchor, -TL_BACK * 7);
+    winEnd = tlAdd(anchor, (TL_WEEKS + TL_FWD) * 7);
   } else {
     // 월간 = 모든 날짜를 감싸는 달 경계. 최소 3개월은 확보한다.
     const all = live.flatMap((r) => [
@@ -149,7 +153,7 @@ export async function renderTimeline(root) {
   const thisWeek = weeks.find((w) => w.now);
   // 주간에서만 쓰는 날 칸
   const days = weekly
-    ? Array.from({ length: TL_WEEKS * 7 }, (_, i) => {
+    ? Array.from({ length: tlDiff(winStart, winEnd) }, (_, i) => {
       const d = tlAdd(winStart, i);
       return { date: d, i, ...tlSpan(win, d, d) };
     })
@@ -251,7 +255,8 @@ export async function renderTimeline(root) {
           <button type="button" class="btn btn-ghost sm" data-shift="-1" aria-label="이전 4주">‹</button>
           <button type="button" class="btn btn-ghost sm" data-shift="0"${tlAnchor ? '' : ' disabled'}>이번 주</button>
           <button type="button" class="btn btn-ghost sm" data-shift="1" aria-label="다음 4주">›</button>
-          <span class="tl-range-now">${esc(`${shortDate(winStart)} ~ ${shortDate(shownEnd)}`)}</span>
+          <span class="tl-range-now">${esc(`${shortDate(anchor)} ~ ${shortDate(tlAdd(anchor, TL_WEEKS * 7 - 1))}`)}</span>
+          <span class="hint">앞뒤는 가로로 스크롤</span>
         </div>` : ''}
     </div>
 
@@ -371,18 +376,43 @@ export async function renderTimeline(root) {
       writePref('kf.tl.scale', tlScale);
     } else if (sh) {
       const n = Number(sh.dataset.shift);
-      tlAnchor = n === 0 ? null : tlAdd(winStart, n * TL_WEEKS * 7);
+      tlAnchor = n === 0 ? null : tlAdd(anchor, n * TL_WEEKS * 7);
       if (tlAnchor === tlMonday(state.today)) tlAnchor = null;
     } else return;
     window.dispatchEvent(new Event('kf:reload'));
   });
 
-  // 월간은 차트가 화면보다 넓어진다. 처음엔 오늘이 보이게 둔다 (주간은 이번 주가 이미 맨 앞이다).
+  // 차트는 화면보다 넓다. 처음엔 주간은 기준 주가 왼쪽에, 월간은 오늘이 보이게 둔다.
+  // 같은 날짜가 같은 자리에 오도록 패널(.tlg-scroll)도 차트와 함께 스크롤한다.
   const wrap = root.querySelector('.tl-wrap');
-  const todayLine = root.querySelector('.tl-today');
-  if (!weekly && wrap && todayLine && wrap.scrollWidth > wrap.clientWidth) {
-    wrap.scrollLeft = Math.max(0, todayLine.offsetLeft - wrap.clientWidth * 0.35);
-  }
+  const anchorAt = weekly ? tlPoint(win, anchor) - (0.5 / (tlDiff(win.start, win.end) || 1)) * 100 : null;
+  const scrollTo = (box, trackSel, pct) => {
+    if (!box || pct === null) return;
+    const track = box.querySelector(trackSel);
+    if (!track || box.scrollWidth <= box.clientWidth) return;
+    // 라벨 칸은 붙박이라, 트랙의 pct 지점이 트랙 시작 자리에 오게 민다 (월간은 조금 왼쪽에 여유를 둔다)
+    const left = track.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft;
+    box.scrollLeft = Math.max(0, track.clientWidth * (pct / 100) - (weekly ? 0 : (box.clientWidth - left) * 0.35));
+  };
+  scrollTo(wrap, '.tl-axis .tl-track', weekly ? anchorAt : todayAt);
+  const syncScroll = (from, to, fromSel, toSel) => {
+    const a = from.querySelector(fromSel);
+    const b = to.querySelector(toSel);
+    if (!a || !b) return;
+    const offA = a.getBoundingClientRect().left - from.getBoundingClientRect().left + from.scrollLeft;
+    const offB = b.getBoundingClientRect().left - to.getBoundingClientRect().left + to.scrollLeft;
+    const next = from.scrollLeft - offA + offB;
+    if (Math.abs(to.scrollLeft - next) > 1) to.scrollLeft = next;
+  };
+  let syncing = false;
+  const bindSync = (from, fromSel, toGetter, toSel) => from?.addEventListener('scroll', () => {
+    const to = toGetter();
+    if (!to || syncing) return;
+    syncing = true;
+    syncScroll(from, to, fromSel, toSel);
+    syncing = false;
+  }, { passive: true });
+  bindSync(wrap, '.tl-axis .tl-track', () => root.querySelector('.tlg-scroll'), '.tlg-axis .tlg-t');
 
   // ── 편집 ──────────────────────────────────────────────
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
@@ -557,6 +587,12 @@ export async function renderTimeline(root) {
         : '<p class="hint" style="padding:14px 2px">이 페이즈에 배정된 업무가 없습니다.</p>'}`;
 
     panelRows = rows;
+    // 패널 격자도 차트와 같은 자리에서 시작한다
+    const pane = detail.querySelector('.tlg-scroll');
+    if (pane && wrap) {
+      syncScroll(wrap, pane, '.tl-axis .tl-track', '.tlg-axis .tlg-t');
+      bindSync(pane, '.tlg-axis .tlg-t', () => wrap, '.tl-axis .tl-track');
+    }
     return undefined;
   }
 
