@@ -164,7 +164,8 @@ label.field > span.lab .req{color:var(--s-delay);margin-left:2px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 
 /* ── 레이아웃 ───────────────────────────── */
-.view{max-width:1320px;margin:0 auto;padding:28px 24px 80px}
+/* 본문 폭 — 넓은 화면에서는 타임라인이 더 많은 주를 보여 줘야 해서 상한을 넉넉히 둔다 */
+.view{max-width:1760px;margin:0 auto;padding:28px 32px 80px}
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:22px}
 .page-head h1{font-size:1.6rem;font-weight:800;letter-spacing:-.03em}
 .page-head .sub{font-size:.84rem;color:var(--muted);margin-top:4px}
