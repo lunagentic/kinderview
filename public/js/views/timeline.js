@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state, leadNames } from '../state.js';
+import { state, leadNames, statusMeta } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
@@ -32,7 +32,7 @@ const cmBadgeText = (dir, all) => (dir
 
 const TASK_LINE_CONTROLS = [
   'select', 'input', 'textarea',   // 상태 칸이 여기 든다
-  '.due-view', '.due-edit', '.ttl-edit', '.tld-subs', '.tld-cm', '.tld-del', '.tld-edit',
+  '.due-view', '.due-edit', '.ttl-edit', '.tld-subs', '.tld-cm', '.tld-del', '.tld-edit', '.tlg-fold', 'a',
 ].join(',');
 
 const TL_DAY = 86_400_000;
@@ -82,6 +82,10 @@ let tlAnchor = null;   // 주간 창의 첫 월요일. null 이면 이번 주
 // 열어 둔 페이즈를 기억한다. 화면을 다시 그릴 때마다 패널이 닫히면
 // 페이즈를 고치거나 업무 하나를 손볼 때마다 아래 표가 사라진다.
 let lastOpenPhase = null;
+// 패널 안에서 접은 영역과 펼친 상위 업무도 같이 기억한다 — 상태 하나 바꿨다고 다 접히면 안 된다.
+const foldedAreas = new Set();
+const openSubs = new Set();
+const TLG_LEFT = 480;   // 패널 왼쪽 표(업무 · 상태 · 담당)의 폭
 
 export async function renderTimeline(root) {
   root.innerHTML = loading();
@@ -160,6 +164,27 @@ export async function renderTimeline(root) {
     ].join(''));
   // 줄 전체에 걸치는 것(오늘 선, 이번 주 띠)은 라벨 칸과 간격을 건너 트랙 위에 선다
   const onTrack = (pct) => `calc(var(--tl-label) + var(--tl-gap) + (100% - var(--tl-label) - var(--tl-gap)) * ${pct / 100})`;
+  // 날짜 머리줄. 위 차트와 페이즈 패널이 같은 것을 쓴다 — 창이 같으니 눈금도 같아야 한다.
+  const axisTrack = () => `
+            ${weekly ? weeks.map((w) => `
+              <span class="tl-month${w.now ? ' now' : ''}" style="left:${w.left}%;width:${w.width}%"
+                    title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">${tlWeekLabel(w.start)}</span>`).join('')
+            : months.map((m) => `
+              <span class="tl-month" style="left:${m.left}%;width:${m.width}%">
+                ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}
+              </span>`).join('')}
+            ${weekly ? days.map((d) => {
+              const dow = new Date(tlParse(d.date)).getUTCDay();
+              return `<span class="tl-day${d.date === state.today ? ' now' : ''}${dow === 0 || dow === 6 ? ' we' : ''}"
+                        style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
+            }).join('') : weeks.map((w) => `
+              <span class="tl-week${w.now ? ' now' : ''}${w.edge ? '' : ' cut'}" style="left:${w.left}%;width:${w.width}%"
+                    title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">
+                ${w.edge ? `${Number(w.start.slice(5, 7))}/${Number(w.start.slice(8, 10))}` : ''}
+              </span>`).join('')}
+            ${todayAt === null || weekly ? '' : `<i class="tl-today-cap" style="left:${todayAt}%">오늘</i>`}`;
+  // 트랙 폭 — 주간은 하루 26px, 월간은 한 주 40px 밑으로는 안 내려간다
+  const trackMin = weekly ? days.length * 26 : weeks.length * 40;
 
   const phaseRow = (r, ph) => {
     const box = ph.start_date && ph.end_date ? tlSpan(win, ph.start_date, ph.end_date) : null;
@@ -241,30 +266,11 @@ export async function renderTimeline(root) {
     </div>
 
     <div class="tl-wrap">
-      <div class="tl-chart${weekly ? ' is-weekly' : ''}" style="min-width:max(560px, calc(var(--tl-label) + var(--tl-gap) + ${
-        weekly ? days.length * 26 : weeks.length * 40}px))">
+      <div class="tl-chart${weekly ? ' is-weekly' : ''}" style="min-width:max(560px, calc(var(--tl-label) + var(--tl-gap) + ${trackMin}px))">
         ${thisWeek ? `<i class="tl-week-now" style="left:${onTrack(thisWeek.left)};width:calc((100% - var(--tl-label) - var(--tl-gap)) * ${thisWeek.width / 100})"></i>` : ''}
         <div class="tl-row tl-axis">
           <div class="tl-label"></div>
-          <div class="tl-track">
-            ${weekly ? weeks.map((w) => `
-              <span class="tl-month${w.now ? ' now' : ''}" style="left:${w.left}%;width:${w.width}%"
-                    title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">${tlWeekLabel(w.start)}</span>`).join('')
-            : months.map((m) => `
-              <span class="tl-month" style="left:${m.left}%;width:${m.width}%">
-                ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}
-              </span>`).join('')}
-            ${weekly ? days.map((d) => {
-              const dow = new Date(tlParse(d.date)).getUTCDay();
-              return `<span class="tl-day${d.date === state.today ? ' now' : ''}${dow === 0 || dow === 6 ? ' we' : ''}"
-                        style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
-            }).join('') : weeks.map((w) => `
-              <span class="tl-week${w.now ? ' now' : ''}${w.edge ? '' : ' cut'}" style="left:${w.left}%;width:${w.width}%"
-                    title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">
-                ${w.edge ? `${Number(w.start.slice(5, 7))}/${Number(w.start.slice(8, 10))}` : ''}
-              </span>`).join('')}
-            ${todayAt === null || weekly ? '' : `<i class="tl-today-cap" style="left:${todayAt}%">오늘</i>`}
-          </div>
+          <div class="tl-track">${axisTrack()}</div>
         </div>
 
         ${live.map((r) => `
@@ -452,23 +458,54 @@ export async function renderTimeline(root) {
       })
       .filter((g) => g.rows.length);
 
-    // 하위 업무는 평소에 접어 둔다. 몇 개인지만 보이고, 누르면 그 자리에서 펼쳐진다 —
+    // 패널은 왼쪽 표(업무 · 상태 · 담당) + 오른쪽 격자다. 격자는 위 차트와 같은 창을 쓴다.
+    // 줄은 영역 › 분류 › 업무 세 종류이고, 모두 같은 두 칸 그리드라 눈금이 끊기지 않는다.
+    const onPanel = (pct) => `calc(var(--tlg-left) + (100% - var(--tlg-left)) * ${pct / 100})`;
+
+    // 업무 막대 — 시작일~마감일. 시작일이 없으면 마감일 하루.
+    // 색은 상태색이고, 이름은 왼쪽 표가 달고 있다. 색만으로 구분되는 곳은 없다.
+    const taskTrack = (t) => {
+      if (!t.due_date) {
+        return `<span class="tlg-none">일정 없음 · <span class="due-view" data-due="${esc(t.id)}" data-date=""
+                  title="눌러서 마감일 정하기">마감 정하기</span></span>`;
+      }
+      const from = t.start_date && t.start_date <= t.due_date ? t.start_date : t.due_date;
+      const box = tlSpan(win, from, t.due_date);
+      const late = t.is_delayed ? ' late' : '';
+      if (!box) {
+        return `<span class="tlg-none due${late}">이 기간 밖 · ${dueCell(t)}</span>`;
+      }
+      const tone = t.is_delayed ? 'late' : statusMeta(t.status).tone;
+      const tip = `<b>${esc(t.title)}</b><br>${esc(t.start_date ? `${shortDate(t.start_date)} ~ ` : '')}${esc(shortDate(t.due_date))}`
+        + ` · ${esc(statusMeta(t.status).label)}${t.is_delayed ? ' · 지연' : ''}`;
+      return `
+        <i class="tlg-bar ${tone}" style="left:${box.left}%;width:${box.width}%" data-tip="${esc(tip)}"></i>
+        <span class="tlg-dd due${late}" style="left:${box.left + box.width}%">${dueCell(t)}</span>`;
+    };
+
+    // 하위 업무가 있는 줄은 줄을 누르면 그 자리에서 펼쳐진다. 상세로 가는 문은 ✎ 다 —
     // 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
     const taskLine = (t) => `
-      <div class="tld-task${t.director_comment_count ? ' has-dir' : ''}"
-           data-line="${esc(t.id)}" role="button" tabindex="0">
-        <span class="due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
-        <span class="ttl">${titleCell(t)}</span>
-        ${t.subtask_total
-          ? `<button class="tld-subs" data-subs="${esc(t.id)}" aria-expanded="false"
-                     title="하위 업무 ${t.subtask_done}/${t.subtask_total} — 눌러서 펼치기"
-                     >하위 ${t.subtask_done}/${t.subtask_total}</button>`
-          : '<span class="tld-subs empty"></span>'}
-        ${cmBadge(t)}
-        <span class="st">${statusPick(t)}</span>
-        <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
-                title="상세 편집">✎</button>
-        <button class="tld-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
+      <div class="tlg-row tld-task${t.director_comment_count ? ' has-dir' : ''}${t.subtask_total ? ' has-subs' : ''}"
+           data-line="${esc(t.id)}" ${t.subtask_total ? `data-subs-of="${esc(t.id)}"` : ''} role="button" tabindex="0">
+        <div class="tlg-l">
+          ${t.subtask_total
+            ? `<button class="tlg-fold" data-subs="${esc(t.id)}" aria-expanded="false"
+                       aria-label="하위 업무 펼치기">▸</button>`
+            : '<span class="tlg-fold ph"></span>'}
+          <span class="ttl">${titleCell(t)}</span>
+          ${t.subtask_total
+            ? `<button class="tld-subs" data-subs="${esc(t.id)}" title="하위 업무 ${t.subtask_done}/${t.subtask_total} — 눌러서 펼치기"
+                       >하위 ${t.subtask_done}/${t.subtask_total}</button>`
+            : ''}
+          ${cmBadge(t)}
+          <span class="st">${statusPick(t)}</span>
+          <span class="tlg-own" title="담당 — 영역 리드">${esc(t.owner_name ?? '')}</span>
+          <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동"
+                  title="상세 편집">✎</button>
+          <button class="tld-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
+        </div>
+        <div class="tlg-t">${gridLines()}${taskTrack(t)}</div>
       </div>`;
 
     const range = ph.start_date ? `${shortDate(ph.start_date)} ~ ${shortDate(ph.end_date)}` : '기간 미정';
@@ -483,25 +520,92 @@ export async function renderTimeline(root) {
           <button class="btn btn-ghost sm" data-close-detail aria-label="닫기">닫기 ✕</button>
         </span>
       </div>
-      ${areas.length ? `<div class="tld-areas">${areas.map((g) => `
-        <section class="tld-area">
-          <div class="tld-area-head">
-            <a class="lab" href="#/project/tasks?area=${encodeURIComponent(g.area.code)}&month=all&done=1"
-               title="${esc(g.area.full)} 업무 전체 보기">${esc(g.area.full)}</a>
-            <span class="n">${g.rows.length}건</span>
-            <span class="lead">${esc(leadNames(g.area.code))}</span>
+      ${areas.length ? `
+      <div class="tlg-scroll">
+        <div class="tlg${weekly ? ' is-weekly' : ''}" style="--tlg-left:${TLG_LEFT}px;min-width:calc(var(--tlg-left) + ${trackMin}px)">
+          ${thisWeek ? `<i class="tl-week-now" style="left:${onPanel(thisWeek.left)};width:calc((100% - var(--tlg-left)) * ${thisWeek.width / 100})"></i>` : ''}
+          ${todayAt === null ? '' : `<i class="tlg-today" style="left:${onPanel(todayAt)}"></i>`}
+          <div class="tlg-row tlg-axis">
+            <div class="tlg-l"><span>업무</span><span>상태</span><span>담당</span></div>
+            <div class="tlg-t tl-track">${axisTrack()}</div>
           </div>
-          ${g.groups.map((cg) => `
-            <div class="tld-cat${cg.code ? '' : ' none'}" style="${categoryStyle(cg.code)}">
-              <div class="tld-cat-head">
-                <span class="lab">${esc(cg.label)}</span>
-                <span class="n">${cg.rows.length}건</span>
+          ${areas.map((g) => `
+          <section class="tlg-area" data-area="${esc(g.area.code)}">
+            <div class="tlg-row tlg-area-row">
+              <div class="tlg-l">
+                <button class="tlg-fold" data-fold-area="${esc(g.area.code)}"
+                        aria-expanded="${!foldedAreas.has(g.area.code)}" aria-label="영역 접기/펼치기">${
+                  foldedAreas.has(g.area.code) ? '▸' : '▾'}</button>
+                <a class="lab" href="#/project/tasks?area=${encodeURIComponent(g.area.code)}&month=all&done=1"
+                   title="${esc(g.area.full)} 업무 전체 보기">${esc(g.area.full)}</a>
+                <span class="n">${g.rows.length}건</span>
+                <span class="lead">리드 ${esc(leadNames(g.area.code))}</span>
               </div>
-              ${cg.rows.map(taskLine).join('')}
-            </div>`).join('')}
-        </section>`).join('')}</div>`
+              <div class="tlg-t">${gridLines()}</div>
+            </div>
+            <div class="tlg-area-body"${foldedAreas.has(g.area.code) ? ' hidden' : ''}>
+              ${g.groups.map((cg) => `
+              <div class="tlg-row tlg-cat${cg.code ? '' : ' none'}" style="${categoryStyle(cg.code)}">
+                <div class="tlg-l"><span class="lab">${esc(cg.label)}</span><span class="n">${cg.rows.length}건</span></div>
+                <div class="tlg-t">${gridLines()}</div>
+              </div>
+              ${cg.rows.map(taskLine).join('')}`).join('')}
+            </div>
+          </section>`).join('')}
+        </div>
+      </div>
+      <div class="tlg-legend">
+        <span><i class="wait"></i>대기</span><span><i class="prog"></i>진행중</span><span><i class="review"></i>검토</span>
+        <span><i class="done"></i>완료</span><span><i class="late"></i>지연</span>
+        <span class="hint">막대는 시작일~마감일 · 시작일이 없으면 마감일 하루 · 하위 업무가 있는 줄은 누르면 펼쳐집니다</span>
+      </div>`
         : '<p class="hint" style="padding:14px 2px">이 페이즈에 배정된 업무가 없습니다.</p>'}`;
+
+    // 지난번에 펼쳐 둔 상위 업무는 다시 펼친다
+    for (const id of openSubs) {
+      const line = detail.querySelector(`.tld-task[data-subs-of="${CSS.escape(id)}"]`);
+      if (line) toggleSubs(line); else openSubs.delete(id);
+    }
     return undefined;
+  }
+
+  // 하위 업무를 그 자리에서 펼친다. 날짜가 없으니 막대는 없고 눈금만 잇는다.
+  async function toggleSubs(line) {
+    const id = line.dataset.subsOf;
+    const btn = line.querySelector('.tlg-fold[data-subs]');
+    const box = line.nextElementSibling?.classList.contains('tld-sublist') ? line.nextElementSibling : null;
+    if (box) {
+      box.remove();
+      openSubs.delete(id);
+      btn?.setAttribute('aria-expanded', 'false');
+      if (btn) btn.textContent = '▸';
+      return;
+    }
+    openSubs.add(id);
+    btn?.setAttribute('aria-expanded', 'true');
+    if (btn) btn.textContent = '▾';
+    const holder = document.createElement('div');
+    holder.className = 'tld-sublist';
+    holder.innerHTML = `<div class="tlg-row tlg-sub"><div class="tlg-l"><span class="hint">불러오는 중…</span></div>
+      <div class="tlg-t">${gridLines()}</div></div>`;
+    line.after(holder);
+    try {
+      const subs = await api.get(`/api/tasks/${id}/subtasks`);
+      if (!holder.isConnected) return;
+      holder.innerHTML = (subs.length ? subs : [null]).map((x) => `
+        <div class="tlg-row tlg-sub${x?.is_done ? ' done' : ''}">
+          <div class="tlg-l">
+            ${x ? `<span class="mark" aria-hidden="true">${x.is_done ? '✓' : '·'}</span>
+                   <span class="t">${esc(x.title)}</span>
+                   ${x.done_at ? `<span class="when">${esc(shortDate(x.done_at.slice(0, 10)))} 완료</span>` : ''}`
+                : '<span class="hint">하위 업무가 없습니다.</span>'}
+          </div>
+          <div class="tlg-t">${gridLines()}</div>
+        </div>`).join('');
+    } catch (err) {
+      holder.innerHTML = `<div class="tlg-row tlg-sub"><div class="tlg-l"><span class="hint">${esc(err.message)}</span></div>
+        <div class="tlg-t">${gridLines()}</div></div>`;
+    }
   }
 
   root.addEventListener('change', async (e) => {
@@ -551,7 +655,8 @@ export async function renderTimeline(root) {
     const line = e.target.closest('.tld-task');
     if (line && (e.key === 'Enter' || e.key === ' ') && !e.target.closest(TASK_LINE_CONTROLS)) {
       e.preventDefault();
-      go(`#/project/tasks/${line.dataset.line}`);
+      if (line.dataset.subsOf) toggleSubs(line);
+      else go(`#/project/tasks/${line.dataset.line}`);
     }
   });
 
@@ -586,37 +691,25 @@ export async function renderTimeline(root) {
     });
   });
 
-  // 하위 업무를 그 자리에서 펼친다. 한 번 읽어 오면 접었다 펴는 동안 다시 읽지 않는다.
-  root.addEventListener('click', async (e) => {
-    const sb = e.target.closest('[data-subs]');
-    if (!sb) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const line = sb.closest('.tld-task');
-    const open = sb.getAttribute('aria-expanded') === 'true';
-    const box = line.nextElementSibling?.classList.contains('tld-sublist')
-      ? line.nextElementSibling : null;
-
-    if (open) {
-      box?.remove();
-      sb.setAttribute('aria-expanded', 'false');
+  // 영역 접기 · 하위 업무 펼치기 — 둘 다 패널 안에서만 움직이고 데이터는 건드리지 않는다
+  root.addEventListener('click', (e) => {
+    const fold = e.target.closest('[data-fold-area]');
+    if (fold) {
+      e.preventDefault();
+      const code = fold.dataset.foldArea;
+      const body = fold.closest('.tlg-area')?.querySelector('.tlg-area-body');
+      const open = fold.getAttribute('aria-expanded') === 'true';
+      if (open) foldedAreas.add(code); else foldedAreas.delete(code);
+      fold.setAttribute('aria-expanded', String(!open));
+      fold.textContent = open ? '▸' : '▾';
+      if (body) body.hidden = open;
       return;
     }
-    sb.setAttribute('aria-expanded', 'true');
-    const holder = document.createElement('div');
-    holder.className = 'tld-sublist';
-    holder.innerHTML = '<span class="hint">불러오는 중…</span>';
-    line.after(holder);
-    try {
-      const subs = await api.get(`/api/tasks/${sb.dataset.subs}/subtasks`);
-      holder.innerHTML = subs.length
-        ? subs.map((x) => `<div class="tld-sub${x.is_done ? ' done' : ''}">
-             <span class="mark" aria-hidden="true">${x.is_done ? '✓' : '·'}</span>
-             <span class="t">${esc(x.title)}</span>
-           </div>`).join('')
-        : '<span class="hint">하위 업무가 없습니다.</span>';
-    } catch (err) {
-      holder.innerHTML = `<span class="hint">${esc(err.message)}</span>`;
+    const sb = e.target.closest('[data-subs]');
+    if (sb) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSubs(sb.closest('.tld-task'));
     }
   });
 
@@ -661,10 +754,11 @@ export async function renderTimeline(root) {
     const task = e.target.closest('[data-task]');
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
-    // 줄 아무 데나 눌러도 상세가 열린다. ✎ 를 정확히 겨냥하게 하는 것은
-    // 손가락에게 특히 가혹하다. 다만 줄 안의 편집칸들은 제 일을 해야 한다.
+    // 줄 아무 데나 눌러도 된다. ✎ 를 정확히 겨냥하게 하는 것은 손가락에게 특히 가혹하다.
+    // 하위 업무가 있는 줄은 펼치고, 없는 줄은 상세로 간다. 줄 안의 편집칸들은 제 일을 해야 한다.
     const line = e.target.closest('.tld-task');
     if (line && !e.target.closest(TASK_LINE_CONTROLS)) {
+      if (line.dataset.subsOf) { toggleSubs(line); return undefined; }
       return go(`#/project/tasks/${line.dataset.line}`);
     }
 
