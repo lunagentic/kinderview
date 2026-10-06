@@ -5873,6 +5873,18 @@ function areaLeadsForm({ onSaved }) {
   });
 }
 
+// 입력칸 몇 개짜리 작은 창은 엔터로 저장한다. 폼에 submit 버튼이 없으면 브라우저가
+// 엔터를 삼키기 때문이다. 한글 조합 중의 엔터(isComposing)는 글자를 확정하는 키라 넘긴다.
+// 줄바꿈이 뜻을 갖는 textarea 가 든 창에는 쓰지 않는다.
+const bindEnterToSave = (form, save) => {
+  form.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.target.tagName !== 'INPUT') return;
+    if (e.target.type === 'checkbox') return;
+    e.preventDefault();
+    save();
+  });
+};
+
 // ── 페이즈 ──────────────────────────────────────────────
 // 기간을 비워 두면 그 페이즈에 속한 업무 일정에서 자동으로 유도된다.
 function phaseForm({ phase = null, projectId, onSaved }) {
@@ -5917,18 +5929,25 @@ function phaseForm({ phase = null, projectId, onSaved }) {
           onSaved?.();
         } catch (err) { toast(err.message, true); }
       });
-      root.querySelector('[data-save]').addEventListener('click', async () => {
+      let saving = false;
+      const save = async () => {
+        if (saving) return undefined;
         const fd = new FormData(form);
         const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
         if (!payload.name?.trim()) return toast('페이즈 이름을 입력해 주세요.', true);
         payload.project_id = projectId ?? phase?.project_id;
+        saving = true;
         try {
           await (editing ? api.patch(`/api/phases/${phase.id}`, payload) : api.post('/api/phases', payload));
           toast(editing ? '페이즈를 저장했습니다.' : '페이즈를 추가했습니다.');
           close();
           onSaved?.();
         } catch (err) { toast(err.message, true); }
-      });
+        saving = false;
+        return undefined;
+      };
+      root.querySelector('[data-save]').addEventListener('click', save);
+      bindEnterToSave(form, save);
     },
   });
 }
@@ -5985,7 +6004,9 @@ function milestoneForm({ milestone = null, projectId, phases = [], onSaved }) {
           onSaved?.();
         } catch (err) { toast(err.message, true); }
       });
-      root.querySelector('[data-save]').addEventListener('click', async () => {
+      let saving = false;
+      const save = async () => {
+        if (saving) return undefined;
         const fd = new FormData(form);
         const payload = {
           name: fd.get('name'),
@@ -5996,13 +6017,18 @@ function milestoneForm({ milestone = null, projectId, phases = [], onSaved }) {
         if (editing) payload.done = form.querySelector('[name=done]').checked;
         if (!payload.name?.trim()) return toast('마일스톤 이름을 입력해 주세요.', true);
         if (!payload.due_date) return toast('날짜를 입력해 주세요.', true);
+        saving = true;
         try {
           await (editing ? api.patch(`/api/milestones/${milestone.id}`, payload) : api.post('/api/milestones', payload));
           toast(editing ? '마일스톤을 저장했습니다.' : '마일스톤을 추가했습니다.');
           close();
           onSaved?.();
         } catch (err) { toast(err.message, true); }
-      });
+        saving = false;
+        return undefined;
+      };
+      root.querySelector('[data-save]').addEventListener('click', save);
+      bindEnterToSave(form, save);
     },
   });
 }
