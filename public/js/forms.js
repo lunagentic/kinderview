@@ -166,7 +166,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
       </div>
 
-      <details class="more"${editing ? ' open' : ''}>
+      <details class="more"${editing || defaults.phase_id ? ' open' : ''}>
         <summary>추가 정보 (협업자 · 시작일 · 우선순위 · 설명)</summary>
         <div class="form-grid" style="margin-top:10px">
           <div class="span2" data-collab-slot>${pickerMarkup('협업자', { placeholder: '함께 참여하는 구성원' })}</div>
@@ -338,7 +338,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
 
       const syncPhases = async () => {
         const pid = projectSel.value;
-        const want = phaseSel.dataset.want ?? task?.phase_id ?? '';
+        const want = phaseSel.dataset.want ?? task?.phase_id ?? defaults.phase_id ?? '';
         phaseSel.innerHTML = '<option value="">지정 안 함</option>';
         phaseNew.hidden = true;
         if (!pid) {
@@ -815,18 +815,28 @@ export function phaseForm({ phase = null, projectId, onSaved }) {
           <input type="date" name="end_date" value="${esc(phase?.end_date ?? '')}">
         </label>
         <p class="hint span2">기간을 비워 두면 이 페이즈에 속한 업무의 시작·마감으로 자동 계산합니다.</p>
+        ${editing ? `<p class="hint span2">하위 업무는 타임라인에서 업무 줄을 눌러 여는 창에서 더합니다.</p>` : ''}
       </div>
     </form>`;
 
   modal({
     title: editing ? '페이즈 수정' : '페이즈 추가',
     body,
-    footer: `<div class="right">
+    footer: `${editing ? '<div class="left"><button class="btn" data-add-task>+ 이 페이즈에 업무 등록</button></div>' : ''}
+      <div class="right">
       ${editing ? '<button class="btn btn-danger" data-remove>삭제</button>' : ''}
       <button class="btn" data-close>취소</button>
       <button class="btn btn-primary" data-save>${editing ? '저장' : '추가'}</button></div>`,
     onMount({ root, close }) {
       const form = root.querySelector('#phase-form');
+      // 이 창을 닫고 업무 등록 창을 연다 — 프로젝트·페이즈가 채워진 채로
+      root.querySelector('[data-add-task]')?.addEventListener('click', () => {
+        close();
+        taskForm({
+          defaults: { project_id: phase.project_id, phase_id: phase.id, due_date: phase.end_date || undefined },
+          onSaved,
+        });
+      });
       root.querySelector('[data-remove]')?.addEventListener('click', async () => {
         const ok = await confirmModal('페이즈를 삭제하면 속한 업무는 남고 연결만 끊어집니다. 계속할까요?', { danger: true });
         if (!ok) return;

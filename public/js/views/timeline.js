@@ -4,7 +4,7 @@ import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusPick, go, toast, bindDueEdit, confirmModal, titleCell, autoGrow, syncTitleCell, ticketTag,
 } from '../ui.js';
-import { phaseForm, milestoneForm, projectForm, subtaskModal } from '../forms.js';
+import { phaseForm, milestoneForm, projectForm, subtaskModal, taskForm } from '../forms.js';
 import {
   ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTaskTrack, tlSpan, tlPoint, tlDiff,
 } from '../gantt.js';
@@ -86,15 +86,19 @@ export async function renderTimeline(root) {
         <div class="tl-track">${gridLines()}${ganttTaskTrack(t, w)}</div>
       </div>`;
   };
+  // 펼친 끝의 「+ 업무 등록」 — 그 페이즈에 바로 넣는다. 없는 페이즈도 이 줄은 있다.
+  const addRow = (phaseId) => `
+    <div class="tl-row tl-task tl-task-add" data-of-phase="${esc(phaseId)}">
+      <div class="tl-label"><button class="tl-add-btn" data-add-task="${esc(phaseId)}">+ 업무 등록</button></div>
+      <div class="tl-track">${gridLines()}</div>
+    </div>`;
   const taskRows = (phaseId) => {
     const rows = phaseTasks.get(phaseId);
     if (!rows) return `<div class="tl-row tl-task tl-task-note" data-of-phase="${esc(phaseId)}">
       <div class="tl-label"><span class="tl-meta">불러오는 중…</span></div><div class="tl-track">${gridLines()}</div></div>`;
-    if (!rows.length) return `<div class="tl-row tl-task tl-task-note" data-of-phase="${esc(phaseId)}">
-      <div class="tl-label"><span class="tl-meta">이 페이즈에 업무 없음</span></div><div class="tl-track">${gridLines()}</div></div>`;
     // 마감일 순, 기한 없는 것은 뒤로
     const sorted = [...rows].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title));
-    return sorted.map((t) => taskRow(t, phaseId)).join('');
+    return sorted.map((t) => taskRow(t, phaseId)).join('') + addRow(phaseId);
   };
 
   const phaseRow = (r, ph) => {
@@ -365,6 +369,18 @@ export async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
+
+    // 펼친 페이즈 끝의 「+ 업무 등록」 — 프로젝트·페이즈를 채워서 연다. 페이즈는 펼쳐진 채 남는다.
+    const addT = e.target.closest('[data-add-task]');
+    if (addT) {
+      const found = allPhases.find((p) => p.id === addT.dataset.addTask);
+      if (found) {
+        return taskForm({
+          defaults: { project_id: found.project_id, phase_id: found.id, due_date: found.end_date || undefined },
+          onSaved: reload,
+        });
+      }
+    }
 
     const addP = e.target.closest('[data-add-phase]');
     if (addP) return phaseForm({ projectId: addP.dataset.addPhase, onSaved: reload });

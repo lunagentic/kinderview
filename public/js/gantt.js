@@ -320,6 +320,7 @@ export function ganttTable({ w, sections }) {
         <div class="tlg-l">
           <h2>${s.loose ? esc(s.project.name) : projectName(s.project.id, s.project.name)}</h2>
           <span class="n">${s.rows.length}건</span>
+          ${s.loose ? '' : `<button class="btn btn-ghost sm tlg-add" data-new-task data-project="${esc(s.project.id)}">+ 업무</button>`}
         </div>
         <div class="tlg-t">${w.gridLines()}</div>
       </div>` : '';

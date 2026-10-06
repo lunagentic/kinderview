@@ -570,6 +570,9 @@ body[data-gate="view"] .tk-project-head .grip{visibility:hidden}
 /* 폼을 여는 단추도 보기 전용에서는 감춘다.
    진짜로 막는 곳은 폼 자체와 저장소다 — 여기는 "눌러도 되는 것처럼" 보이지 않게 하는 일이다. */
 body[data-gate="view"] [data-phase],
+body[data-gate="view"] .tl-add-btn,
+body[data-gate="view"] .tlg-add,
+body[data-gate="view"] [data-add-task],
 body[data-gate="view"] [data-milestone],
 body[data-gate="view"] [data-edit],
 body[data-gate="view"] [data-new-issue],
@@ -901,6 +904,14 @@ body[data-gate="edit"] .btn-danger{display:none}
 .tl-tst.wait{color:var(--s-wait)} .tl-tst.prog{color:var(--s-prog)} .tl-tst.review{color:var(--s-review)}
 .tl-tst.done{color:var(--s-done)} .tl-tst.late{color:var(--s-delay)}
 .tl-task-note{cursor:default;min-height:26px}
+/* 펼친 끝의 「+ 업무 등록」 줄 */
+.tl-task-add{cursor:default;min-height:28px}
+.tl-task-add:hover .tl-label,.tl-task-add:hover .tl-track{background:none}
+.tl-add-btn{border:1px dashed var(--line);background:none;color:var(--muted);font:inherit;font-size:.76rem;
+  padding:2px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.tl-add-btn:hover{color:var(--indigo);border-color:var(--indigo);background:color-mix(in srgb, var(--indigo) 6%, transparent)}
+.tlg-proj .tlg-add{margin-left:auto}
+.modal-foot .left{margin-right:auto}
 .tl-task-note:hover .tl-label,.tl-task-note:hover .tl-track{background:none}
 .tl-key .k-task{width:26px;height:9px;border-radius:4px;background:var(--s-prog);opacity:.85}
 
@@ -5390,7 +5401,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
       </div>
 
-      <details class="more"${editing ? ' open' : ''}>
+      <details class="more"${editing || defaults.phase_id ? ' open' : ''}>
         <summary>추가 정보 (협업자 · 시작일 · 우선순위 · 설명)</summary>
         <div class="form-grid" style="margin-top:10px">
           <div class="span2" data-collab-slot>${pickerMarkup('협업자', { placeholder: '함께 참여하는 구성원' })}</div>
@@ -5562,7 +5573,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
 
       const syncPhases = async () => {
         const pid = projectSel.value;
-        const want = phaseSel.dataset.want ?? task?.phase_id ?? '';
+        const want = phaseSel.dataset.want ?? task?.phase_id ?? defaults.phase_id ?? '';
         phaseSel.innerHTML = '<option value="">지정 안 함</option>';
         phaseNew.hidden = true;
         if (!pid) {
@@ -6039,18 +6050,28 @@ function phaseForm({ phase = null, projectId, onSaved }) {
           <input type="date" name="end_date" value="${esc(phase?.end_date ?? '')}">
         </label>
         <p class="hint span2">기간을 비워 두면 이 페이즈에 속한 업무의 시작·마감으로 자동 계산합니다.</p>
+        ${editing ? `<p class="hint span2">하위 업무는 타임라인에서 업무 줄을 눌러 여는 창에서 더합니다.</p>` : ''}
       </div>
     </form>`;
 
   modal({
     title: editing ? '페이즈 수정' : '페이즈 추가',
     body,
-    footer: `<div class="right">
+    footer: `${editing ? '<div class="left"><button class="btn" data-add-task>+ 이 페이즈에 업무 등록</button></div>' : ''}
+      <div class="right">
       ${editing ? '<button class="btn btn-danger" data-remove>삭제</button>' : ''}
       <button class="btn" data-close>취소</button>
       <button class="btn btn-primary" data-save>${editing ? '저장' : '추가'}</button></div>`,
     onMount({ root, close }) {
       const form = root.querySelector('#phase-form');
+      // 이 창을 닫고 업무 등록 창을 연다 — 프로젝트·페이즈가 채워진 채로
+      root.querySelector('[data-add-task]')?.addEventListener('click', () => {
+        close();
+        taskForm({
+          defaults: { project_id: phase.project_id, phase_id: phase.id, due_date: phase.end_date || undefined },
+          onSaved,
+        });
+      });
       root.querySelector('[data-remove]')?.addEventListener('click', async () => {
         const ok = await confirmModal('페이즈를 삭제하면 속한 업무는 남고 연결만 끊어집니다. 계속할까요?', { danger: true });
         if (!ok) return;
@@ -6984,6 +7005,7 @@ function ganttTable({ w, sections }) {
         <div class="tlg-l">
           <h2>${s.loose ? esc(s.project.name) : projectName(s.project.id, s.project.name)}</h2>
           <span class="n">${s.rows.length}건</span>
+          ${s.loose ? '' : `<button class="btn btn-ghost sm tlg-add" data-new-task data-project="${esc(s.project.id)}">+ 업무</button>`}
         </div>
         <div class="tlg-t">${w.gridLines()}</div>
       </div>` : '';
@@ -8970,15 +8992,19 @@ async function renderTimeline(root) {
         <div class="tl-track">${gridLines()}${ganttTaskTrack(t, w)}</div>
       </div>`;
   };
+  // 펼친 끝의 「+ 업무 등록」 — 그 페이즈에 바로 넣는다. 없는 페이즈도 이 줄은 있다.
+  const addRow = (phaseId) => `
+    <div class="tl-row tl-task tl-task-add" data-of-phase="${esc(phaseId)}">
+      <div class="tl-label"><button class="tl-add-btn" data-add-task="${esc(phaseId)}">+ 업무 등록</button></div>
+      <div class="tl-track">${gridLines()}</div>
+    </div>`;
   const taskRows = (phaseId) => {
     const rows = phaseTasks.get(phaseId);
     if (!rows) return `<div class="tl-row tl-task tl-task-note" data-of-phase="${esc(phaseId)}">
       <div class="tl-label"><span class="tl-meta">불러오는 중…</span></div><div class="tl-track">${gridLines()}</div></div>`;
-    if (!rows.length) return `<div class="tl-row tl-task tl-task-note" data-of-phase="${esc(phaseId)}">
-      <div class="tl-label"><span class="tl-meta">이 페이즈에 업무 없음</span></div><div class="tl-track">${gridLines()}</div></div>`;
     // 마감일 순, 기한 없는 것은 뒤로
     const sorted = [...rows].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title));
-    return sorted.map((t) => taskRow(t, phaseId)).join('');
+    return sorted.map((t) => taskRow(t, phaseId)).join('') + addRow(phaseId);
   };
 
   const phaseRow = (r, ph) => {
@@ -9249,6 +9275,18 @@ async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
+
+    // 펼친 페이즈 끝의 「+ 업무 등록」 — 프로젝트·페이즈를 채워서 연다. 페이즈는 펼쳐진 채 남는다.
+    const addT = e.target.closest('[data-add-task]');
+    if (addT) {
+      const found = allPhases.find((p) => p.id === addT.dataset.addTask);
+      if (found) {
+        return taskForm({
+          defaults: { project_id: found.project_id, phase_id: found.id, due_date: found.end_date || undefined },
+          onSaved: reload,
+        });
+      }
+    }
 
     const addP = e.target.closest('[data-add-phase]');
     if (addP) return phaseForm({ projectId: addP.dataset.addPhase, onSaved: reload });
