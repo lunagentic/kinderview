@@ -3,7 +3,7 @@ import { state, leadNames } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
-  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryStyle,
+  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryStyle, readPref, writePref,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm } from '../forms.js';
 import { bindComments, directorIcon } from '../comments.js';
@@ -67,6 +67,16 @@ const tlMilestoneState = (m) => {
   return { key: 'plan', label: '예정', mark: '' };
 };
 
+const tlMonday = (iso) => tlAdd(iso, -((new Date(tlParse(iso)).getUTCDay() + 6) % 7));
+const tlMonthLabel = (iso) => `${Number(iso.slice(5, 7))}월`;
+
+// 보기 단위. 월간은 모든 일정을 감싸는 긴 창(주 눈금), 주간은 4주를 하루 칸으로 편다.
+// 처음엔 주간 — 이번 주에 무엇이 걸려 있는지가 가장 자주 묻는 질문이다.
+// 단위는 보는 사람 취향이라 이 브라우저에 남기고, 넘겨 본 위치는 화면을 떠나면 이번 주로 돌아온다.
+const TL_WEEKS = 4;
+let tlScale = readPref('kf.tl.scale') === 'month' ? 'month' : 'week';
+let tlAnchor = null;   // 주간 창의 첫 월요일. null 이면 이번 주
+
 // 열어 둔 페이즈를 기억한다. 화면을 다시 그릴 때마다 패널이 닫히면
 // 페이즈를 고치거나 업무 하나를 손볼 때마다 아래 표가 사라진다.
 let lastOpenPhase = null;
@@ -93,20 +103,30 @@ export async function renderTimeline(root) {
     return;
   }
 
-  // 창 = 모든 날짜를 감싸는 달 경계. 최소 3개월은 확보한다.
-  const all = live.flatMap((r) => [
-    r.start_date, r.end_date,
-    ...r.phases.flatMap((p) => [p.start_date, p.end_date]),
-    ...r.milestones.map((m) => m.due_date),
-    state.today,
-  ]).filter(Boolean).sort();
-  let winStart = tlMonthStart(all[0]);
-  let winEnd = tlAdd(tlMonthNext(all[all.length - 1]), -1);
-  while (tlDiff(winStart, winEnd) < 89) winEnd = tlAdd(tlMonthNext(winEnd), -1);
+  const weekly = tlScale === 'week';
+  let winStart;
+  let winEnd;
+  if (weekly) {
+    // 주간 = 월요일부터 4주. 끝을 다음 월요일로 잡아야 마지막 날도 한 칸을 온전히 갖는다.
+    winStart = tlAnchor ?? tlMonday(state.today);
+    winEnd = tlAdd(winStart, TL_WEEKS * 7);
+  } else {
+    // 월간 = 모든 날짜를 감싸는 달 경계. 최소 3개월은 확보한다.
+    const all = live.flatMap((r) => [
+      r.start_date, r.end_date,
+      ...r.phases.flatMap((p) => [p.start_date, p.end_date]),
+      ...r.milestones.map((m) => m.due_date),
+      state.today,
+    ]).filter(Boolean).sort();
+    winStart = tlMonthStart(all[0]);
+    winEnd = tlAdd(tlMonthNext(all[all.length - 1]), -1);
+    while (tlDiff(winStart, winEnd) < 89) winEnd = tlAdd(tlMonthNext(winEnd), -1);
+  }
   const win = { start: winStart, end: winEnd };
+  const shownEnd = weekly ? tlAdd(winEnd, -1) : winEnd;   // 화면에 보이는 마지막 날
 
   const months = [];
-  for (let m = winStart; tlParse(m) <= tlParse(winEnd); m = tlMonthNext(m)) {
+  for (let m = tlMonthStart(winStart); tlParse(m) <= tlParse(winEnd); m = tlMonthNext(m)) {
     const next = tlMonthNext(m);
     const end = tlAdd(next, -1);
     months.push({ start: m, ...tlSpan(win, m, end > winEnd ? winEnd : end) });
@@ -122,11 +142,20 @@ export async function renderTimeline(root) {
     if (box) weeks.push({ start: w, edge: w >= winStart, now: w <= state.today && state.today <= sun, ...box });
   }
   const thisWeek = weeks.find((w) => w.now);
-  // 눈금: 주 경계는 옅게, 달 경계는 조금 진하게
-  const gridLines = () => [
-    ...weeks.filter((w) => w.edge).map((w) => `<i class="tl-grid" style="left:${w.left}%"></i>`),
-    ...months.map((m) => `<i class="tl-grid month" style="left:${m.left}%"></i>`),
-  ].join('');
+  // 주간에서만 쓰는 날 칸
+  const days = weekly
+    ? Array.from({ length: TL_WEEKS * 7 }, (_, i) => {
+      const d = tlAdd(winStart, i);
+      return { date: d, i, ...tlSpan(win, d, d) };
+    })
+    : [];
+  // 눈금: 월간은 주 경계를 옅게 · 달 경계를 조금 진하게, 주간은 주 경계만 진하게
+  const gridLines = () => (weekly
+    ? weeks.map((w) => `<i class="tl-grid month" style="left:${w.left}%"></i>`).join('')
+    : [
+      ...weeks.filter((w) => w.edge).map((w) => `<i class="tl-grid" style="left:${w.left}%"></i>`),
+      ...months.map((m) => `<i class="tl-grid month" style="left:${m.left}%"></i>`),
+    ].join(''));
   // 줄 전체에 걸치는 것(오늘 선, 이번 주 띠)은 라벨 칸과 간격을 건너 트랙 위에 선다
   const onTrack = (pct) => `calc(var(--tl-label) + var(--tl-gap) + (100% - var(--tl-label) - var(--tl-gap)) * ${pct / 100})`;
 
@@ -157,7 +186,7 @@ export async function renderTimeline(root) {
             </div>
             ${box.left + box.width < 84 ? `
               <span class="tl-range" style="left:${box.left + box.width}%">${esc(range)}</span>` : ''}
-          ` : `<span class="tl-nodate">기간 미정</span>`}
+          ` : `<span class="tl-nodate">${ph.start_date ? `이 기간 밖 · ${esc(range)}` : '기간 미정'}</span>`}
         </div>
       </div>`;
   };
@@ -171,7 +200,7 @@ export async function renderTimeline(root) {
           ${gridLines()}
           ${r.milestones.map((m) => {
             const at = tlPoint(win, m.due_date);
-            if (at === null) return '';
+            if (at === null || at > 100) return '';
             const st = tlMilestoneState(m);
             const tip = `<b>${esc(m.name)}</b><br>${esc(shortDate(m.due_date))} · ${esc(st.label)}${
               m.phase_name ? `<br>페이즈 ${esc(m.phase_name)}` : ''}`;
@@ -186,6 +215,20 @@ export async function renderTimeline(root) {
   root.innerHTML = `
     ${tlHead()}
 
+    <div class="tl-scale">
+      <div class="tl-seg" role="group" aria-label="보기 단위">
+        <button type="button" data-scale="month" aria-pressed="${!weekly}">월간</button>
+        <button type="button" data-scale="week" aria-pressed="${weekly}">주간</button>
+      </div>
+      ${weekly ? `
+        <div class="tl-nav">
+          <button type="button" class="btn btn-ghost sm" data-shift="-1" aria-label="이전 4주">‹</button>
+          <button type="button" class="btn btn-ghost sm" data-shift="0"${tlAnchor ? '' : ' disabled'}>이번 주</button>
+          <button type="button" class="btn btn-ghost sm" data-shift="1" aria-label="다음 4주">›</button>
+          <span class="tl-range-now">${esc(`${shortDate(winStart)} ~ ${shortDate(shownEnd)}`)}</span>
+        </div>` : ''}
+    </div>
+
     <div class="tl-legend">
       <span class="tl-key"><i class="k-bar"></i>페이즈 기간 — 진한 부분이 완료 비율</span>
       <span class="tl-key"><i class="k-ms plan"></i>마일스톤 예정</span>
@@ -196,21 +239,31 @@ export async function renderTimeline(root) {
     </div>
 
     <div class="tl-wrap">
-      <div class="tl-chart" style="min-width:max(560px, calc(var(--tl-label) + var(--tl-gap) + ${weeks.length * 40}px))">
+      <div class="tl-chart${weekly ? ' is-weekly' : ''}" style="min-width:max(560px, calc(var(--tl-label) + var(--tl-gap) + ${
+        weekly ? days.length * 26 : weeks.length * 40}px))">
         ${thisWeek ? `<i class="tl-week-now" style="left:${onTrack(thisWeek.left)};width:calc((100% - var(--tl-label) - var(--tl-gap)) * ${thisWeek.width / 100})"></i>` : ''}
         <div class="tl-row tl-axis">
           <div class="tl-label"></div>
           <div class="tl-track">
-            ${months.map((m) => `
+            ${weekly ? weeks.map((w) => {
+              const sun = tlAdd(w.start, 6);
+              const label = w.start.slice(5, 7) === sun.slice(5, 7)
+                ? tlMonthLabel(w.start) : `${tlMonthLabel(w.start)} / ${tlMonthLabel(sun)}`;
+              return `<span class="tl-month${w.now ? ' now' : ''}" style="left:${w.left}%;width:${w.width}%">${label}</span>`;
+            }).join('') : months.map((m) => `
               <span class="tl-month" style="left:${m.left}%;width:${m.width}%">
                 ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}
               </span>`).join('')}
-            ${weeks.map((w) => `
+            ${weekly ? days.map((d) => {
+              const dow = new Date(tlParse(d.date)).getUTCDay();
+              return `<span class="tl-day${d.date === state.today ? ' now' : ''}${dow === 0 || dow === 6 ? ' we' : ''}"
+                        style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
+            }).join('') : weeks.map((w) => `
               <span class="tl-week${w.now ? ' now' : ''}${w.edge ? '' : ' cut'}" style="left:${w.left}%;width:${w.width}%"
                     title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">
                 ${w.edge ? `${Number(w.start.slice(5, 7))}/${Number(w.start.slice(8, 10))}` : ''}
               </span>`).join('')}
-            ${todayAt === null ? '' : `<i class="tl-today-cap" style="left:${todayAt}%">오늘</i>`}
+            ${todayAt === null || weekly ? '' : `<i class="tl-today-cap" style="left:${todayAt}%">오늘</i>`}
           </div>
         </div>
 
@@ -302,10 +355,27 @@ export async function renderTimeline(root) {
 
   hoverTip(root);
 
-  // 주 칸으로 나누면 차트가 화면보다 넓어진다. 처음엔 오늘이 보이게 둔다.
+  // 보기 단위 · 주간 넘기기. 화면만 다시 그린다 — 데이터는 그대로다.
+  root.querySelector('.tl-scale')?.addEventListener('click', (e) => {
+    const sc = e.target.closest('[data-scale]');
+    const sh = e.target.closest('[data-shift]');
+    if (sc) {
+      if (sc.dataset.scale === tlScale) return;
+      tlScale = sc.dataset.scale;
+      tlAnchor = null;
+      writePref('kf.tl.scale', tlScale);
+    } else if (sh) {
+      const n = Number(sh.dataset.shift);
+      tlAnchor = n === 0 ? null : tlAdd(winStart, n * TL_WEEKS * 7);
+      if (tlAnchor === tlMonday(state.today)) tlAnchor = null;
+    } else return;
+    window.dispatchEvent(new Event('kf:reload'));
+  });
+
+  // 월간은 차트가 화면보다 넓어진다. 처음엔 오늘이 보이게 둔다 (주간은 이번 주가 이미 맨 앞이다).
   const wrap = root.querySelector('.tl-wrap');
   const todayLine = root.querySelector('.tl-today');
-  if (wrap && todayLine && wrap.scrollWidth > wrap.clientWidth) {
+  if (!weekly && wrap && todayLine && wrap.scrollWidth > wrap.clientWidth) {
     wrap.scrollLeft = Math.max(0, todayLine.offsetLeft - wrap.clientWidth * 0.35);
   }
 

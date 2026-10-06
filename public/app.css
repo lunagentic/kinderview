@@ -834,6 +834,19 @@ body[data-gate="edit"] .btn-danger{display:none}
   padding:6px 16px 14px;overflow-x:auto;position:relative}
 .tl-chart{min-width:660px;position:relative;--tl-label:172px;--tl-gap:12px}
 
+/* 보기 단위 — 월간 / 주간 */
+.tl-scale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 2px 10px}
+.tl-seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);padding:2px}
+.tl-seg button{border:none;background:none;font:inherit;font-size:.8rem;color:var(--muted);
+  padding:4px 14px;border-radius:4px;cursor:pointer}
+.tl-seg button:hover{color:var(--ink)}
+.tl-seg button[aria-pressed="true"]{background:color-mix(in oklab, var(--indigo) 12%, var(--surface));
+  color:var(--indigo);font-weight:600}
+.tl-seg button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.tl-nav{display:flex;align-items:center;gap:2px}
+.tl-nav .btn[disabled]{opacity:.45;cursor:default}
+.tl-range-now{margin-left:8px;font-family:var(--mono);font-size:.76rem;color:var(--ink-2)}
+
 .tl-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 2px 10px;font-size:.76rem;color:var(--muted)}
 .tl-key{display:inline-flex;align-items:center;gap:7px}
 .tl-key i{flex:none}
@@ -867,6 +880,14 @@ body[data-gate="edit"] .btn-danger{display:none}
   padding-left:4px;border-left:1px solid var(--line-soft);line-height:16px;white-space:nowrap;overflow:hidden}
 .tl-week.cut{border-left:none}
 .tl-week.now{color:var(--indigo);font-weight:600}
+/* 주간 — 날마다 한 칸. 오늘은 알약, 주말은 옅게 */
+.tl-chart.is-weekly .tl-month{border-left:1px solid var(--line)}
+.tl-chart.is-weekly .tl-month.now{color:var(--ink);font-weight:600}
+.tl-day{position:absolute;top:21px;text-align:center;font-family:var(--mono);font-size:.68rem;
+  color:var(--ink-2);line-height:16px}
+.tl-day.we{color:var(--muted);opacity:.75}
+.tl-day.now b{background:var(--indigo);color:#fff;border-radius:4px;padding:0 4px;font-weight:600}
+.tl-day b{font-weight:400}
 /* 이번 주 — 차트 전체에 까는 옅은 띠. 막대보다 뒤에 선다 */
 .tl-week-now{position:absolute;top:0;bottom:6px;pointer-events:none;
   background:color-mix(in oklab, var(--indigo) 6%, transparent);border-radius:4px}
