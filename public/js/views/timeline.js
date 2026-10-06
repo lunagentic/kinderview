@@ -3,7 +3,7 @@ import { state, leadNames, statusMeta } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
-  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryStyle, readPref, writePref,
+  titleCell, autoGrow, syncTitleCell, categoryLabel, categoryStyle, readPref, writePref, ticketTag,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm, subtaskModal } from '../forms.js';
 import { bindComments, directorIcon } from '../comments.js';
@@ -488,6 +488,7 @@ export async function renderTimeline(root) {
       <div class="tlg-row tld-task${t.director_comment_count ? ' has-dir' : ''}${t.subtask_total ? ' has-subs' : ''}"
            data-line="${esc(t.id)}" role="button" tabindex="0" title="눌러서 하위 업무 보기">
         <div class="tlg-l">
+          ${ticketTag(t)}
           <span class="ttl">${titleCell(t)}</span>
           <button class="tld-subs${t.subtask_total ? '' : ' empty'}" data-subs="${esc(t.id)}"
                   title="${t.subtask_total ? `하위 업무 ${t.subtask_done}/${t.subtask_total}` : '하위 업무 더하기'}"
@@ -784,7 +785,7 @@ function tlHead() {
     <div class="page-head">
       <div>
         <h1>타임라인</h1>
-        <div class="sub">프로젝트 · 페이즈 기간과 마일스톤을 한 화면에서 봅니다.</div>
+        <div class="sub">프로젝트의 업무별 페이즈(기간)와 마일스톤(마감일)을 확인합니다.</div>
       </div>
     </div>`;
 }

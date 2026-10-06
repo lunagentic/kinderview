@@ -157,7 +157,7 @@ function buildSeed() {
     created_at: nowISO(), updated_at: nowISO(),
   }));
 
-  return {
+  const seed = {
     anchor: T, members, projects, vendors, tasks, collaborators, outsourcing, issues, events,
     area_leads: areaLeadRows, time_entries: timeRows, notifications: [], weekly_reports: [],
     phases, milestones, expenses, subtasks, comments: [],
@@ -167,10 +167,33 @@ function buildSeed() {
       { id: 'IMPROVE', label: '기능 개선', sort_order: 2, created_at: nowISO() },
     ],
   };
+  numberTickets(seed);   // 시드 업무도 번호를 갖는다 — 넣은 순서대로
+  return seed;
 }
 
 // 이름이 바뀐 프로젝트 — 옛 이름 그대로일 때만 갈아 끼운다
 const RENAMED_PROJECTS = { '콘텐츠 패키지': '상위 기획 및 리소스' };
+
+/**
+ * 티켓 번호 — 지라처럼 프로젝트 코드 + 일련번호. 없는 것은 만든 순서대로 채운다.
+ * 서버(server/migrate.js backfillTicketSeq)와 같은 규칙이다. 매긴 건수를 돌려준다.
+ */
+function numberTickets(db) {
+  let n = 0;
+  const taskById = Object.fromEntries((db.tasks ?? []).map((t) => [t.id, t]));
+  for (const p of db.projects ?? []) {
+    p.seq_counter ??= 0;
+    const items = [
+      ...(db.tasks ?? []).filter((t) => t.project_id === p.id && t.seq == null)
+        .map((t) => ({ kind: 'task', row: t, at: t.created_at })),
+      // 하위 업무는 상위보다 앞에 설 수 없다 — 시드는 둘의 시각이 뒤집혀 있을 수 있다
+      ...(db.subtasks ?? []).filter((x) => taskById[x.task_id]?.project_id === p.id && x.seq == null)
+        .map((x) => ({ kind: 'sub', row: x, at: x.created_at > taskById[x.task_id].created_at ? x.created_at : taskById[x.task_id].created_at })),
+    ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === b.kind ? 0 : (a.kind === 'task' ? -1 : 1)));
+    for (const it of items) { p.seq_counter += 1; it.row.seq = p.seq_counter; n += 1; }
+  }
+  return n;
+}
 
 /**
  * 저장된 데이터는 그대로 두고, 시드에서만 오는 참조 자료만 맞춘다.
@@ -208,6 +231,8 @@ function reconcile(db) {
     }
   }
   db.subtasks ??= [];
+
+  if (numberTickets(db)) changed = true;
 
   // role 이 없던 시절 줄은 모두 대표였다
   for (const l of db.area_leads ?? []) {
@@ -660,6 +685,14 @@ export function resetDemo() {
 // ── 조회 헬퍼 ───────────────────────────────────────────
 const member = (id) => DB.members.find((m) => m.slack_user_id === id) || null;
 const project = (id) => DB.projects.find((p) => p.id === id) || null;
+// 티켓 번호 — 서버(repo.js ticketKey · nextSeq)와 같은 규칙
+const ticketKey = (code, seq) => (code && seq ? `${code}-${seq}` : null);
+const nextSeq = (projectId) => {
+  const p = project(projectId);
+  if (!p) return null;
+  p.seq_counter = (p.seq_counter ?? 0) + 1;
+  return p.seq_counter;
+};
 const vendor = (id) => DB.vendors.find((v) => v.id === id) || null;
 const outOf = (taskId) => DB.outsourcing.find((o) => o.task_id === taskId) || null;
 const liveIssues = () => DB.issues.filter((i) => !i.deleted_at);
@@ -746,9 +779,13 @@ function removeComment(id, actor) {
 
 // ── 하위 업무 ───────────────────────────────────────────
 // 서버(server/repo.js 의 subtasks)와 같은 규칙이다.
-const subtasksOf = (taskId) => (DB.subtasks ?? [])
-  .filter((s) => s.task_id === taskId)
-  .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at));
+const subtasksOf = (taskId) => {
+  const code = project(DB.tasks.find((t) => t.id === taskId)?.project_id)?.code;
+  return (DB.subtasks ?? [])
+    .filter((s) => s.task_id === taskId)
+    .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at))
+    .map((s) => ({ ...s, key: ticketKey(code, s.seq) }));
+};
 
 function createSubtask(taskId, body) {
   const title = String(body.title ?? '').trim();
@@ -757,10 +794,10 @@ function createSubtask(taskId, body) {
   if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
   const next = subtasksOf(taskId).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
   const row = { id: uid(), task_id: taskId, title, is_done: false, sort_order: next,
-    created_at: nowISO(), done_at: null };
+    seq: nextSeq(t.project_id), created_at: nowISO(), done_at: null };
   (DB.subtasks ??= []).push(row);
   save();
-  return row;
+  return subtasksOf(taskId).find((s) => s.id === row.id);
 }
 
 function updateSubtask(id, body) {
@@ -776,7 +813,7 @@ function updateSubtask(id, body) {
     row.done_at = row.is_done ? nowISO() : null;
   }
   save();
-  return row;
+  return subtasksOf(row.task_id).find((s) => s.id === id);
 }
 
 function removeSubtask(id) {
@@ -794,6 +831,7 @@ function hydrate(t, ref = today()) {
   return {
     ...t,
     project_name: p?.name ?? null, project_code: p?.code ?? null,
+    key: ticketKey(p?.code, t.seq),
     project_channel: p?.slack_channel_id ?? null, project_lead: p?.lead_slack_user_id ?? null,
     phase_name: DB.phases?.find((ph) => ph.id === t.phase_id)?.name ?? null,
     owner_name: m?.display_name ?? t.owner_slack_user_id,
@@ -1150,6 +1188,7 @@ function createTask(input, actor) {
 
   const t = {
     id: uid(), project_id: input.project_id || null,
+    seq: nextSeq(input.project_id || null),
     // 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 못 고른다.
     phase_id: (input.project_id && input.phase_id) || null,
     title: input.title.trim(), area, category: takeCategory(input.category),
@@ -1195,6 +1234,15 @@ function updateTask(id, input, actor) {
   const due = input.due_date === undefined ? t.due_date : (input.due_date || null);
   // 프로젝트도 마찬가지 — 빈 값이 오면 프로젝트 미정으로 내린다
   const pid = input.project_id === undefined ? t.project_id : (input.project_id || null);
+  // 프로젝트를 옮기면 번호도 새 프로젝트 것으로 — 지라와 같다. 하위 업무도 따라간다.
+  const moved = pid !== t.project_id;
+  if (moved) {
+    t.seq = nextSeq(pid);
+    for (const s of subtasksOf(t.id)) {
+      const row = DB.subtasks.find((x) => x.id === s.id);
+      if (row) row.seq = nextSeq(pid);
+    }
+  }
 
   Object.assign(t, {
     project_id: pid,

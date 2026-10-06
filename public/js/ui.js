@@ -46,6 +46,12 @@ export const projectStyle = (id) => `--pc:var(--p${projectTone(id)})`;
 /** 색 점 + 이름 */
 export const projectName = (id, name) =>
   `<span class="pname" style="${projectStyle(id)}"><i class="pdot"></i>${esc(name ?? '')}</span>`;
+/** 티켓 번호(KV-12). 프로젝트는 있는데 코드가 없으면 번호를 못 읽으니 그 이유를 단다 */
+export const ticketTag = (t) => {
+  if (t.key) return `<span class="tkey" title="티켓 번호">${esc(t.key)}</span>`;
+  if (t.project_id && t.seq) return `<span class="tkey none" title="번호 ${esc(String(t.seq))} — 프로젝트 약칭을 정하면 KV-${esc(String(t.seq))}처럼 읽힙니다">#${esc(String(t.seq))}</span>`;
+  return '';
+};
 /** 프로젝트를 아직 안 정한 업무도 있다 — 빈 칸 대신 그렇게 적는다 */
 export const projectLabel = (name) => (name ? String(name) : '프로젝트 미정');
 

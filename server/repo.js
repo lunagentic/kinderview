@@ -578,8 +578,18 @@ const TASK_SELECT = `
   LEFT JOIN vendor ven    ON ven.id = o.vendor_id
 `;
 
+// 티켓 번호 — 프로젝트 코드와 번호를 합친다. 코드가 없으면 번호만으로는 못 부르니 비워 둔다.
+export const ticketKey = (code, seq) => (code && seq ? `${code}-${seq}` : null);
+/** 프로젝트의 다음 티켓 번호. 업무·하위 업무가 같이 쓴다. 트랜잭션 안에서 부른다. */
+const nextSeq = (projectId) => {
+  if (!projectId) return null;
+  run('UPDATE project SET seq_counter = seq_counter + 1 WHERE id = :id', { id: projectId });
+  return one('SELECT seq_counter AS n FROM project WHERE id = :id', { id: projectId })?.n ?? null;
+};
+
 const decorate = (row) => {
   if (!row) return row;
+  row.key = ticketKey(row.project_code, row.seq);
   row.is_delayed = !!row.is_delayed;
   row.is_delivery_delayed = !!row.is_delivery_delayed;
   row.has_open_issue = row.open_issue_count > 0;
@@ -701,24 +711,28 @@ const titleOf = (v) => {
 export const subtasks = {
   list(taskId) {
     return all(
-      'SELECT * FROM subtask WHERE task_id = :t ORDER BY sort_order, created_at',
+      `SELECT s.*, p.code AS project_code FROM subtask s
+         JOIN task t ON t.id = s.task_id LEFT JOIN project p ON p.id = t.project_id
+       WHERE s.task_id = :t ORDER BY s.sort_order, s.created_at`,
       { t: taskId },
-    ).map((r) => ({ ...r, is_done: !!r.is_done }));
+    ).map((r) => ({ ...r, is_done: !!r.is_done, key: ticketKey(r.project_code, r.seq) }));
   },
 
   create(taskId, input) {
     const title = String(input.title ?? '').trim();
     if (!title) throw new HttpError(400, '하위 업무명을 입력해 주세요.');
-    const task = one('SELECT id FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
+    const task = one('SELECT id, project_id FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
     if (!task) throw new HttpError(404, '업무를 찾을 수 없습니다.');
     const next = one('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM subtask WHERE task_id = :t', { t: taskId }).n;
     const id = uid();
-    run(
-      `INSERT INTO subtask (id, task_id, title, is_done, sort_order, created_at)
-       VALUES (:id, :t, :title, 0, :n, :at)`,
-      { id, t: taskId, title, n: next, at: nowISO() },
-    );
-    return one('SELECT * FROM subtask WHERE id = :id', { id });
+    tx(() => {
+      run(
+        `INSERT INTO subtask (id, task_id, title, is_done, sort_order, seq, created_at)
+         VALUES (:id, :t, :title, 0, :n, :seq, :at)`,
+        { id, t: taskId, title, n: next, seq: nextSeq(task.project_id), at: nowISO() },
+      );
+    });
+    return this.list(taskId).find((r) => r.id === id);
   },
 
   update(id, patch) {
@@ -735,8 +749,7 @@ export const subtasks = {
       run('UPDATE subtask SET is_done = :done, done_at = :at WHERE id = :id',
         { id, done, at: done ? nowISO() : null });
     }
-    const row = one('SELECT * FROM subtask WHERE id = :id', { id });
-    return { ...row, is_done: !!row.is_done };
+    return this.list(cur.task_id).find((r) => r.id === id);
   },
 
   remove(id) {
@@ -830,12 +843,13 @@ export const tasks = {
       const at = nowISO();
       run(
         `INSERT INTO task (id, project_id, phase_id, title, area, category, owner_slack_user_id, status, priority,
-                           start_date, due_date, description, completed_at, created_by, created_at, updated_at)
+                           start_date, due_date, description, completed_at, seq, created_by, created_at, updated_at)
          VALUES (:id, :project_id, :phase_id, :title, :area, :category, :owner, :status, :priority,
-                 :start_date, :due_date, :description, :completed_at, :actor, :at, :at)`,
+                 :start_date, :due_date, :description, :completed_at, :seq, :actor, :at, :at)`,
         {
           id,
           project_id: input.project_id || null,
+          seq: nextSeq(input.project_id || null),
           // 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 못 고른다.
           phase_id: (input.project_id && input.phase_id) || null,
           category: takeCategory(input.category),
@@ -898,10 +912,13 @@ export const tasks = {
       // 프로젝트도 마찬가지 — 빈 값이 오면 프로젝트 미정으로 내린다
       const projectId = input.project_id === undefined ? cur.project_id : (input.project_id || null);
       const completedAt = status === 'DONE' ? (cur.completed_at || at) : null;
+      // 프로젝트를 옮기면 번호도 새 프로젝트 것으로 — 지라와 같다. 옛 번호는 비워 두고 재사용하지 않는다.
+      const moved = projectId !== cur.project_id;
+      const seq = moved ? nextSeq(projectId) : cur.seq;
 
       run(
         `UPDATE task SET project_id = :project_id, phase_id = :phase_id, title = :title, area = :area,
-           category = :category,
+           category = :category, seq = :seq,
            owner_slack_user_id = :owner, status = :status, priority = :priority,
            start_date = :start_date, due_date = :due_date, description = :description,
            completed_at = :completed_at, updated_at = :at
@@ -909,6 +926,7 @@ export const tasks = {
         {
           id,
           project_id: projectId,
+          seq,
           // 프로젝트를 떼면 그 안에 있던 페이즈도 같이 뗀다
           phase_id: !projectId ? null
             : (input.phase_id === undefined ? cur.phase_id : (input.phase_id || null)),
@@ -927,6 +945,12 @@ export const tasks = {
       );
 
       if (input.collaborators) setCollaborators(id, input.collaborators, owner);
+      // 하위 업무도 상위를 따라 새 번호열로 간다
+      if (moved) {
+        for (const sb of all('SELECT id FROM subtask WHERE task_id = :id ORDER BY sort_order', { id })) {
+          run('UPDATE subtask SET seq = :n WHERE id = :sid', { n: nextSeq(projectId), sid: sb.id });
+        }
+      }
 
       if (area === 'OUT') {
         upsertOutsourcing(id, { ...cur, ...input }, at);

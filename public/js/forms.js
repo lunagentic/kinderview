@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
-import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick } from './ui.js';
+import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag } from './ui.js';
 import { canEdit, canAdmin } from './gate.js';
 import { gatePanel } from './views/gatePanel.js';
 
@@ -596,8 +596,9 @@ export function projectForm({ project = null, onSaved }) {
           <input type="text" name="name" required value="${esc(project?.name ?? '')}" placeholder="예: Kinderverse">
         </label>
         <label class="field">
-          <span class="lab">약칭</span>
-          <input type="text" name="code" value="${esc(project?.code ?? '')}" placeholder="예: KV" maxlength="8">
+          <span class="lab">약칭 <span class="hint" style="font-weight:400">티켓 번호의 머리글자 (KV-12)</span></span>
+          <input type="text" name="code" value="${esc(project?.code ?? '')}" placeholder="예: KV" maxlength="8"
+                 pattern="[A-Za-z][A-Za-z0-9]*" title="영문으로 시작하는 영문·숫자">
         </label>
         <label class="field">
           <span class="lab">상태</span>
@@ -1048,6 +1049,7 @@ export function subtaskModal({ task, onChange }) {
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
       <li class="${r.is_done ? 'done' : ''}" data-row="${esc(r.id)}">
         <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''} aria-label="완료">
+        ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
         ${r.done_at ? `<span class="when">${esc(shortDate(r.done_at.slice(0, 10)))} 완료</span>` : ''}
@@ -1058,7 +1060,7 @@ export function subtaskModal({ task, onChange }) {
   const body = `
     <div class="sbm">
       <div class="sbm-head">
-        <span class="sbm-proj">${esc(t.project_name ?? '')}${t.phase_name ? ` · ${esc(t.phase_name)}` : ''}</span>
+        <span class="sbm-proj">${ticketTag(t)}${esc(t.project_name ?? '')}${t.phase_name ? ` · ${esc(t.phase_name)}` : ''}</span>
         <h3 class="sbm-ttl">${esc(t.title)}</h3>
         <div class="sbm-meta">
           <span class="st">${statusPick(t)}</span>

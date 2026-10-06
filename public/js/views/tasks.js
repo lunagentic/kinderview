@@ -3,7 +3,7 @@ import { state, activeProjects, areaMeta, leadNames } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
-  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle,
+  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle, ticketTag,
 } from '../ui.js';
 import { taskForm, projectForm } from '../forms.js';
 
@@ -142,7 +142,7 @@ export async function renderTasks(root, query) {
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
-        ${titleCell(t)}
+        ${ticketTag(t)}${titleCell(t)}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}${
           t.comment_count ? `<i class="tk-cm" title="디렉터 코멘트 ${t.comment_count}건">💬 ${t.comment_count}</i>` : ''}</span>

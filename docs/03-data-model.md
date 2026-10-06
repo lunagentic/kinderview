@@ -138,7 +138,8 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 |---|---|---|---|
 | `id` | uuid | ✔ | PK |
 | `name` | text | ✔ | 프로젝트명 (예: Kinderverse) |
-| `code` | text | | 짧은 식별자 (예: KV). 리포트·알림 표기용 |
+| `code` | text | | 짧은 식별자 (예: KV). **티켓 번호의 머리글자** — 없으면 번호를 못 읽는다 |
+| `seq_counter` | int | ✔ | 티켓 번호 카운터. 업무·하위 업무가 한 번호열을 쓴다. 지워도 되돌리지 않는다 |
 | `description` | text | | 설명 |
 | `status` | enum | ✔ | `PLANNED` 예정 / `ACTIVE` 진행중 / `ON_HOLD` 보류 / `DONE` 완료 |
 | `start_date` | date | | 시작일 |
@@ -185,6 +186,7 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 | `id` | uuid | ✔ | PK |
 | `project_id` | uuid FK | ✔ | 소속 프로젝트 |
 | `phase_id` | uuid FK | | 소속 페이즈. **선택** — 없어도 앱은 그대로 동작한다 |
+| `seq` | int | | 프로젝트 안의 티켓 번호. 코드와 합쳐 `KV-12`. 프로젝트를 옮기면 새 번호를 받는다(지라와 같다). 프로젝트가 없으면 비어 있다 |
 | `title` | text | ✔ | 업무명 |
 | `area` | enum | ✔ | 업무 영역 (`PLAN`/`DESIGN`/`DEV`/`CONTENT`/`MKT`/`BIZ`/`OPS`/`OUT`/`ETC`). **담당자를 결정한다** |
 | `owner_slack_user_id` | text FK | ✔ | **담당자. 단일 값.** 사람을 고르지 않고 `area_lead` 에서 채워진다 |

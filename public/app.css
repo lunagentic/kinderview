@@ -1400,6 +1400,12 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tlg-fold:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
 .tlg-fold.ph{display:inline-block}
 
+/* 티켓 번호 — 지라식 KV-12. 글자보다 한 단 작고 고정폭 */
+.tkey{font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap;flex:none;
+  padding:0 5px;border:1px solid var(--line);border-radius:4px;line-height:1.5;margin-right:6px;vertical-align:middle}
+.tkey.none{border-style:dashed;color:var(--muted);opacity:.8}
+.tk-title .tkey{margin-right:4px}
+
 /* ── 하위 업무 팝업 ──────────────────────────── */
 .sbm-head{padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:14px}
 .sbm-proj{font-size:.76rem;color:var(--muted)}

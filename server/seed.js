@@ -9,7 +9,7 @@ import {
   MEMBERS, PROJECTS, TASKS, SUBTASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, CO_LEAD_ROWS, TIME_ENTRIES,
   PHASES, MILESTONES, EXPENSES,
 } from './seed-data.js';
-import { runMigrations } from './migrate.js';
+import { runMigrations, backfillTicketSeq } from './migrate.js';
 
 if (runMigrations().length) (await import('./db.js')).applySchema();
 
@@ -173,6 +173,9 @@ tx(() => {
       });
   }
 });
+
+// 시드로 넣은 업무·하위 업무에 티켓 번호를 넣은 순서대로 매긴다
+backfillTicketSeq();
 
 const counts = {
   구성원: one('SELECT COUNT(*) AS n FROM member').n,

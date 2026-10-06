@@ -309,11 +309,69 @@ function ensureConstraints() {
   }
 }
 
+/**
+ * 티켓 번호 — 지라처럼 프로젝트 코드 + 일련번호(KV-12). 업무와 하위 업무가 한 번호열을 쓴다.
+ * 기존 것은 만든 순서대로 한 번에 매긴다. 지워진 업무도 번호를 받는다 — 번호는 재사용하지 않는다.
+ */
+function addTicketSeq() {
+  const sql = tableSql('task');
+  if (!sql) return null;
+  let added = false;
+  if (!/\bseq\b/.test(sql)) {
+    db.exec('ALTER TABLE task ADD COLUMN seq INTEGER');
+    db.exec('ALTER TABLE subtask ADD COLUMN seq INTEGER');
+    db.exec('ALTER TABLE project ADD COLUMN seq_counter INTEGER NOT NULL DEFAULT 0');
+    added = true;
+  }
+  // 번호가 없는 것은 언제든 채운다 — 컬럼이 이미 있어도 시드가 넣은 줄은 비어 있을 수 있다
+  const numbered = backfillTicketSeq();
+  if (!added && !numbered) return null;
+  return `티켓 번호 ${added ? '추가' : '채움'} (${numbered}건, 만든 순서대로)`;
+}
+
+/** 번호 없는 업무·하위 업무에 프로젝트 카운터를 이어서 매긴다. 매긴 건수를 돌려준다. */
+export function backfillTicketSeq() {
+  const setTask = db.prepare('UPDATE task SET seq = :n WHERE id = :id');
+  const setSub = db.prepare('UPDATE subtask SET seq = :n WHERE id = :id');
+  const setCounter = db.prepare('UPDATE project SET seq_counter = :n WHERE id = :id');
+  let count = 0;
+  db.exec('BEGIN');
+  try {
+    for (const p of db.prepare('SELECT id, seq_counter FROM project').all()) {
+      const items = [
+        // 같은 시각에 들어온 것(시드)은 넣은 순서(rowid)로 가른다
+        ...db.prepare('SELECT id, created_at, rowid AS rid FROM task WHERE project_id = :p AND seq IS NULL').all({ p: p.id })
+          .map((r) => ({ kind: 'task', ...r })),
+        // 하위 업무는 상위보다 앞에 설 수 없다 — 시드는 둘의 시각이 뒤집혀 있을 수 있다
+        ...db.prepare(`SELECT s.id, MAX(s.created_at, t.created_at) AS created_at, s.rowid AS rid
+                       FROM subtask s JOIN task t ON t.id = s.task_id
+                       WHERE t.project_id = :p AND s.seq IS NULL`).all({ p: p.id })
+          .map((r) => ({ kind: 'sub', ...r })),
+      ].sort((a, b) => a.created_at.localeCompare(b.created_at)
+        || (a.kind === b.kind ? a.rid - b.rid : (a.kind === 'task' ? -1 : 1)));
+      if (!items.length) continue;
+      let n = p.seq_counter;
+      for (const it of items) {
+        n += 1;
+        (it.kind === 'task' ? setTask : setSub).run({ n, id: it.id });
+      }
+      setCounter.run({ n, id: p.id });
+      count += items.length;
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return count;
+}
+
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
-    migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle()]
+    migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
+    addTicketSeq()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

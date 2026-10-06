@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS project (
   slack_channel_id   TEXT,
   sort_order         INTEGER NOT NULL DEFAULT 0,
   is_archived        INTEGER NOT NULL DEFAULT 0,
+  -- 티켓 번호 카운터. 업무·하위 업무가 한 번호열을 쓴다 (KV-1, KV-2 …).
+  -- 한 번 쓴 번호는 지워도 다시 쓰지 않는다 — 그래서 MAX 가 아니라 카운터다.
+  seq_counter        INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL,
   updated_at         TEXT NOT NULL,
   CHECK (end_date IS NULL OR start_date IS NULL OR start_date <= end_date)
@@ -102,6 +105,8 @@ CREATE TABLE IF NOT EXISTS task (
   -- 분류(신규 기능·기능 개선 …). 값 집합은 domain.js 가 들고 있다 —
   -- 여기 CHECK 로 묶으면 분류를 하나 더할 때마다 표를 다시 만들어야 한다.
   category            TEXT,
+  -- 프로젝트 안의 티켓 번호. 프로젝트 코드와 합쳐 KV-12 로 읽는다. 프로젝트가 없으면 비어 있다.
+  seq                 INTEGER,
   owner_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
   status              TEXT NOT NULL,
   priority            TEXT NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('HIGH','NORMAL','LOW')),
@@ -157,6 +162,7 @@ CREATE TABLE IF NOT EXISTS subtask (
   title       TEXT NOT NULL,
   is_done     INTEGER NOT NULL DEFAULT 0,
   sort_order  INTEGER NOT NULL DEFAULT 0,
+  seq         INTEGER,            -- 상위 업무의 프로젝트 번호열에서 받는다
   created_at  TEXT NOT NULL,
   done_at     TEXT,
   CHECK ((is_done = 1 AND done_at IS NOT NULL) OR (is_done = 0 AND done_at IS NULL))
