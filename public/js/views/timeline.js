@@ -69,6 +69,8 @@ const tlMilestoneState = (m) => {
 
 const tlMonday = (iso) => tlAdd(iso, -((new Date(tlParse(iso)).getUTCDay() + 6) % 7));
 const tlMonthLabel = (iso) => `${Number(iso.slice(5, 7))}월`;
+// 「10월 1주」 — 그 주 월요일이 속한 달에서 몇 번째 월요일인가. 첫 월요일이 든 주가 1주다.
+const tlWeekLabel = (monday) => `${tlMonthLabel(monday)} ${Math.ceil(Number(monday.slice(8, 10)) / 7)}주`;
 
 // 보기 단위. 월간은 모든 일정을 감싸는 긴 창(주 눈금), 주간은 4주를 하루 칸으로 편다.
 // 처음엔 주간 — 이번 주에 무엇이 걸려 있는지가 가장 자주 묻는 질문이다.
@@ -245,12 +247,10 @@ export async function renderTimeline(root) {
         <div class="tl-row tl-axis">
           <div class="tl-label"></div>
           <div class="tl-track">
-            ${weekly ? weeks.map((w) => {
-              const sun = tlAdd(w.start, 6);
-              const label = w.start.slice(5, 7) === sun.slice(5, 7)
-                ? tlMonthLabel(w.start) : `${tlMonthLabel(w.start)} / ${tlMonthLabel(sun)}`;
-              return `<span class="tl-month${w.now ? ' now' : ''}" style="left:${w.left}%;width:${w.width}%">${label}</span>`;
-            }).join('') : months.map((m) => `
+            ${weekly ? weeks.map((w) => `
+              <span class="tl-month${w.now ? ' now' : ''}" style="left:${w.left}%;width:${w.width}%"
+                    title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">${tlWeekLabel(w.start)}</span>`).join('')
+            : months.map((m) => `
               <span class="tl-month" style="left:${m.left}%;width:${m.width}%">
                 ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}
               </span>`).join('')}
