@@ -3,9 +3,10 @@ import { state, activeProjects, areaMeta, leadNames } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
-  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle, ticketTag,
+  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle, ticketTag, hoverTip,
 } from '../ui.js';
 import { taskForm, projectForm } from '../forms.js';
+import { ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTable, bindGanttTable } from '../gantt.js';
 
 // 업무 화면은 "언제까지 무엇을" 보는 곳이다.
 // 그래서 마감이 맨 앞이고, 기본 정렬도 마감일 순이다.
@@ -33,6 +34,7 @@ const readProjOrder = () => (readPref(PROJ_KEY) || '').split(',').filter(Boolean
 const TASK_KEY = 'kf.taskOrder';
 const readTaskOrder = () => (readPref(TASK_KEY) || '').split(',').filter(Boolean);
 const monthLabel = (m) => `${Number(m.slice(5, 7))}월`;
+const VIEW_KEY = 'kf.tasks.view';
 const monthEndDay = (m) => {
   const [y, mm] = m.split('-').map(Number);
   return new Date(Date.UTC(y, mm, 0)).toISOString().slice(0, 10);
@@ -54,7 +56,11 @@ export async function renderTasks(root, query) {
   // 그래야 서버에도 안 가고, 달을 다시 고를 때 따라붙지도 않는다.
   const justMade = p.get('new');
   p.delete('new');
+  // 보기: 목록 | 타임라인. 주소에 실려 다니고(필터 링크가 보기를 잃지 않게), 마지막 보기는 기억한다.
+  const view = p.get('view') || readPref(VIEW_KEY) || 'list';
+  const gantt = view === 'gantt';
   const ask = new URLSearchParams(p);
+  ask.delete('view');
   if (ask.get('month') === 'all') ask.delete('month');
   // 백로그는 달이 아니다 — 달 자리에 얹어 두고 서버에는 따로 알린다
   if (backlog) { ask.delete('month'); ask.set('backlog', '1'); }
@@ -129,6 +135,8 @@ export async function renderTasks(root, query) {
     groups.push({ project: pr, count: mine.length, areas });
   }
   const manual = rows.some((t) => rank.has(t.id));
+  // 타임라인 보기의 날짜 창 — 걸러진 업무의 시작·마감이 다 들어가게
+  const w = gantt ? ganttWindow(rows.flatMap((t) => [t.start_date, t.due_date])) : null;
 
   const projectOptions = activeProjects()
     .map((pr) => `<option value="${esc(pr.id)}"${p.get('project') === pr.id ? ' selected' : ''}>${esc(pr.name)}</option>`).join('');
@@ -170,6 +178,10 @@ export async function renderTasks(root, query) {
         } · 담당은 업무 영역의 리드가 맡습니다</div>
       </div>
       <div class="page-actions">
+        <div class="tl-seg tk-view" role="group" aria-label="보기">
+          <button type="button" data-view="list" aria-pressed="${!gantt}">목록</button>
+          <button type="button" data-view="gantt" aria-pressed="${gantt}">타임라인</button>
+        </div>
         <button class="btn" data-new-project>+ 프로젝트</button>
         <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
       </div>
@@ -202,7 +214,17 @@ export async function renderTasks(root, query) {
       ${manual ? '<button class="btn btn-ghost" data-order-reset>마감일 순으로</button>' : ''}
     </div>
 
-    ${groups.length ? groups.map((g) => `
+    ${gantt ? `
+      ${ganttScaleBar(w)}
+      <div class="tk-gantt">${groups.length ? ganttTable({
+        w, sections: groups.map((g) => ({ project: g.project, loose: g.loose, rows: g.areas.flatMap((a) => a.rows) })),
+      }) : empty({
+        title: backlog ? '백로그가 비어 있습니다'
+          : month ? `${monthLabel(month)}에 마감인 업무가 없습니다` : '조건에 맞는 업무가 없습니다',
+        hint: backlog ? '업무를 등록할 때 마감일을 비우면 여기로 들어옵니다.' : '월을 바꾸거나 필터를 초기화해 보세요.',
+        action: '<button class="btn btn-primary" data-new-task>+ 업무 등록</button>',
+      })}</div>`
+    : groups.length ? groups.map((g) => `
       <section class="tk-project${g.loose ? ' loose' : ''}" data-project="${esc(g.project.id)}"
                style="${projectStyle(g.project.id)}">
         <div class="tk-project-head"${g.loose ? '' : ' title="끌어서 프로젝트 차례를 바꿉니다"'}>
@@ -236,6 +258,13 @@ export async function renderTasks(root, query) {
       })}`;
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
+
+  if (gantt) {
+    hoverTip(root);
+    bindGanttScale(root, w);
+    ganttInitialScroll(root.querySelector('.tlg-scroll'), '.tlg-axis .tlg-t', w);
+    bindGanttTable(root, { findTask: (id) => rows.find((t) => t.id === id), reload });
+  }
 
   // ── 프로젝트 차례 바꾸기 ──────────────────────────────
   // 머리를 잡고 위아래로 끈다. 마우스·터치 같은 코드로 받는다.
@@ -388,11 +417,18 @@ export async function renderTasks(root, query) {
     const m = e.target.closest('[data-month]');
     if (m) return setParam({ month: m.dataset.month });
 
+    const v = e.target.closest('[data-view]');
+    if (v) {
+      writePref(VIEW_KEY, v.dataset.view);
+      return setParam({ view: v.dataset.view === 'gantt' ? 'gantt' : '' });
+    }
+
     const q = e.target.closest('[data-quick]');
     if (q) {
       const quick = QUICK.find((x) => x.key === q.dataset.quick);
       const next = new URLSearchParams();
       if (rawMonth) next.set('month', rawMonth);     // 고른 달은 유지한다
+      if (gantt) next.set('view', 'gantt');          // 보기도 유지한다
       if (!matchesQuick(p, quick)) for (const [k, v] of Object.entries(quick.params)) next.set(k, v);
       return go(`#/project/tasks${next.toString() ? `?${next.toString()}` : ''}`);
     }

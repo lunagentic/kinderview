@@ -52,6 +52,7 @@ const parts = [
   flatten(read('public/js/ui.js')),
   flatten(read('public/js/forms.js')),
   flatten(read('public/js/comments.js')),
+  flatten(read('public/js/gantt.js')),
   flatten(read('public/js/views/risks.js')),
   flatten(read('public/js/views/overview.js')),
   flatten(read('public/js/views/tasks.js')),

@@ -843,7 +843,7 @@ body[data-gate="edit"] .btn-danger{display:none}
 .tl-wrap::-webkit-scrollbar,.tlg-scroll::-webkit-scrollbar{height:10px}
 .tl-wrap::-webkit-scrollbar-track,.tlg-scroll::-webkit-scrollbar-track{background:var(--surface-2);border-radius:5px}
 .tl-wrap::-webkit-scrollbar-thumb,.tlg-scroll::-webkit-scrollbar-thumb{background:var(--muted);border-radius:5px;border:2px solid var(--surface-2)}
-.tl-chart{min-width:660px;position:relative;--tl-label:188px;--tl-gap:12px}
+.tl-chart{min-width:660px;position:relative;--tl-label:260px;--tl-gap:12px}
 
 /* 보기 단위 — 월간 / 주간 */
 .tl-scale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 2px 10px}
@@ -878,6 +878,28 @@ body[data-gate="edit"] .btn-danger{display:none}
 .tl-label::after{content:"";position:absolute;left:100%;top:-4px;bottom:-4px;width:var(--tl-gap);background:var(--surface)}
 .tl-group-head{position:sticky;left:0;z-index:3;width:max-content;max-width:calc(100vw - 64px);
   background:var(--surface);padding:0 12px 0 16px;border-radius:0 6px 6px 0}
+/* 페이즈 줄 — ▸ 와 이름이 나란히. 펼치면 아래로 업무 줄이 선다 */
+.tl-phase .tl-label{flex-direction:row;align-items:center;justify-content:flex-start;gap:6px}
+.tl-phase .tl-label .tlg-fold{margin-top:1px}
+.tl-label-text{min-width:0;display:flex;flex-direction:column;gap:1px}
+.tl-phase.is-open .tl-name{color:var(--indigo)}
+/* 펼친 업무 줄 — 번호 · 업무명(한 줄 말줄임) · 상태. 막대는 상태색 */
+.tl-task{min-height:30px;cursor:pointer}
+.tl-task .tl-label{flex-direction:row;align-items:center;justify-content:flex-start;gap:7px;padding-left:38px}
+.tl-task:hover .tl-label,.tl-task:hover .tl-track{background:var(--surface-2)}
+.tl-task:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.tl-task .tl-track{height:30px}
+.tl-task .tlg-bar{top:8px}
+.tl-task .tlg-dd{top:5px}
+.tl-task .tlg-none{top:5px}
+.tl-tname{flex:1 1 auto;min-width:0;font-size:.84rem;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-tst{flex:none;font-size:.68rem;font-weight:600;padding:0 6px;border-radius:999px;border:1px solid currentColor;line-height:1.5;margin-right:8px}
+.tl-tst.wait{color:var(--s-wait)} .tl-tst.prog{color:var(--s-prog)} .tl-tst.review{color:var(--s-review)}
+.tl-tst.done{color:var(--s-done)} .tl-tst.late{color:var(--s-delay)}
+.tl-task-note{cursor:default;min-height:26px}
+.tl-task-note:hover .tl-label,.tl-task-note:hover .tl-track{background:none}
+.tl-key .k-task{width:26px;height:9px;border-radius:4px;background:var(--s-prog);opacity:.85}
+
 .tl-name{background:none;border:none;padding:0;text-align:left;font:inherit;font-weight:500;
   color:var(--ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tl-name:hover{color:var(--indigo);text-decoration:underline}
@@ -962,7 +984,11 @@ body[data-gate="edit"] .btn-danger{display:none}
 .tl-table .table-wrap{margin-top:8px}
 
 @media (max-width:860px){
-  .tl-chart{--tl-label:128px;min-width:560px}
+  .tl-chart{--tl-label:170px;min-width:560px}
+  /* 펼친 업무 줄: 상태는 막대 색이 말해 준다 — 좁은 화면에선 글자를 뺀다 */
+  .tl-task .tl-label{padding-left:22px;gap:5px}
+  .tl-task .tl-tst{display:none}
+  .tl-task .tkey{font-size:.64rem;padding:0 3px;margin-right:2px}
   .tl-group-actions{margin-left:0;width:100%}
 }
 
@@ -1235,34 +1261,7 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tl-hint{margin-left:auto;color:var(--muted)}
 .tl-bar.on{box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--pc)}
 
-.tl-detail{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-  margin-top:12px;overflow:hidden}
-.tld-head{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;
-  padding:13px 16px;border-bottom:2px solid var(--pc,var(--line))}
-.tld-head h3{font-size:1rem;font-weight:800;display:inline-flex;align-items:center;gap:7px}
-.tld-head h3 .sep{color:var(--muted);font-weight:400}
-.tld-head .meta{font-size:.78rem;color:var(--muted)}
-.tld-head .acts{margin-left:auto;display:flex;gap:4px}
-
-.tld-areas{display:grid;grid-template-columns:1fr;gap:1px;background:var(--line-soft)}
-.tld-area{background:var(--surface);padding:12px 16px 14px;min-width:0}
-.tld-area-head{display:flex;align-items:baseline;gap:9px;padding-bottom:7px;margin-bottom:4px;
-  border-bottom:1px solid var(--line-soft)}
-.tld-area-head .lab{font-size:.85rem;font-weight:700;color:var(--ink)}
-.tld-area-head .n{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
-.tld-area-head .lead{font-size:.75rem;color:var(--muted);margin-left:auto}
-
-/* 분류 묶음 — 영역 아래 한 단. 「서비스기획 › 신규 기능 › 갤러리 소셜화」로 읽힌다 */
-.tld-cat{margin-top:8px;border-left:3px solid color-mix(in srgb, var(--cc, var(--line)) 22%, transparent);
-  padding-left:6px;margin-left:-9px}
-.tld-cat .tld-cat-head{margin-left:-6px}
-.tld-cat:first-of-type{margin-top:2px}
-.tld-cat-head{display:flex;align-items:baseline;gap:7px;padding:3px 4px 4px;
-  border-left:3px solid var(--cc,var(--line));padding-left:8px;margin-bottom:2px}
-.tld-cat-head .lab{font-size:.79rem;font-weight:700;color:var(--cc,var(--ink-2))}
-.tld-cat-head .n{font-size:.72rem;color:var(--muted);font-family:var(--mono)}
-.tld-cat.none .tld-cat-head{border-left-style:dashed;border-left-color:var(--line)}
-.tld-cat.none .tld-cat-head .lab{color:var(--muted);font-weight:600}
+/* (페이즈 패널은 없어졌다 — 업무 줄은 차트 안에서 펼쳐진다) */
 
 /* ── 코멘트 ─────────────────────────────────────────
    업무 상세와 타임라인이 같은 모양을 쓴다. 답글은 한 단만 들여쓴다. */
@@ -1365,9 +1364,6 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 
 @media (max-width:860px){
   .tl-hint{margin-left:0;flex-basis:100%}
-  .tld-head{padding:12px 14px}
-  .tld-head .acts{margin-left:0;width:100%}
-  .tld-area{padding:11px 14px 12px}
   .tld-task{grid-template-columns:64px minmax(0,1fr) 28px 26px;gap:6px 9px}
   .tld-task .due{grid-column:1/2;grid-row:1}
   .tld-task .ttl{grid-column:2/3;grid-row:1}
@@ -1383,7 +1379,7 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
   .tld-del{grid-column:4/5;grid-row:1;color:var(--muted);min-height:32px;padding:5px 6px}
 }
 
-/* ── 페이즈 패널: 업무별 간트 ────────────────
+/* ── 업무 표 + 격자 (업무 탭의 타임라인 보기) ────────────────
    왼쪽 표(업무 · 상태 · 담당)는 붙박이, 오른쪽 격자는 위 차트와 같은 날짜 창이다.
    줄은 영역 › 분류 › 업무 › 하위 업무 네 종류이고, 모두 같은 두 칸이라 눈금이 끊기지 않는다.
    막대 색은 상태색이다 — 이름은 왼쪽 표가 달고 있어 색만으로 구분되는 곳은 없다. */
@@ -1491,6 +1487,16 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
 
 .tlg-legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 16px 10px;font-size:.74rem;color:var(--muted);
   border-top:1px solid var(--line-soft)}
+/* 업무 탭의 타임라인 보기 — 카드 하나에 표 + 격자 */
+.tk-view{margin-right:4px}
+.tk-gantt{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.tk-gantt .tlg-scroll{border-top:none}
+.tlg-proj .tlg-l{background:color-mix(in srgb, var(--pc, var(--muted)) 8%, var(--surface));min-height:40px;gap:10px}
+.tlg-proj .tlg-t{background:color-mix(in srgb, var(--pc, var(--muted)) 4%, transparent)}
+.tlg-proj{min-height:40px}
+.tlg-proj h2{margin:0;font-size:.95rem;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tlg-proj .n{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+.tlg-proj.loose .tlg-l{background:var(--surface-2)}
 .tlg-legend i{display:inline-block;width:18px;height:9px;border-radius:3px;vertical-align:middle;margin-right:5px;background:var(--s-wait)}
 .tlg-legend i.prog{background:var(--s-prog)} .tlg-legend i.review{background:var(--s-review)}
 .tlg-legend i.done{background:var(--s-done)} .tlg-legend i.late{background:var(--s-delay)}
@@ -1516,7 +1522,7 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
   .tl-label{padding-left:14px}
   .tl-name{font-size:.88rem}
   .tl-meta{font-size:.7rem}
-  /* 페이즈 패널: 왼쪽 표를 줄여 격자가 더 보이게. 담당은 영역 줄의 리드로 충분하다 */
+  /* 업무 표: 왼쪽 표를 줄여 격자가 더 보이게. 담당은 영역 줄의 리드로 충분하다 */
   .tlg{--tlg-left:250px}
   .tlg-l{padding:0 8px 0 10px;gap:6px}
   .tlg-row.tld-task .tlg-l{padding-left:12px}
@@ -1528,8 +1534,6 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
   .tlg-row.tld-task .ttl{flex:1 1 calc(100% - 70px);font-size:.84rem}
   .tlg-row.tld-task .tld-subs{margin-left:auto}
   .tlg-row.tld-task .st .chip-select{font-size:.72rem;padding:2px 20px 2px 8px}
-  .tld-head{padding:10px 12px}
-  .tld-head h3{font-size:.92rem}
   .tlg-legend{padding:6px 12px 8px;gap:4px 10px;font-size:.7rem}
   .tlg-own,.tlg-axis .tlg-l span:nth-child(3){display:none}
   .tlg-axis .tlg-l{grid-template-columns:1fr 72px 50px}
