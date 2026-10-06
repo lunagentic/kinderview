@@ -1400,6 +1400,31 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tlg-fold:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
 .tlg-fold.ph{display:inline-block}
 
+/* ── 하위 업무 팝업 ──────────────────────────── */
+.sbm-head{padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.sbm-proj{font-size:.76rem;color:var(--muted)}
+.sbm-ttl{margin:2px 0 8px;font-size:1.1rem;font-weight:800;letter-spacing:-.01em;overflow-wrap:anywhere}
+.sbm-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.sbm-meta .lnk{margin-left:auto;color:var(--indigo);text-decoration:none;font-size:.78rem}
+.sbm-meta .lnk:hover{text-decoration:underline}
+.sbm-sec-head{display:flex;align-items:baseline;gap:8px}
+.sbm-sec-head h4{margin:0;font-size:.9rem;font-weight:700}
+.sbm-prog{display:flex;align-items:center;gap:10px;margin-top:8px}
+.sbm-prog .track{flex:1;height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.sbm-prog .track i{display:block;height:100%;background:var(--s-done);border-radius:999px;transition:width .2s}
+.sbm-prog .n{font-family:var(--mono);font-size:.74rem;color:var(--muted);white-space:nowrap}
+.sbm-list{margin-top:8px}
+.sbm-list li{gap:9px}
+.sbm-list input[type=checkbox]{width:16px;height:16px;flex:none;accent-color:var(--s-done);cursor:pointer}
+.sbm-title{flex:1;min-width:0;font:inherit;font-size:.9rem;color:var(--ink);background:none;border:1px solid transparent;
+  border-radius:4px;padding:3px 6px;margin:-3px 0}
+.sbm-title:hover{border-color:var(--line)}
+.sbm-title:focus{border-color:var(--focus);background:var(--surface);outline:none}
+.sbm-list li.done .sbm-title{color:var(--muted);text-decoration:line-through}
+.sbm-list .when{font-family:var(--mono);font-size:.7rem;color:var(--muted);white-space:nowrap}
+body[data-gate="view"] .sbm .x,body[data-gate="view"] .sbm .sub-note{display:none}
+body[data-gate="view"] .sbm-title{pointer-events:none}
+
 /* 분류 줄 — 분류색 띠 */
 .tlg-cat .tlg-l{padding-left:30px;box-shadow:inset 3px 0 0 color-mix(in srgb, var(--cc, var(--line)) 22%, transparent)}
 .tlg-cat .lab{font-size:.79rem;font-weight:700;color:var(--cc, var(--ink-2))}
@@ -1435,17 +1460,9 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tlg-row.tld-task .tld-subs{cursor:pointer}
 .tlg-t .due-edit{position:absolute;top:4px;left:8px;z-index:5;width:auto;min-width:150px;font-size:.78rem}
 
-/* 하위 업무 줄 — 날짜가 없으니 막대도 없다 */
-.tlg-sub{min-height:28px;border-bottom:1px dashed var(--line-soft)}
-.tlg-sub .tlg-l{min-height:28px;padding-left:56px;font-size:.84rem;color:var(--ink-2)}
-.tlg-sub .tlg-t{height:28px}
-.tlg-sub .mark{width:16px;height:16px;border:1.5px solid var(--line);border-radius:4px;display:grid;place-items:center;
-  font-size:.7rem;color:var(--muted);flex:none}
-.tlg-sub.done .mark{border-color:var(--s-done);color:var(--s-done)}
-.tlg-sub.done .t{color:var(--muted);text-decoration:line-through}
-.tlg-sub .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tlg-sub .when{margin-left:auto;font-family:var(--mono);font-size:.7rem;color:var(--muted);white-space:nowrap}
-.tlg .tld-sublist{margin:0;display:block}
+/* 하위 업무 뱃지 — 없으면 「하위 +」로 더할 수 있다고 알린다 */
+.tlg-row.tld-task .tld-subs.empty{color:transparent;border-color:transparent}
+.tlg-row.tld-task:hover .tld-subs.empty{color:var(--muted);border-color:var(--line)}
 /* 코멘트 상자는 왼쪽 표 폭 안에 선다 */
 .tlg .tld-cmbox{margin:0 0 8px 40px;max-width:calc(var(--tlg-left) - 60px);position:sticky;left:40px}
 

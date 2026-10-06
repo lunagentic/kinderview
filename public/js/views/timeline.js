@@ -5,7 +5,7 @@ import {
   statusChip, statusPick, go, toast, dueCell, bindDueEdit, confirmModal,
   titleCell, autoGrow, syncTitleCell, categoryLabel, categoryStyle, readPref, writePref,
 } from '../ui.js';
-import { phaseForm, milestoneForm, projectForm } from '../forms.js';
+import { phaseForm, milestoneForm, projectForm, subtaskModal } from '../forms.js';
 import { bindComments, directorIcon } from '../comments.js';
 
 // 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
@@ -82,9 +82,8 @@ let tlAnchor = null;   // 주간 창의 첫 월요일. null 이면 이번 주
 // 열어 둔 페이즈를 기억한다. 화면을 다시 그릴 때마다 패널이 닫히면
 // 페이즈를 고치거나 업무 하나를 손볼 때마다 아래 표가 사라진다.
 let lastOpenPhase = null;
-// 패널 안에서 접은 영역과 펼친 상위 업무도 같이 기억한다 — 상태 하나 바꿨다고 다 접히면 안 된다.
+// 패널 안에서 접은 영역도 같이 기억한다 — 상태 하나 바꿨다고 다 접히면 안 된다.
 const foldedAreas = new Set();
-const openSubs = new Set();
 const TLG_LEFT = 480;   // 패널 왼쪽 표(업무 · 상태 · 담당)의 폭
 
 export async function renderTimeline(root) {
@@ -483,21 +482,16 @@ export async function renderTimeline(root) {
         <span class="tlg-dd due${late}" style="left:${box.left + box.width}%">${dueCell(t)}</span>`;
     };
 
-    // 하위 업무가 있는 줄은 줄을 누르면 그 자리에서 펼쳐진다. 상세로 가는 문은 ✎ 다 —
-    // 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
+    // 줄을 누르면 하위 업무 팝업이 열린다 — 없어도 열린다, 거기서 바로 더할 수 있다.
+    // 상세로 가는 문은 ✎ 다. 상세로 넘어갔다 돌아오면 보던 페이즈를 잃는다.
     const taskLine = (t) => `
       <div class="tlg-row tld-task${t.director_comment_count ? ' has-dir' : ''}${t.subtask_total ? ' has-subs' : ''}"
-           data-line="${esc(t.id)}" ${t.subtask_total ? `data-subs-of="${esc(t.id)}"` : ''} role="button" tabindex="0">
+           data-line="${esc(t.id)}" role="button" tabindex="0" title="눌러서 하위 업무 보기">
         <div class="tlg-l">
-          ${t.subtask_total
-            ? `<button class="tlg-fold" data-subs="${esc(t.id)}" aria-expanded="false"
-                       aria-label="하위 업무 펼치기">▸</button>`
-            : '<span class="tlg-fold ph"></span>'}
           <span class="ttl">${titleCell(t)}</span>
-          ${t.subtask_total
-            ? `<button class="tld-subs" data-subs="${esc(t.id)}" title="하위 업무 ${t.subtask_done}/${t.subtask_total} — 눌러서 펼치기"
-                       >하위 ${t.subtask_done}/${t.subtask_total}</button>`
-            : ''}
+          <button class="tld-subs${t.subtask_total ? '' : ' empty'}" data-subs="${esc(t.id)}"
+                  title="${t.subtask_total ? `하위 업무 ${t.subtask_done}/${t.subtask_total}` : '하위 업무 더하기'}"
+                  >${t.subtask_total ? `하위 ${t.subtask_done}/${t.subtask_total}` : '하위 +'}</button>
           ${cmBadge(t)}
           <span class="st">${statusPick(t)}</span>
           <span class="tlg-own" title="담당 — 영역 리드">${esc(t.owner_name ?? '')}</span>
@@ -557,56 +551,20 @@ export async function renderTimeline(root) {
       <div class="tlg-legend">
         <span><i class="wait"></i>대기</span><span><i class="prog"></i>진행중</span><span><i class="review"></i>검토</span>
         <span><i class="done"></i>완료</span><span><i class="late"></i>지연</span>
-        <span class="hint">막대는 시작일~마감일 · 시작일이 없으면 마감일 하루 · 하위 업무가 있는 줄은 누르면 펼쳐집니다</span>
+        <span class="hint">막대는 시작일~마감일 · 시작일이 없으면 마감일 하루 · 줄을 누르면 하위 업무 창이 열립니다</span>
       </div>`
         : '<p class="hint" style="padding:14px 2px">이 페이즈에 배정된 업무가 없습니다.</p>'}`;
 
-    // 지난번에 펼쳐 둔 상위 업무는 다시 펼친다
-    for (const id of openSubs) {
-      const line = detail.querySelector(`.tld-task[data-subs-of="${CSS.escape(id)}"]`);
-      if (line) toggleSubs(line); else openSubs.delete(id);
-    }
+    panelRows = rows;
     return undefined;
   }
 
-  // 하위 업무를 그 자리에서 펼친다. 날짜가 없으니 막대는 없고 눈금만 잇는다.
-  async function toggleSubs(line) {
-    const id = line.dataset.subsOf;
-    const btn = line.querySelector('.tlg-fold[data-subs]');
-    const box = line.nextElementSibling?.classList.contains('tld-sublist') ? line.nextElementSibling : null;
-    if (box) {
-      box.remove();
-      openSubs.delete(id);
-      btn?.setAttribute('aria-expanded', 'false');
-      if (btn) btn.textContent = '▸';
-      return;
-    }
-    openSubs.add(id);
-    btn?.setAttribute('aria-expanded', 'true');
-    if (btn) btn.textContent = '▾';
-    const holder = document.createElement('div');
-    holder.className = 'tld-sublist';
-    holder.innerHTML = `<div class="tlg-row tlg-sub"><div class="tlg-l"><span class="hint">불러오는 중…</span></div>
-      <div class="tlg-t">${gridLines()}</div></div>`;
-    line.after(holder);
-    try {
-      const subs = await api.get(`/api/tasks/${id}/subtasks`);
-      if (!holder.isConnected) return;
-      holder.innerHTML = (subs.length ? subs : [null]).map((x) => `
-        <div class="tlg-row tlg-sub${x?.is_done ? ' done' : ''}">
-          <div class="tlg-l">
-            ${x ? `<span class="mark" aria-hidden="true">${x.is_done ? '✓' : '·'}</span>
-                   <span class="t">${esc(x.title)}</span>
-                   ${x.done_at ? `<span class="when">${esc(shortDate(x.done_at.slice(0, 10)))} 완료</span>` : ''}`
-                : '<span class="hint">하위 업무가 없습니다.</span>'}
-          </div>
-          <div class="tlg-t">${gridLines()}</div>
-        </div>`).join('');
-    } catch (err) {
-      holder.innerHTML = `<div class="tlg-row tlg-sub"><div class="tlg-l"><span class="hint">${esc(err.message)}</span></div>
-        <div class="tlg-t">${gridLines()}</div></div>`;
-    }
-  }
+  // 패널에 지금 그려진 업무들. 팝업에 넘길 때 다시 안 불러오려고 둔다.
+  let panelRows = [];
+  const openSubs = (id) => {
+    const t = panelRows.find((x) => x.id === id);
+    if (t) subtaskModal({ task: t, onChange: reload });
+  };
 
   root.addEventListener('change', async (e) => {
     const st = e.target.closest('[data-status]');
@@ -655,8 +613,7 @@ export async function renderTimeline(root) {
     const line = e.target.closest('.tld-task');
     if (line && (e.key === 'Enter' || e.key === ' ') && !e.target.closest(TASK_LINE_CONTROLS)) {
       e.preventDefault();
-      if (line.dataset.subsOf) toggleSubs(line);
-      else go(`#/project/tasks/${line.dataset.line}`);
+      openSubs(line.dataset.line);
     }
   });
 
@@ -709,7 +666,7 @@ export async function renderTimeline(root) {
     if (sb) {
       e.preventDefault();
       e.stopPropagation();
-      toggleSubs(sb.closest('.tld-task'));
+      openSubs(sb.dataset.subs);
     }
   });
 
@@ -755,10 +712,10 @@ export async function renderTimeline(root) {
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
     // 줄 아무 데나 눌러도 된다. ✎ 를 정확히 겨냥하게 하는 것은 손가락에게 특히 가혹하다.
-    // 하위 업무가 있는 줄은 펼치고, 없는 줄은 상세로 간다. 줄 안의 편집칸들은 제 일을 해야 한다.
+    // 패널의 줄은 하위 업무 팝업을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
     const line = e.target.closest('.tld-task');
     if (line && !e.target.closest(TASK_LINE_CONTROLS)) {
-      if (line.dataset.subsOf) { toggleSubs(line); return undefined; }
+      if (line.classList.contains('tlg-row')) { openSubs(line.dataset.line); return undefined; }
       return go(`#/project/tasks/${line.dataset.line}`);
     }
 

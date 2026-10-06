@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
-import { esc, modal, toast, avatar, person, confirmModal } from './ui.js';
+import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick } from './ui.js';
 import { canEdit, canAdmin } from './gate.js';
 import { gatePanel } from './views/gatePanel.js';
 
@@ -1023,6 +1023,152 @@ export function expenseForm({ defaults = {}, onSaved }) {
           onSaved?.();
         } catch (err) { toast(err.message, true); }
       });
+    },
+  });
+}
+
+// ── 하위 업무 팝업 ──────────────────────────────────────
+// 타임라인 패널에서 상위 업무를 누르면 열린다. 상세로 넘어가지 않고 그 자리에서
+// 하위 업무를 보고, 더하고, 고치고, 체크한다. 담당과 마감은 상위 업무를 따른다.
+// 보기 전용이어도 열린다 — 읽는 것은 막지 않는다. 고치는 손잡이만 감춘다.
+export function subtaskModal({ task, onChange }) {
+  const t = task;
+  let rows = [];
+  let changed = false;
+
+  const bar = () => {
+    const done = rows.filter((r) => r.is_done).length;
+    const pct = rows.length ? Math.round((done / rows.length) * 100) : 0;
+    return `
+      <div class="sbm-prog">
+        <span class="track"><i style="width:${pct}%"></i></span>
+        <span class="n">${rows.length ? `${done}/${rows.length} · ${pct}%` : '하위 업무 없음'}</span>
+      </div>`;
+  };
+  const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
+      <li class="${r.is_done ? 'done' : ''}" data-row="${esc(r.id)}">
+        <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''} aria-label="완료">
+        <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
+               data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${r.done_at ? `<span class="when">${esc(shortDate(r.done_at.slice(0, 10)))} 완료</span>` : ''}
+        <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
+      </li>`).join('')}</ul>`
+    : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
+
+  const body = `
+    <div class="sbm">
+      <div class="sbm-head">
+        <span class="sbm-proj">${esc(t.project_name ?? '')}${t.phase_name ? ` · ${esc(t.phase_name)}` : ''}</span>
+        <h3 class="sbm-ttl">${esc(t.title)}</h3>
+        <div class="sbm-meta">
+          <span class="st">${statusPick(t)}</span>
+          <span class="meta">마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 담당 ${esc(t.owner_name)}` : ''}</span>
+          <a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>상세 열기 ›</a>
+        </div>
+      </div>
+      <div class="sbm-sec">
+        <div class="sbm-sec-head"><h4>하위 업무</h4></div>
+        <div data-prog>${bar()}</div>
+        <div data-list>${list()}</div>
+        <form class="sub-add" data-sub-add>
+          <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
+          <button class="btn btn-ghost" type="submit">+ 추가</button>
+        </form>
+        <p class="sub-note">담당과 마감은 상위 업무를 따릅니다. 그게 달라야 하면 업무로 등록해 주세요.</p>
+      </div>
+    </div>`;
+
+  modal({
+    title: '하위 업무',
+    body,
+    footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
+    onMount({ root, close }) {
+      const repaint = () => {
+        root.querySelector('[data-prog]').innerHTML = bar();
+        root.querySelector('[data-list]').innerHTML = list();
+      };
+      const load = async () => {
+        try { rows = await api.get(`/api/tasks/${t.id}/subtasks`); repaint(); }
+        catch (err) { toast(err.message, true); }
+      };
+      load();
+
+      const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
+
+      root.addEventListener('change', async (e) => {
+        const chk = e.target.closest('[data-sub]');
+        if (chk) {
+          if (!editable()) { chk.checked = !chk.checked; return; }
+          try { await api.patch(`/api/subtasks/${chk.dataset.sub}`, { is_done: chk.checked }); changed = true; }
+          catch (err) { toast(err.message, true); }
+          return load();
+        }
+        const ttl = e.target.closest('[data-sub-title]');
+        if (ttl) {
+          const next = ttl.value.trim();
+          const cur = rows.find((r) => r.id === ttl.dataset.subTitle);
+          if (!next) { toast('하위 업무명을 비울 수는 없습니다.', true); ttl.value = cur?.title ?? ''; return undefined; }
+          if (next === cur?.title) return undefined;
+          if (!editable()) { ttl.value = cur?.title ?? ''; return undefined; }
+          try { await api.patch(`/api/subtasks/${ttl.dataset.subTitle}`, { title: next }); changed = true; toast('하위 업무명을 바꿨습니다.'); }
+          catch (err) { toast(err.message, true); }
+          return load();
+        }
+        const st = e.target.closest('[data-status]');
+        if (st) {
+          if (!editable()) return undefined;
+          try { await api.patch(`/api/tasks/${t.id}`, { status: st.value }); changed = true; toast('상태를 바꿨습니다.'); }
+          catch (err) { toast(err.message, true); }
+        }
+        return undefined;
+      });
+
+      root.addEventListener('keydown', (e) => {
+        const ttl = e.target.closest('[data-sub-title]');
+        if (!ttl) return;
+        if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();   // 창까지 닫히면 안 된다 — 글자만 되돌린다
+          ttl.value = rows.find((r) => r.id === ttl.dataset.subTitle)?.title ?? '';
+          ttl.blur();
+        }
+      });
+
+      root.querySelector('[data-sub-add]').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!editable()) return;
+        const input = e.target.querySelector('[name=title]');
+        const title = input.value.trim();
+        if (!title) return;
+        try {
+          await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+          changed = true;
+          input.value = '';
+          await load();
+          input.focus();   // 여러 개를 잇달아 넣는 일이 많다
+        } catch (err) { toast(err.message, true); }
+      });
+
+      root.addEventListener('click', async (e) => {
+        const del = e.target.closest('[data-sub-del]');
+        if (del) {
+          if (!editable()) return;
+          try { await api.del(`/api/subtasks/${del.dataset.subDel}`); changed = true; }
+          catch (err) { toast(err.message, true); }
+          load();
+          return;
+        }
+        if (e.target.closest('[data-go-detail]')) close();
+      });
+
+      // 닫힐 때 바뀐 게 있으면 바깥(타임라인 패널의 n/m 뱃지, 진행률)을 새로 그린다
+      const obs = new MutationObserver(() => {
+        if (!root.isConnected) { obs.disconnect(); if (changed) onChange?.(); }
+      });
+      obs.observe(document.getElementById('modal-root'), { childList: true });
+      // 첫 포커스는 추가 칸이 아니라 목록이어야 한다 — 보러 온 사람이 더 많다
+      root.querySelector('[data-close]')?.focus();
     },
   });
 }
