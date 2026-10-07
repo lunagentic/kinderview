@@ -36,7 +36,9 @@ function paintGate() {
   document.body.dataset.gate = role ? role.toLowerCase() : 'view';
   const badge = document.getElementById('gate-badge');
   if (!badge) return;
-  badge.textContent = roleLabel();
+  // 코드에 사람이 묶여 있으면 그 이름을 같이 단다 — 누구로 쓰고 있는지 한눈에
+  const who = state.members?.find((m) => m.slack_user_id === currentMember())?.display_name;
+  badge.textContent = who && !isLocalOnly() ? `${roleLabel()} · ${who}` : roleLabel();
   badge.classList.toggle('on', Boolean(role) && !isLocalOnly());
   badge.classList.toggle('local', isLocalOnly());
   badge.title = isLocalOnly()

@@ -99,12 +99,16 @@ export async function resume() {
   return role;
 }
 
-/** 코드를 받아 연다. 맞으면 등급, 틀리면 null. */
-export async function unlock(input) {
+/**
+ * 코드를 받아 연다. 맞으면 등급, 틀리면 null.
+ * who: 이 코드를 쓰는 사람(구성원 id). 아직 아무에게도 묶이지 않은 코드라면
+ * 저장소가 이 사람에게 묶는다 — 그 뒤로는 이 코드로 들어오면 작성자가 곧 이 사람이다.
+ */
+export async function unlock(input, { who = null } = {}) {
   const next = String(input ?? '').trim();
   if (!next) return null;
   if (!verify) return null;
-  const got = shape(await verify(next, { claim: true }));
+  const got = shape(await verify(next, { claim: true, who }));
   if (got) {
     localOnly = false;
     role = got.role;
@@ -179,7 +183,8 @@ export function assertCan(method, path) {
 // 업무를 지우는 것은 되살릴 수 있지만(휴지통), 프로젝트·구성원·영역 리드는
 // 한 번 건드리면 모두의 화면이 같이 움직인다.
 const ADMIN_ONLY = [
-  (m, p) => m === 'DELETE' && /^\/api\/(tasks|projects|issues|phases|milestones|members)\//.test(p),
+  // 업무는 휴지통으로 가 되살릴 수 있으니 편집자도 지운다. 나머지는 관리자다.
+  (m, p) => m === 'DELETE' && /^\/api\/(projects|issues|phases|milestones|members)\//.test(p),
   (m, p) => m !== 'GET' && /^\/api\/(projects|members|area-leads|vendors)(\/|$)/.test(p),
   // 저장점을 남기는 것은 누구든 좋다. 되돌리는 것만 관리자다.
   (m, p) => m !== 'GET' && /^\/api\/restore-points\/[^/]+\/restore$/.test(p),

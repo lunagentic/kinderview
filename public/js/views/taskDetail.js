@@ -79,8 +79,10 @@ export async function renderTaskDetail(root, id) {
         <select class="status-select" data-status aria-label="상태 변경">
           ${statuses.map((s) => `<option value="${esc(s.code)}"${s.code === t.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
         </select>
+        <button class="btn btn-primary" data-save disabled title="바뀐 내용을 저장합니다">저장</button>
         <button class="btn" data-edit>수정</button>
         <button class="btn btn-danger" data-delete>삭제</button>
+        <span class="dirty-note" data-dirty hidden>저장 안 됨</span>
       </div>
     </div>
 
@@ -196,60 +198,54 @@ export async function renderTaskDetail(root, id) {
     catch (err) { toast(err.message, true); }
   };
 
+  // ── 고친 것은 모아 두었다가 「저장」으로 한 번에 보낸다 ──
+  // 칸을 바꿀 때마다 바로 저장하면 한 칸 고치다 말고 나가도 이미 남의 화면이 바뀌어 있다.
+  // 여기서는 바뀐 칸만 모아 두고(pending), 저장 단추가 켜진다. 되돌리려면 새로 그린다.
+  const pending = {};
+  const paintDirty = () => {
+    const n = Object.keys(pending).length;
+    const save = root.querySelector('[data-save]');
+    const note = root.querySelector('[data-dirty]');
+    if (save) { save.disabled = !n; save.textContent = n ? `저장 (${n})` : '저장'; }
+    if (note) { note.hidden = !n; }
+  };
+  const stage = (key, value) => {
+    const cur = key === 'category' ? (t.category ?? null) : t[key];
+    if ((value ?? null) === (cur ?? null)) delete pending[key]; else pending[key] = value;
+    paintDirty();
+  };
+
   root.addEventListener('change', async (e) => {
     const own = e.target.closest('[data-owner]');
-    if (own) {
-      if (own.value === t.owner_slack_user_id) return undefined;
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { owner_slack_user_id: own.value });
-        toast('담당을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      return reload();
-    }
+    if (own) { stage('owner_slack_user_id', own.value); return undefined; }
     const areaSel = e.target.closest('[data-area]');
     if (areaSel) {
       const next = areaSel.value;
-      if (next === t.area) return undefined;
       // 영역이 곧 담당이다 — 바뀌면 그 영역의 리드가 맡는다
       const lead = leadOf(next);
-      if (!lead) {
+      if (next !== t.area && !lead) {
         toast(`'${areaMeta(next).full}' 영역의 리드가 지정되지 않았습니다.`, true);
-        return reload();
+        areaSel.value = t.area;
+        return undefined;
       }
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { area: next });
-        toast(`영역을 ${areaMeta(next).full}(으)로 바꿨습니다. 담당은 ${lead.display_name}입니다.`);
-      } catch (err) { toast(err.message, true); }
-      return reload();
+      stage('area', next);
+      if (next !== t.area) toast(`저장하면 담당이 ${lead.display_name}(${areaMeta(next).full} 리드)으로 바뀝니다.`);
+      return undefined;
     }
     const cat = e.target.closest('[data-category]');
-    if (cat) {
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { category: cat.value || null });
-        toast('분류를 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      return reload();
-    }
+    if (cat) { stage('category', cat.value || null); return undefined; }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
       const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다
-      if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
-      if (next === ttl.defaultValue) return undefined;
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { title: next });
-        ttl.defaultValue = next;
-        toast('업무명을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); reload(); }
+      if (!next) { toast('업무명을 비울 수는 없습니다.', true); ttl.value = t.title; return undefined; }
+      stage('title', next);
       return undefined;
     }
     const due = e.target.closest('[data-due]');
     if (due) {
-      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { due_date: due.value });
-        toast('마감일을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      return reload();
+      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); due.value = t.due_date ?? ''; return undefined; }
+      stage('due_date', due.value);
+      return undefined;
     }
     const sub = e.target.closest('[data-sub]');
     if (sub) {
@@ -269,11 +265,7 @@ export async function renderTaskDetail(root, id) {
         const ok = await confirmModal('검수 상태가 승인이 아닙니다. 그래도 완료 처리할까요?');
         if (!ok) return reload();
       }
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { status: next });
-        toast('상태를 변경했습니다.');
-      } catch (err) { toast(err.message, true); }
-      reload();
+      stage('status', next);
       return;
     }
     if (e.target.closest('[data-review]')) {
@@ -287,6 +279,14 @@ export async function renderTaskDetail(root, id) {
         }
       } catch (err) { toast(err.message, true); }
       reload();
+    }
+  });
+
+  // Ctrl/Cmd+S 로도 저장된다 — 표에서 고치다 손이 가는 키다
+  root.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      const save = root.querySelector('[data-save]');
+      if (save && !save.disabled) { e.preventDefault(); save.click(); }
     }
   });
 
@@ -325,7 +325,23 @@ export async function renderTaskDetail(root, id) {
       } catch (err) { toast(err.message, true); }
       return;
     }
+    const save = e.target.closest('[data-save]');
+    if (save) {
+      if (!Object.keys(pending).length) return;
+      save.disabled = true;
+      save.textContent = '저장 중…';
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { ...pending });
+        toast('저장했습니다.');
+        reload();
+      } catch (err) { toast(err.message, true); paintDirty(); }
+      return;
+    }
     if (e.target.closest('[data-edit]')) {
+      if (Object.keys(pending).length) {
+        const ok = await confirmModal('저장하지 않은 변경이 있습니다. 수정 창을 열면 그 내용은 사라집니다. 계속할까요?');
+        if (!ok) return;
+      }
       taskForm({ task: t, onSaved: reload });
     } else if (e.target.closest('[data-new-issue]')) {
       issueForm({ defaults: { project_id: t.project_id, task_id: t.id }, onSaved: reload });

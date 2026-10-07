@@ -738,6 +738,18 @@ export const subtasks = {
   update(id, patch) {
     const cur = one('SELECT * FROM subtask WHERE id = :id', { id });
     if (!cur) throw new HttpError(404, '하위 업무를 찾을 수 없습니다.');
+    // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호도 그 프로젝트의 다음 번호를 새로 받는다 — 지라와 같다.
+    if (patch.task_id !== undefined && patch.task_id !== cur.task_id) {
+      const from = one('SELECT id, project_id FROM task WHERE id = :id', { id: cur.task_id });
+      const to = one('SELECT id, project_id FROM task WHERE id = :id AND deleted_at IS NULL', { id: patch.task_id });
+      if (!to) throw new HttpError(404, '옮길 업무를 찾을 수 없습니다.');
+      const n = one('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM subtask WHERE task_id = :t', { t: to.id }).n;
+      tx(() => {
+        const seq = from?.project_id === to.project_id ? cur.seq : nextSeq(to.project_id);
+        run('UPDATE subtask SET task_id = :t, sort_order = :n, seq = :seq WHERE id = :id', { id, t: to.id, n, seq });
+      });
+      cur.task_id = to.id;
+    }
     if (patch.title !== undefined) {
       const title = String(patch.title).trim();
       if (!title) throw new HttpError(400, '하위 업무명을 입력해 주세요.');

@@ -2,12 +2,13 @@ import { api } from '../api.js';
 import { state, statusMeta } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
-  statusPick, go, toast, bindDueEdit, confirmModal, titleCell, autoGrow, syncTitleCell, ticketTag,
+  statusPick, go, toast, bindDueEdit, confirmModal, titleCell, autoGrow, syncTitleCell, ticketTag, readPref, writePref,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm, subtaskModal, taskForm } from '../forms.js';
 import {
-  ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTaskTrack, tlSpan, tlPoint, tlDiff,
+  ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTaskTrack, tlSpan, tlPoint, tlDiff, tlAdd,
 } from '../gantt.js';
+import { canEdit } from '../gate.js';
 
 // 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
 // 페이즈 줄 앞의 ▸ 를 누르면 그 아래로 업무 줄이 같은 날짜 축에 막대로 펼쳐진다 (지라 타임라인과 같다).
@@ -177,6 +178,8 @@ export async function renderTimeline(root) {
     <div class="tl-wrap">
       <div class="tl-chart${w.weekly ? ' is-weekly' : ''}" style="min-width:max(560px, calc(var(--tl-label) + var(--tl-gap) + ${w.trackMin}px))">
         ${w.thisWeek ? `<i class="tl-week-now" style="left:${onTrack(w.thisWeek.left)};width:calc((100% - var(--tl-label) - var(--tl-gap)) * ${w.thisWeek.width / 100})"></i>` : ''}
+        <div class="tl-resize" data-resize role="separator" aria-orientation="vertical"
+             title="끌어서 제목 칸 너비 조절 · 두 번 누르면 원래대로"><i></i></div>
         <div class="tl-row tl-axis">
           <div class="tl-label"></div>
           <div class="tl-track">${w.axisTrack()}</div>
@@ -313,6 +316,8 @@ export async function renderTimeline(root) {
     const t = findTask(id);
     if (t) subtaskModal({ task: t, onChange: reload });
   };
+  bindBarDrag(root, win, () => findTask, reload);
+  bindLabelResize(root);
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
   root.addEventListener('change', async (e) => {
@@ -419,6 +424,7 @@ export async function renderTimeline(root) {
 
     // 차트의 업무 줄은 하위 업무 창을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
     const line = e.target.closest('.tl-task[data-line]');
+    if (line && line.dataset.dragged) { delete line.dataset.dragged; return undefined; }   // 끌다 놓은 것은 클릭이 아니다
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(line.dataset.line); return undefined; }
     const bl = e.target.closest('.tld-task[data-line]');
     if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) return go(`#/project/tasks/${bl.dataset.line}`);
@@ -481,4 +487,115 @@ function tlHead() {
         <div class="sub">프로젝트의 업무별 페이즈(기간)와 마일스톤(마감일)을 확인합니다.</div>
       </div>
     </div>`;
+}
+
+// ── 막대를 끌어 일정을 옮긴다 ────────────────────────────
+// 펼친 페이즈 아래 업무 줄의 막대를 좌우로 끌면 마감일이 그만큼 움직인다(시작일이 있으면 같이).
+// 하루 단위로 딱딱 걸린다. 놓는 순간 저장되고, 페이즈 진행률·지연 표시가 함께 새로 그려진다.
+// 세로로 끄는 것은 스크롤이다 — 가로로 6px 넘게 움직여야 끌기로 본다.
+function bindBarDrag(root, win, getFind, reload) {
+  const days = tlDiff(win.start, win.end) + 1;
+  let drag = null;
+  root.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !canEdit()) return;
+    const bar = e.target.closest('.tl-task .tlg-bar');
+    if (!bar) return;
+    const line = bar.closest('.tl-task[data-line]');
+    const track = bar.closest('.tl-track');
+    const t = getFind()(line?.dataset.line);
+    if (!t?.due_date || !track) return;
+    drag = { bar, line, t, x0: e.clientX, pxDay: track.getBoundingClientRect().width / days, delta: 0, on: false,
+      left: parseFloat(bar.style.left) || 0, dd: line.querySelector('.tlg-dd') };
+    bar.setPointerCapture?.(e.pointerId);
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0;
+    if (!drag.on && Math.abs(dx) < 6) return;
+    drag.on = true;
+    e.preventDefault();
+    const delta = Math.round(dx / drag.pxDay);
+    if (delta === drag.delta) return;
+    drag.delta = delta;
+    const pct = (delta / days) * 100;
+    drag.bar.style.transform = `translateX(${pct / 100 * drag.bar.parentElement.getBoundingClientRect().width}px)`;
+    drag.bar.classList.add('dragging');
+    drag.line.classList.add('is-dragging');
+    if (drag.dd) {
+      drag.dd.style.transform = drag.bar.style.transform;
+      const due = tlAdd(drag.t.due_date, delta);
+      drag.dd.textContent = `${shortDate(due)} (${delta > 0 ? '+' : ''}${delta}일)`;
+    }
+  });
+  const end = async (e) => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    d.bar.releasePointerCapture?.(e.pointerId);
+    d.bar.classList.remove('dragging');
+    d.line.classList.remove('is-dragging');
+    if (!d.on) return;
+    d.line.dataset.dragged = '1';   // 바로 이어지는 click 이 하위 업무 창을 열지 않게
+    setTimeout(() => { delete d.line.dataset.dragged; }, 300);
+    if (!d.delta) { d.bar.style.transform = ''; if (d.dd) { d.dd.style.transform = ''; } reload(); return; }
+    const patch = { due_date: tlAdd(d.t.due_date, d.delta) };
+    if (d.t.start_date) patch.start_date = tlAdd(d.t.start_date, d.delta);
+    try {
+      await api.patch(`/api/tasks/${d.t.id}`, patch);
+      toast(`「${d.t.title}」 마감을 ${shortDate(patch.due_date)}(으)로 옮겼습니다.`);
+    } catch (err) { toast(err.message, true); }
+    reload();
+  };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+}
+
+// ── 제목 칸 너비 ───────────────────────────────────────
+// 업무명이 길면 잘린다. 축 줄 오른쪽 경계를 끌어 제목 칸(--tl-label)을 넓힌다. 기억해 두고, 두 번 누르면 원래대로.
+const LABEL_KEY = 'kf.tl.label';
+const LABEL_MIN = 180;
+const LABEL_MAX = 560;
+function bindLabelResize(root) {
+  const chart = root.querySelector('.tl-chart');
+  const handle = root.querySelector('[data-resize]');
+  if (!chart || !handle) return;
+  const narrow = window.matchMedia('(max-width: 720px)').matches;   // 모바일은 170px 고정
+  const apply = (px) => {
+    if (px == null) { chart.style.removeProperty('--tl-label'); return; }
+    chart.style.setProperty('--tl-label', `${Math.min(LABEL_MAX, Math.max(LABEL_MIN, Math.round(px)))}px`);
+  };
+  const saved = Number(readPref(LABEL_KEY));
+  if (!narrow && saved) apply(saved);
+  // 손잡이 선은 차트 높이를 따라간다 — 페이즈를 펼치면 길어진다
+  const line = handle.querySelector('i');
+  const fit = () => { line.style.height = `${chart.offsetHeight}px`; };
+  fit();
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(chart);
+
+  let drag = null;
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || narrow) return;
+    e.preventDefault();
+    const cur = parseFloat(getComputedStyle(chart).getPropertyValue('--tl-label')) || 260;
+    drag = { x0: e.clientX, w0: cur };
+    handle.setPointerCapture?.(e.pointerId);
+    handle.classList.add('on');
+    document.body.style.cursor = 'col-resize';
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    apply(drag.w0 + (e.clientX - drag.x0));
+  });
+  const end = (e) => {
+    if (!drag) return;
+    drag = null;
+    handle.releasePointerCapture?.(e.pointerId);
+    handle.classList.remove('on');
+    document.body.style.cursor = '';
+    const px = parseFloat(getComputedStyle(chart).getPropertyValue('--tl-label'));
+    if (px) writePref(LABEL_KEY, String(Math.round(px)));
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+  handle.addEventListener('dblclick', () => { apply(null); try { localStorage.removeItem(LABEL_KEY); } catch { /* 없으면 그만 */ } });
 }

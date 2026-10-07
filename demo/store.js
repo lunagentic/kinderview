@@ -376,13 +376,15 @@ const sbFetch = (path, init = {}) => {
  * 직접 넣어 들어올 때(claim)는 누가 그 코드를 쓰는지도 함께 남긴다.
  * 창을 다시 열며 조용히 확인할 때(kf_role)는 남기지 않는다 — 새로고침마다 쌓일 이유가 없다.
  */
-async function sbVerify(code, { claim = false } = {}) {
+async function sbVerify(code, { claim = false, who = null } = {}) {
+  // 처음 쓰는 코드는 이 사람에게 묶인다(저장소 kf_identity). 관리자·공용 코드는 묶지 않는다.
+  const whoId = who || currentMe();
   let res;
   try {
     res = await fetch(`${SB_URL}/rest/v1/rpc/kf_identity`, {
       method: 'POST',
       headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, claim, who: member(currentMe())?.display_name ?? currentMe() }),
+      body: JSON.stringify({ code, claim, who: member(whoId)?.display_name ?? whoId, who_id: claim ? whoId : null }),
     });
   } catch {
     // 코드가 틀린 것과 저장소에 못 닿은 것은 다른 일이다.
@@ -803,6 +805,15 @@ function createSubtask(taskId, body) {
 function updateSubtask(id, body) {
   const row = (DB.subtasks ?? []).find((s) => s.id === id);
   if (!row) throw new DemoError('하위 업무를 찾을 수 없습니다.');
+  // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호를 그 프로젝트에서 새로 받는다.
+  if (body.task_id !== undefined && body.task_id !== row.task_id) {
+    const from = DB.tasks.find((x) => x.id === row.task_id);
+    const to = DB.tasks.find((x) => x.id === body.task_id && !x.deleted_at);
+    if (!to) throw new DemoError('옮길 업무를 찾을 수 없습니다.');
+    row.sort_order = subtasksOf(to.id).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
+    if (from?.project_id !== to.project_id) row.seq = nextSeq(to.project_id);
+    row.task_id = to.id;
+  }
   if (body.title !== undefined) {
     const title = String(body.title).trim();
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');

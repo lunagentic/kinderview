@@ -68,7 +68,13 @@ export function gatePanel() {
             <input type="password" name="code" autocomplete="one-time-code"
                    placeholder="예: kv-••••-••••" autocapitalize="off" spellcheck="false">
           </label>
+          <label class="field">
+            <span class="lab">이 코드를 쓰는 사람</span>
+            <select name="who">${(state.members ?? []).filter((m) => m.is_active).map((m) =>
+              `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === state.me ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>
+          </label>
           <button class="btn btn-primary" type="submit">들어가기</button>
+          <p class="hint gate-who-hint">처음 쓰는 코드는 이 사람에게 묶입니다. 그다음부터는 이 코드로 들어오면 작성자가 자동으로 이 사람이 됩니다. (관리자 코드는 묶이지 않습니다)</p>
         </form>
       `}
 
@@ -139,7 +145,8 @@ export function gatePanel() {
         btn.disabled = true;
         btn.textContent = '확인 중…';
         try {
-          const got = await unlock(form.querySelector('[name=code]').value);
+          const got = await unlock(form.querySelector('[name=code]').value,
+            { who: form.querySelector('[name=who]')?.value || null });
           if (!got) {
             toast('코드가 맞지 않습니다.', true);
             btn.disabled = false;

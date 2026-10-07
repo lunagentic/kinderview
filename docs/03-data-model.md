@@ -139,7 +139,7 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 | `id` | uuid | ✔ | PK |
 | `name` | text | ✔ | 프로젝트명 (예: Kinderverse) |
 | `code` | text | | 짧은 식별자 (예: KV). **티켓 번호의 머리글자** — 없으면 번호를 못 읽는다 |
-| `seq_counter` | int | ✔ | 티켓 번호 카운터. 업무·하위 업무가 한 번호열을 쓴다. 지워도 되돌리지 않는다 |
+| `seq_counter` | int | ✔ | 티켓 번호 카운터. 업무·하위 업무가 한 번호열을 쓴다. 지워도 되돌리지 않는다. 하위 업무를 다른 프로젝트의 업무로 옮기면 그 프로젝트에서 번호를 새로 받는다(같은 프로젝트 안에서는 유지) |
 | `description` | text | | 설명 |
 | `status` | enum | ✔ | `PLANNED` 예정 / `ACTIVE` 진행중 / `ON_HOLD` 보류 / `DONE` 완료 |
 | `start_date` | date | | 시작일 |

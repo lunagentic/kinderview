@@ -580,9 +580,10 @@ body[data-gate="view"] [data-area]{pointer-events:none;appearance:none;-webkit-a
   border-color:transparent;background:none;padding-left:0}
 
 /* 편집이지만 관리자는 아닌 사람 — 지우기만 감춘다 */
-body[data-gate="edit"] .tk-del,
-body[data-gate="edit"] .tld-del,
-body[data-gate="edit"] .btn-danger{display:none}
+body[data-gate="edit"] .btn-danger:not([data-delete]){display:none}
+body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:none}
+.dirty-note{align-self:center;font-size:.75rem;color:var(--s-delay);white-space:nowrap}
+.dirty-note::before{content:'●';margin-right:4px;font-size:.6rem;vertical-align:1px}
 
 /* 문 패널 */
 .gate-now{display:flex;flex-direction:column;gap:3px;padding:11px 13px;margin-bottom:14px;
@@ -879,11 +880,18 @@ body[data-gate="edit"] .btn-danger{display:none}
   position:sticky;left:0;z-index:3;background:var(--surface);align-self:stretch}
 /* 라벨과 트랙 사이 틈도 라벨이 덮는다 — 왼쪽으로 지나간 막대가 틈으로 비치면 안 된다 */
 .tl-label::after{content:"";position:absolute;left:100%;top:-4px;bottom:-4px;width:var(--tl-gap);background:var(--surface)}
+/* 제목 칸 너비 손잡이 — 라벨과 트랙 사이 틈에 붙박이로 서서 차트 높이만큼 내려온다 */
+.tl-resize{position:sticky;left:var(--tl-label);width:var(--tl-gap);height:0;z-index:4;cursor:col-resize;touch-action:none}
+.tl-resize i{position:absolute;left:0;top:0;width:100%;display:block}
+.tl-resize i::before{content:"";position:absolute;left:calc(50% - 1px);top:0;bottom:0;width:2px;border-radius:2px;
+  background:var(--line);opacity:0;transition:opacity .12s}
+.tl-resize:hover i::before,.tl-resize.on i::before{opacity:1;background:var(--indigo)}
+@media (max-width:720px){.tl-resize{display:none}}
 .tl-group-head{position:sticky;left:0;z-index:3;width:max-content;max-width:calc(100vw - 64px);
   background:var(--surface);padding:0 12px 0 16px;border-radius:0 6px 6px 0}
 /* 페이즈 줄 — ▸ 와 이름이 나란히. 펼치면 아래로 업무 줄이 선다 */
 .tl-phase .tl-label{flex-direction:row;align-items:center;justify-content:flex-start;gap:6px}
-.tl-phase .tl-label .tlg-fold{margin-top:1px}
+.tl-phase .tl-label .tlg-fold{margin-top:-2px}
 .tl-label-text{min-width:0;display:flex;flex-direction:column;gap:1px}
 .tl-phase.is-open .tl-name{color:var(--indigo)}
 /* 펼친 업무 줄 — 번호 · 업무명(한 줄 말줄임) · 상태. 막대는 상태색 */
@@ -893,6 +901,12 @@ body[data-gate="edit"] .btn-danger{display:none}
 .tl-task:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .tl-task .tl-track{height:30px}
 .tl-task .tlg-bar{top:8px}
+body[data-gate="edit"] .tl-task .tlg-bar,body[data-gate="director"] .tl-task .tlg-bar,
+body[data-gate="admin"] .tl-task .tlg-bar{cursor:grab;touch-action:pan-y}
+.tl-task .tlg-bar.dragging{cursor:grabbing;opacity:1;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--indigo);z-index:5}
+.tl-task.is-dragging .tl-label,.tl-task.is-dragging .tl-track{background:var(--surface-2)}
+.tl-task.is-dragging .tlg-dd{color:var(--indigo);font-weight:600;z-index:5}
+.tl-task .tlg-bar,.tl-task .tlg-dd{will-change:transform}
 .tl-task .tlg-dd{top:5px}
 .tl-task .tlg-none{top:5px}
 .tl-tname{flex:1 1 auto;min-width:0;font-size:.84rem;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1418,9 +1432,9 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tlg-area-row .lab:hover{border-bottom-color:var(--muted);color:var(--ink)}
 .tlg-area-row .n,.tlg-cat .n{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
 .tlg-area-row .lead{margin-left:auto;font-size:.75rem;color:var(--muted);white-space:nowrap}
-.tlg-fold{border:0;background:none;font:inherit;font-size:.8rem;color:var(--muted);padding:0;width:16px;
-  text-align:center;cursor:pointer;flex:none;line-height:1}
-.tlg-fold:hover{color:var(--ink)}
+.tlg-fold{border:0;background:none;font:inherit;font-size:1rem;color:var(--ink-2);padding:0;width:24px;height:24px;
+  display:inline-flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;flex:none;line-height:1}
+.tlg-fold:hover{color:var(--ink);background:var(--surface-2)}
 .tlg-fold:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
 .tlg-fold.ph{display:inline-block}
 
@@ -1452,6 +1466,15 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .sbm-title:focus{border-color:var(--focus);background:var(--surface);outline:none}
 .sbm-list li.done .sbm-title{color:var(--muted);text-decoration:line-through}
 .sbm-list .when{font-family:var(--mono);font-size:.7rem;color:var(--muted);white-space:nowrap}
+.sbm-list .x.mv{font-size:.95rem}
+.sbm-list li:hover .x.mv{color:var(--muted)}
+.sbm-list .x.mv:hover{color:var(--indigo);background:var(--surface-2)}
+.sbm-move{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px 8px 34px;margin:2px 0 6px;
+  border:1px dashed var(--line);border-radius:8px;background:var(--surface-2)}
+.sbm-move .lab{font-size:.78rem;color:var(--muted);white-space:nowrap}
+.sbm-move select{font-size:.85rem;padding:5px 8px;max-width:100%}
+.sbm-move [data-mv-task]{flex:1;min-width:160px}
+body[data-gate="view"] .sbm .x.mv{display:none}
 body[data-gate="view"] .sbm .x,body[data-gate="view"] .sbm .sub-note{display:none}
 body[data-gate="view"] .sbm-title{pointer-events:none}
 

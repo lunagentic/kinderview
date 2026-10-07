@@ -1063,6 +1063,7 @@ export function subtaskModal({ task, onChange }) {
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
         ${r.done_at ? `<span class="when">${esc(shortDate(r.done_at.slice(0, 10)))} 완료</span>` : ''}
+        <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
     : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
@@ -1162,12 +1163,77 @@ export function subtaskModal({ task, onChange }) {
         } catch (err) { toast(err.message, true); }
       });
 
+      // ── 다른 상위 업무로 옮기기 ──
+      // 줄 아래에 프로젝트 › 업무 고르는 칸이 열린다. 창을 겹치지 않는다 — 옮길 곳을 고르는 동안 목록이 보여야 한다.
+      let projCache = null;
+      const taskOpts = async (projectId, sel) => {
+        sel.innerHTML = '<option value="">불러오는 중…</option>';
+        try {
+          const rows = await api.get(`/api/tasks?project=${encodeURIComponent(projectId)}&done=1&all_backlog=1`);
+          const others = rows.filter((x) => x.id !== t.id);
+          sel.innerHTML = others.length
+            ? others.map((x) => `<option value="${esc(x.id)}">${esc(x.key ?? '')} ${esc(x.title)}</option>`).join('')
+            : '<option value="">옮길 업무가 없습니다</option>';
+        } catch (err) { sel.innerHTML = '<option value="">불러오지 못했습니다</option>'; toast(err.message, true); }
+      };
+      const openMove = async (li, subId) => {
+        root.querySelectorAll('.sbm-move').forEach((el) => el.remove());
+        if (!projCache) {
+          try { projCache = (await api.get('/api/projects')).filter((p) => !p.is_archived); }
+          catch (err) { toast(err.message, true); return; }
+        }
+        const box = document.createElement('div');
+        box.className = 'sbm-move';
+        box.dataset.moveFor = subId;
+        box.innerHTML = `
+          <span class="lab">옮길 곳</span>
+          <select data-mv-proj aria-label="프로젝트">${projCache.map((p) =>
+            `<option value="${esc(p.id)}"${p.id === t.project_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+          <select data-mv-task aria-label="상위 업무"></select>
+          <button class="btn btn-primary sm" type="button" data-mv-go>이동</button>
+          <button class="btn btn-ghost sm" type="button" data-mv-cancel>취소</button>`;
+        li.insertAdjacentElement('afterend', box);
+        await taskOpts(box.querySelector('[data-mv-proj]').value, box.querySelector('[data-mv-task]'));
+      };
+
+      root.addEventListener('change', (e) => {
+        const pj = e.target.closest('[data-mv-proj]');
+        if (pj) taskOpts(pj.value, pj.closest('.sbm-move').querySelector('[data-mv-task]'));
+      });
+
       root.addEventListener('click', async (e) => {
         const del = e.target.closest('[data-sub-del]');
         if (del) {
           if (!editable()) return;
           try { await api.del(`/api/subtasks/${del.dataset.subDel}`); changed = true; }
           catch (err) { toast(err.message, true); }
+          load();
+          return;
+        }
+        const mv = e.target.closest('[data-sub-move]');
+        if (mv) {
+          if (!editable()) return;
+          const li = mv.closest('li');
+          if (root.querySelector(`.sbm-move[data-move-for="${CSS.escape(mv.dataset.subMove)}"]`)) {
+            root.querySelectorAll('.sbm-move').forEach((el) => el.remove());
+          } else await openMove(li, mv.dataset.subMove);
+          return;
+        }
+        if (e.target.closest('[data-mv-cancel]')) { root.querySelectorAll('.sbm-move').forEach((el) => el.remove()); return; }
+        const go = e.target.closest('[data-mv-go]');
+        if (go) {
+          const box = go.closest('.sbm-move');
+          const taskId = box.querySelector('[data-mv-task]').value;
+          const projId = box.querySelector('[data-mv-proj]').value;
+          if (!taskId) { toast('옮길 업무를 골라 주세요.', true); return; }
+          const sub = rows.find((r) => r.id === box.dataset.moveFor);
+          const label = box.querySelector('[data-mv-task] option:checked')?.textContent?.trim() ?? '';
+          go.disabled = true;
+          try {
+            await api.patch(`/api/subtasks/${box.dataset.moveFor}`, { task_id: taskId });
+            changed = true;
+            toast(`「${sub?.title ?? '하위 업무'}」을(를) ${label} 아래로 옮겼습니다.${projId !== t.project_id ? ' 티켓 번호는 그 프로젝트에서 새로 받았습니다.' : ''}`);
+          } catch (err) { toast(err.message, true); go.disabled = false; return; }
           load();
           return;
         }

@@ -584,9 +584,10 @@ body[data-gate="view"] [data-area]{pointer-events:none;appearance:none;-webkit-a
   border-color:transparent;background:none;padding-left:0}
 
 /* 편집이지만 관리자는 아닌 사람 — 지우기만 감춘다 */
-body[data-gate="edit"] .tk-del,
-body[data-gate="edit"] .tld-del,
-body[data-gate="edit"] .btn-danger{display:none}
+body[data-gate="edit"] .btn-danger:not([data-delete]){display:none}
+body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:none}
+.dirty-note{align-self:center;font-size:.75rem;color:var(--s-delay);white-space:nowrap}
+.dirty-note::before{content:'●';margin-right:4px;font-size:.6rem;vertical-align:1px}
 
 /* 문 패널 */
 .gate-now{display:flex;flex-direction:column;gap:3px;padding:11px 13px;margin-bottom:14px;
@@ -883,11 +884,18 @@ body[data-gate="edit"] .btn-danger{display:none}
   position:sticky;left:0;z-index:3;background:var(--surface);align-self:stretch}
 /* 라벨과 트랙 사이 틈도 라벨이 덮는다 — 왼쪽으로 지나간 막대가 틈으로 비치면 안 된다 */
 .tl-label::after{content:"";position:absolute;left:100%;top:-4px;bottom:-4px;width:var(--tl-gap);background:var(--surface)}
+/* 제목 칸 너비 손잡이 — 라벨과 트랙 사이 틈에 붙박이로 서서 차트 높이만큼 내려온다 */
+.tl-resize{position:sticky;left:var(--tl-label);width:var(--tl-gap);height:0;z-index:4;cursor:col-resize;touch-action:none}
+.tl-resize i{position:absolute;left:0;top:0;width:100%;display:block}
+.tl-resize i::before{content:"";position:absolute;left:calc(50% - 1px);top:0;bottom:0;width:2px;border-radius:2px;
+  background:var(--line);opacity:0;transition:opacity .12s}
+.tl-resize:hover i::before,.tl-resize.on i::before{opacity:1;background:var(--indigo)}
+@media (max-width:720px){.tl-resize{display:none}}
 .tl-group-head{position:sticky;left:0;z-index:3;width:max-content;max-width:calc(100vw - 64px);
   background:var(--surface);padding:0 12px 0 16px;border-radius:0 6px 6px 0}
 /* 페이즈 줄 — ▸ 와 이름이 나란히. 펼치면 아래로 업무 줄이 선다 */
 .tl-phase .tl-label{flex-direction:row;align-items:center;justify-content:flex-start;gap:6px}
-.tl-phase .tl-label .tlg-fold{margin-top:1px}
+.tl-phase .tl-label .tlg-fold{margin-top:-2px}
 .tl-label-text{min-width:0;display:flex;flex-direction:column;gap:1px}
 .tl-phase.is-open .tl-name{color:var(--indigo)}
 /* 펼친 업무 줄 — 번호 · 업무명(한 줄 말줄임) · 상태. 막대는 상태색 */
@@ -897,6 +905,12 @@ body[data-gate="edit"] .btn-danger{display:none}
 .tl-task:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .tl-task .tl-track{height:30px}
 .tl-task .tlg-bar{top:8px}
+body[data-gate="edit"] .tl-task .tlg-bar,body[data-gate="director"] .tl-task .tlg-bar,
+body[data-gate="admin"] .tl-task .tlg-bar{cursor:grab;touch-action:pan-y}
+.tl-task .tlg-bar.dragging{cursor:grabbing;opacity:1;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--indigo);z-index:5}
+.tl-task.is-dragging .tl-label,.tl-task.is-dragging .tl-track{background:var(--surface-2)}
+.tl-task.is-dragging .tlg-dd{color:var(--indigo);font-weight:600;z-index:5}
+.tl-task .tlg-bar,.tl-task .tlg-dd{will-change:transform}
 .tl-task .tlg-dd{top:5px}
 .tl-task .tlg-none{top:5px}
 .tl-tname{flex:1 1 auto;min-width:0;font-size:.84rem;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1422,9 +1436,9 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tlg-area-row .lab:hover{border-bottom-color:var(--muted);color:var(--ink)}
 .tlg-area-row .n,.tlg-cat .n{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
 .tlg-area-row .lead{margin-left:auto;font-size:.75rem;color:var(--muted);white-space:nowrap}
-.tlg-fold{border:0;background:none;font:inherit;font-size:.8rem;color:var(--muted);padding:0;width:16px;
-  text-align:center;cursor:pointer;flex:none;line-height:1}
-.tlg-fold:hover{color:var(--ink)}
+.tlg-fold{border:0;background:none;font:inherit;font-size:1rem;color:var(--ink-2);padding:0;width:24px;height:24px;
+  display:inline-flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;flex:none;line-height:1}
+.tlg-fold:hover{color:var(--ink);background:var(--surface-2)}
 .tlg-fold:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
 .tlg-fold.ph{display:inline-block}
 
@@ -1456,6 +1470,15 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .sbm-title:focus{border-color:var(--focus);background:var(--surface);outline:none}
 .sbm-list li.done .sbm-title{color:var(--muted);text-decoration:line-through}
 .sbm-list .when{font-family:var(--mono);font-size:.7rem;color:var(--muted);white-space:nowrap}
+.sbm-list .x.mv{font-size:.95rem}
+.sbm-list li:hover .x.mv{color:var(--muted)}
+.sbm-list .x.mv:hover{color:var(--indigo);background:var(--surface-2)}
+.sbm-move{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px 8px 34px;margin:2px 0 6px;
+  border:1px dashed var(--line);border-radius:8px;background:var(--surface-2)}
+.sbm-move .lab{font-size:.78rem;color:var(--muted);white-space:nowrap}
+.sbm-move select{font-size:.85rem;padding:5px 8px;max-width:100%}
+.sbm-move [data-mv-task]{flex:1;min-width:160px}
+body[data-gate="view"] .sbm .x.mv{display:none}
 body[data-gate="view"] .sbm .x,body[data-gate="view"] .sbm .sub-note{display:none}
 body[data-gate="view"] .sbm-title{pointer-events:none}
 
@@ -2427,12 +2450,16 @@ async function resume() {
   return role;
 }
 
-/** 코드를 받아 연다. 맞으면 등급, 틀리면 null. */
-async function unlock(input) {
+/**
+ * 코드를 받아 연다. 맞으면 등급, 틀리면 null.
+ * who: 이 코드를 쓰는 사람(구성원 id). 아직 아무에게도 묶이지 않은 코드라면
+ * 저장소가 이 사람에게 묶는다 — 그 뒤로는 이 코드로 들어오면 작성자가 곧 이 사람이다.
+ */
+async function unlock(input, { who = null } = {}) {
   const next = String(input ?? '').trim();
   if (!next) return null;
   if (!verify) return null;
-  const got = shape(await verify(next, { claim: true }));
+  const got = shape(await verify(next, { claim: true, who }));
   if (got) {
     localOnly = false;
     role = got.role;
@@ -2507,7 +2534,8 @@ function assertCan(method, path) {
 // 업무를 지우는 것은 되살릴 수 있지만(휴지통), 프로젝트·구성원·영역 리드는
 // 한 번 건드리면 모두의 화면이 같이 움직인다.
 const ADMIN_ONLY = [
-  (m, p) => m === 'DELETE' && /^\/api\/(tasks|projects|issues|phases|milestones|members)\//.test(p),
+  // 업무는 휴지통으로 가 되살릴 수 있으니 편집자도 지운다. 나머지는 관리자다.
+  (m, p) => m === 'DELETE' && /^\/api\/(projects|issues|phases|milestones|members)\//.test(p),
   (m, p) => m !== 'GET' && /^\/api\/(projects|members|area-leads|vendors)(\/|$)/.test(p),
   // 저장점을 남기는 것은 누구든 좋다. 되돌리는 것만 관리자다.
   (m, p) => m !== 'GET' && /^\/api\/restore-points\/[^/]+\/restore$/.test(p),
@@ -2903,13 +2931,15 @@ const sbFetch = (path, init = {}) => {
  * 직접 넣어 들어올 때(claim)는 누가 그 코드를 쓰는지도 함께 남긴다.
  * 창을 다시 열며 조용히 확인할 때(kf_role)는 남기지 않는다 — 새로고침마다 쌓일 이유가 없다.
  */
-async function sbVerify(code, { claim = false } = {}) {
+async function sbVerify(code, { claim = false, who = null } = {}) {
+  // 처음 쓰는 코드는 이 사람에게 묶인다(저장소 kf_identity). 관리자·공용 코드는 묶지 않는다.
+  const whoId = who || currentMe();
   let res;
   try {
     res = await fetch(`${SB_URL}/rest/v1/rpc/kf_identity`, {
       method: 'POST',
       headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, claim, who: member(currentMe())?.display_name ?? currentMe() }),
+      body: JSON.stringify({ code, claim, who: member(whoId)?.display_name ?? whoId, who_id: claim ? whoId : null }),
     });
   } catch {
     // 코드가 틀린 것과 저장소에 못 닿은 것은 다른 일이다.
@@ -3330,6 +3360,15 @@ function createSubtask(taskId, body) {
 function updateSubtask(id, body) {
   const row = (DB.subtasks ?? []).find((s) => s.id === id);
   if (!row) throw new DemoError('하위 업무를 찾을 수 없습니다.');
+  // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호를 그 프로젝트에서 새로 받는다.
+  if (body.task_id !== undefined && body.task_id !== row.task_id) {
+    const from = DB.tasks.find((x) => x.id === row.task_id);
+    const to = DB.tasks.find((x) => x.id === body.task_id && !x.deleted_at);
+    if (!to) throw new DemoError('옮길 업무를 찾을 수 없습니다.');
+    row.sort_order = subtasksOf(to.id).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
+    if (from?.project_id !== to.project_id) row.seq = nextSeq(to.project_id);
+    row.task_id = to.id;
+  }
   if (body.title !== undefined) {
     const title = String(body.title).trim();
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
@@ -6298,6 +6337,7 @@ function subtaskModal({ task, onChange }) {
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
         ${r.done_at ? `<span class="when">${esc(shortDate(r.done_at.slice(0, 10)))} 완료</span>` : ''}
+        <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
     : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
@@ -6397,12 +6437,77 @@ function subtaskModal({ task, onChange }) {
         } catch (err) { toast(err.message, true); }
       });
 
+      // ── 다른 상위 업무로 옮기기 ──
+      // 줄 아래에 프로젝트 › 업무 고르는 칸이 열린다. 창을 겹치지 않는다 — 옮길 곳을 고르는 동안 목록이 보여야 한다.
+      let projCache = null;
+      const taskOpts = async (projectId, sel) => {
+        sel.innerHTML = '<option value="">불러오는 중…</option>';
+        try {
+          const rows = await api.get(`/api/tasks?project=${encodeURIComponent(projectId)}&done=1&all_backlog=1`);
+          const others = rows.filter((x) => x.id !== t.id);
+          sel.innerHTML = others.length
+            ? others.map((x) => `<option value="${esc(x.id)}">${esc(x.key ?? '')} ${esc(x.title)}</option>`).join('')
+            : '<option value="">옮길 업무가 없습니다</option>';
+        } catch (err) { sel.innerHTML = '<option value="">불러오지 못했습니다</option>'; toast(err.message, true); }
+      };
+      const openMove = async (li, subId) => {
+        root.querySelectorAll('.sbm-move').forEach((el) => el.remove());
+        if (!projCache) {
+          try { projCache = (await api.get('/api/projects')).filter((p) => !p.is_archived); }
+          catch (err) { toast(err.message, true); return; }
+        }
+        const box = document.createElement('div');
+        box.className = 'sbm-move';
+        box.dataset.moveFor = subId;
+        box.innerHTML = `
+          <span class="lab">옮길 곳</span>
+          <select data-mv-proj aria-label="프로젝트">${projCache.map((p) =>
+            `<option value="${esc(p.id)}"${p.id === t.project_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+          <select data-mv-task aria-label="상위 업무"></select>
+          <button class="btn btn-primary sm" type="button" data-mv-go>이동</button>
+          <button class="btn btn-ghost sm" type="button" data-mv-cancel>취소</button>`;
+        li.insertAdjacentElement('afterend', box);
+        await taskOpts(box.querySelector('[data-mv-proj]').value, box.querySelector('[data-mv-task]'));
+      };
+
+      root.addEventListener('change', (e) => {
+        const pj = e.target.closest('[data-mv-proj]');
+        if (pj) taskOpts(pj.value, pj.closest('.sbm-move').querySelector('[data-mv-task]'));
+      });
+
       root.addEventListener('click', async (e) => {
         const del = e.target.closest('[data-sub-del]');
         if (del) {
           if (!editable()) return;
           try { await api.del(`/api/subtasks/${del.dataset.subDel}`); changed = true; }
           catch (err) { toast(err.message, true); }
+          load();
+          return;
+        }
+        const mv = e.target.closest('[data-sub-move]');
+        if (mv) {
+          if (!editable()) return;
+          const li = mv.closest('li');
+          if (root.querySelector(`.sbm-move[data-move-for="${CSS.escape(mv.dataset.subMove)}"]`)) {
+            root.querySelectorAll('.sbm-move').forEach((el) => el.remove());
+          } else await openMove(li, mv.dataset.subMove);
+          return;
+        }
+        if (e.target.closest('[data-mv-cancel]')) { root.querySelectorAll('.sbm-move').forEach((el) => el.remove()); return; }
+        const go = e.target.closest('[data-mv-go]');
+        if (go) {
+          const box = go.closest('.sbm-move');
+          const taskId = box.querySelector('[data-mv-task]').value;
+          const projId = box.querySelector('[data-mv-proj]').value;
+          if (!taskId) { toast('옮길 업무를 골라 주세요.', true); return; }
+          const sub = rows.find((r) => r.id === box.dataset.moveFor);
+          const label = box.querySelector('[data-mv-task] option:checked')?.textContent?.trim() ?? '';
+          go.disabled = true;
+          try {
+            await api.patch(`/api/subtasks/${box.dataset.moveFor}`, { task_id: taskId });
+            changed = true;
+            toast(`「${sub?.title ?? '하위 업무'}」을(를) ${label} 아래로 옮겼습니다.${projId !== t.project_id ? ' 티켓 번호는 그 프로젝트에서 새로 받았습니다.' : ''}`);
+          } catch (err) { toast(err.message, true); go.disabled = false; return; }
           load();
           return;
         }
@@ -8087,8 +8192,10 @@ async function renderTaskDetail(root, id) {
         <select class="status-select" data-status aria-label="상태 변경">
           ${statuses.map((s) => `<option value="${esc(s.code)}"${s.code === t.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
         </select>
+        <button class="btn btn-primary" data-save disabled title="바뀐 내용을 저장합니다">저장</button>
         <button class="btn" data-edit>수정</button>
         <button class="btn btn-danger" data-delete>삭제</button>
+        <span class="dirty-note" data-dirty hidden>저장 안 됨</span>
       </div>
     </div>
 
@@ -8204,60 +8311,54 @@ async function renderTaskDetail(root, id) {
     catch (err) { toast(err.message, true); }
   };
 
+  // ── 고친 것은 모아 두었다가 「저장」으로 한 번에 보낸다 ──
+  // 칸을 바꿀 때마다 바로 저장하면 한 칸 고치다 말고 나가도 이미 남의 화면이 바뀌어 있다.
+  // 여기서는 바뀐 칸만 모아 두고(pending), 저장 단추가 켜진다. 되돌리려면 새로 그린다.
+  const pending = {};
+  const paintDirty = () => {
+    const n = Object.keys(pending).length;
+    const save = root.querySelector('[data-save]');
+    const note = root.querySelector('[data-dirty]');
+    if (save) { save.disabled = !n; save.textContent = n ? `저장 (${n})` : '저장'; }
+    if (note) { note.hidden = !n; }
+  };
+  const stage = (key, value) => {
+    const cur = key === 'category' ? (t.category ?? null) : t[key];
+    if ((value ?? null) === (cur ?? null)) delete pending[key]; else pending[key] = value;
+    paintDirty();
+  };
+
   root.addEventListener('change', async (e) => {
     const own = e.target.closest('[data-owner]');
-    if (own) {
-      if (own.value === t.owner_slack_user_id) return undefined;
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { owner_slack_user_id: own.value });
-        toast('담당을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      return reload();
-    }
+    if (own) { stage('owner_slack_user_id', own.value); return undefined; }
     const areaSel = e.target.closest('[data-area]');
     if (areaSel) {
       const next = areaSel.value;
-      if (next === t.area) return undefined;
       // 영역이 곧 담당이다 — 바뀌면 그 영역의 리드가 맡는다
       const lead = leadOf(next);
-      if (!lead) {
+      if (next !== t.area && !lead) {
         toast(`'${areaMeta(next).full}' 영역의 리드가 지정되지 않았습니다.`, true);
-        return reload();
+        areaSel.value = t.area;
+        return undefined;
       }
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { area: next });
-        toast(`영역을 ${areaMeta(next).full}(으)로 바꿨습니다. 담당은 ${lead.display_name}입니다.`);
-      } catch (err) { toast(err.message, true); }
-      return reload();
+      stage('area', next);
+      if (next !== t.area) toast(`저장하면 담당이 ${lead.display_name}(${areaMeta(next).full} 리드)으로 바뀝니다.`);
+      return undefined;
     }
     const cat = e.target.closest('[data-category]');
-    if (cat) {
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { category: cat.value || null });
-        toast('분류를 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      return reload();
-    }
+    if (cat) { stage('category', cat.value || null); return undefined; }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
       const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다
-      if (!next) { toast('업무명을 비울 수는 없습니다.', true); return reload(); }
-      if (next === ttl.defaultValue) return undefined;
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { title: next });
-        ttl.defaultValue = next;
-        toast('업무명을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); reload(); }
+      if (!next) { toast('업무명을 비울 수는 없습니다.', true); ttl.value = t.title; return undefined; }
+      stage('title', next);
       return undefined;
     }
     const due = e.target.closest('[data-due]');
     if (due) {
-      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); return reload(); }
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { due_date: due.value });
-        toast('마감일을 바꿨습니다.');
-      } catch (err) { toast(err.message, true); }
-      return reload();
+      if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); due.value = t.due_date ?? ''; return undefined; }
+      stage('due_date', due.value);
+      return undefined;
     }
     const sub = e.target.closest('[data-sub]');
     if (sub) {
@@ -8277,11 +8378,7 @@ async function renderTaskDetail(root, id) {
         const ok = await confirmModal('검수 상태가 승인이 아닙니다. 그래도 완료 처리할까요?');
         if (!ok) return reload();
       }
-      try {
-        await api.patch(`/api/tasks/${t.id}`, { status: next });
-        toast('상태를 변경했습니다.');
-      } catch (err) { toast(err.message, true); }
-      reload();
+      stage('status', next);
       return;
     }
     if (e.target.closest('[data-review]')) {
@@ -8295,6 +8392,14 @@ async function renderTaskDetail(root, id) {
         }
       } catch (err) { toast(err.message, true); }
       reload();
+    }
+  });
+
+  // Ctrl/Cmd+S 로도 저장된다 — 표에서 고치다 손이 가는 키다
+  root.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      const save = root.querySelector('[data-save]');
+      if (save && !save.disabled) { e.preventDefault(); save.click(); }
     }
   });
 
@@ -8333,7 +8438,23 @@ async function renderTaskDetail(root, id) {
       } catch (err) { toast(err.message, true); }
       return;
     }
+    const save = e.target.closest('[data-save]');
+    if (save) {
+      if (!Object.keys(pending).length) return;
+      save.disabled = true;
+      save.textContent = '저장 중…';
+      try {
+        await api.patch(`/api/tasks/${t.id}`, { ...pending });
+        toast('저장했습니다.');
+        reload();
+      } catch (err) { toast(err.message, true); paintDirty(); }
+      return;
+    }
     if (e.target.closest('[data-edit]')) {
+      if (Object.keys(pending).length) {
+        const ok = await confirmModal('저장하지 않은 변경이 있습니다. 수정 창을 열면 그 내용은 사라집니다. 계속할까요?');
+        if (!ok) return;
+      }
       taskForm({ task: t, onSaved: reload });
     } else if (e.target.closest('[data-new-issue]')) {
       issueForm({ defaults: { project_id: t.project_id, task_id: t.id }, onSaved: reload });
@@ -8915,6 +9036,7 @@ async function renderNotifications(root) {
 
 
 
+
 // 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
 // 페이즈 줄 앞의 ▸ 를 누르면 그 아래로 업무 줄이 같은 날짜 축에 막대로 펼쳐진다 (지라 타임라인과 같다).
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 업무 막대는 상태색으로 나눈다.
@@ -9083,6 +9205,8 @@ async function renderTimeline(root) {
     <div class="tl-wrap">
       <div class="tl-chart${w.weekly ? ' is-weekly' : ''}" style="min-width:max(560px, calc(var(--tl-label) + var(--tl-gap) + ${w.trackMin}px))">
         ${w.thisWeek ? `<i class="tl-week-now" style="left:${onTrack(w.thisWeek.left)};width:calc((100% - var(--tl-label) - var(--tl-gap)) * ${w.thisWeek.width / 100})"></i>` : ''}
+        <div class="tl-resize" data-resize role="separator" aria-orientation="vertical"
+             title="끌어서 제목 칸 너비 조절 · 두 번 누르면 원래대로"><i></i></div>
         <div class="tl-row tl-axis">
           <div class="tl-label"></div>
           <div class="tl-track">${w.axisTrack()}</div>
@@ -9219,6 +9343,8 @@ async function renderTimeline(root) {
     const t = findTask(id);
     if (t) subtaskModal({ task: t, onChange: reload });
   };
+  bindBarDrag(root, win, () => findTask, reload);
+  bindLabelResize(root);
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
   root.addEventListener('change', async (e) => {
@@ -9325,6 +9451,7 @@ async function renderTimeline(root) {
 
     // 차트의 업무 줄은 하위 업무 창을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
     const line = e.target.closest('.tl-task[data-line]');
+    if (line && line.dataset.dragged) { delete line.dataset.dragged; return undefined; }   // 끌다 놓은 것은 클릭이 아니다
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(line.dataset.line); return undefined; }
     const bl = e.target.closest('.tld-task[data-line]');
     if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) return go(`#/project/tasks/${bl.dataset.line}`);
@@ -9387,6 +9514,117 @@ function tlHead() {
         <div class="sub">프로젝트의 업무별 페이즈(기간)와 마일스톤(마감일)을 확인합니다.</div>
       </div>
     </div>`;
+}
+
+// ── 막대를 끌어 일정을 옮긴다 ────────────────────────────
+// 펼친 페이즈 아래 업무 줄의 막대를 좌우로 끌면 마감일이 그만큼 움직인다(시작일이 있으면 같이).
+// 하루 단위로 딱딱 걸린다. 놓는 순간 저장되고, 페이즈 진행률·지연 표시가 함께 새로 그려진다.
+// 세로로 끄는 것은 스크롤이다 — 가로로 6px 넘게 움직여야 끌기로 본다.
+function bindBarDrag(root, win, getFind, reload) {
+  const days = tlDiff(win.start, win.end) + 1;
+  let drag = null;
+  root.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !canEdit()) return;
+    const bar = e.target.closest('.tl-task .tlg-bar');
+    if (!bar) return;
+    const line = bar.closest('.tl-task[data-line]');
+    const track = bar.closest('.tl-track');
+    const t = getFind()(line?.dataset.line);
+    if (!t?.due_date || !track) return;
+    drag = { bar, line, t, x0: e.clientX, pxDay: track.getBoundingClientRect().width / days, delta: 0, on: false,
+      left: parseFloat(bar.style.left) || 0, dd: line.querySelector('.tlg-dd') };
+    bar.setPointerCapture?.(e.pointerId);
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0;
+    if (!drag.on && Math.abs(dx) < 6) return;
+    drag.on = true;
+    e.preventDefault();
+    const delta = Math.round(dx / drag.pxDay);
+    if (delta === drag.delta) return;
+    drag.delta = delta;
+    const pct = (delta / days) * 100;
+    drag.bar.style.transform = `translateX(${pct / 100 * drag.bar.parentElement.getBoundingClientRect().width}px)`;
+    drag.bar.classList.add('dragging');
+    drag.line.classList.add('is-dragging');
+    if (drag.dd) {
+      drag.dd.style.transform = drag.bar.style.transform;
+      const due = tlAdd(drag.t.due_date, delta);
+      drag.dd.textContent = `${shortDate(due)} (${delta > 0 ? '+' : ''}${delta}일)`;
+    }
+  });
+  const end = async (e) => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    d.bar.releasePointerCapture?.(e.pointerId);
+    d.bar.classList.remove('dragging');
+    d.line.classList.remove('is-dragging');
+    if (!d.on) return;
+    d.line.dataset.dragged = '1';   // 바로 이어지는 click 이 하위 업무 창을 열지 않게
+    setTimeout(() => { delete d.line.dataset.dragged; }, 300);
+    if (!d.delta) { d.bar.style.transform = ''; if (d.dd) { d.dd.style.transform = ''; } reload(); return; }
+    const patch = { due_date: tlAdd(d.t.due_date, d.delta) };
+    if (d.t.start_date) patch.start_date = tlAdd(d.t.start_date, d.delta);
+    try {
+      await api.patch(`/api/tasks/${d.t.id}`, patch);
+      toast(`「${d.t.title}」 마감을 ${shortDate(patch.due_date)}(으)로 옮겼습니다.`);
+    } catch (err) { toast(err.message, true); }
+    reload();
+  };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+}
+
+// ── 제목 칸 너비 ───────────────────────────────────────
+// 업무명이 길면 잘린다. 축 줄 오른쪽 경계를 끌어 제목 칸(--tl-label)을 넓힌다. 기억해 두고, 두 번 누르면 원래대로.
+const LABEL_KEY = 'kf.tl.label';
+const LABEL_MIN = 180;
+const LABEL_MAX = 560;
+function bindLabelResize(root) {
+  const chart = root.querySelector('.tl-chart');
+  const handle = root.querySelector('[data-resize]');
+  if (!chart || !handle) return;
+  const narrow = window.matchMedia('(max-width: 720px)').matches;   // 모바일은 170px 고정
+  const apply = (px) => {
+    if (px == null) { chart.style.removeProperty('--tl-label'); return; }
+    chart.style.setProperty('--tl-label', `${Math.min(LABEL_MAX, Math.max(LABEL_MIN, Math.round(px)))}px`);
+  };
+  const saved = Number(readPref(LABEL_KEY));
+  if (!narrow && saved) apply(saved);
+  // 손잡이 선은 차트 높이를 따라간다 — 페이즈를 펼치면 길어진다
+  const line = handle.querySelector('i');
+  const fit = () => { line.style.height = `${chart.offsetHeight}px`; };
+  fit();
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(chart);
+
+  let drag = null;
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || narrow) return;
+    e.preventDefault();
+    const cur = parseFloat(getComputedStyle(chart).getPropertyValue('--tl-label')) || 260;
+    drag = { x0: e.clientX, w0: cur };
+    handle.setPointerCapture?.(e.pointerId);
+    handle.classList.add('on');
+    document.body.style.cursor = 'col-resize';
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    apply(drag.w0 + (e.clientX - drag.x0));
+  });
+  const end = (e) => {
+    if (!drag) return;
+    drag = null;
+    handle.releasePointerCapture?.(e.pointerId);
+    handle.classList.remove('on');
+    document.body.style.cursor = '';
+    const px = parseFloat(getComputedStyle(chart).getPropertyValue('--tl-label'));
+    if (px) writePref(LABEL_KEY, String(Math.round(px)));
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+  handle.addEventListener('dblclick', () => { apply(null); try { localStorage.removeItem(LABEL_KEY); } catch { /* 없으면 그만 */ } });
 }
 
 
@@ -9876,7 +10114,13 @@ function gatePanel() {
             <input type="password" name="code" autocomplete="one-time-code"
                    placeholder="예: kv-••••-••••" autocapitalize="off" spellcheck="false">
           </label>
+          <label class="field">
+            <span class="lab">이 코드를 쓰는 사람</span>
+            <select name="who">${(state.members ?? []).filter((m) => m.is_active).map((m) =>
+              `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === state.me ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>
+          </label>
           <button class="btn btn-primary" type="submit">들어가기</button>
+          <p class="hint gate-who-hint">처음 쓰는 코드는 이 사람에게 묶입니다. 그다음부터는 이 코드로 들어오면 작성자가 자동으로 이 사람이 됩니다. (관리자 코드는 묶이지 않습니다)</p>
         </form>
       `}
 
@@ -9947,7 +10191,8 @@ function gatePanel() {
         btn.disabled = true;
         btn.textContent = '확인 중…';
         try {
-          const got = await unlock(form.querySelector('[name=code]').value);
+          const got = await unlock(form.querySelector('[name=code]').value,
+            { who: form.querySelector('[name=who]')?.value || null });
           if (!got) {
             toast('코드가 맞지 않습니다.', true);
             btn.disabled = false;
@@ -10080,7 +10325,9 @@ function paintGate() {
   document.body.dataset.gate = role ? role.toLowerCase() : 'view';
   const badge = document.getElementById('gate-badge');
   if (!badge) return;
-  badge.textContent = roleLabel();
+  // 코드에 사람이 묶여 있으면 그 이름을 같이 단다 — 누구로 쓰고 있는지 한눈에
+  const who = state.members?.find((m) => m.slack_user_id === currentMember())?.display_name;
+  badge.textContent = who && !isLocalOnly() ? `${roleLabel()} · ${who}` : roleLabel();
   badge.classList.toggle('on', Boolean(role) && !isLocalOnly());
   badge.classList.toggle('local', isLocalOnly());
   badge.title = isLocalOnly()
