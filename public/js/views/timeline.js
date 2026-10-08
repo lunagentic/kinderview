@@ -400,6 +400,12 @@ export async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
+    // 열린 페이즈의 트랙 빈 곳을 누르면 접힌다 — 막대가 화면 밖으로 밀려 있어도 닫을 수 있다
+    const openTrack = e.target.closest('.tl-phase.is-open .tl-track');
+    if (openTrack && !e.target.closest('.tl-bar, .tl-ms, [data-milestone], a, button')) {
+      e.preventDefault();
+      return togglePhase(openTrack.closest('[data-phase-row]').dataset.phaseRow);
+    }
     // 페이즈 줄의 제목 칸 — 이름(수정)·코멘트 뱃지가 아닌 곳을 누르면 업무가 펼쳐진다
     const phLbl = e.target.closest('.tl-phase[data-phase-row] .tl-label');
     if (phLbl && !e.target.closest('.tl-name, [data-phase-cm], a, button')) {
