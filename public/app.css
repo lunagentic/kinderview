@@ -1787,3 +1787,11 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .sub-st:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 .subs li.prog .sub-ttl,.sbm-list li.prog .sbm-title{color:var(--ink)}
 body[data-gate="view"] .sub-st{pointer-events:none}
+
+/* 변경 이력 맨 위 한 줄 — 지금 이 업무가 어떤가 */
+.health{margin:-4px 0 12px;padding:7px 10px;border-radius:var(--radius-sm);font-size:.84rem;font-weight:600;background:var(--surface-2);color:var(--ink-2)}
+.health.ok{color:var(--indigo);background:color-mix(in oklab, var(--indigo) 8%, var(--surface))}
+.health.late{color:var(--s-delay);background:color-mix(in oklab, var(--s-delay) 9%, var(--surface))}
+.health.warn{color:var(--s-issue);background:color-mix(in oklab, var(--amber) 14%, var(--surface))}
+.health.done{color:var(--s-done);background:color-mix(in oklab, var(--s-done) 9%, var(--surface))}
+.health.wait{color:var(--muted)}

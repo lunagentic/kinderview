@@ -1792,6 +1792,14 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .subs li.prog .sub-ttl,.sbm-list li.prog .sbm-title{color:var(--ink)}
 body[data-gate="view"] .sub-st{pointer-events:none}
 
+/* 변경 이력 맨 위 한 줄 — 지금 이 업무가 어떤가 */
+.health{margin:-4px 0 12px;padding:7px 10px;border-radius:var(--radius-sm);font-size:.84rem;font-weight:600;background:var(--surface-2);color:var(--ink-2)}
+.health.ok{color:var(--indigo);background:color-mix(in oklab, var(--indigo) 8%, var(--surface))}
+.health.late{color:var(--s-delay);background:color-mix(in oklab, var(--s-delay) 9%, var(--surface))}
+.health.warn{color:var(--s-issue);background:color-mix(in oklab, var(--amber) 14%, var(--surface))}
+.health.done{color:var(--s-done);background:color-mix(in oklab, var(--s-done) 9%, var(--surface))}
+.health.wait{color:var(--muted)}
+
 </style>
 
   <header class="topbar">
@@ -9032,6 +9040,18 @@ const statusLabel = (code) => {
 const reviewLabel = (code) => state.meta.review_statuses.find((s) => s.code === code)?.label ?? '-';
 const priorityLabel = (code) => state.meta.priorities.find((s) => s.code === code)?.label ?? '-';
 
+// 지금 이 업무가 어떤 상태인가 — 이력 맨 위에 한 줄. 지연이면 며칠 밀렸는지, 아니면 마감까지 얼마나 남았고 움직이고 있는지.
+const healthLine = (t) => {
+  if (t.status === 'DONE') return `<p class="health done">✓ 완료${t.completed_at ? ` · ${esc(shortDate(t.completed_at.slice(0, 10)))}` : ''}</p>`;
+  if (!t.due_date) return '<p class="health wait">백로그 · 마감이 정해지지 않았습니다</p>';
+  if (t.is_delayed) return `<p class="health late">⚠ 지연 ${Math.abs(t.d_day)}일 · 마감 ${esc(shortDate(t.due_date))}을 넘겼습니다${t.stage === 'WAIT' ? ' · 아직 시작 전' : ''}</p>`;
+  const left = t.d_day === 0 ? '오늘 마감' : `D-${t.d_day}`;
+  if (t.stage === 'REVIEW') return `<p class="health ok">● 검토 중 · ${left}</p>`;
+  if (t.stage === 'PROGRESS') return `<p class="health ok">● 진행 중 · ${left}${t.subtask_total ? ` · 하위 ${t.subtask_done}/${t.subtask_total}` : ''}</p>`;
+  if (t.d_day <= 3) return `<p class="health warn">● 마감이 ${left}인데 아직 대기입니다</p>`;
+  return `<p class="health wait">○ 대기 · ${left}</p>`;
+};
+
 const subCount = (rows = []) => {
   if (!rows.length) return '';
   const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
@@ -9124,6 +9144,7 @@ async function renderTaskDetail(root, id, query = '') {
           ${statuses.map((s) => `<option value="${esc(s.code)}"${s.code === t.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
         </select>
         <button class="btn" data-save disabled title="바뀐 내용을 저장합니다">저장</button>
+        <button class="btn" data-new-issue title="이 업무에 걸린 이슈를 등록합니다">+ 이슈</button>
         <button class="btn" data-edit>수정</button>
         <button class="btn btn-danger" data-delete>삭제</button>
         <span class="dirty-note" data-dirty hidden>저장 안 됨</span>
@@ -9160,6 +9181,17 @@ async function renderTaskDetail(root, id, query = '') {
           ${t.description ? `<p style="margin-top:14px;white-space:pre-wrap;color:var(--ink-2)">${linkify(t.description)}</p>` : ''}
         </div>
 
+        <div class="panel" data-subs-panel>
+          <h3>하위 업무 ${subCount(t.subtasks)}</h3>
+          ${subList(t.subtasks)}
+          <form class="sub-add" data-sub-add>
+            <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)"
+                   aria-label="하위 업무명">
+            <button class="btn btn-ghost" type="submit">추가</button>
+          </form>
+          <p class="sub-note">담당은 위 업무를 따릅니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
+        </div>
+
         <div class="panel att-panel" data-att-panel>
           <h3>링크·첨부 <span class="sub-n" data-att-n>${t.attachments?.length ? t.attachments.length : ''}</span></h3>
           <div data-att-list>${attList(t.attachments ?? [])}</div>
@@ -9172,21 +9204,7 @@ async function renderTaskDetail(root, id, query = '') {
           <div class="att-drop-hint" aria-hidden="true">여기에 놓으면 첨부됩니다</div>
         </div>
 
-        <div class="panel" data-comments-panel>
-          <h3>디렉터 코멘트</h3>
-          <div data-comments></div>
-        </div>
 
-        <div class="panel" data-subs-panel>
-          <h3>하위 업무 ${subCount(t.subtasks)}</h3>
-          ${subList(t.subtasks)}
-          <form class="sub-add" data-sub-add>
-            <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)"
-                   aria-label="하위 업무명">
-            <button class="btn btn-ghost" type="submit">추가</button>
-          </form>
-          <p class="sub-note">담당은 위 업무를 따릅니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
-        </div>
 
         ${t.area === 'OUT' ? `
           <div class="panel">
@@ -9210,21 +9228,15 @@ async function renderTaskDetail(root, id, query = '') {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:22px">
-        <div class="panel">
-          <h3>연결된 이슈 ${t.issues.length ? `(${t.issues.length})` : ''}
-            <button class="btn btn-ghost" data-new-issue style="float:right">+ 이슈 등록</button></h3>
-          ${t.issues.length ? t.issues.map((i) => `
-            <div class="issue-mini">
-              <span class="sev-bar ${esc(i.severity)}"></span>
-              <a href="#/project/issues/${esc(i.id)}" style="flex:1;text-decoration:underline">${esc(i.title)}</a>
-              <span class="chip ${i.status === 'RESOLVED' ? 'done' : i.status === 'CHECKING' ? 'issue' : 'delay'}">
-                ${esc(state.meta.issue_statuses.find((s) => s.code === i.status)?.label ?? i.status)}</span>
-            </div>`).join('')
-            : '<p style="color:var(--muted);font-size:.86rem">등록된 이슈가 없습니다. 진행을 막는 문제가 있으면 이슈로 남겨 주세요.</p>'}
+        <div class="panel" data-comments-panel>
+          <h3>디렉터 코멘트</h3>
+          <div data-comments></div>
         </div>
+
 
         <div class="panel">
           <h3>변경 이력</h3>
+          ${healthLine(t)}
           <div class="timeline">
             ${t.events.map((e) => `
               <div class="ev">
