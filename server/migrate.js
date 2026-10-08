@@ -385,12 +385,19 @@ function addAttachments() {
   return '업무 첨부(attachment) 표 추가';
 }
 
+/** 앱 안 알림 읽음 표 */
+function addReadMarks() {
+  if (tableSql('read_mark')) return null;
+  db.exec('CREATE TABLE read_mark (who TEXT NOT NULL, key TEXT NOT NULL, read_at TEXT NOT NULL, PRIMARY KEY (who, key))');
+  return '알림 읽음(read_mark) 표 추가';
+}
+
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
-    addTicketSeq(), addSubtaskDue(), addAttachments()]
+    addTicketSeq(), addSubtaskDue(), addAttachments(), addReadMarks()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

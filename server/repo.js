@@ -865,6 +865,71 @@ export const attachments = {
   },
 };
 
+// ── 앱 안 알림 — 지금 내게 해당하는 일을 데이터에서 센다 (docs/09 의 규칙, 내 것만) ──
+// 저장하지 않는다. '보낸 알림'이 아니라 '지금 챙길 일'이라, 열 때마다 다시 센다. 읽음만 남긴다.
+const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
+const RECENT_DAYS = 7;
+export const inbox = {
+  list(me, ref = today()) {
+    if (!me) return { items: [], unread: 0 };
+    const tomorrow = addDays(ref, 1);
+    const since = `${addDays(ref, -RECENT_DAYS)}T00:00:00`;
+    const mine = all(
+      `SELECT t.id, t.title, t.seq, t.due_date, t.status, t.area, o.review_status, t.owner_slack_user_id,
+              p.name AS project_name, p.code AS project_code
+         FROM task t LEFT JOIN project p ON p.id = t.project_id
+         LEFT JOIN outsourcing o ON o.task_id = t.id
+        WHERE t.deleted_at IS NULL AND t.owner_slack_user_id = :me`, { me });
+    const byId = new Map(mine.map((t) => [t.id, t]));
+    const dress = (t) => ({ task_id: t.id, task_key: ticketKey(t.project_code, t.seq), title: t.title,
+      project_name: t.project_name, due_date: t.due_date });
+    const items = [];
+    for (const t of mine) {
+      if (t.status === 'DONE' || !t.due_date) continue;
+      if (t.due_date < ref) items.push({ kind: 'DELAY', key: `DELAY:${t.id}:${ref}`, days: Math.round((Date.parse(ref) - Date.parse(t.due_date)) / 86400000), ...dress(t) });
+      else if (t.due_date === ref) items.push({ kind: 'DUE_TODAY', key: `DUE_TODAY:${t.id}:${ref}`, ...dress(t) });
+      else if (t.due_date === tomorrow) items.push({ kind: 'DUE_SOON', key: `DUE_SOON:${t.id}:${ref}`, ...dress(t) });
+    }
+    const ev = all(
+      `SELECT e.*, m.display_name AS actor_name FROM task_event e
+         LEFT JOIN member m ON m.slack_user_id = e.actor_slack_user_id
+        WHERE e.occurred_at >= :since AND e.actor_slack_user_id <> :me
+          AND e.event_type IN ('CREATED','OWNER_CHANGED')`, { since, me });
+    for (const e of ev) {
+      const t = byId.get(e.task_id);
+      if (!t) continue;
+      if (e.event_type === 'OWNER_CHANGED' && e.to_value !== me) continue;
+      items.push({ kind: 'ASSIGNED', key: `ASSIGNED:${e.id}`, actor_name: e.actor_name, at: e.occurred_at, ...dress(t) });
+    }
+    const cm = all(
+      `SELECT c.*, m.display_name AS author_name FROM comment c
+         LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
+        WHERE c.deleted_at IS NULL AND c.author_role = 'DIRECTOR' AND c.created_at >= :since
+          AND c.author_slack_user_id <> :me`, { since, me });
+    for (const c of cm) {
+      const t = byId.get(c.task_id);
+      if (!t) continue;
+      items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, actor_name: c.author_name, at: c.created_at,
+        snippet: String(c.body).slice(0, 80), ...dress(t) });
+    }
+    for (const t of mine) {
+      if (t.area === 'OUT' && ['IN_REVIEW', 'REJECTED'].includes(t.review_status)) {
+        items.push({ kind: 'REVIEW', key: `REVIEW:${t.id}:${t.review_status}`, review_status: t.review_status, ...dress(t) });
+      }
+    }
+    const read = new Set(all('SELECT key FROM read_mark WHERE who = :me', { me }).map((r) => r.key));
+    for (const it of items) it.read = read.has(it.key);
+    items.sort((a, b) => INBOX_ORDER.indexOf(a.kind) - INBOX_ORDER.indexOf(b.kind) || (a.due_date ?? '').localeCompare(b.due_date ?? ''));
+    return { items, unread: items.filter((i) => !i.read).length };
+  },
+  markRead(me, keys = []) {
+    if (!me) return { ok: true };
+    const at = nowISO();
+    tx(() => { for (const k of keys) run('INSERT OR IGNORE INTO read_mark (who, key, read_at) VALUES (:me, :k, :at)', { me, k, at }); });
+    return { ok: true };
+  },
+};
+
 export const tasks = {
   list(filter = {}) {
     const params = { today: filter.today || today() };

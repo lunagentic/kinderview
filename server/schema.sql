@@ -183,6 +183,14 @@ CREATE TABLE IF NOT EXISTS attachment (
 );
 CREATE INDEX IF NOT EXISTS idx_attachment_task ON attachment(task_id, created_at);
 
+-- 앱 안 알림을 누가 어디까지 읽었나. key 는 종류:업무:기준일(또는 이벤트·코멘트 id).
+CREATE TABLE IF NOT EXISTS read_mark (
+  who      TEXT NOT NULL,
+  key      TEXT NOT NULL,
+  read_at  TEXT NOT NULL,
+  PRIMARY KEY (who, key)
+);
+
 -- 업무 분류: 이 일이 무엇인가(신규 기능·기능 개선 …).
 -- 쓰다 보면 늘어난다. 상수로 두면 한 줄 더하는 데 배포가 필요해서 표로 옮겼다.
 -- id 는 지어 준 값이다 — 처음 둘(NEW·IMPROVE)은 이름을 그대로 썼고,

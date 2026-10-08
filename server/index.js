@@ -7,7 +7,7 @@ import { dbFile, today, applySchema, weekStart, addDays, uploadsDir } from './db
 import { runMigrations } from './migrate.js';
 import {
   members, projects, vendors, tasks, subtasks, comments, categories, issues, overview, areaLeads, attachments,
-  timeEntries, payments, phases, milestones, timeline, expenses,
+  timeEntries, payments, phases, milestones, timeline, expenses, inbox,
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
 import * as weekly from './weekly.js';
@@ -245,6 +245,10 @@ route('POST', '/api/weekly/:id/share', async (ctx) => {
 });
 
 // ── 알림 · 잡 ───────────────────────────────────────────
+
+// ── 앱 안 알림 — 내 업무에 지금 해당하는 일 ──
+route('GET', '/api/inbox', (ctx) => inbox.list(ctx.url.searchParams.get('me') || ctx.me));
+route('POST', '/api/inbox/read', (ctx) => inbox.markRead(ctx.me, Array.isArray(ctx.body?.keys) ? ctx.body.keys : []));
 
 route('GET', '/api/notifications', () => ({
   slack_configured: slack.isConfigured(),

@@ -388,6 +388,25 @@ details.more[open] > summary{color:var(--ink)}
 .noti{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
   padding:12px 15px;display:grid;gap:5px}
 .noti-list{display:flex;flex-direction:column;gap:8px}
+/* 내 알림 */
+.inbox{display:flex;flex-direction:column;gap:18px}
+.inbox-sec h3{margin:0 0 6px;font-size:.92rem;display:flex;align-items:center;gap:8px}
+.inbox-sec h3 .n{font-size:.76rem;color:var(--muted);font-weight:500}
+.inbox-sec .dot{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:.7rem;color:#fff;background:var(--muted)}
+.inbox-sec .dot.delay{background:var(--s-delay)} .inbox-sec .dot.issue{background:var(--s-issue)} .inbox-sec .dot.prog{background:var(--s-prog)}
+.inbox-sec .dot.review{background:var(--s-review)} .inbox-sec .dot.wait{background:var(--s-wait)}
+.inbox-item{display:grid;grid-template-columns:10px auto 1fr auto;grid-template-areas:"u k t m" "u k l l";column-gap:10px;row-gap:2px;align-items:center;
+  padding:9px 12px;background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);text-decoration:none;color:inherit;margin-bottom:6px}
+.inbox-item:hover{border-color:var(--line);background:var(--surface-2)}
+.inbox-item .unread{grid-area:u;width:8px;height:8px;border-radius:50%;background:var(--s-delay)}
+.inbox-item.read .unread{background:transparent}
+.inbox-item.read .ttl{color:var(--ink-2);font-weight:400}
+.inbox-item .tkey{grid-area:k}
+.inbox-item .ttl{grid-area:t;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inbox-item .meta{grid-area:m;font-size:.76rem;color:var(--muted);white-space:nowrap}
+.inbox-item .line{grid-area:l;font-size:.8rem;color:var(--ink-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inbox-tabs .cnt{display:inline-block;min-width:16px;padding:0 4px;border-radius:999px;background:var(--s-delay);color:#fff;font-size:.66rem;line-height:16px;text-align:center;margin-left:2px}
+@media (max-width:720px){.inbox-item{grid-template-columns:10px auto 1fr;grid-template-areas:"u k t" "u l l" "u m m"}}
 .noti .top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .noti .ttl{font-weight:500}
 .noti .body{white-space:pre-wrap;color:var(--ink-2);font-size:.84rem;
@@ -798,6 +817,10 @@ body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:n
   border-radius:var(--radius-sm) var(--radius-sm) 0 0}
 .topbar-util{font-size:.83rem;color:var(--on-chrome-muted);padding:6px 4px;white-space:nowrap}
 .topbar-util:hover,.topbar-util.active{color:var(--on-chrome)}
+.inbox-link{position:relative;display:inline-flex;align-items:center;gap:5px}
+.inbox-badge{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--s-delay);color:#fff;
+  font-size:.68rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.inbox-badge[hidden]{display:none}
 
 /* ── 타임시트 ─────────────────────────────────── */
 .sheet{min-width:720px}

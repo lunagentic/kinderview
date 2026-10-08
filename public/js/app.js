@@ -1,4 +1,5 @@
 import { state, loadBootstrap, setMe } from './state.js';
+import { api } from './api.js';
 import { esc, toast, errorBox, loading, empty, readPref, writePref } from './ui.js';
 import { taskForm } from './forms.js';
 import { renderOverview } from './views/overview.js';
@@ -54,7 +55,20 @@ function paintGate() {
 window.addEventListener('kf:gate', () => {
   paintGate();
   if (state.members?.length) renderMePicker();
+  refreshInbox();
 });
+
+// 상단 「알림함」 옆 숫자 — 지금 내게 해당하는 알림 중 안 읽은 것. 부팅·새로 그리기·코드 변경 때 다시 센다.
+async function refreshInbox() {
+  const badge = document.getElementById('inbox-badge');
+  if (!badge || !state.me) return;
+  try {
+    const { unread } = await api.get(`/api/inbox?me=${encodeURIComponent(state.me)}`);
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.hidden = !unread;
+  } catch { badge.hidden = true; }
+}
+window.addEventListener('kf:inbox', refreshInbox);
 document.getElementById('gate-badge')?.addEventListener('click', () => gatePanel());
 
 // 보기 전용일 때 편집칸에 손이 가면, 아무 일도 안 일어나는 대신 문을 연다.
@@ -315,11 +329,13 @@ async function boot() {
   renderMePicker();
   paintGate();
   await render();
+  refreshInbox();
 }
 
 document.getElementById('me-select').addEventListener('change', async (e) => {
   setMe(e.target.value);
   await render();
+  refreshInbox();
 });
 
 // 로그인 대신 현재 사용자를 고르는 구조이므로, 바뀌면 화면을 다시 그린다
@@ -349,6 +365,7 @@ window.addEventListener('kf:reload', async () => {
   await loadBootstrap().catch(() => {});
   renderMePicker();
   paintGate();
+  refreshInbox();
   render();
 });
 

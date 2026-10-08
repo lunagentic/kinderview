@@ -139,6 +139,7 @@ Slack Workspace 멤버의 **캐시**다. KinderFlow에서 직접 생성/수정�
 | `id` | uuid | ✔ | PK |
 | `name` | text | ✔ | 프로젝트명 (예: Kinderverse) |
 | `code` | text | | 짧은 식별자 (예: KV). **티켓 번호의 머리글자** — 없으면 번호를 못 읽는다 |
+| (reads / read_mark) | — | | 앱 안 알림 읽음 표시 `{who, key, read_at}`. 30일 지난 것은 지운다 |
 | (attachment) | — | | 업무에 붙는 링크·이미지. `{id, task_id, kind: link\|image, url, name, size, by_slack_user_id, created_at}`. 링크는 http(s)만. 이미지는 png·jpg·gif·webp 10MB 까지 — 배포본은 Supabase Storage `kf-files`(공개 읽기, 쓰기·삭제는 편집 코드), 서버판은 `data/uploads/`. 글자 속 주소(설명·하위 업무 제목·코멘트)는 저장하지 않고 보여 줄 때 링크로 바꾼다 |
 | (subtask) `due_date` | date | | 하위 업무 마감. 비우면 상위 업무 마감을 따른다. 더 늦게 잡으면 상위 업무 마감 → 페이즈 종료일 순으로 그 날까지 늘어난다(앞당기지는 않는다). 상위 마감이 밀리면 변경 이력에 「마감 변경」으로 남는다 |
 | `seq_counter` | int | ✔ | 티켓 번호 카운터. 업무·하위 업무가 한 번호열을 쓴다. 지워도 되돌리지 않는다. 하위 업무를 다른 프로젝트의 업무로 옮기면 그 프로젝트에서 번호를 새로 받는다(같은 프로젝트 안에서는 유지) |

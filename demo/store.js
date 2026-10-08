@@ -344,6 +344,7 @@ const ROW_KEY = {
   outsourcing: (r) => r.task_id,
   area_leads: (r) => `${r.area}/${r.slack_user_id}`,
   attachments: (r) => r.id,
+  reads: (r) => `${r.who}/${r.key}`,
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
@@ -994,6 +995,63 @@ async function removeAttachment(id) {
         headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, ...(code ? { 'x-kf-code': code } : {}) } });
     } catch { /* 파일이 남아도 줄은 지웠다 */ }
   }
+  return { ok: true };
+}
+
+// ── 앱 안 알림 — 서버 repo.js inbox 와 같은 규칙 ──
+const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
+const INBOX_RECENT_DAYS = 7;
+function inboxOf(me, ref = today()) {
+  if (!me) return { items: [], unread: 0 };
+  const tomorrow = addDays(ref, 1);
+  const since = `${addDays(ref, -INBOX_RECENT_DAYS)}T00:00:00`;
+  const mine = DB.tasks.filter((t) => !t.deleted_at && t.owner_slack_user_id === me);
+  const byId = new Map(mine.map((t) => [t.id, t]));
+  const dress = (t) => ({ task_id: t.id, task_key: ticketKey(project(t.project_id)?.code, t.seq), title: t.title,
+    project_name: project(t.project_id)?.name ?? null, due_date: t.due_date ?? null });
+  const items = [];
+  for (const t of mine) {
+    if (t.status === 'DONE' || !t.due_date) continue;
+    if (t.due_date < ref) items.push({ kind: 'DELAY', key: `DELAY:${t.id}:${ref}`, days: Math.round((Date.parse(ref) - Date.parse(t.due_date)) / 86400000), ...dress(t) });
+    else if (t.due_date === ref) items.push({ kind: 'DUE_TODAY', key: `DUE_TODAY:${t.id}:${ref}`, ...dress(t) });
+    else if (t.due_date === tomorrow) items.push({ kind: 'DUE_SOON', key: `DUE_SOON:${t.id}:${ref}`, ...dress(t) });
+  }
+  for (const e of DB.events ?? []) {
+    if (e.occurred_at < since || e.actor_slack_user_id === me) continue;
+    if (!['CREATED', 'OWNER_CHANGED'].includes(e.event_type)) continue;
+    const t = byId.get(e.task_id);
+    if (!t) continue;
+    if (e.event_type === 'OWNER_CHANGED' && e.to_value !== me) continue;
+    items.push({ kind: 'ASSIGNED', key: `ASSIGNED:${e.id}`, actor_name: member(e.actor_slack_user_id)?.display_name ?? e.actor_slack_user_id, at: e.occurred_at, ...dress(t) });
+  }
+  for (const c of DB.comments ?? []) {
+    if (c.deleted_at || c.author_role !== 'DIRECTOR' || c.created_at < since || c.author_slack_user_id === me) continue;
+    const t = byId.get(c.task_id);
+    if (!t) continue;
+    items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, actor_name: member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id,
+      at: c.created_at, snippet: String(c.body).slice(0, 80), ...dress(t) });
+  }
+  for (const t of mine) {
+    const rs = outOf(t.id)?.review_status;
+    if (t.area === 'OUT' && ['IN_REVIEW', 'REJECTED'].includes(rs)) {
+      items.push({ kind: 'REVIEW', key: `REVIEW:${t.id}:${rs}`, review_status: rs, ...dress(t) });
+    }
+  }
+  const read = new Set((DB.reads ?? []).filter((r) => r.who === me).map((r) => r.key));
+  for (const it of items) it.read = read.has(it.key);
+  items.sort((a, b) => INBOX_ORDER.indexOf(a.kind) - INBOX_ORDER.indexOf(b.kind) || (a.due_date ?? '').localeCompare(b.due_date ?? ''));
+  return { items, unread: items.filter((i) => !i.read).length };
+}
+function markInboxRead(me, keys = []) {
+  if (!me) return { ok: true };
+  DB.reads ??= [];
+  const have = new Set(DB.reads.filter((r) => r.who === me).map((r) => r.key));
+  const at = nowISO();
+  for (const k of keys) if (!have.has(k)) DB.reads.push({ who: me, key: k, read_at: at });
+  // 오래된 읽음 표시는 지운다 — 날짜 키는 날이 바뀌면 쓸모가 없다
+  const cutoff = addDays(today(), -30);
+  DB.reads = DB.reads.filter((r) => r.read_at.slice(0, 10) >= cutoff);
+  save();
   return { ok: true };
 }
 
@@ -2470,6 +2528,8 @@ function handle(method, path, body) {
   }
   if (seg[1] === 'payments' && seg[2] && method === 'PATCH') return updatePayment(seg[2], body);
 
+  if (p === '/api/inbox' && method === 'GET') return inboxOf(sp.get('me') || me);
+  if (p === '/api/inbox/read' && method === 'POST') return markInboxRead(me, Array.isArray(body?.keys) ? body.keys : []);
   if (p === '/api/notifications' && method === 'GET') {
     return { slack_configured: false, rows: DB.notifications.slice(0, 200) };
   }

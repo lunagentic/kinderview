@@ -392,6 +392,25 @@ details.more[open] > summary{color:var(--ink)}
 .noti{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
   padding:12px 15px;display:grid;gap:5px}
 .noti-list{display:flex;flex-direction:column;gap:8px}
+/* 내 알림 */
+.inbox{display:flex;flex-direction:column;gap:18px}
+.inbox-sec h3{margin:0 0 6px;font-size:.92rem;display:flex;align-items:center;gap:8px}
+.inbox-sec h3 .n{font-size:.76rem;color:var(--muted);font-weight:500}
+.inbox-sec .dot{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:.7rem;color:#fff;background:var(--muted)}
+.inbox-sec .dot.delay{background:var(--s-delay)} .inbox-sec .dot.issue{background:var(--s-issue)} .inbox-sec .dot.prog{background:var(--s-prog)}
+.inbox-sec .dot.review{background:var(--s-review)} .inbox-sec .dot.wait{background:var(--s-wait)}
+.inbox-item{display:grid;grid-template-columns:10px auto 1fr auto;grid-template-areas:"u k t m" "u k l l";column-gap:10px;row-gap:2px;align-items:center;
+  padding:9px 12px;background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);text-decoration:none;color:inherit;margin-bottom:6px}
+.inbox-item:hover{border-color:var(--line);background:var(--surface-2)}
+.inbox-item .unread{grid-area:u;width:8px;height:8px;border-radius:50%;background:var(--s-delay)}
+.inbox-item.read .unread{background:transparent}
+.inbox-item.read .ttl{color:var(--ink-2);font-weight:400}
+.inbox-item .tkey{grid-area:k}
+.inbox-item .ttl{grid-area:t;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inbox-item .meta{grid-area:m;font-size:.76rem;color:var(--muted);white-space:nowrap}
+.inbox-item .line{grid-area:l;font-size:.8rem;color:var(--ink-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inbox-tabs .cnt{display:inline-block;min-width:16px;padding:0 4px;border-radius:999px;background:var(--s-delay);color:#fff;font-size:.66rem;line-height:16px;text-align:center;margin-left:2px}
+@media (max-width:720px){.inbox-item{grid-template-columns:10px auto 1fr;grid-template-areas:"u k t" "u l l" "u m m"}}
 .noti .top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .noti .ttl{font-weight:500}
 .noti .body{white-space:pre-wrap;color:var(--ink-2);font-size:.84rem;
@@ -802,6 +821,10 @@ body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:n
   border-radius:var(--radius-sm) var(--radius-sm) 0 0}
 .topbar-util{font-size:.83rem;color:var(--on-chrome-muted);padding:6px 4px;white-space:nowrap}
 .topbar-util:hover,.topbar-util.active{color:var(--on-chrome)}
+.inbox-link{position:relative;display:inline-flex;align-items:center;gap:5px}
+.inbox-badge{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--s-delay);color:#fff;
+  font-size:.68rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.inbox-badge[hidden]{display:none}
 
 /* ── 타임시트 ─────────────────────────────────── */
 .sheet{min-width:720px}
@@ -1686,7 +1709,7 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
     <div class="topbar-right">
       <span class="sync-badge" id="sync-badge" hidden></span>
       <button class="gate-badge" id="gate-badge" title="편집 권한">보기 전용</button>
-      <a class="topbar-util" href="#/notifications" data-nav="notifications" title="알림함">알림함</a>
+      <a class="topbar-util inbox-link" href="#/notifications" data-nav="notifications" title="알림함">알림함<span class="inbox-badge" id="inbox-badge" hidden></span></a>
       <button class="btn btn-primary" id="btn-new-task">+ 업무<span class="wide"> 등록</span></button>
       <label class="me-picker">
         <span class="me-label">현재 사용자</span>
@@ -2951,6 +2974,7 @@ const ROW_KEY = {
   outsourcing: (r) => r.task_id,
   area_leads: (r) => `${r.area}/${r.slack_user_id}`,
   attachments: (r) => r.id,
+  reads: (r) => `${r.who}/${r.key}`,
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
@@ -3601,6 +3625,63 @@ async function removeAttachment(id) {
         headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, ...(code ? { 'x-kf-code': code } : {}) } });
     } catch { /* 파일이 남아도 줄은 지웠다 */ }
   }
+  return { ok: true };
+}
+
+// ── 앱 안 알림 — 서버 repo.js inbox 와 같은 규칙 ──
+const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
+const INBOX_RECENT_DAYS = 7;
+function inboxOf(me, ref = today()) {
+  if (!me) return { items: [], unread: 0 };
+  const tomorrow = addDays(ref, 1);
+  const since = `${addDays(ref, -INBOX_RECENT_DAYS)}T00:00:00`;
+  const mine = DB.tasks.filter((t) => !t.deleted_at && t.owner_slack_user_id === me);
+  const byId = new Map(mine.map((t) => [t.id, t]));
+  const dress = (t) => ({ task_id: t.id, task_key: ticketKey(project(t.project_id)?.code, t.seq), title: t.title,
+    project_name: project(t.project_id)?.name ?? null, due_date: t.due_date ?? null });
+  const items = [];
+  for (const t of mine) {
+    if (t.status === 'DONE' || !t.due_date) continue;
+    if (t.due_date < ref) items.push({ kind: 'DELAY', key: `DELAY:${t.id}:${ref}`, days: Math.round((Date.parse(ref) - Date.parse(t.due_date)) / 86400000), ...dress(t) });
+    else if (t.due_date === ref) items.push({ kind: 'DUE_TODAY', key: `DUE_TODAY:${t.id}:${ref}`, ...dress(t) });
+    else if (t.due_date === tomorrow) items.push({ kind: 'DUE_SOON', key: `DUE_SOON:${t.id}:${ref}`, ...dress(t) });
+  }
+  for (const e of DB.events ?? []) {
+    if (e.occurred_at < since || e.actor_slack_user_id === me) continue;
+    if (!['CREATED', 'OWNER_CHANGED'].includes(e.event_type)) continue;
+    const t = byId.get(e.task_id);
+    if (!t) continue;
+    if (e.event_type === 'OWNER_CHANGED' && e.to_value !== me) continue;
+    items.push({ kind: 'ASSIGNED', key: `ASSIGNED:${e.id}`, actor_name: member(e.actor_slack_user_id)?.display_name ?? e.actor_slack_user_id, at: e.occurred_at, ...dress(t) });
+  }
+  for (const c of DB.comments ?? []) {
+    if (c.deleted_at || c.author_role !== 'DIRECTOR' || c.created_at < since || c.author_slack_user_id === me) continue;
+    const t = byId.get(c.task_id);
+    if (!t) continue;
+    items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, actor_name: member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id,
+      at: c.created_at, snippet: String(c.body).slice(0, 80), ...dress(t) });
+  }
+  for (const t of mine) {
+    const rs = outOf(t.id)?.review_status;
+    if (t.area === 'OUT' && ['IN_REVIEW', 'REJECTED'].includes(rs)) {
+      items.push({ kind: 'REVIEW', key: `REVIEW:${t.id}:${rs}`, review_status: rs, ...dress(t) });
+    }
+  }
+  const read = new Set((DB.reads ?? []).filter((r) => r.who === me).map((r) => r.key));
+  for (const it of items) it.read = read.has(it.key);
+  items.sort((a, b) => INBOX_ORDER.indexOf(a.kind) - INBOX_ORDER.indexOf(b.kind) || (a.due_date ?? '').localeCompare(b.due_date ?? ''));
+  return { items, unread: items.filter((i) => !i.read).length };
+}
+function markInboxRead(me, keys = []) {
+  if (!me) return { ok: true };
+  DB.reads ??= [];
+  const have = new Set(DB.reads.filter((r) => r.who === me).map((r) => r.key));
+  const at = nowISO();
+  for (const k of keys) if (!have.has(k)) DB.reads.push({ who: me, key: k, read_at: at });
+  // 오래된 읽음 표시는 지운다 — 날짜 키는 날이 바뀌면 쓸모가 없다
+  const cutoff = addDays(today(), -30);
+  DB.reads = DB.reads.filter((r) => r.read_at.slice(0, 10) >= cutoff);
+  save();
   return { ok: true };
 }
 
@@ -5077,6 +5158,8 @@ function handle(method, path, body) {
   }
   if (seg[1] === 'payments' && seg[2] && method === 'PATCH') return updatePayment(seg[2], body);
 
+  if (p === '/api/inbox' && method === 'GET') return inboxOf(sp.get('me') || me);
+  if (p === '/api/inbox/read' && method === 'POST') return markInboxRead(me, Array.isArray(body?.keys) ? body.keys : []);
   if (p === '/api/notifications' && method === 'GET') {
     return { slack_configured: false, rows: DB.notifications.slice(0, 200) };
   }
@@ -9375,6 +9458,49 @@ function toMarkdown(report, brief = false) {
 
 
 
+
+
+// ── 내 알림 (1단계: 앱 안) ──
+// 지금 내게 해당하는 일을 데이터에서 센다 — 지연 → 오늘 마감 → D-1 → 새로 배정 → 디렉터 코멘트 → 검토.
+// Slack DM(2단계)은 같은 계산을 발송으로 잇는다 (docs/09 9.0).
+const INBOX_SECTIONS = {
+  DELAY: { title: '마감일이 지난 담당 업무', tone: 'delay', mark: '⚠' },
+  DUE_TODAY: { title: '오늘 마감인 담당 업무', tone: 'issue', mark: '●' },
+  DUE_SOON: { title: '내일 마감인 담당 업무', tone: 'prog', mark: '●' },
+  ASSIGNED: { title: '새로 배정된 업무', tone: 'wait', mark: '＋' },
+  DIRECTOR_COMMENT: { title: '내 업무에 달린 디렉터 코멘트', tone: 'review', mark: '✎' },
+  REVIEW: { title: '검토가 필요한 외주 업무', tone: 'review', mark: '◎' },
+};
+const inboxLine = (it) => {
+  switch (it.kind) {
+    case 'DELAY': return `${it.days}일 지연 · 마감 ${shortDate(it.due_date)}`;
+    case 'DUE_TODAY': return '오늘 마감';
+    case 'DUE_SOON': return `내일 마감 · ${shortDate(it.due_date)}`;
+    case 'ASSIGNED': return `${it.actor_name ?? '누군가'} 님이 배정 · ${dateTime(it.at)}`;
+    case 'DIRECTOR_COMMENT': return `${it.actor_name ?? '디렉터'} · ${dateTime(it.at)}${it.snippet ? ` — ${it.snippet}` : ''}`;
+    case 'REVIEW': return it.review_status === 'REJECTED' ? '검수 반려 — 수정이 필요합니다' : '검수 대기 중';
+    default: return '';
+  }
+};
+const inboxView = (data) => {
+  if (!state.me) return empty({ title: '현재 사용자가 없습니다', hint: '상단에서 현재 사용자를 고르면 그 사람의 알림이 보입니다.' });
+  const groups = Object.keys(INBOX_SECTIONS).map((k) => [k, data.items.filter((i) => i.kind === k)]).filter(([, v]) => v.length);
+  if (!groups.length) return empty({ title: '지금 챙길 알림이 없습니다', hint: '지연·오늘 마감·내일 마감·새 배정·디렉터 코멘트·검토 요청이 생기면 여기에 섭니다.' });
+  return `<div class="inbox">${groups.map(([k, items]) => `
+    <section class="inbox-sec">
+      <h3><span class="dot ${INBOX_SECTIONS[k].tone}">${INBOX_SECTIONS[k].mark}</span>${INBOX_SECTIONS[k].title} <span class="n">${items.length}건</span></h3>
+      ${items.map((it) => `
+        <a class="inbox-item${it.read ? ' read' : ''}" href="#/project/tasks/${esc(it.task_id)}" data-inbox-key="${esc(it.key)}">
+          <span class="unread" aria-hidden="true"></span>
+          ${it.task_key ? `<span class="tkey">${esc(it.task_key)}</span>` : ''}
+          <span class="ttl">${esc(it.title)}</span>
+          <span class="meta">${esc(it.project_name ?? '')}</span>
+          <span class="line">${esc(inboxLine(it))}</span>
+        </a>`).join('')}
+    </section>`).join('')}</div>`;
+};
+
+
 const KIND_LABEL = {
   TASK_ASSIGNED: '담당 업무 등록',
   TASK_COLLAB: '협업 업무 등록',
@@ -9393,27 +9519,45 @@ const KIND_LABEL = {
   WEEKLY_REPORT: 'Weekly Report 공유',
 };
 
+const INBOX_TAB_KEY = 'kf.inbox.tab';
+
 async function renderNotifications(root) {
   root.innerHTML = loading();
+  const tab = readPref(INBOX_TAB_KEY) === 'log' ? 'log' : 'mine';
   let data;
+  let inbox = { items: [], unread: 0 };
   try {
-    data = await api.get('/api/notifications');
+    [data, inbox] = await Promise.all([
+      api.get('/api/notifications'),
+      state.me ? api.get(`/api/inbox?me=${encodeURIComponent(state.me)}`) : { items: [], unread: 0 },
+    ]);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
   }
+  const meName = state.members.find((m) => m.slack_user_id === state.me)?.display_name ?? '';
 
   root.innerHTML = `
     <div class="page-head">
       <div>
         <h1>알림함</h1>
-        <div class="sub">Slack으로 나가는 알림의 기록입니다. 어떤 알림이 언제 누구에게 가는지 확인할 수 있습니다.</div>
+        <div class="sub">${tab === 'mine'
+          ? `${meName ? `${esc(meName)} 님의 ` : ''}담당 업무 중 지금 챙길 일입니다. 줄을 누르면 업무로 가고 읽음이 됩니다.`
+          : 'Slack으로 나가는 알림의 기록입니다. 어떤 알림이 언제 누구에게 가는지 확인할 수 있습니다.'}</div>
       </div>
       <div class="page-actions">
-        <button class="btn" data-run-daily>배치 알림 실행</button>
+        <div class="tl-seg inbox-tabs" role="tablist">
+          <button type="button" role="tab" data-tab="mine" aria-pressed="${tab === 'mine'}">내 알림${inbox.unread ? ` <b class="cnt">${inbox.unread}</b>` : ''}</button>
+          <button type="button" role="tab" data-tab="log" aria-pressed="${tab === 'log'}">발송 기록</button>
+        </div>
+        ${tab === 'mine'
+          ? `<button class="btn" data-read-all ${inbox.unread ? '' : 'disabled'}>모두 읽음</button>`
+          : '<button class="btn" data-run-daily>배치 알림 실행</button>'}
       </div>
     </div>
 
+    ${tab === 'mine' ? `${!currentRole() ? '<div class="notice">코드 없이 보는 중입니다 — 코드로 들어오면 코드에 묶인 사람의 알림이 고정되어 보입니다.</div>' : ''}${inboxView(inbox)}` : ''}
+    ${tab === 'log' ? `
     ${data.slack_configured
       ? '<div class="notice" style="border-left-color:var(--s-done)"><b>Slack 연동됨</b> — 아래 알림이 실제로 발송됩니다.</div>'
       : `<div class="notice"><b>Slack 미연동</b> — <code>SLACK_BOT_TOKEN</code> 환경변수가 없어 실제 발송 대신 여기에만 기록됩니다.
@@ -9439,16 +9583,32 @@ async function renderNotifications(root) {
         title: '아직 발송된 알림이 없습니다',
         hint: '업무를 등록하거나 배치 알림을 실행하면 여기에 기록됩니다.',
         action: '<button class="btn" data-run-daily>배치 알림 실행</button>',
-      })}`;
+      })}` : ''}`;
+
+  const markRead = async (keys) => {
+    if (!keys.length) return;
+    try { await api.post('/api/inbox/read', { keys }); window.dispatchEvent(new Event('kf:inbox')); }
+    catch { /* 읽음 표시는 못 남겨도 이동은 한다 */ }
+  };
 
   root.addEventListener('click', async (e) => {
-    if (!e.target.closest('[data-run-daily]')) return;
+    const tb = e.target.closest('[data-tab]');
+    if (tb) { writePref(INBOX_TAB_KEY, tb.dataset.tab); return renderNotifications(root); }
+    const item = e.target.closest('[data-inbox-key]');
+    if (item) { markRead([item.dataset.inboxKey]); return undefined; }   // 링크 이동은 그대로 둔다
+    if (e.target.closest('[data-read-all]')) {
+      await markRead(inbox.items.filter((i) => !i.read).map((i) => i.key));
+      toast('모두 읽음으로 표시했습니다.');
+      return renderNotifications(root);
+    }
+    if (!e.target.closest('[data-run-daily]')) return undefined;
     try {
       const res = await api.post('/api/jobs/daily');
       const total = res.sent.reduce((a, b) => a + b.count, 0);
       toast(total ? `배치 알림 ${total}건을 처리했습니다.` : '오늘 보낼 배치 알림이 없습니다.');
       window.dispatchEvent(new Event('kf:reload'));
     } catch (err) { toast(err.message, true); }
+    return undefined;
   });
 }
 
@@ -10737,6 +10897,7 @@ function gatePanel() {
 
 
 
+
 const view = document.getElementById('view');
 
 // 프로젝트 매니징 아래의 화면들.
@@ -10778,7 +10939,20 @@ function paintGate() {
 window.addEventListener('kf:gate', () => {
   paintGate();
   if (state.members?.length) renderMePicker();
+  refreshInbox();
 });
+
+// 상단 「알림함」 옆 숫자 — 지금 내게 해당하는 알림 중 안 읽은 것. 부팅·새로 그리기·코드 변경 때 다시 센다.
+async function refreshInbox() {
+  const badge = document.getElementById('inbox-badge');
+  if (!badge || !state.me) return;
+  try {
+    const { unread } = await api.get(`/api/inbox?me=${encodeURIComponent(state.me)}`);
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.hidden = !unread;
+  } catch { badge.hidden = true; }
+}
+window.addEventListener('kf:inbox', refreshInbox);
 document.getElementById('gate-badge')?.addEventListener('click', () => gatePanel());
 
 // 보기 전용일 때 편집칸에 손이 가면, 아무 일도 안 일어나는 대신 문을 연다.
@@ -11039,11 +11213,13 @@ async function boot() {
   renderMePicker();
   paintGate();
   await render();
+  refreshInbox();
 }
 
 document.getElementById('me-select').addEventListener('change', async (e) => {
   setMe(e.target.value);
   await render();
+  refreshInbox();
 });
 
 // 로그인 대신 현재 사용자를 고르는 구조이므로, 바뀌면 화면을 다시 그린다
@@ -11072,6 +11248,7 @@ window.addEventListener('kf:reload', async () => {
   await loadBootstrap().catch(() => {});
   renderMePicker();
   paintGate();
+  refreshInbox();
   render();
 });
 
