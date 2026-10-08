@@ -1105,7 +1105,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
     </div>`;
 
   modal({
-    title: `업무 ${t.key ? `<span class="sub-n">${esc(t.key)}</span>` : ''}`,
+    title: t.key ? `업무 ${t.key}` : '업무',
     body,
     footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
     onMount({ root, close }) {
@@ -1311,7 +1311,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
 export function phaseCommentsModal({ phase, projectName = '', onChange, highlight = null }) {
   let changed = false;
   modal({
-    title: `페이즈 <span class="sub-n">${esc(phase.name)}</span>`,
+    title: `페이즈 · ${phase.name}`,
     body: `
       <div class="sbm">
         <div class="sbm-head">
@@ -1388,7 +1388,7 @@ export async function directorDigestModal({ phases = [], projects = [] } = {}) {
       </li>`).join('')}</ul>`
     : '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>';
   modal({
-    title: `디렉터 코멘트 ${rows.length ? `<span class="sub-n">${rows.length}건</span>` : ''}`,
+    title: rows.length ? `디렉터 코멘트 ${rows.length}건` : '디렉터 코멘트',
     body: `<div class="dd">${body}</div>`,
     footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
     onMount({ root, close }) {
