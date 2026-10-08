@@ -1599,6 +1599,12 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
 .subs li:hover .x{color:var(--muted)}
 .subs .x:hover{color:var(--s-delay);background:var(--surface-2)}
 .subs .x:focus-visible{color:var(--muted);outline:2px solid var(--focus)}
+/* 하위 업무 마감 칸 — 비어 있으면 흐리게(상위를 따른다는 뜻) */
+.sub-due{flex:none;width:136px;font-size:.8rem;padding:3px 6px}
+.sub-due.unset{color:var(--muted)}
+.subs li .sub-due{margin-left:auto}
+body[data-gate="view"] .sub-due{pointer-events:none;border-color:transparent;background:none;padding-left:0}
+@media (max-width:720px){.sub-due{width:120px}}
 .sub-add{display:flex;gap:8px;margin-top:12px}
 .sub-add input{flex:1;min-width:0}
 .sub-note{margin:10px 0 0;font-size:.78rem;color:var(--muted)}

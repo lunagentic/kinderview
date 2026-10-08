@@ -366,12 +366,20 @@ export function backfillTicketSeq() {
   return count;
 }
 
+/** 하위 업무 마감일 — 비우면 상위를 따르고, 더 늦게 잡으면 상위 업무·페이즈가 그 날까지 늘어난다. */
+function addSubtaskDue() {
+  const sql = tableSql('subtask');
+  if (!sql || /\bdue_date\b/.test(sql)) return null;
+  db.exec('ALTER TABLE subtask ADD COLUMN due_date TEXT');
+  return '하위 업무 마감일(due_date) 추가';
+}
+
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
-    addTicketSeq()]
+    addTicketSeq(), addSubtaskDue()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

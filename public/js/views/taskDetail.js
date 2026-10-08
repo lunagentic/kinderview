@@ -28,6 +28,17 @@ const subCount = (rows = []) => {
   return `<span class="sub-n${done === rows.length ? ' all' : ''}">${done}/${rows.length}</span>`;
 };
 
+// 하위 업무 마감 칸 — 비우면 상위를 따른다. 더 늦게 잡으면 상위 업무·페이즈가 그 날까지 늘어난다.
+const subDue = (r) => `<input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
+    data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감" title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">`;
+const rollToast = (rolled, before) => {
+  if (!rolled?.task_due && !rolled?.phase_end) return null;
+  const parts = [];
+  if (rolled.task_due) parts.push(`상위 업무 마감이 ${before ? `${shortDate(before)} → ` : ''}${shortDate(rolled.task_due)}로 밀렸습니다`);
+  if (rolled.phase_end) parts.push(`페이즈 종료일도 ${shortDate(rolled.phase_end)}로 늘어났습니다`);
+  return parts.join(' · ');
+};
+
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
       <li class="${r.is_done ? 'done' : ''}">
@@ -35,6 +46,7 @@ const subList = (rows = []) => (rows.length
           <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''}>
           <span>${esc(r.title)}</span>
         </label>
+        ${subDue(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
   : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
@@ -129,7 +141,7 @@ export async function renderTaskDetail(root, id) {
                    aria-label="하위 업무명">
             <button class="btn btn-ghost" type="submit">추가</button>
           </form>
-          <p class="sub-note">담당과 마감은 위 업무를 따릅니다. 그게 달라야 하면 업무로 등록해 주세요.</p>
+          <p class="sub-note">담당은 위 업무를 따릅니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
         </div>
 
         ${t.area === 'OUT' ? `
@@ -245,6 +257,17 @@ export async function renderTaskDetail(root, id) {
     if (due) {
       if (!due.value) { toast('마감일을 비울 수는 없습니다.', true); due.value = t.due_date ?? ''; return undefined; }
       stage('due_date', due.value);
+      return undefined;
+    }
+    const sdue = e.target.closest('[data-sub-due]');
+    if (sdue) {
+      try {
+        const res = await api.patch(`/api/subtasks/${sdue.dataset.subDue}`, { due_date: sdue.value || null });
+        const msg = rollToast(res.rolled, t.due_date);
+        if (msg) { toast(msg); return reload(); }   // 상위 마감·D-day·페이즈가 바뀌었다
+        toast(sdue.value ? '하위 업무 마감을 정했습니다.' : '하위 업무 마감을 비웠습니다. 상위 업무를 따릅니다.');
+        await reloadSubs();
+      } catch (err) { toast(err.message, true); await reloadSubs(); }
       return undefined;
     }
     const sub = e.target.closest('[data-sub]');

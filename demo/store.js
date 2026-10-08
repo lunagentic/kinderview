@@ -786,25 +786,57 @@ const subtasksOf = (taskId) => {
   return (DB.subtasks ?? [])
     .filter((s) => s.task_id === taskId)
     .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at))
-    .map((s) => ({ ...s, key: ticketKey(code, s.seq) }));
+    .map((s) => ({ ...s, due_date: s.due_date ?? null, key: ticketKey(code, s.seq) }));
 };
+
+// 하위 업무 마감이 상위 업무 마감보다 늦으면 상위가, 그게 페이즈 종료일보다 늦으면 페이즈가 그 날까지 늘어난다.
+// 앞당기지는 않는다. 서버(repo.js rollUpDue)와 같은 규칙.
+const SUB_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const cleanSubDue = (v) => {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return null;
+  if (!SUB_DATE_RE.test(String(v))) throw new DemoError('마감일 형식이 올바르지 않습니다.');
+  return String(v);
+};
+function rollUpDue(taskId, due) {
+  const out = { task_due: null, phase_end: null };
+  if (!due) return out;
+  const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
+  if (!t) return out;
+  if (!t.due_date || t.due_date < due) {
+    logEvent(t.id, 'DUE_CHANGED', t.due_date, due, currentMe());
+    t.due_date = due;
+    t.updated_at = nowISO();
+    out.task_due = due;
+  }
+  const ph = t.phase_id ? (DB.phases ?? []).find((p) => p.id === t.phase_id) : null;
+  if (ph?.end_date && ph.end_date < due) {
+    ph.end_date = due;
+    ph.updated_at = nowISO();
+    out.phase_end = due;
+  }
+  return out;
+}
 
 function createSubtask(taskId, body) {
   const title = String(body.title ?? '').trim();
   if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
+  const due = cleanSubDue(body.due_date) ?? null;
   const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
   if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
   const next = subtasksOf(taskId).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
   const row = { id: uid(), task_id: taskId, title, is_done: false, sort_order: next,
-    seq: nextSeq(t.project_id), created_at: nowISO(), done_at: null };
+    seq: nextSeq(t.project_id), due_date: due, created_at: nowISO(), done_at: null };
   (DB.subtasks ??= []).push(row);
+  const rolled = rollUpDue(taskId, due);
   save();
-  return subtasksOf(taskId).find((s) => s.id === row.id);
+  return { ...subtasksOf(taskId).find((s) => s.id === row.id), rolled };
 }
 
 function updateSubtask(id, body) {
   const row = (DB.subtasks ?? []).find((s) => s.id === id);
   if (!row) throw new DemoError('하위 업무를 찾을 수 없습니다.');
+  let rolled = { task_due: null, phase_end: null };
   // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호를 그 프로젝트에서 새로 받는다.
   if (body.task_id !== undefined && body.task_id !== row.task_id) {
     const from = DB.tasks.find((x) => x.id === row.task_id);
@@ -813,6 +845,12 @@ function updateSubtask(id, body) {
     row.sort_order = subtasksOf(to.id).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
     if (from?.project_id !== to.project_id) row.seq = nextSeq(to.project_id);
     row.task_id = to.id;
+    if (row.due_date) rolled = rollUpDue(to.id, row.due_date);   // 새 상위 기준으로 다시 민다
+  }
+  const due = cleanSubDue(body.due_date);
+  if (due !== undefined) {
+    row.due_date = due;
+    if (due) rolled = rollUpDue(row.task_id, due);
   }
   if (body.title !== undefined) {
     const title = String(body.title).trim();
@@ -824,7 +862,7 @@ function updateSubtask(id, body) {
     row.done_at = row.is_done ? nowISO() : null;
   }
   save();
-  return subtasksOf(row.task_id).find((s) => s.id === id);
+  return { ...subtasksOf(row.task_id).find((s) => s.id === id), rolled };
 }
 
 function removeSubtask(id) {

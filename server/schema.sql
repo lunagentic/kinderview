@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS subtask (
   is_done     INTEGER NOT NULL DEFAULT 0,
   sort_order  INTEGER NOT NULL DEFAULT 0,
   seq         INTEGER,            -- 상위 업무의 프로젝트 번호열에서 받는다
+  due_date    TEXT,               -- 비우면 상위 업무 마감을 따른다. 더 늦게 잡으면 상위·페이즈가 그 날까지 늘어난다
   created_at  TEXT NOT NULL,
   done_at     TEXT,
   CHECK ((is_done = 1 AND done_at IS NOT NULL) OR (is_done = 0 AND done_at IS NULL))

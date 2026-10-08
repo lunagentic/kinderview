@@ -708,6 +708,37 @@ const titleOf = (v) => {
   return t || null;
 };
 
+// 하위 업무 마감이 상위 업무 마감보다 늦으면 상위 업무가, 그게 페이즈 종료일보다 늦으면 페이즈가 그 날까지 늘어난다.
+// 앞당기지는 않는다 — 상위가 하위보다 먼저 끝날 수는 없으니 늦추기만 한다.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const cleanDue = (v) => {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return null;
+  const s = String(v);
+  if (!DATE_RE.test(s)) throw new HttpError(400, '마감일 형식이 올바르지 않습니다.');
+  return s;
+};
+function rollUpDue(taskId, due, actor) {
+  const out = { task_due: null, phase_end: null };
+  if (!due) return out;
+  const t = one('SELECT id, due_date, phase_id FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
+  if (!t) return out;
+  const at = nowISO();
+  if (!t.due_date || t.due_date < due) {
+    run('UPDATE task SET due_date = :due, updated_at = :at WHERE id = :id', { id: t.id, due, at });
+    logEvent(t.id, 'DUE_CHANGED', t.due_date, due, actor, at);
+    out.task_due = due;
+  }
+  if (t.phase_id) {
+    const ph = one('SELECT id, end_date FROM phase WHERE id = :id', { id: t.phase_id });
+    if (ph?.end_date && ph.end_date < due) {
+      run('UPDATE phase SET end_date = :due, updated_at = :at WHERE id = :id', { id: ph.id, due, at });
+      out.phase_end = due;
+    }
+  }
+  return out;
+}
+
 export const subtasks = {
   list(taskId) {
     return all(
@@ -718,26 +749,30 @@ export const subtasks = {
     ).map((r) => ({ ...r, is_done: !!r.is_done, key: ticketKey(r.project_code, r.seq) }));
   },
 
-  create(taskId, input) {
+  create(taskId, input, actor = null) {
     const title = String(input.title ?? '').trim();
     if (!title) throw new HttpError(400, '하위 업무명을 입력해 주세요.');
+    const due = cleanDue(input.due_date) ?? null;
     const task = one('SELECT id, project_id FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
     if (!task) throw new HttpError(404, '업무를 찾을 수 없습니다.');
     const next = one('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM subtask WHERE task_id = :t', { t: taskId }).n;
     const id = uid();
+    let rolled = null;
     tx(() => {
       run(
-        `INSERT INTO subtask (id, task_id, title, is_done, sort_order, seq, created_at)
-         VALUES (:id, :t, :title, 0, :n, :seq, :at)`,
-        { id, t: taskId, title, n: next, seq: nextSeq(task.project_id), at: nowISO() },
+        `INSERT INTO subtask (id, task_id, title, is_done, sort_order, seq, due_date, created_at)
+         VALUES (:id, :t, :title, 0, :n, :seq, :due, :at)`,
+        { id, t: taskId, title, n: next, seq: nextSeq(task.project_id), due, at: nowISO() },
       );
+      rolled = rollUpDue(taskId, due, actor);
     });
-    return this.list(taskId).find((r) => r.id === id);
+    return { ...this.list(taskId).find((r) => r.id === id), rolled };
   },
 
-  update(id, patch) {
+  update(id, patch, actor = null) {
     const cur = one('SELECT * FROM subtask WHERE id = :id', { id });
     if (!cur) throw new HttpError(404, '하위 업무를 찾을 수 없습니다.');
+    let rolled = { task_due: null, phase_end: null };
     // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호도 그 프로젝트의 다음 번호를 새로 받는다 — 지라와 같다.
     if (patch.task_id !== undefined && patch.task_id !== cur.task_id) {
       const from = one('SELECT id, project_id FROM task WHERE id = :id', { id: cur.task_id });
@@ -749,6 +784,14 @@ export const subtasks = {
         run('UPDATE subtask SET task_id = :t, sort_order = :n, seq = :seq WHERE id = :id', { id, t: to.id, n, seq });
       });
       cur.task_id = to.id;
+      if (cur.due_date) rolled = rollUpDue(to.id, cur.due_date, actor);   // 새 상위 기준으로 다시 민다
+    }
+    const due = cleanDue(patch.due_date);
+    if (due !== undefined) {
+      tx(() => {
+        run('UPDATE subtask SET due_date = :due WHERE id = :id', { id, due });
+        if (due) rolled = rollUpDue(cur.task_id, due, actor);
+      });
     }
     if (patch.title !== undefined) {
       const title = String(patch.title).trim();
@@ -761,7 +804,7 @@ export const subtasks = {
       run('UPDATE subtask SET is_done = :done, done_at = :at WHERE id = :id',
         { id, done, at: done ? nowISO() : null });
     }
-    return this.list(cur.task_id).find((r) => r.id === id);
+    return { ...this.list(cur.task_id).find((r) => r.id === id), rolled };
   },
 
   remove(id) {

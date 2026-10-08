@@ -1062,6 +1062,9 @@ export function subtaskModal({ task, onChange }) {
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
+               data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
+               title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
         ${r.done_at ? `<span class="when">${esc(shortDate(r.done_at.slice(0, 10)))} 완료</span>` : ''}
         <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
@@ -1075,7 +1078,7 @@ export function subtaskModal({ task, onChange }) {
         <h3 class="sbm-ttl">${esc(t.title)}</h3>
         <div class="sbm-meta">
           <span class="st">${statusPick(t)}</span>
-          <span class="meta">마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 담당 ${esc(t.owner_name)}` : ''}</span>
+          <span class="meta" data-head-meta>마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 담당 ${esc(t.owner_name)}` : ''}</span>
           <a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>상세 열기 ›</a>
         </div>
       </div>
@@ -1087,7 +1090,7 @@ export function subtaskModal({ task, onChange }) {
           <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
           <button class="btn btn-ghost" type="submit">+ 추가</button>
         </form>
-        <p class="sub-note">담당과 마감은 상위 업무를 따릅니다. 그게 달라야 하면 업무로 등록해 주세요.</p>
+        <p class="sub-note">담당은 상위 업무를 따릅니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.</p>
       </div>
     </div>`;
 
@@ -1114,6 +1117,28 @@ export function subtaskModal({ task, onChange }) {
           if (!editable()) { chk.checked = !chk.checked; return; }
           try { await api.patch(`/api/subtasks/${chk.dataset.sub}`, { is_done: chk.checked }); changed = true; }
           catch (err) { toast(err.message, true); }
+          return load();
+        }
+        const sdue = e.target.closest('[data-sub-due]');
+        if (sdue) {
+          const cur = rows.find((r) => r.id === sdue.dataset.subDue);
+          if (!editable()) { sdue.value = cur?.due_date ?? ''; return undefined; }
+          try {
+            const res = await api.patch(`/api/subtasks/${sdue.dataset.subDue}`, { due_date: sdue.value || null });
+            changed = true;
+            const r = res.rolled ?? {};
+            if (r.task_due || r.phase_end) {
+              const parts = [];
+              if (r.task_due) parts.push(`상위 업무 마감이 ${t.due_date ? `${shortDate(t.due_date)} → ` : ''}${shortDate(r.task_due)}로 밀렸습니다`);
+              if (r.phase_end) parts.push(`페이즈 종료일도 ${shortDate(r.phase_end)}로 늘어났습니다`);
+              toast(parts.join(' · '));
+              if (r.task_due) {
+                t.due_date = r.task_due;
+                const meta = root.querySelector('[data-head-meta]');
+                if (meta) meta.textContent = `마감 ${shortDate(t.due_date)}${t.owner_name ? ` · 담당 ${t.owner_name}` : ''}`;
+              }
+            } else toast(sdue.value ? '하위 업무 마감을 정했습니다.' : '마감을 비웠습니다. 상위 업무를 따릅니다.');
+          } catch (err) { toast(err.message, true); }
           return load();
         }
         const ttl = e.target.closest('[data-sub-title]');

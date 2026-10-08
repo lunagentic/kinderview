@@ -157,8 +157,8 @@ route('PATCH', '/api/comments/:id', (ctx) => comments.update(ctx.params.id, ctx.
 route('DELETE', '/api/comments/:id', (ctx) => comments.remove(ctx.params.id, ctx.me, true));
 
 route('GET', '/api/tasks/:id/subtasks', (ctx) => subtasks.list(ctx.params.id));
-route('POST', '/api/tasks/:id/subtasks', (ctx) => subtasks.create(ctx.params.id, ctx.body));
-route('PATCH', '/api/subtasks/:id', (ctx) => subtasks.update(ctx.params.id, ctx.body));
+route('POST', '/api/tasks/:id/subtasks', (ctx) => subtasks.create(ctx.params.id, ctx.body, ctx.me));
+route('PATCH', '/api/subtasks/:id', (ctx) => subtasks.update(ctx.params.id, ctx.body, ctx.me));
 route('DELETE', '/api/subtasks/:id', (ctx) => subtasks.remove(ctx.params.id));
 
 route('PATCH', '/api/tasks/:id', (ctx) => {
