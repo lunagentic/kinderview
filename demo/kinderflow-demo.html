@@ -1859,6 +1859,79 @@ body[data-gate="view"] .sub-st{pointer-events:none}
 body[data-gate="view"] .bd-st .chip-select{pointer-events:none}
 @media (max-width:720px){.bd-gh{padding:10px 10px 8px}.bd-more{flex-basis:100%;margin-left:0}}
 
+/* ── 전체 리포트(대시보드) ── */
+.rp{display:flex;flex-direction:column;gap:18px}
+.rp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.rp-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px}
+@media (max-width:900px){.rp-grid{grid-template-columns:minmax(0,1fr)}}
+.rp-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;min-width:0}
+.rp-card > h3{font-size:.95rem;font-weight:700;margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rp-card > h3 .hint{font-weight:400}
+.rp-nav{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.8rem}
+.rp-big{font-family:var(--display);font-size:2.4rem;font-weight:800;letter-spacing:-.02em;line-height:1.1;padding:8px 0 4px}
+.rp-big small{font-size:1rem;font-weight:600;color:var(--muted);margin-left:4px}
+.rp-sub{font-size:.8rem;color:var(--muted)} .rp-sub b.bad,.btn b.bad{color:var(--s-delay)}
+.rp-stack{display:flex;height:40px;border-radius:8px;overflow:hidden;background:var(--line-soft);margin:10px 0 8px;border:1px solid var(--line)}
+.rp-stack i{display:block;height:100%}
+.pr-high{background:#3b2fc8} .pr-normal{background:#5b8def} .pr-low{background:#a9b9e8}
+.rp-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.76rem;color:var(--muted);margin-top:8px}
+.rp-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0}
+.rp-legend .done,.rp-bar .done{background:var(--s-done)} .rp-legend .wait,.rp-bar .wait{background:#a9b9e8}
+.rp-legend .prog,.rp-bar .prog{background:var(--s-prog)} .rp-legend .review,.rp-bar .review{background:var(--s-review)} .rp-legend .late,.rp-bar .late{background:var(--s-delay)}
+.rp-goal{display:flex;align-items:baseline;gap:12px;padding:8px 0 6px}
+.rp-goal b{font-family:var(--display);font-size:1.7rem;font-weight:800;color:var(--s-done)} .rp-goal span{font-size:.82rem;color:var(--muted)}
+.rp-goalbar{height:26px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden}
+.rp-goalbar i{display:block;height:100%;background:var(--s-done);border-radius:6px 0 0 6px}
+/* 담당자별 쌓은 막대 */
+.rp-chart{display:flex;gap:8px;height:230px;padding-top:6px;overflow-x:auto;overflow-y:hidden}
+.rp-axis{display:flex;flex-direction:column;justify-content:space-between;font-family:var(--mono);font-size:.68rem;color:var(--muted);padding-bottom:46px;text-align:right;min-width:22px}
+.rp-cols{flex:1;display:flex;align-items:stretch;gap:10px;padding:0 4px;position:relative}
+.rp-cols::after{content:'';position:absolute;left:0;right:0;bottom:46px;height:1px;background:var(--line)}
+.rp-col{flex:1 1 0;min-width:34px;max-width:64px;display:flex;flex-direction:column;align-items:center}
+.rp-barbox{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;min-height:0}
+.rp-bar{width:70%;display:flex;flex-direction:column;border-radius:4px 4px 0 0;overflow:hidden;min-height:2px}
+.rp-bar i{display:block;min-height:2px}
+.rp-who{height:40px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:.7rem;color:var(--ink-2);white-space:nowrap;max-width:100%}
+.rp-who span{overflow:hidden;text-overflow:ellipsis;max-width:64px}
+/* 달력 */
+.rp-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
+.rp-dow{font-size:.68rem;color:var(--muted);text-align:center;padding:2px 0 4px;font-weight:600}
+.rp-day{min-height:58px;border:1px solid var(--line-soft);border-radius:4px;padding:3px 4px;font-size:.68rem;display:flex;flex-direction:column;gap:2px;min-width:0}
+.rp-day.out{opacity:.4} .rp-day.now{border-color:var(--indigo);box-shadow:inset 0 0 0 1px var(--indigo)}
+.rp-day .n{font-family:var(--mono);color:var(--muted)} .rp-day.now .n{color:var(--indigo);font-weight:700}
+.rp-ms{display:block;background:var(--pc,var(--indigo));color:#fff;border-radius:3px;padding:1px 4px;font-size:.64rem;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none}
+.rp-ms.done{opacity:.55} .rp-ms.late{background:var(--s-delay)}
+.rp-due{display:block;font-size:.62rem;color:var(--ink-2);background:var(--surface-2);border-radius:3px;padding:0 4px;text-decoration:none;white-space:nowrap}
+/* 담당자 × 프로젝트 */
+.rp-matrix-wrap{overflow-x:auto}
+.rp-matrix{border-collapse:collapse;width:100%;font-size:.82rem}
+.rp-matrix th,.rp-matrix td{border:1px solid var(--line-soft);padding:8px 10px;text-align:center}
+.rp-matrix thead th{font-size:.78rem;font-weight:600;background:var(--surface-2)}
+.rp-matrix tbody th{text-align:left;display:flex;align-items:center;gap:8px;border-right:1px solid var(--line-soft);white-space:nowrap;font-weight:600}
+.rp-matrix td a{text-decoration:none}
+.rp-dot{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;font-family:var(--mono);font-size:.74rem;font-weight:700;color:#fff;box-shadow:0 0 0 5px color-mix(in oklab, currentColor 14%, transparent)}
+.rp-dot.sm{width:10px;height:10px;box-shadow:none;margin-right:5px;font-size:0}
+.rp-dot.on{background:var(--s-prog);color:#fff} .rp-dot.late{background:var(--s-delay)} .rp-dot.done{background:var(--s-done)}
+.rp-dot.none{background:var(--line-soft);color:var(--line-soft);box-shadow:none;width:14px;height:14px}
+.rp-dot.none.sm{width:10px;height:10px}
+/* 프로젝트·페이즈 일정 */
+.rp-sched-wrap{overflow-x:auto}
+.rp-srow{display:grid;grid-template-columns:200px minmax(0,1fr);align-items:center;min-height:30px;border-bottom:1px solid var(--line-soft)}
+.rp-srow.head{min-height:24px;border-bottom:1px solid var(--line)} .rp-srow.proj{background:var(--surface-2)}
+.rp-sl{padding:0 10px;font-size:.84rem;display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap}
+.rp-ph{padding-left:14px;color:var(--ink-2);font-size:.8rem;overflow:hidden;text-overflow:ellipsis}
+.rp-phn{margin-left:auto;font-family:var(--mono);font-size:.7rem;color:var(--muted)}
+.rp-st{position:relative;height:100%;min-height:30px}
+.rp-st .g{position:absolute;top:0;bottom:0;width:1px;background:var(--line-soft)}
+.rp-mon{position:absolute;top:3px;font-family:var(--mono);font-size:.68rem;color:var(--muted);padding-left:5px;white-space:nowrap;overflow:hidden}
+.rp-today{position:absolute;top:0;bottom:-999px;width:2px;background:var(--s-delay);opacity:.7;z-index:1}
+.rp-pbar{position:absolute;top:11px;height:8px;border-radius:999px;background:var(--pc,var(--indigo));opacity:.45}
+.rp-phbar{position:absolute;top:8px;height:14px;border-radius:4px;background:color-mix(in oklab, var(--pc,var(--indigo)) 28%, var(--surface));overflow:hidden}
+.rp-phbar i{display:block;height:100%;background:var(--pc,var(--indigo))}
+.rp-dia{position:absolute;top:9px;width:11px;height:11px;transform:translateX(-50%) rotate(45deg);background:var(--indigo);border:2px solid var(--surface);z-index:1}
+.rp-dia.done{background:var(--s-done)} .rp-dia.late{background:var(--s-delay)}
+@media (max-width:720px){.rp-srow{grid-template-columns:130px minmax(0,1fr)}.rp-day{min-height:44px}}
+
 </style>
 
   <header class="topbar">
@@ -10323,6 +10396,206 @@ async function renderBoard(root, query) {
 
 
 
+// 전체 리포트 — 한 장짜리 대시보드. 이슈·현황 탭을 이 한 화면으로 모았다.
+// 위: 숫자 카드 셋(전체 업무 · 우선순위 분포 · 전체 진척). 가운데: 담당자별 진행 막대, 이번 달 마일스톤 달력.
+// 아래: 담당자 × 프로젝트 자리표, 프로젝트·페이즈 일정. 숫자는 모두 조회 시 계산(원칙 7) — 입력하는 칸은 없다.
+
+const rpYmOf = (iso) => iso.slice(0, 7);
+const rpShiftYm = (ym, n) => new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1)).toISOString().slice(0, 7);
+const PRIO = [{ code: 'HIGH', label: '높음' }, { code: 'NORMAL', label: '보통' }, { code: 'LOW', label: '낮음' }];
+
+// ── 카드 ────────────────────────────────────────────────
+const cards = (ov, tasks) => {
+  const open = tasks.filter((t) => t.status !== 'DONE');
+  const byPrio = PRIO.map((p) => ({ ...p, n: open.filter((t) => t.priority === p.code).length }));
+  const total = open.length || 1;
+  return `
+    <div class="rp-cards">
+      <section class="rp-card">
+        <h3>전체 업무</h3>
+        <div class="rp-big">${ov.summary.total}<small>건</small></div>
+        <div class="rp-sub">미완료 ${open.length} · 지연 <b class="${ov.summary.delayed ? 'bad' : ''}">${ov.summary.delayed}</b> · 미해결 이슈 <b class="${ov.summary.issues ? 'bad' : ''}">${ov.summary.issues}</b></div>
+      </section>
+      <section class="rp-card">
+        <h3>미완료 업무 우선순위</h3>
+        <div class="rp-stack" role="img" aria-label="${esc(byPrio.map((p) => `${p.label} ${p.n}`).join(', '))}">
+          ${byPrio.map((p) => `<i class="pr-${p.code.toLowerCase()}" style="width:${(p.n / total) * 100}%" title="${esc(p.label)} ${p.n}"></i>`).join('')}
+        </div>
+        <div class="rp-legend">${byPrio.map((p) => `<span><i class="pr-${p.code.toLowerCase()}"></i>${esc(p.label)} ${p.n}</span>`).join('')}</div>
+      </section>
+      <section class="rp-card">
+        <h3>전체 진척</h3>
+        <div class="rp-goal"><b>실행 ${pctText(ov.progress)}</b><span>목표 100%</span></div>
+        <div class="rp-goalbar"><i style="width:${ov.progress ?? 0}%"></i></div>
+        <div class="rp-sub">상태 무게와 하위 업무 완료 비율로 센 평균</div>
+      </section>
+    </div>`;
+};
+
+// ── 담당자별 진행 막대 ───────────────────────────────────
+const ownerChart = (ov) => {
+  const owners = ov.owners.filter((o) => o.count > 0);
+  if (!owners.length) return '<p class="hint">담당 업무가 없습니다.</p>';
+  const max = Math.max(...owners.map((o) => o.count));
+  const seg = (n, cls, label) => (n ? `<i class="${cls}" style="flex:${n}" title="${esc(label)} ${n}"></i>` : '');
+  return `
+    <div class="rp-chart">
+      <div class="rp-axis">${[max, Math.round(max / 2), 0].map((v) => `<span>${v}</span>`).join('')}</div>
+      <div class="rp-cols">
+        ${owners.map((o) => {
+          const wait = Math.max(0, o.count - o.done - o.in_progress - o.review);
+          return `
+          <div class="rp-col" title="${esc(o.display_name)} · 전체 ${o.count} · 완료 ${o.done} · 지연 ${o.delayed}">
+            <div class="rp-barbox"><div class="rp-bar" style="height:${(o.count / max) * 100}%">
+              ${seg(o.delayed, 'late', '지연')}${seg(o.review, 'review', '검토')}${seg(o.in_progress, 'prog', '진행중')}${seg(wait, 'wait', '대기')}${seg(o.done, 'done', '완료')}
+            </div></div>
+            <div class="rp-who">${avatar(memberOf(o.slack_user_id), 'sm')}<span>${esc(o.display_name)}</span></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="rp-legend"><span><i class="done"></i>완료</span><span><i class="wait"></i>대기</span><span><i class="prog"></i>진행중</span><span><i class="review"></i>검토</span><span><i class="late"></i>지연</span></div>`;
+};
+
+// ── 마일스톤 달력 ───────────────────────────────────────
+const calendar = (ym, milestones, tasks) => {
+  const first = `${ym}-01`;
+  const lead = (new Date(Date.parse(`${first}T00:00:00Z`)).getUTCDay() + 6) % 7;   // 월=0
+  const start = tlAdd(first, -lead);
+  const end = tlAdd(tlMonthNext(first), -1);
+  const days = [];
+  for (let d = start; days.length < 42 && (days.length < 35 || d <= end); d = tlAdd(d, 1)) days.push(d);
+  const msOn = (d) => milestones.filter((m) => m.due_date === d);
+  const dueOn = (d) => tasks.filter((t) => t.due_date === d && t.status !== 'DONE').length;
+  return `
+    <div class="rp-cal">
+      ${['월', '화', '수', '목', '금', '토', '일'].map((w) => `<div class="rp-dow">${w}</div>`).join('')}
+      ${days.map((d) => {
+        const out = d.slice(0, 7) !== ym;
+        const ms = msOn(d);
+        const n = dueOn(d);
+        return `<div class="rp-day${out ? ' out' : ''}${d === state.today ? ' now' : ''}">
+          <span class="n">${Number(d.slice(8, 10))}</span>
+          ${ms.map((m) => `<a class="rp-ms${m.done_at ? ' done' : m.due_date < state.today ? ' late' : ''}" style="${projectStyle(m.project_id)}"
+               href="#/project/timeline" title="${esc(`${m.project_name ?? ''} · ${m.name}${m.done_at ? ' · 달성' : m.due_date < state.today ? ' · 지연' : ''}`)}">${esc(m.name)}</a>`).join('')}
+          ${n ? `<a class="rp-due" href="#/project/board?month=${ym}" title="이 날 마감인 미완료 업무 ${n}건">마감 ${n}</a>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+};
+
+// ── 담당자 × 프로젝트 자리표 ─────────────────────────────
+const matrix = (tasks, projects) => {
+  const owners = [...new Map(tasks.map((t) => [t.owner_slack_user_id, t.owner_name])).entries()];
+  if (!owners.length || !projects.length) return '<p class="hint">표시할 담당 업무가 없습니다.</p>';
+  const cell = (uid, pid) => {
+    const mine = tasks.filter((t) => t.owner_slack_user_id === uid && t.project_id === pid);
+    if (!mine.length) return '<i class="rp-dot none" title="업무 없음"></i>';
+    const open = mine.filter((t) => t.status !== 'DONE');
+    const late = open.filter((t) => t.is_delayed).length;
+    const tip = `${mine.length}건 · 미완료 ${open.length}${late ? ` · 지연 ${late}` : ''}`;
+    if (!open.length) return `<i class="rp-dot done" title="${esc(tip)} · 모두 완료">✓</i>`;
+    if (late) return `<i class="rp-dot late" title="${esc(tip)}">${late}</i>`;
+    return `<i class="rp-dot on" title="${esc(tip)}">${open.length}</i>`;
+  };
+  return `
+    <div class="rp-matrix-wrap"><table class="rp-matrix">
+      <thead><tr><th></th>${projects.map((p) => `<th>${projectName(p.id, p.name)}</th>`).join('')}</tr></thead>
+      <tbody>${owners.map(([uid, name]) => `
+        <tr><th>${avatar(memberOf(uid), 'sm')}<span>${esc(name ?? uid)}</span></th>
+          ${projects.map((p) => `<td><a href="#/project/tasks?owner=${encodeURIComponent(uid)}&project=${encodeURIComponent(p.id)}&month=all">${cell(uid, p.id)}</a></td>`).join('')}</tr>`).join('')}
+      </tbody></table></div>
+    <div class="rp-legend"><span><i class="rp-dot on sm"></i>미완료 n건</span><span><i class="rp-dot late sm"></i>지연 n건</span><span><i class="rp-dot done sm"></i>모두 완료</span><span><i class="rp-dot none sm"></i>없음</span></div>`;
+};
+
+// ── 프로젝트 · 페이즈 일정 ────────────────────────────────
+const schedule = (rows) => {
+  const live = rows.filter((r) => r.start_date && r.end_date);
+  if (!live.length) return '<p class="hint">기간이 있는 프로젝트가 없습니다.</p>';
+  const all = live.flatMap((r) => [r.start_date, r.end_date, ...r.milestones.map((m) => m.due_date)]).concat(state.today).filter(Boolean).sort();
+  const win = { start: tlMonthStart(all[0]), end: tlAdd(tlMonthNext(all[all.length - 1]), -1) };
+  const months = [];
+  for (let m = win.start; m <= win.end; m = tlMonthNext(m)) months.push({ start: m, ...tlSpan(win, m, tlAdd(tlMonthNext(m), -1)) });
+  const todayAt = tlPoint(win, state.today);
+  const row = (label, bar, cls = '') => `
+    <div class="rp-srow ${cls}"><div class="rp-sl">${label}</div><div class="rp-st">${months.map((m) => `<i class="g" style="left:${m.left}%"></i>`).join('')}${bar}</div></div>`;
+  return `
+    <div class="rp-sched" style="min-width:${Math.max(560, months.length * 90)}px">
+      ${row('', months.map((m) => `<span class="rp-mon" style="left:${m.left}%;width:${m.width}%">${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}</span>`).join('')
+        + (todayAt === null ? '' : `<i class="rp-today" style="left:${todayAt}%"></i>`), 'head')}
+      ${live.map((r) => {
+        const pb = tlSpan(win, r.start_date, r.end_date);
+        return row(`<span class="pname" style="${projectStyle(r.id)}"><i class="pdot"></i>${esc(r.name)}</span>`,
+          `${pb ? `<b class="rp-pbar" style="${projectStyle(r.id)};left:${pb.left}%;width:${pb.width}%" title="${esc(`${shortDate(r.start_date)} ~ ${shortDate(r.end_date)}`)}"></b>` : ''}
+           ${r.milestones.map((m) => { const x = tlPoint(win, m.due_date); return x === null ? '' : `<i class="rp-dia${m.done_at ? ' done' : m.due_date < state.today ? ' late' : ''}" style="left:${x}%" title="${esc(`${m.name} · ${shortDate(m.due_date)}`)}"></i>`; }).join('')}`,
+          'proj') + r.phases.filter((p) => p.start_date && p.end_date).map((p) => {
+          const b = tlSpan(win, p.start_date, p.end_date);
+          return row(`<span class="rp-ph">${esc(p.name)}</span><span class="rp-phn">${p.progress === null ? '' : `${p.progress}%`}</span>`,
+            b ? `<b class="rp-phbar" style="${projectStyle(r.id)};left:${b.left}%;width:${b.width}%" title="${esc(`${p.name} · ${shortDate(p.start_date)} ~ ${shortDate(p.end_date)}${p.progress === null ? '' : ` · ${p.progress}%`}`)}"><i style="width:${p.progress ?? 0}%"></i></b>` : '');
+        }).join('');
+      }).join('')}
+    </div>`;
+};
+
+async function renderReport(root, query) {
+  const p = new URLSearchParams(query);
+  const ym = /^\d{4}-\d{2}$/.test(p.get('month') ?? '') ? p.get('month') : rpYmOf(state.today);
+  root.innerHTML = loading();
+  let ov; let tasks; let tl; let issues;
+  try {
+    [ov, tasks, tl, issues] = await Promise.all([
+      api.get('/api/overview'), api.get('/api/tasks?done=1'), api.get('/api/timeline'), api.get('/api/issues').catch(() => []),
+    ]);
+  } catch (err) { root.innerHTML = errorBox(err.message); return; }
+  const projects = state.projects.filter((pr) => !pr.is_archived);
+  const milestones = tl.flatMap((r) => r.milestones.map((m) => ({ ...m, project_id: r.id, project_name: r.name })));
+  const monthTasks = tasks.filter((t) => (t.due_date ?? '').slice(0, 7) === ym);
+
+  root.innerHTML = `
+    <div class="page-head">
+      <div><h1>전체 리포트</h1><div class="sub">업무·이슈·일정 데이터에서 바로 계산합니다 · 기준일 ${shortDate(state.today)}</div></div>
+      <div class="page-actions">
+        <a class="btn" href="#/project/issues">이슈 ${issues.length ? `<b class="bad">${issues.length}</b>` : '목록'}</a>
+        <a class="btn" href="#/project/monthly?month=${esc(ym)}">월간 리포트</a>
+      </div>
+    </div>
+    <div class="rp">
+      ${cards(ov, tasks)}
+      <div class="rp-grid">
+        <section class="rp-card wide">
+          <h3>담당자별 진행 상황</h3>
+          ${ownerChart(ov)}
+        </section>
+        <section class="rp-card">
+          <h3>마일스톤 일정
+            <span class="rp-nav"><button class="btn btn-ghost sm" data-month="${esc(rpShiftYm(ym, -1))}" aria-label="이전 달">‹</button>
+            <b>${esc(`${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`)}</b>
+            <button class="btn btn-ghost sm" data-month="${esc(rpShiftYm(ym, 1))}" aria-label="다음 달">›</button></span></h3>
+          ${calendar(ym, milestones, monthTasks)}
+        </section>
+      </div>
+      <section class="rp-card">
+        <h3>담당자 × 프로젝트 <span class="hint">누르면 그 사람의 그 프로젝트 업무로</span></h3>
+        ${matrix(tasks, projects)}
+      </section>
+      <section class="rp-card">
+        <h3>전체 프로젝트 일정 <span class="hint">페이즈 막대의 진한 부분이 진척률 · ◆ 마일스톤</span></h3>
+        <div class="rp-sched-wrap">${schedule(tl)}</div>
+      </section>
+    </div>`;
+
+  root.addEventListener('click', (e) => {
+    const mb = e.target.closest('[data-month]');
+    if (mb) go(`#/project/report?month=${mb.dataset.month}`);
+  });
+}
+
+
+
+
+
+
+
 // ── 내 알림 (1단계: 앱 안) ──
 // 지금 내게 해당하는 일을 데이터에서 센다 — 지연 → 오늘 마감 → D-1 → 새로 배정 → 디렉터 코멘트 → 검토.
 // Slack DM(2단계)은 같은 계산을 발송으로 잇는다 (docs/09 9.0).
@@ -11808,6 +12081,7 @@ function gatePanel() {
 
 
 
+
 const view = document.getElementById('view');
 
 // 프로젝트 매니징 아래의 화면들.
@@ -11896,9 +12170,8 @@ window.addEventListener('kf:denied', (e) => {
 const PROJECT_TABS = [
   { key: 'timeline', label: '타임라인' },
   { key: 'board',    label: '간트' },
+  { key: 'report',   label: '리포트' },
   { key: 'monthly',  label: '월간 리포트' },
-  { key: 'issues',   label: '이슈' },
-  { key: 'overview', label: '현황' },
   { key: 'tasks',    label: '업무' },
 ];
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
@@ -11916,7 +12189,7 @@ const homeTab = () => tabOrder[0];
 // 예전 주소를 새 구조로 옮긴다 (#/tasks → #/project/tasks)
 const LEGACY = { overview: 'overview', tasks: 'tasks', issues: 'issues', weekly: 'weekly' };
 // 탭에서 내린 화면도 주소로는 열린다 — 공유해 둔 링크가 죽지 않게
-const HIDDEN_SUBS = ['weekly'];
+const HIDDEN_SUBS = ['weekly', 'issues', 'overview'];
 
 const subNav = (active) => `
   <nav class="subnav" aria-label="프로젝트 매니징 화면">
@@ -12043,6 +12316,7 @@ async function render() {
       else if (sub === 'issues') { if (id) await renderIssueDetail(host, id); else await renderIssues(host, query); }
       else if (sub === 'monthly') await renderMonthly(host, query);
       else if (sub === 'board') await renderBoard(host, query);
+      else if (sub === 'report') await renderReport(host, query);
       else await renderWeekly(host, query);
       return;
     }
