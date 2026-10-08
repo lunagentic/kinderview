@@ -197,7 +197,7 @@ export async function renderTimeline(root) {
       <span class="tl-key"><i class="k-ms late"></i>지연</span>
       <span class="tl-key"><i class="k-ms done"></i>달성</span>
       <span class="tl-key"><i class="k-today"></i>오늘</span>
-      <span class="tl-hint">▸ 를 누르면 그 페이즈의 업무가 아래에 펼쳐집니다</span>
+      <span class="tl-hint">▸ 나 페이즈 막대를 누르면 그 페이즈의 업무가 아래에 펼쳐집니다</span>
       <button class="btn btn-ghost sm tl-dd" data-director-digest title="업무·페이즈에 달린 디렉터 코멘트를 모아 봅니다">${directorIcon()}디렉터 코멘트 <b data-dd-n>${dirTotal}</b></button>
     </div>
 
