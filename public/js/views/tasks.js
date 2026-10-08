@@ -136,7 +136,8 @@ export async function renderTasks(root, query) {
   }
   const manual = rows.some((t) => rank.has(t.id));
   // 타임라인 보기의 날짜 창 — 걸러진 업무의 시작·마감이 다 들어가게
-  const w = gantt ? ganttWindow(rows.flatMap((t) => [t.start_date, t.due_date])) : null;
+  const w = gantt ? ganttWindow() : null;
+  if (w) w.setStats(await api.get(`/api/monthly/stats?from=${w.win.start}&to=${w.win.end}`).catch(() => null));
 
   const projectOptions = activeProjects()
     .map((pr) => `<option value="${esc(pr.id)}"${p.get('project') === pr.id ? ' selected' : ''}>${esc(pr.name)}</option>`).join('');
@@ -262,6 +263,10 @@ export async function renderTasks(root, query) {
   if (gantt) {
     hoverTip(root);
     bindGanttScale(root, w);
+    root.querySelector('.tlg-axis')?.addEventListener('click', (e) => {
+      const mh = e.target.closest('[data-month]');
+      if (mh) go(`#/project/monthly?month=${mh.dataset.month}`);
+    });
     ganttInitialScroll(root.querySelector('.tlg-scroll'), '.tlg-axis .tlg-t', w);
     bindGanttTable(root, { findTask: (id) => rows.find((t) => t.id === id), reload });
   }

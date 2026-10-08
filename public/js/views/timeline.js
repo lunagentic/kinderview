@@ -66,11 +66,9 @@ export async function renderTimeline(root) {
   const allPhases = live.flatMap((r) => r.phases);
   for (const id of openPhases) if (!allPhases.some((p) => p.id === id)) openPhases.delete(id);
 
-  const w = ganttWindow(live.flatMap((r) => [
-    r.start_date, r.end_date,
-    ...r.phases.flatMap((p) => [p.start_date, p.end_date]),
-    ...r.milestones.map((m) => m.due_date),
-  ]));
+  const w = ganttWindow();
+  // 머리줄 호버 숫자(목표·완료·지연·이슈) — 못 받아도 차트는 그린다
+  w.setStats(await api.get(`/api/monthly/stats?from=${w.win.start}&to=${w.win.end}`).catch(() => null));
   const { win, gridLines } = w;
   // 줄 전체에 걸치는 것(오늘 선, 이번 주 띠)은 라벨 칸과 간격을 건너 트랙 위에 선다
   const onTrack = (pct) => `calc(var(--tl-label) + var(--tl-gap) + (100% - var(--tl-label) - var(--tl-gap)) * ${pct / 100})`;
@@ -389,6 +387,8 @@ export async function renderTimeline(root) {
       return;
     }
     if (e.key !== 'Enter' && e.key !== ' ') return;
+    const mh = e.target.closest('.tl-axis [data-month]');
+    if (mh) { e.preventDefault(); go(`#/project/monthly?month=${mh.dataset.month}`); return; }
     const fold = e.target.closest('.tl-bar[data-fold-phase]');
     if (fold) { e.preventDefault(); togglePhase(fold.dataset.foldPhase); return; }
     const line = e.target.closest('.tl-task[data-line]');
@@ -400,6 +400,9 @@ export async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
+    // 머리줄의 달 이름 — 그 달의 월간 리포트로
+    const mh = e.target.closest('.tl-axis [data-month]');
+    if (mh) { e.preventDefault(); return go(`#/project/monthly?month=${mh.dataset.month}`); }
     // 열린 페이즈의 트랙 빈 곳을 누르면 접힌다 — 막대가 화면 밖으로 밀려 있어도 닫을 수 있다
     const openTrack = e.target.closest('.tl-phase.is-open .tl-track');
     if (openTrack && !e.target.closest('.tl-bar, .tl-ms, [data-milestone], a, button')) {

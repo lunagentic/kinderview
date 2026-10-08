@@ -2020,6 +2020,86 @@ function weeklyGenerate(anchor, by) {
   return report;
 }
 
+// ── 월간 리포트 (server/monthly.js 와 같은 규칙) ──────────
+// 목표 업무 = 그 달에 마감인 업무(백로그 제외). 마감을 그 달로 잡는 것이 곧 목표 선언이다.
+const monthEndOf = (ym) => {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+};
+const monthlyBrief = (t) => ({
+  id: t.id, key: t.key, title: t.title, project_id: t.project_id, project_name: t.project_name,
+  phase_id: t.phase_id, phase_name: t.phase_name, area: t.area,
+  owner_name: t.owner_name, owner_slack_user_id: t.owner_slack_user_id,
+  status: t.status, status_label: sLabel(t.status), priority: t.priority,
+  due_date: t.due_date, completed_at: t.completed_at,
+  is_delayed: t.is_delayed, open_issue_count: t.open_issue_count,
+  subtask_total: t.subtask_total, subtask_done: t.subtask_done,
+});
+function monthlyForMonth(ym, ref = today()) {
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(ym)) ? ym : today().slice(0, 7);
+  const periodStart = `${month}-01`;
+  const periodEnd = monthEndOf(month);
+  const rows = listTasks({ month, includeDone: true, today: ref });
+  const ids = new Set(rows.map((t) => t.id));
+  const done = rows.filter((t) => t.status === 'DONE');
+  const delayed = rows.filter((t) => t.is_delayed);
+  const openIssues = listIssues({}).filter((i) => i.task_id && ids.has(i.task_id));
+
+  // 이달이 마감이었다가 뒤로 밀린 업무 — DUE_CHANGED 이력으로 센다
+  const archived = new Set(DB.projects.filter((p) => p.is_archived).map((p) => p.id));
+  const slipMap = new Map();
+  for (const e of DB.events ?? []) {
+    if (e.event_type !== 'DUE_CHANGED' || !e.from_value || !e.to_value) continue;
+    if (e.from_value < periodStart || e.from_value > periodEnd || e.to_value <= periodEnd) continue;
+    const cur = slipMap.get(e.task_id);
+    slipMap.set(e.task_id, cur && cur < e.from_value ? cur : e.from_value);
+  }
+  const slipped = [...slipMap].map(([taskId, fromDue]) => {
+    const raw = DB.tasks.find((t) => t.id === taskId && !t.deleted_at);
+    if (!raw || (raw.project_id && archived.has(raw.project_id))) return null;
+    if (raw.due_date && raw.due_date <= periodEnd) return null;
+    return { ...monthlyBrief(hydrate(raw, ref)), from_due: fromDue };
+  }).filter(Boolean).sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'));
+
+  const groups = [];
+  for (const t of rows) {
+    const pid = t.project_id ?? '';
+    let g = groups.find((x) => x.project_id === pid);
+    if (!g) { g = { project_id: pid, project_name: t.project_name ?? '프로젝트 미지정', phases: [] }; groups.push(g); }
+    const phid = t.phase_id ?? '';
+    let ph = g.phases.find((x) => x.phase_id === phid);
+    if (!ph) { ph = { phase_id: phid, phase_name: t.phase_name ?? '페이즈 미지정', tasks: [], done: 0 }; g.phases.push(ph); }
+    ph.tasks.push(monthlyBrief(t));
+    if (t.status === 'DONE') ph.done += 1;
+  }
+  for (const g of groups) {
+    g.phases.sort((a, b) => (a.phase_id === '') - (b.phase_id === ''));
+    g.target = g.phases.reduce((n, p) => n + p.tasks.length, 0);
+    g.done = g.phases.reduce((n, p) => n + p.done, 0);
+  }
+  groups.sort((a, b) => (a.project_id === '') - (b.project_id === '') || b.target - a.target);
+
+  return {
+    month, period_start: periodStart, period_end: periodEnd, as_of: ref,
+    summary: {
+      target: rows.length, done: done.length,
+      pct: rows.length ? Math.round((done.length / rows.length) * 100) : null,
+      delayed: delayed.length, open_issues: openIssues.length, slipped: slipped.length,
+    },
+    groups,
+    issues: openIssues.map((i) => ({
+      id: i.id, title: i.title, severity: i.severity, status: i.status, task_id: i.task_id,
+      task_title: i.task_title, owner_name: i.owner_name, target_resolve_date: i.target_resolve_date,
+    })),
+    slipped,
+  };
+}
+/** 타임라인 머리줄 호버용 — 기간 안에 마감인 업무의 날짜·상태만 */
+function monthlyDueStats(from, to) {
+  return listTasks({ dueFrom: from, dueTo: to, includeDone: true })
+    .map((t) => ({ due_date: t.due_date, done: t.status === 'DONE', late: t.is_delayed, issues: t.open_issue_count ?? 0 }));
+}
+
 function weeklyShare(id) {
   const report = DB.weekly_reports.find((r) => r.id === id);
   if (!report) throw new DemoError('리포트를 찾을 수 없습니다.');
@@ -2486,6 +2566,13 @@ function handle(method, path, body) {
   }
 
   if (p === '/api/weekly' && method === 'GET') return weeklyForWeek(sp.get('week') || today());
+  if (p === '/api/monthly' && method === 'GET') return monthlyForMonth(sp.get('month') || today().slice(0, 7));
+  if (p === '/api/monthly/stats' && method === 'GET') {
+    const from = sp.get('from');
+    const to = sp.get('to');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(to ?? '')) throw new Error('from/to 날짜가 필요합니다.');
+    return monthlyDueStats(from, to);
+  }
   if (p === '/api/weekly/list' && method === 'GET') {
     return DB.weekly_reports.map(({ id, period_start, period_end, generated_at, shared_at }) =>
       ({ id, period_start, period_end, generated_at, shared_at }))

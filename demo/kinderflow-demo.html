@@ -894,6 +894,11 @@ body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:n
 .tl-nav{display:flex;align-items:center;gap:2px}
 .tl-nav .btn[disabled]{opacity:.45;cursor:default}
 .tl-range-now{margin-left:8px;font-family:var(--mono);font-size:.76rem;color:var(--ink-2)}
+/* 머리줄의 달 이름 — 올리면 그 달 숫자, 누르면 월간 리포트 */
+.tl-month[data-month]{cursor:pointer}
+.tl-month[data-month]:hover,.tl-month[data-month]:focus-visible{color:var(--indigo);background:color-mix(in oklab, var(--indigo) 8%, transparent);outline:none}
+.tl-month.has-stat::after{content:'';position:absolute;right:6px;top:6px;width:4px;height:4px;border-radius:50%;background:var(--indigo);opacity:.5}
+.tl-week[data-tip]{cursor:help}
 
 .tl-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 2px 10px;font-size:.76rem;color:var(--muted)}
 .tl-key{display:inline-flex;align-items:center;gap:7px}
@@ -1719,7 +1724,8 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .tl-phase .tl-name{cursor:text}
 .tl-phase .tl-name:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 .tl-ph-line{flex:1 1 auto;min-width:0;flex-direction:row;align-items:center;gap:8px}
-.tl-ph-line .tl-name{flex:1 1 auto;min-width:60px}
+.tl-ph-line .tl-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 이름 글자 바깥(빈 칸)은 펼치기 영역이다 — 제목 단추가 줄 끝까지 늘어나면 안 된다 */
 /* 진척·수·코멘트는 오른쪽에 열을 맞춰 선다 */
 .tl-ph-meta{display:inline-flex;align-items:center;gap:6px;flex:none;margin-left:auto}
 .tl-ph-line .ph-cm{flex:none;min-width:36px;justify-content:center}
@@ -1746,6 +1752,31 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
   .subs .x{color:var(--muted);padding:6px 8px}
   .sub-add input,.sub-add button{min-height:40px}
 }
+
+/* ── 월간 리포트 ── */
+.mr .pill .v small{font-size:.8rem;font-weight:600;color:var(--muted)}
+.pill.good .v{color:var(--s-done)}
+.mr-bar{display:flex;align-items:center;gap:10px;margin:12px 0 0}
+.mr-bar .track{flex:1;height:9px;background:var(--surface-2);border-radius:999px;position:relative;overflow:hidden;display:block}
+.mr-bar .fill{position:absolute;inset:0 auto 0 0;background:var(--indigo);border-radius:999px}
+.mr-bar .fill.none{background:transparent}
+.mr-bar .pct{font-family:var(--mono);font-size:.8rem;font-weight:700}
+.mr-proj{margin-top:14px;padding:10px 12px 12px;border:1px solid var(--line);border-left:4px solid var(--pc, var(--line));border-radius:var(--radius-sm)}
+.mr-proj h4{font-size:.92rem;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.mr-proj .n,.mr-ph-head .n{font-family:var(--mono);font-size:.74rem;color:var(--muted);font-weight:500}
+.mr-phase{margin-top:8px}
+.mr-ph-head{font-size:.82rem;font-weight:600;color:var(--ink-2);margin-bottom:4px}
+.report .mr-phase ul{padding-left:0;list-style:none}
+.mr-task{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:4px 6px;border-radius:6px}
+.mr-task:hover{background:var(--surface-2)}
+.mr-task.done .mr-ttl{color:var(--muted);text-decoration:line-through}
+.mr-ttl{flex:1 1 200px;min-width:0;text-decoration:underline;text-underline-offset:2px}
+.mr-own{color:var(--muted);font-size:.82rem}
+.mr-due{font-family:var(--mono);font-size:.76rem;color:var(--ink-2)}
+.mr-due.late{color:var(--s-delay);font-weight:700}
+.mr-sub,.mr-iss{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.mr-iss{color:var(--s-issue);font-weight:600}
+@media (max-width:720px){.mr-task{padding:6px 4px}.mr-ttl{flex-basis:100%}}
 
 </style>
 
@@ -4707,6 +4738,86 @@ function weeklyGenerate(anchor, by) {
   return report;
 }
 
+// ── 월간 리포트 (server/monthly.js 와 같은 규칙) ──────────
+// 목표 업무 = 그 달에 마감인 업무(백로그 제외). 마감을 그 달로 잡는 것이 곧 목표 선언이다.
+const monthEndOf = (ym) => {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+};
+const monthlyBrief = (t) => ({
+  id: t.id, key: t.key, title: t.title, project_id: t.project_id, project_name: t.project_name,
+  phase_id: t.phase_id, phase_name: t.phase_name, area: t.area,
+  owner_name: t.owner_name, owner_slack_user_id: t.owner_slack_user_id,
+  status: t.status, status_label: sLabel(t.status), priority: t.priority,
+  due_date: t.due_date, completed_at: t.completed_at,
+  is_delayed: t.is_delayed, open_issue_count: t.open_issue_count,
+  subtask_total: t.subtask_total, subtask_done: t.subtask_done,
+});
+function monthlyForMonth(ym, ref = today()) {
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(ym)) ? ym : today().slice(0, 7);
+  const periodStart = `${month}-01`;
+  const periodEnd = monthEndOf(month);
+  const rows = listTasks({ month, includeDone: true, today: ref });
+  const ids = new Set(rows.map((t) => t.id));
+  const done = rows.filter((t) => t.status === 'DONE');
+  const delayed = rows.filter((t) => t.is_delayed);
+  const openIssues = listIssues({}).filter((i) => i.task_id && ids.has(i.task_id));
+
+  // 이달이 마감이었다가 뒤로 밀린 업무 — DUE_CHANGED 이력으로 센다
+  const archived = new Set(DB.projects.filter((p) => p.is_archived).map((p) => p.id));
+  const slipMap = new Map();
+  for (const e of DB.events ?? []) {
+    if (e.event_type !== 'DUE_CHANGED' || !e.from_value || !e.to_value) continue;
+    if (e.from_value < periodStart || e.from_value > periodEnd || e.to_value <= periodEnd) continue;
+    const cur = slipMap.get(e.task_id);
+    slipMap.set(e.task_id, cur && cur < e.from_value ? cur : e.from_value);
+  }
+  const slipped = [...slipMap].map(([taskId, fromDue]) => {
+    const raw = DB.tasks.find((t) => t.id === taskId && !t.deleted_at);
+    if (!raw || (raw.project_id && archived.has(raw.project_id))) return null;
+    if (raw.due_date && raw.due_date <= periodEnd) return null;
+    return { ...monthlyBrief(hydrate(raw, ref)), from_due: fromDue };
+  }).filter(Boolean).sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'));
+
+  const groups = [];
+  for (const t of rows) {
+    const pid = t.project_id ?? '';
+    let g = groups.find((x) => x.project_id === pid);
+    if (!g) { g = { project_id: pid, project_name: t.project_name ?? '프로젝트 미지정', phases: [] }; groups.push(g); }
+    const phid = t.phase_id ?? '';
+    let ph = g.phases.find((x) => x.phase_id === phid);
+    if (!ph) { ph = { phase_id: phid, phase_name: t.phase_name ?? '페이즈 미지정', tasks: [], done: 0 }; g.phases.push(ph); }
+    ph.tasks.push(monthlyBrief(t));
+    if (t.status === 'DONE') ph.done += 1;
+  }
+  for (const g of groups) {
+    g.phases.sort((a, b) => (a.phase_id === '') - (b.phase_id === ''));
+    g.target = g.phases.reduce((n, p) => n + p.tasks.length, 0);
+    g.done = g.phases.reduce((n, p) => n + p.done, 0);
+  }
+  groups.sort((a, b) => (a.project_id === '') - (b.project_id === '') || b.target - a.target);
+
+  return {
+    month, period_start: periodStart, period_end: periodEnd, as_of: ref,
+    summary: {
+      target: rows.length, done: done.length,
+      pct: rows.length ? Math.round((done.length / rows.length) * 100) : null,
+      delayed: delayed.length, open_issues: openIssues.length, slipped: slipped.length,
+    },
+    groups,
+    issues: openIssues.map((i) => ({
+      id: i.id, title: i.title, severity: i.severity, status: i.status, task_id: i.task_id,
+      task_title: i.task_title, owner_name: i.owner_name, target_resolve_date: i.target_resolve_date,
+    })),
+    slipped,
+  };
+}
+/** 타임라인 머리줄 호버용 — 기간 안에 마감인 업무의 날짜·상태만 */
+function monthlyDueStats(from, to) {
+  return listTasks({ dueFrom: from, dueTo: to, includeDone: true })
+    .map((t) => ({ due_date: t.due_date, done: t.status === 'DONE', late: t.is_delayed, issues: t.open_issue_count ?? 0 }));
+}
+
 function weeklyShare(id) {
   const report = DB.weekly_reports.find((r) => r.id === id);
   if (!report) throw new DemoError('리포트를 찾을 수 없습니다.');
@@ -5173,6 +5284,13 @@ function handle(method, path, body) {
   }
 
   if (p === '/api/weekly' && method === 'GET') return weeklyForWeek(sp.get('week') || today());
+  if (p === '/api/monthly' && method === 'GET') return monthlyForMonth(sp.get('month') || today().slice(0, 7));
+  if (p === '/api/monthly/stats' && method === 'GET') {
+    const from = sp.get('from');
+    const to = sp.get('to');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(to ?? '')) throw new Error('from/to 날짜가 필요합니다.');
+    return monthlyDueStats(from, to);
+  }
   if (p === '/api/weekly/list' && method === 'GET') {
     return DB.weekly_reports.map(({ id, period_start, period_end, generated_at, shared_at }) =>
       ({ id, period_start, period_end, generated_at, shared_at }))
@@ -7456,43 +7574,89 @@ const tlPoint = (win, date) => {
 };
 
 // ── 보기 단위 ───────────────────────────────────────────
-// 월간은 모든 일정을 감싸는 긴 창(주 눈금), 주간은 기준 주 앞뒤를 하루 칸으로 편다.
+// 지라식: 배율(주간 · 월간 · 분기)과 이동(‹ 오늘 ›)을 나눈다.
+// 주간은 기준 주 앞뒤를 하루 칸으로, 월간은 기준 달 앞뒤를 주 칸으로, 분기는 기준 분기 앞뒤를 달 칸으로 편다.
 // 처음엔 주간 — 이번 주에 무엇이 걸려 있는지가 가장 자주 묻는 질문이다.
-// 단위는 보는 사람 취향이라 이 브라우저에 남기고, 넘겨 본 위치는 화면을 떠나면 이번 주로 돌아온다.
-const TL_WEEKS = 4;        // 한 화면에 보이는 주
+// 단위는 보는 사람 취향이라 이 브라우저에 남기고, 넘겨 본 위치는 화면을 떠나면 오늘로 돌아온다.
+const TL_WEEKS = 4;        // 주간: 한 화면에 보이는 주
 const TL_BACK = 6;         // 그 앞으로 더 그려 두는 주 — 지난 것은 스크롤로 본다
 const TL_FWD = 6;          // 그 뒤로 더 그려 두는 주
-let tlScale = readPref('kf.tl.scale') === 'month' ? 'month' : 'week';
-let tlAnchor = null;       // 주간 창의 기준 월요일(화면 왼쪽에 오는 주). null 이면 이번 주
+const TL_MONTH_BACK = 2;   // 월간: 기준 달 앞에 더 그리는 달
+const TL_MONTH_FWD = 3;    // 월간: 기준 달 뒤에 더 그리는 달
+const TL_Q_BACK = 1;       // 분기: 앞에 더 그리는 분기
+const TL_Q_FWD = 2;        // 분기: 뒤에 더 그리는 분기
+const TL_SCALES = [
+  { key: 'week', label: '주간' }, { key: 'month', label: '월간' }, { key: 'quarter', label: '분기' },
+];
+let tlScale = TL_SCALES.some((x) => x.key === readPref('kf.tl.scale')) ? readPref('kf.tl.scale') : 'week';
+let tlAnchor = null;       // 창의 기준일 — 주간은 월요일, 월간은 달 첫날, 분기는 분기 첫날. null 이면 오늘이 든 기간
+const tlQuarterStart = (iso) => {
+  const q = Math.floor((Number(iso.slice(5, 7)) - 1) / 3);
+  return `${iso.slice(0, 4)}-${String(q * 3 + 1).padStart(2, '0')}-01`;
+};
+const tlAddMonths = (iso, n) => {
+  let d = tlMonthStart(iso);
+  for (let i = 0; i < Math.abs(n); i += 1) d = n > 0 ? tlMonthNext(d) : tlMonthStart(tlAdd(d, -1));
+  return d;
+};
+const tlQuarterLabel = (iso) => `${iso.slice(0, 4)}년 ${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}분기`;
+/** 지금 배율에서 오늘이 든 기간의 첫날 */
+const tlHome = () => (tlScale === 'week' ? tlMonday(state.today)
+  : tlScale === 'month' ? tlMonthStart(state.today) : tlQuarterStart(state.today));
 
 /**
  * 날짜 창과 축을 만든다. dates 는 월간 창이 감싸야 할 날짜들(없는 값은 걸러 준다).
  * 돌려주는 w 하나로 눈금(gridLines)·머리줄(axisTrack)·막대 위치(span/point)를 다 그린다.
  */
-function ganttWindow(dates = []) {
-  const weekly = tlScale === 'week';
-  const anchor = tlAnchor ?? tlMonday(state.today);
+function ganttWindow() {
+  const scale = tlScale;
+  const weekly = scale === 'week';
+  const quarterly = scale === 'quarter';
+  const anchor = tlAnchor ?? tlHome();
   let winStart;
   let winEnd;
   if (weekly) {
     // 끝을 월요일로 잡아야 마지막 날도 한 칸을 온전히 갖는다
     winStart = tlAdd(anchor, -TL_BACK * 7);
     winEnd = tlAdd(anchor, (TL_WEEKS + TL_FWD) * 7);
+  } else if (quarterly) {
+    winStart = tlAddMonths(anchor, -TL_Q_BACK * 3);
+    winEnd = tlAdd(tlAddMonths(anchor, (1 + TL_Q_FWD) * 3), -1);
   } else {
-    // 월간 = 모든 날짜를 감싸는 달 경계. 최소 3개월은 확보한다.
-    const all = [...dates, state.today].filter(Boolean).sort();
-    winStart = tlMonthStart(all[0]);
-    winEnd = tlAdd(tlMonthNext(all[all.length - 1]), -1);
-    while (tlDiff(winStart, winEnd) < 89) winEnd = tlAdd(tlMonthNext(winEnd), -1);
+    winStart = tlAddMonths(anchor, -TL_MONTH_BACK);
+    winEnd = tlAdd(tlAddMonths(anchor, 1 + TL_MONTH_FWD), -1);
   }
   const win = { start: winStart, end: winEnd };
+  // 기준 기간(화면에 먼저 보이는 범위)의 끝
+  const anchorEnd = weekly ? tlAdd(anchor, TL_WEEKS * 7 - 1)
+    : tlAdd(tlAddMonths(anchor, quarterly ? 3 : 1), -1);
 
   const months = [];
   for (let m = tlMonthStart(winStart); tlParse(m) <= tlParse(winEnd); m = tlMonthNext(m)) {
     const end = tlAdd(tlMonthNext(m), -1);
-    months.push({ start: m, ...tlSpan(win, m, end > winEnd ? winEnd : end) });
+    months.push({ start: m, end: end > winEnd ? winEnd : end, now: m <= state.today && state.today <= end, ...tlSpan(win, m, end > winEnd ? winEnd : end) });
   }
   const todayAt = tlPoint(win, state.today);
+
+  // 머리줄 호버 숫자 — 마감일 기준 업무 목록(/api/monthly/stats)을 그리는 쪽이 넣어 준다. 없으면 툴팁도 없다.
+  let stats = null;
+  const setStats = (rows) => { stats = Array.isArray(rows) ? rows : null; };
+  const countIn = (from, to) => {
+    const inRange = stats.filter((r) => r.due_date >= from && r.due_date <= to);
+    return {
+      target: inRange.length, done: inRange.filter((r) => r.done).length,
+      late: inRange.filter((r) => r.late).length, issues: inRange.reduce((n, r) => n + (r.issues || 0), 0),
+    };
+  };
+  const statTip = (label, from, to, more) => {
+    if (!stats) return '';
+    const c = countIn(from, to);
+    const pct = c.target ? ` (${Math.round((c.done / c.target) * 100)}%)` : '';
+    const body = c.target
+      ? `목표 ${c.target} · 완료 ${c.done}${pct} · 지연 ${c.late} · 이슈 ${c.issues}`
+      : '이 기간에 마감인 업무 없음';
+    return ` data-tip="${esc(`<b>${label}</b><br>${body}${more ? `<br><span class="tip-sub">${more}</span>` : ''}`)}"`;
+  };
 
   // 주 칸 — 월요일에 선다. 창은 달 첫날에서 시작할 수 있으니 첫 주는 앞쪽이 잘린다.
   const weeks = [];
@@ -7520,50 +7684,58 @@ function ganttWindow(dates = []) {
     ].join(''));
 
   // 날짜 머리줄. 창이 같으면 눈금도 같아야 하니 그리는 쪽마다 이걸 쓴다.
+  // 달 이름은 어디서나 월간 리포트로 가는 문이다 — 올리면 그 달 숫자, 누르면 리포트
+  const monthHead = (m) => `
+      <span class="tl-month${m.now ? ' now' : ''}${stats ? ' has-stat' : ''}" data-month="${m.start.slice(0, 7)}"
+            style="left:${m.left}%;width:${m.width}%" role="link" tabindex="0"
+            ${statTip(`${m.start.slice(0, 4)}년 ${Number(m.start.slice(5, 7))}월`, m.start, tlAdd(tlMonthNext(m.start), -1), '눌러서 월간 리포트')}>
+        ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' || quarterly ? ` ’${m.start.slice(2, 4)}` : ''}
+      </span>`;
+  const weekTip = (w) => statTip(`${tlWeekLabel(w.start)} · ${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`, w.start, tlAdd(w.start, 6));
   const axisTrack = () => `
     ${weekly ? weeks.map((w) => `
       <span class="tl-month${w.now ? ' now' : ''}" style="left:${w.left}%;width:${w.width}%"
-            title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">${tlWeekLabel(w.start)}</span>`).join('')
-    : months.map((m) => `
-      <span class="tl-month" style="left:${m.left}%;width:${m.width}%">
-        ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}
-      </span>`).join('')}
+            ${stats ? weekTip(w) : `title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}"`}>${tlWeekLabel(w.start)}</span>`).join('')
+    : months.map(monthHead).join('')}
     ${weekly ? days.map((d) => {
       const dow = new Date(tlParse(d.date)).getUTCDay();
       return `<span class="tl-day${d.date === state.today ? ' now' : ''}${dow === 0 || dow === 6 ? ' we' : ''}"
                 data-date="${d.date}" style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
-    }).join('') : weeks.map((w) => `
+    }).join('') : quarterly ? '' : weeks.map((w) => `
       <span class="tl-week${w.now ? ' now' : ''}${w.edge ? '' : ' cut'}" style="left:${w.left}%;width:${w.width}%"
-            title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">
+            ${stats ? weekTip(w) : `title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}"`}>
         ${w.edge ? `${Number(w.start.slice(5, 7))}/${Number(w.start.slice(8, 10))}` : ''}
       </span>`).join('')}
     ${todayAt === null || weekly ? '' : `<i class="tl-today-cap" style="left:${todayAt}%">오늘</i>`}`;
 
-  // 트랙 폭 — 주간은 하루 26px, 월간은 한 주 40px 밑으로는 안 내려간다
-  const trackMin = weekly ? days.length * 26 : weeks.length * 40;
+  // 트랙 폭 — 주간은 하루 26px, 월간은 한 주 40px, 분기는 한 달 110px 밑으로는 안 내려간다
+  const trackMin = weekly ? days.length * 26 : quarterly ? months.length * 110 : weeks.length * 40;
+  const rangeLabel = weekly ? `${shortDate(anchor)} ~ ${shortDate(anchorEnd)}`
+    : quarterly ? `${tlQuarterLabel(anchor)} (${Number(anchor.slice(5, 7))}~${Number(anchorEnd.slice(5, 7))}월)`
+      : `${anchor.slice(0, 4)}년 ${Number(anchor.slice(5, 7))}월`;
 
   return {
-    weekly, anchor, win, shownEnd: weekly ? tlAdd(winEnd, -1) : winEnd,
-    months, weeks, days, todayAt, thisWeek, trackMin, gridLines, axisTrack,
+    scale, weekly, quarterly, anchor, anchorEnd, atHome: tlAnchor === null, win, shownEnd: weekly ? tlAdd(winEnd, -1) : winEnd,
+    months, weeks, days, todayAt, thisWeek, trackMin, rangeLabel, gridLines, axisTrack, setStats,
   };
 }
 
-/** 보기 단위 도구줄 — 월간/주간 · ‹ 이번 주 › · 기준 기간 */
+/** 보기 단위 도구줄 — [주간 | 월간 | 분기] · ‹ 오늘 › · 기준 기간. 지라 타임라인과 같은 짜임이다. */
 function ganttScaleBar(w) {
+  const unit = w.weekly ? '4주' : w.quarterly ? '분기' : '달';
   return `
     <div class="tl-scale">
       <div class="tl-seg" role="group" aria-label="보기 단위">
-        <button type="button" data-scale="month" aria-pressed="${!w.weekly}">월간</button>
-        <button type="button" data-scale="week" aria-pressed="${w.weekly}">주간</button>
+        ${TL_SCALES.map((sc) => `<button type="button" data-scale="${sc.key}" aria-pressed="${w.scale === sc.key}">${sc.label}</button>`).join('')}
       </div>
-      ${w.weekly ? `
-        <div class="tl-nav">
-          <button type="button" class="btn btn-ghost sm" data-shift="-1" aria-label="이전 4주">‹</button>
-          <button type="button" class="btn btn-ghost sm" data-shift="0"${tlAnchor ? '' : ' disabled'}>이번 주</button>
-          <button type="button" class="btn btn-ghost sm" data-shift="1" aria-label="다음 4주">›</button>
-          <span class="tl-range-now">${esc(`${shortDate(w.anchor)} ~ ${shortDate(tlAdd(w.anchor, TL_WEEKS * 7 - 1))}`)}</span>
-          <span class="hint">앞뒤는 가로로 스크롤</span>
-        </div>` : ''}
+      <div class="tl-nav">
+        <button type="button" class="btn btn-ghost sm" data-shift="-1" aria-label="이전 ${unit}" title="이전 ${unit}">‹</button>
+        <button type="button" class="btn btn-ghost sm" data-shift="0"${w.atHome ? ' disabled' : ''}
+                title="오늘이 든 ${w.weekly ? '주' : w.quarterly ? '분기' : '달'}로">오늘</button>
+        <button type="button" class="btn btn-ghost sm" data-shift="1" aria-label="다음 ${unit}" title="다음 ${unit}">›</button>
+        <span class="tl-range-now">${esc(w.rangeLabel)}</span>
+        <span class="hint">앞뒤는 가로로 스크롤</span>
+      </div>
     </div>`;
 }
 
@@ -7579,8 +7751,10 @@ function bindGanttScale(root, w) {
       writePref('kf.tl.scale', tlScale);
     } else if (sh) {
       const n = Number(sh.dataset.shift);
-      tlAnchor = n === 0 ? null : tlAdd(w.anchor, n * TL_WEEKS * 7);
-      if (tlAnchor === tlMonday(state.today)) tlAnchor = null;
+      if (n === 0) tlAnchor = null;
+      else if (w.weekly) tlAnchor = tlAdd(w.anchor, n * TL_WEEKS * 7);
+      else tlAnchor = tlAddMonths(w.anchor, n * (w.quarterly ? 3 : 1));
+      if (tlAnchor === tlHome()) tlAnchor = null;
     } else return;
     window.dispatchEvent(new Event('kf:reload'));
   });
@@ -7595,9 +7769,11 @@ function ganttInitialScroll(box, trackSel, w) {
   const track = box.querySelector(trackSel);
   if (!track || box.scrollWidth <= box.clientWidth) return;
   const left = track.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft;
-  // 주간은 기준 날짜 칸의 실제 위치를 쓴다 — 비율 계산은 반 칸쯤 어긋날 수 있다
+  // 주간은 기준 날짜 칸, 월간·분기는 기준 달 칸의 실제 위치를 쓴다 — 비율 계산은 반 칸쯤 어긋날 수 있다
   const dayEl = w.weekly ? track.querySelector(`.tl-day[data-date="${w.anchor}"]`) : null;
   if (dayEl) { box.scrollLeft = dayEl.offsetLeft; return; }
+  const monEl = !w.weekly && !w.atHome ? track.querySelector(`.tl-month[data-month="${w.anchor.slice(0, 7)}"]`) : null;
+  if (monEl) { box.scrollLeft = monEl.offsetLeft; return; }
   if (w.todayAt === null) return;
   box.scrollLeft = Math.max(0, track.clientWidth * (w.todayAt / 100) - (box.clientWidth - left) * 0.35);
 }
@@ -8290,7 +8466,8 @@ async function renderTasks(root, query) {
   }
   const manual = rows.some((t) => rank.has(t.id));
   // 타임라인 보기의 날짜 창 — 걸러진 업무의 시작·마감이 다 들어가게
-  const w = gantt ? ganttWindow(rows.flatMap((t) => [t.start_date, t.due_date])) : null;
+  const w = gantt ? ganttWindow() : null;
+  if (w) w.setStats(await api.get(`/api/monthly/stats?from=${w.win.start}&to=${w.win.end}`).catch(() => null));
 
   const projectOptions = activeProjects()
     .map((pr) => `<option value="${esc(pr.id)}"${p.get('project') === pr.id ? ' selected' : ''}>${esc(pr.name)}</option>`).join('');
@@ -8416,6 +8593,10 @@ async function renderTasks(root, query) {
   if (gantt) {
     hoverTip(root);
     bindGanttScale(root, w);
+    root.querySelector('.tlg-axis')?.addEventListener('click', (e) => {
+      const mh = e.target.closest('[data-month]');
+      if (mh) go(`#/project/monthly?month=${mh.dataset.month}`);
+    });
     ganttInitialScroll(root.querySelector('.tlg-scroll'), '.tlg-axis .tlg-t', w);
     bindGanttTable(root, { findTask: (id) => rows.find((t) => t.id === id), reload });
   }
@@ -9708,6 +9889,132 @@ function toMarkdown(report, brief = false) {
 
 
 
+// 월간 리포트 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
+// 사람이 따로 적는 칸은 없다. 마감을 그 달로 잡는 것이 곧 목표 선언이고, 숫자는 업무·이슈·이력에서 나온다.
+
+const shiftMonth = (ym, n) => {
+  const y = Number(ym.slice(0, 4));
+  const m = Number(ym.slice(5, 7)) - 1 + n;
+  const d = new Date(Date.UTC(y, m, 1));
+  return d.toISOString().slice(0, 7);
+};
+const monthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
+
+const mrTaskLine = (t) => `
+  <li class="mr-task${t.status === 'DONE' ? ' done' : ''}${t.is_delayed ? ' late' : ''}">
+    ${ticketTag(t)}
+    <a href="#/project/tasks/${esc(t.id)}" class="mr-ttl">${esc(t.title)}</a>
+    <span class="mr-own">${esc(t.owner_name ?? '')}</span>
+    <span class="mr-due${t.is_delayed ? ' late' : ''}">${esc(shortDate(t.due_date))}${t.is_delayed ? ' · 지연' : ''}</span>
+    ${t.subtask_total ? `<span class="mr-sub">하위 ${t.subtask_done}/${t.subtask_total}</span>` : ''}
+    ${t.open_issue_count ? `<span class="mr-iss" title="미해결 이슈">이슈 ${t.open_issue_count}</span>` : ''}
+    ${statusChip(t.status)}
+  </li>`;
+
+async function renderMonthly(root, query) {
+  const p = new URLSearchParams(query);
+  const month = /^\d{4}-\d{2}$/.test(p.get('month') ?? '') ? p.get('month') : '';
+  root.innerHTML = loading();
+
+  let r;
+  try {
+    r = await api.get(`/api/monthly${month ? `?month=${encodeURIComponent(month)}` : ''}`);
+  } catch (err) {
+    root.innerHTML = errorBox(err.message);
+    return;
+  }
+  const s = r.summary;
+  const thisMonth = r.as_of.slice(0, 7);
+
+  root.innerHTML = `
+    <div class="page-head">
+      <div>
+        <h1>월간 리포트</h1>
+        <div class="sub">${shortDate(r.period_start)} ~ ${shortDate(r.period_end)} · 이 달에 마감인 업무를 목표로 봅니다 · 기준일 ${shortDate(r.as_of)}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" data-month="${esc(shiftMonth(r.month, -1))}" aria-label="이전 달">‹</button>
+        <button class="btn mr-now" data-month="${esc(thisMonth)}"${r.month === thisMonth ? ' disabled' : ''}>이번 달</button>
+        <button class="btn" data-month="${esc(shiftMonth(r.month, 1))}" aria-label="다음 달">›</button>
+        <span class="tl-range-now">${esc(monthTitle(r.month))}</span>
+        <a class="btn" href="#/project/tasks?month=${esc(r.month)}&done=1">업무 탭에서 보기</a>
+        <button class="btn" data-copy>텍스트 복사</button>
+      </div>
+    </div>
+
+    <div class="report mr">
+      <div class="pill-row">
+        <div class="pill"><div class="k">목표 업무</div><div class="v">${s.target}</div></div>
+        <div class="pill ${s.pct === 100 ? 'good' : ''}"><div class="k">완료</div><div class="v">${s.done}<small> ${pctText(s.pct)}</small></div></div>
+        <div class="pill ${s.delayed ? 'bad' : ''}"><div class="k">지연</div><div class="v">${s.delayed}</div></div>
+        <div class="pill ${s.open_issues ? 'bad' : ''}"><div class="k">미해결 이슈</div><div class="v">${s.open_issues}</div></div>
+        <div class="pill ${s.slipped ? 'warn' : ''}"><div class="k">다음 달로 밀림</div><div class="v">${s.slipped}</div></div>
+      </div>
+      ${s.target ? `<div class="mr-bar">${progressBar(s.pct)}<span class="pct">${pctText(s.pct)}</span></div>` : ''}
+
+      <section class="rsec">
+        <h3><span class="n">①</span>목표 업무 — 프로젝트 › 페이즈</h3>
+        ${r.groups.length ? r.groups.map((g) => `
+          <div class="mr-proj" style="${g.project_id ? projectStyle(g.project_id) : ''}">
+            <h4>${esc(g.project_name)} <span class="n">${g.done}/${g.target}</span></h4>
+            ${g.phases.map((ph) => `
+              <div class="mr-phase">
+                <div class="mr-ph-head">${esc(ph.phase_name)} <span class="n">${ph.done}/${ph.tasks.length}</span></div>
+                <ul>${ph.tasks.map(mrTaskLine).join('')}</ul>
+              </div>`).join('')}
+          </div>`).join('')
+    : '<p class="hint">이 달에 마감인 업무가 없습니다. 업무의 마감일을 이 달로 잡으면 여기에 섭니다.</p>'}
+      </section>
+
+      <section class="rsec">
+        <h3><span class="n">②</span>미해결 이슈 <span class="n">${r.issues.length}건</span></h3>
+        ${r.issues.length ? `<ul>${r.issues.map((i) => `
+          <li><a href="#/project/issues/${esc(i.id)}" style="text-decoration:underline">${esc(i.title)}</a>
+            <span style="color:var(--muted)">· ${esc(i.task_title ?? '')} · ${esc(i.owner_name ?? '')} · ${esc(i.severity)}${i.target_resolve_date ? ` · 목표 ${esc(shortDate(i.target_resolve_date))}` : ''}</span></li>`).join('')}</ul>`
+    : '<p class="hint">목표 업무에 걸린 미해결 이슈가 없습니다.</p>'}
+      </section>
+
+      <section class="rsec">
+        <h3><span class="n">③</span>다음 달로 넘어간 업무 <span class="n">${r.slipped.length}건</span></h3>
+        ${r.slipped.length ? `<ul>${r.slipped.map((t) => `
+          <li>${ticketTag(t)} <a href="#/project/tasks/${esc(t.id)}" style="text-decoration:underline">${esc(t.title)}</a>
+            <span style="color:var(--muted)">· ${esc(t.owner_name ?? '')} · ${esc(shortDate(t.from_due))} → ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}</span></li>`).join('')}</ul>`
+    : '<p class="hint">이 달이 마감이었다가 뒤로 밀린 업무가 없습니다.</p>'}
+      </section>
+    </div>`;
+
+  root.addEventListener('click', async (e) => {
+    const mb = e.target.closest('[data-month]');
+    if (mb) { go(`#/project/monthly?month=${mb.dataset.month}`); return; }
+    if (e.target.closest('[data-copy]')) {
+      const lines = [
+        `[월간 리포트] ${monthTitle(r.month)}`,
+        `목표 ${s.target} · 완료 ${s.done} (${pctText(s.pct)}) · 지연 ${s.delayed} · 미해결 이슈 ${s.open_issues} · 다음 달로 밀림 ${s.slipped}`,
+        '',
+        ...r.groups.flatMap((g) => [
+          `■ ${g.project_name} ${g.done}/${g.target}`,
+          ...g.phases.flatMap((ph) => [
+            `  ▸ ${ph.phase_name} ${ph.done}/${ph.tasks.length}`,
+            ...ph.tasks.map((t) => `    · ${t.key ? `${t.key} ` : ''}${t.title}  ${t.owner_name ?? ''}  ${shortDate(t.due_date)}  ${t.status_label}${t.is_delayed ? ' (지연)' : ''}`),
+          ]),
+        ]),
+        '',
+        `미해결 이슈 ${r.issues.length}건`,
+        ...r.issues.map((i) => `  · ${i.title}  ${i.task_title ?? ''}  ${i.owner_name ?? ''}`),
+        '',
+        `다음 달로 넘어간 업무 ${r.slipped.length}건`,
+        ...r.slipped.map((t) => `  · ${t.title}  ${shortDate(t.from_due)} → ${t.due_date ? shortDate(t.due_date) : '미정'}`),
+      ];
+      try { await navigator.clipboard.writeText(lines.join('\n')); toast('복사했습니다.'); }
+      catch { toast('복사하지 못했습니다. 화면을 드래그해서 복사해 주세요.', true); }
+    }
+  });
+}
+
+
+
+
+
 
 
 // ── 내 알림 (1단계: 앱 안) ──
@@ -9926,11 +10233,9 @@ async function renderTimeline(root) {
   const allPhases = live.flatMap((r) => r.phases);
   for (const id of openPhases) if (!allPhases.some((p) => p.id === id)) openPhases.delete(id);
 
-  const w = ganttWindow(live.flatMap((r) => [
-    r.start_date, r.end_date,
-    ...r.phases.flatMap((p) => [p.start_date, p.end_date]),
-    ...r.milestones.map((m) => m.due_date),
-  ]));
+  const w = ganttWindow();
+  // 머리줄 호버 숫자(목표·완료·지연·이슈) — 못 받아도 차트는 그린다
+  w.setStats(await api.get(`/api/monthly/stats?from=${w.win.start}&to=${w.win.end}`).catch(() => null));
   const { win, gridLines } = w;
   // 줄 전체에 걸치는 것(오늘 선, 이번 주 띠)은 라벨 칸과 간격을 건너 트랙 위에 선다
   const onTrack = (pct) => `calc(var(--tl-label) + var(--tl-gap) + (100% - var(--tl-label) - var(--tl-gap)) * ${pct / 100})`;
@@ -10249,6 +10554,8 @@ async function renderTimeline(root) {
       return;
     }
     if (e.key !== 'Enter' && e.key !== ' ') return;
+    const mh = e.target.closest('.tl-axis [data-month]');
+    if (mh) { e.preventDefault(); go(`#/project/monthly?month=${mh.dataset.month}`); return; }
     const fold = e.target.closest('.tl-bar[data-fold-phase]');
     if (fold) { e.preventDefault(); togglePhase(fold.dataset.foldPhase); return; }
     const line = e.target.closest('.tl-task[data-line]');
@@ -10260,6 +10567,9 @@ async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
+    // 머리줄의 달 이름 — 그 달의 월간 리포트로
+    const mh = e.target.closest('.tl-axis [data-month]');
+    if (mh) { e.preventDefault(); return go(`#/project/monthly?month=${mh.dataset.month}`); }
     // 열린 페이즈의 트랙 빈 곳을 누르면 접힌다 — 막대가 화면 밖으로 밀려 있어도 닫을 수 있다
     const openTrack = e.target.closest('.tl-phase.is-open .tl-track');
     if (openTrack && !e.target.closest('.tl-bar, .tl-ms, [data-milestone], a, button')) {
@@ -11188,6 +11498,7 @@ function gatePanel() {
 
 
 
+
 const view = document.getElementById('view');
 
 // 프로젝트 매니징 아래의 화면들.
@@ -11276,6 +11587,7 @@ window.addEventListener('kf:denied', (e) => {
 const PROJECT_TABS = [
   { key: 'timeline', label: '타임라인' },
   { key: 'weekly',   label: '주간 리포트' },
+  { key: 'monthly',  label: '월간 리포트' },
   { key: 'issues',   label: '이슈' },
   { key: 'overview', label: '현황' },
   { key: 'tasks',    label: '업무' },
@@ -11418,6 +11730,7 @@ async function render() {
       else if (sub === 'tasks') { if (id) await renderTaskDetail(host, id, query); else await renderTasks(host, query); }
       else if (sub === 'timeline') await renderTimeline(host);
       else if (sub === 'issues') { if (id) await renderIssueDetail(host, id); else await renderIssues(host, query); }
+      else if (sub === 'monthly') await renderMonthly(host, query);
       else await renderWeekly(host, query);
       return;
     }

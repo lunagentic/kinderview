@@ -890,6 +890,11 @@ body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:n
 .tl-nav{display:flex;align-items:center;gap:2px}
 .tl-nav .btn[disabled]{opacity:.45;cursor:default}
 .tl-range-now{margin-left:8px;font-family:var(--mono);font-size:.76rem;color:var(--ink-2)}
+/* 머리줄의 달 이름 — 올리면 그 달 숫자, 누르면 월간 리포트 */
+.tl-month[data-month]{cursor:pointer}
+.tl-month[data-month]:hover,.tl-month[data-month]:focus-visible{color:var(--indigo);background:color-mix(in oklab, var(--indigo) 8%, transparent);outline:none}
+.tl-month.has-stat::after{content:'';position:absolute;right:6px;top:6px;width:4px;height:4px;border-radius:50%;background:var(--indigo);opacity:.5}
+.tl-week[data-tip]{cursor:help}
 
 .tl-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 2px 10px;font-size:.76rem;color:var(--muted)}
 .tl-key{display:inline-flex;align-items:center;gap:7px}
@@ -1715,7 +1720,8 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .tl-phase .tl-name{cursor:text}
 .tl-phase .tl-name:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 .tl-ph-line{flex:1 1 auto;min-width:0;flex-direction:row;align-items:center;gap:8px}
-.tl-ph-line .tl-name{flex:1 1 auto;min-width:60px}
+.tl-ph-line .tl-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 이름 글자 바깥(빈 칸)은 펼치기 영역이다 — 제목 단추가 줄 끝까지 늘어나면 안 된다 */
 /* 진척·수·코멘트는 오른쪽에 열을 맞춰 선다 */
 .tl-ph-meta{display:inline-flex;align-items:center;gap:6px;flex:none;margin-left:auto}
 .tl-ph-line .ph-cm{flex:none;min-width:36px;justify-content:center}
@@ -1742,3 +1748,28 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
   .subs .x{color:var(--muted);padding:6px 8px}
   .sub-add input,.sub-add button{min-height:40px}
 }
+
+/* ── 월간 리포트 ── */
+.mr .pill .v small{font-size:.8rem;font-weight:600;color:var(--muted)}
+.pill.good .v{color:var(--s-done)}
+.mr-bar{display:flex;align-items:center;gap:10px;margin:12px 0 0}
+.mr-bar .track{flex:1;height:9px;background:var(--surface-2);border-radius:999px;position:relative;overflow:hidden;display:block}
+.mr-bar .fill{position:absolute;inset:0 auto 0 0;background:var(--indigo);border-radius:999px}
+.mr-bar .fill.none{background:transparent}
+.mr-bar .pct{font-family:var(--mono);font-size:.8rem;font-weight:700}
+.mr-proj{margin-top:14px;padding:10px 12px 12px;border:1px solid var(--line);border-left:4px solid var(--pc, var(--line));border-radius:var(--radius-sm)}
+.mr-proj h4{font-size:.92rem;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.mr-proj .n,.mr-ph-head .n{font-family:var(--mono);font-size:.74rem;color:var(--muted);font-weight:500}
+.mr-phase{margin-top:8px}
+.mr-ph-head{font-size:.82rem;font-weight:600;color:var(--ink-2);margin-bottom:4px}
+.report .mr-phase ul{padding-left:0;list-style:none}
+.mr-task{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:4px 6px;border-radius:6px}
+.mr-task:hover{background:var(--surface-2)}
+.mr-task.done .mr-ttl{color:var(--muted);text-decoration:line-through}
+.mr-ttl{flex:1 1 200px;min-width:0;text-decoration:underline;text-underline-offset:2px}
+.mr-own{color:var(--muted);font-size:.82rem}
+.mr-due{font-family:var(--mono);font-size:.76rem;color:var(--ink-2)}
+.mr-due.late{color:var(--s-delay);font-weight:700}
+.mr-sub,.mr-iss{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.mr-iss{color:var(--s-issue);font-weight:600}
+@media (max-width:720px){.mr-task{padding:6px 4px}.mr-ttl{flex-basis:100%}}

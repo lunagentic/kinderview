@@ -59,6 +59,7 @@ const parts = [
   flatten(read('public/js/views/taskDetail.js')),
   flatten(read('public/js/views/issues.js')),
   flatten(read('public/js/views/weekly.js')),
+  flatten(read('public/js/views/monthly.js')),
   flatten(read('public/js/views/notifications.js')),
   flatten(read('public/js/views/timeline.js')),
   flatten(read('public/js/views/time.js')),

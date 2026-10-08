@@ -11,6 +11,7 @@ import {
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
 import * as weekly from './weekly.js';
+import * as monthly from './monthly.js';
 import * as notify from './notify.js';
 import * as slack from './slack.js';
 import * as ai from './ai/index.js';
@@ -237,6 +238,14 @@ route('DELETE', '/api/issues/:id', (ctx) => { issues.remove(ctx.params.id); retu
 
 route('GET', '/api/weekly', (ctx) => weekly.forWeek(ctx.url.searchParams.get('week') || today()));
 route('GET', '/api/weekly/list', () => weekly.list());
+// 월간 리포트 — 그 달에 마감인 업무가 목표다. stats 는 타임라인 머리줄 호버용 가벼운 목록.
+route('GET', '/api/monthly', (ctx) => monthly.forMonth(ctx.url.searchParams.get('month') || today().slice(0, 7)));
+route('GET', '/api/monthly/stats', (ctx) => {
+  const from = ctx.url.searchParams.get('from');
+  const to = ctx.url.searchParams.get('to');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(to ?? '')) throw new HttpError(400, 'from/to 날짜가 필요합니다.');
+  return monthly.dueStats(from, to);
+});
 route('POST', '/api/weekly/generate', (ctx) =>
   weekly.generate({ anchor: ctx.body.week || today(), by: ctx.me }));
 route('POST', '/api/weekly/:id/share', async (ctx) => {

@@ -7,6 +7,7 @@ import { renderTasks } from './views/tasks.js';
 import { renderTaskDetail } from './views/taskDetail.js';
 import { renderIssues, renderIssueDetail } from './views/issues.js';
 import { renderWeekly } from './views/weekly.js';
+import { renderMonthly } from './views/monthly.js';
 import { renderNotifications } from './views/notifications.js';
 import { renderTimeline } from './views/timeline.js';
 import { renderTime } from './views/time.js';
@@ -102,6 +103,7 @@ window.addEventListener('kf:denied', (e) => {
 const PROJECT_TABS = [
   { key: 'timeline', label: '타임라인' },
   { key: 'weekly',   label: '주간 리포트' },
+  { key: 'monthly',  label: '월간 리포트' },
   { key: 'issues',   label: '이슈' },
   { key: 'overview', label: '현황' },
   { key: 'tasks',    label: '업무' },
@@ -244,6 +246,7 @@ async function render() {
       else if (sub === 'tasks') { if (id) await renderTaskDetail(host, id, query); else await renderTasks(host, query); }
       else if (sub === 'timeline') await renderTimeline(host);
       else if (sub === 'issues') { if (id) await renderIssueDetail(host, id); else await renderIssues(host, query); }
+      else if (sub === 'monthly') await renderMonthly(host, query);
       else await renderWeekly(host, query);
       return;
     }

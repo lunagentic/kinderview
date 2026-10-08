@@ -44,43 +44,89 @@ export const tlPoint = (win, date) => {
 };
 
 // ── 보기 단위 ───────────────────────────────────────────
-// 월간은 모든 일정을 감싸는 긴 창(주 눈금), 주간은 기준 주 앞뒤를 하루 칸으로 편다.
+// 지라식: 배율(주간 · 월간 · 분기)과 이동(‹ 오늘 ›)을 나눈다.
+// 주간은 기준 주 앞뒤를 하루 칸으로, 월간은 기준 달 앞뒤를 주 칸으로, 분기는 기준 분기 앞뒤를 달 칸으로 편다.
 // 처음엔 주간 — 이번 주에 무엇이 걸려 있는지가 가장 자주 묻는 질문이다.
-// 단위는 보는 사람 취향이라 이 브라우저에 남기고, 넘겨 본 위치는 화면을 떠나면 이번 주로 돌아온다.
-const TL_WEEKS = 4;        // 한 화면에 보이는 주
+// 단위는 보는 사람 취향이라 이 브라우저에 남기고, 넘겨 본 위치는 화면을 떠나면 오늘로 돌아온다.
+const TL_WEEKS = 4;        // 주간: 한 화면에 보이는 주
 const TL_BACK = 6;         // 그 앞으로 더 그려 두는 주 — 지난 것은 스크롤로 본다
 const TL_FWD = 6;          // 그 뒤로 더 그려 두는 주
-let tlScale = readPref('kf.tl.scale') === 'month' ? 'month' : 'week';
-let tlAnchor = null;       // 주간 창의 기준 월요일(화면 왼쪽에 오는 주). null 이면 이번 주
+const TL_MONTH_BACK = 2;   // 월간: 기준 달 앞에 더 그리는 달
+const TL_MONTH_FWD = 3;    // 월간: 기준 달 뒤에 더 그리는 달
+const TL_Q_BACK = 1;       // 분기: 앞에 더 그리는 분기
+const TL_Q_FWD = 2;        // 분기: 뒤에 더 그리는 분기
+export const TL_SCALES = [
+  { key: 'week', label: '주간' }, { key: 'month', label: '월간' }, { key: 'quarter', label: '분기' },
+];
+let tlScale = TL_SCALES.some((x) => x.key === readPref('kf.tl.scale')) ? readPref('kf.tl.scale') : 'week';
+let tlAnchor = null;       // 창의 기준일 — 주간은 월요일, 월간은 달 첫날, 분기는 분기 첫날. null 이면 오늘이 든 기간
+export const tlQuarterStart = (iso) => {
+  const q = Math.floor((Number(iso.slice(5, 7)) - 1) / 3);
+  return `${iso.slice(0, 4)}-${String(q * 3 + 1).padStart(2, '0')}-01`;
+};
+const tlAddMonths = (iso, n) => {
+  let d = tlMonthStart(iso);
+  for (let i = 0; i < Math.abs(n); i += 1) d = n > 0 ? tlMonthNext(d) : tlMonthStart(tlAdd(d, -1));
+  return d;
+};
+const tlQuarterLabel = (iso) => `${iso.slice(0, 4)}년 ${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}분기`;
+/** 지금 배율에서 오늘이 든 기간의 첫날 */
+const tlHome = () => (tlScale === 'week' ? tlMonday(state.today)
+  : tlScale === 'month' ? tlMonthStart(state.today) : tlQuarterStart(state.today));
 
 /**
  * 날짜 창과 축을 만든다. dates 는 월간 창이 감싸야 할 날짜들(없는 값은 걸러 준다).
  * 돌려주는 w 하나로 눈금(gridLines)·머리줄(axisTrack)·막대 위치(span/point)를 다 그린다.
  */
-export function ganttWindow(dates = []) {
-  const weekly = tlScale === 'week';
-  const anchor = tlAnchor ?? tlMonday(state.today);
+export function ganttWindow() {
+  const scale = tlScale;
+  const weekly = scale === 'week';
+  const quarterly = scale === 'quarter';
+  const anchor = tlAnchor ?? tlHome();
   let winStart;
   let winEnd;
   if (weekly) {
     // 끝을 월요일로 잡아야 마지막 날도 한 칸을 온전히 갖는다
     winStart = tlAdd(anchor, -TL_BACK * 7);
     winEnd = tlAdd(anchor, (TL_WEEKS + TL_FWD) * 7);
+  } else if (quarterly) {
+    winStart = tlAddMonths(anchor, -TL_Q_BACK * 3);
+    winEnd = tlAdd(tlAddMonths(anchor, (1 + TL_Q_FWD) * 3), -1);
   } else {
-    // 월간 = 모든 날짜를 감싸는 달 경계. 최소 3개월은 확보한다.
-    const all = [...dates, state.today].filter(Boolean).sort();
-    winStart = tlMonthStart(all[0]);
-    winEnd = tlAdd(tlMonthNext(all[all.length - 1]), -1);
-    while (tlDiff(winStart, winEnd) < 89) winEnd = tlAdd(tlMonthNext(winEnd), -1);
+    winStart = tlAddMonths(anchor, -TL_MONTH_BACK);
+    winEnd = tlAdd(tlAddMonths(anchor, 1 + TL_MONTH_FWD), -1);
   }
   const win = { start: winStart, end: winEnd };
+  // 기준 기간(화면에 먼저 보이는 범위)의 끝
+  const anchorEnd = weekly ? tlAdd(anchor, TL_WEEKS * 7 - 1)
+    : tlAdd(tlAddMonths(anchor, quarterly ? 3 : 1), -1);
 
   const months = [];
   for (let m = tlMonthStart(winStart); tlParse(m) <= tlParse(winEnd); m = tlMonthNext(m)) {
     const end = tlAdd(tlMonthNext(m), -1);
-    months.push({ start: m, ...tlSpan(win, m, end > winEnd ? winEnd : end) });
+    months.push({ start: m, end: end > winEnd ? winEnd : end, now: m <= state.today && state.today <= end, ...tlSpan(win, m, end > winEnd ? winEnd : end) });
   }
   const todayAt = tlPoint(win, state.today);
+
+  // 머리줄 호버 숫자 — 마감일 기준 업무 목록(/api/monthly/stats)을 그리는 쪽이 넣어 준다. 없으면 툴팁도 없다.
+  let stats = null;
+  const setStats = (rows) => { stats = Array.isArray(rows) ? rows : null; };
+  const countIn = (from, to) => {
+    const inRange = stats.filter((r) => r.due_date >= from && r.due_date <= to);
+    return {
+      target: inRange.length, done: inRange.filter((r) => r.done).length,
+      late: inRange.filter((r) => r.late).length, issues: inRange.reduce((n, r) => n + (r.issues || 0), 0),
+    };
+  };
+  const statTip = (label, from, to, more) => {
+    if (!stats) return '';
+    const c = countIn(from, to);
+    const pct = c.target ? ` (${Math.round((c.done / c.target) * 100)}%)` : '';
+    const body = c.target
+      ? `목표 ${c.target} · 완료 ${c.done}${pct} · 지연 ${c.late} · 이슈 ${c.issues}`
+      : '이 기간에 마감인 업무 없음';
+    return ` data-tip="${esc(`<b>${label}</b><br>${body}${more ? `<br><span class="tip-sub">${more}</span>` : ''}`)}"`;
+  };
 
   // 주 칸 — 월요일에 선다. 창은 달 첫날에서 시작할 수 있으니 첫 주는 앞쪽이 잘린다.
   const weeks = [];
@@ -108,50 +154,58 @@ export function ganttWindow(dates = []) {
     ].join(''));
 
   // 날짜 머리줄. 창이 같으면 눈금도 같아야 하니 그리는 쪽마다 이걸 쓴다.
+  // 달 이름은 어디서나 월간 리포트로 가는 문이다 — 올리면 그 달 숫자, 누르면 리포트
+  const monthHead = (m) => `
+      <span class="tl-month${m.now ? ' now' : ''}${stats ? ' has-stat' : ''}" data-month="${m.start.slice(0, 7)}"
+            style="left:${m.left}%;width:${m.width}%" role="link" tabindex="0"
+            ${statTip(`${m.start.slice(0, 4)}년 ${Number(m.start.slice(5, 7))}월`, m.start, tlAdd(tlMonthNext(m.start), -1), '눌러서 월간 리포트')}>
+        ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' || quarterly ? ` ’${m.start.slice(2, 4)}` : ''}
+      </span>`;
+  const weekTip = (w) => statTip(`${tlWeekLabel(w.start)} · ${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`, w.start, tlAdd(w.start, 6));
   const axisTrack = () => `
     ${weekly ? weeks.map((w) => `
       <span class="tl-month${w.now ? ' now' : ''}" style="left:${w.left}%;width:${w.width}%"
-            title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">${tlWeekLabel(w.start)}</span>`).join('')
-    : months.map((m) => `
-      <span class="tl-month" style="left:${m.left}%;width:${m.width}%">
-        ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' ? ` ’${m.start.slice(2, 4)}` : ''}
-      </span>`).join('')}
+            ${stats ? weekTip(w) : `title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}"`}>${tlWeekLabel(w.start)}</span>`).join('')
+    : months.map(monthHead).join('')}
     ${weekly ? days.map((d) => {
       const dow = new Date(tlParse(d.date)).getUTCDay();
       return `<span class="tl-day${d.date === state.today ? ' now' : ''}${dow === 0 || dow === 6 ? ' we' : ''}"
                 data-date="${d.date}" style="left:${d.left}%;width:${d.width}%"><b>${Number(d.date.slice(8, 10))}</b></span>`;
-    }).join('') : weeks.map((w) => `
+    }).join('') : quarterly ? '' : weeks.map((w) => `
       <span class="tl-week${w.now ? ' now' : ''}${w.edge ? '' : ' cut'}" style="left:${w.left}%;width:${w.width}%"
-            title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}">
+            ${stats ? weekTip(w) : `title="${esc(`${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`)}"`}>
         ${w.edge ? `${Number(w.start.slice(5, 7))}/${Number(w.start.slice(8, 10))}` : ''}
       </span>`).join('')}
     ${todayAt === null || weekly ? '' : `<i class="tl-today-cap" style="left:${todayAt}%">오늘</i>`}`;
 
-  // 트랙 폭 — 주간은 하루 26px, 월간은 한 주 40px 밑으로는 안 내려간다
-  const trackMin = weekly ? days.length * 26 : weeks.length * 40;
+  // 트랙 폭 — 주간은 하루 26px, 월간은 한 주 40px, 분기는 한 달 110px 밑으로는 안 내려간다
+  const trackMin = weekly ? days.length * 26 : quarterly ? months.length * 110 : weeks.length * 40;
+  const rangeLabel = weekly ? `${shortDate(anchor)} ~ ${shortDate(anchorEnd)}`
+    : quarterly ? `${tlQuarterLabel(anchor)} (${Number(anchor.slice(5, 7))}~${Number(anchorEnd.slice(5, 7))}월)`
+      : `${anchor.slice(0, 4)}년 ${Number(anchor.slice(5, 7))}월`;
 
   return {
-    weekly, anchor, win, shownEnd: weekly ? tlAdd(winEnd, -1) : winEnd,
-    months, weeks, days, todayAt, thisWeek, trackMin, gridLines, axisTrack,
+    scale, weekly, quarterly, anchor, anchorEnd, atHome: tlAnchor === null, win, shownEnd: weekly ? tlAdd(winEnd, -1) : winEnd,
+    months, weeks, days, todayAt, thisWeek, trackMin, rangeLabel, gridLines, axisTrack, setStats,
   };
 }
 
-/** 보기 단위 도구줄 — 월간/주간 · ‹ 이번 주 › · 기준 기간 */
+/** 보기 단위 도구줄 — [주간 | 월간 | 분기] · ‹ 오늘 › · 기준 기간. 지라 타임라인과 같은 짜임이다. */
 export function ganttScaleBar(w) {
+  const unit = w.weekly ? '4주' : w.quarterly ? '분기' : '달';
   return `
     <div class="tl-scale">
       <div class="tl-seg" role="group" aria-label="보기 단위">
-        <button type="button" data-scale="month" aria-pressed="${!w.weekly}">월간</button>
-        <button type="button" data-scale="week" aria-pressed="${w.weekly}">주간</button>
+        ${TL_SCALES.map((sc) => `<button type="button" data-scale="${sc.key}" aria-pressed="${w.scale === sc.key}">${sc.label}</button>`).join('')}
       </div>
-      ${w.weekly ? `
-        <div class="tl-nav">
-          <button type="button" class="btn btn-ghost sm" data-shift="-1" aria-label="이전 4주">‹</button>
-          <button type="button" class="btn btn-ghost sm" data-shift="0"${tlAnchor ? '' : ' disabled'}>이번 주</button>
-          <button type="button" class="btn btn-ghost sm" data-shift="1" aria-label="다음 4주">›</button>
-          <span class="tl-range-now">${esc(`${shortDate(w.anchor)} ~ ${shortDate(tlAdd(w.anchor, TL_WEEKS * 7 - 1))}`)}</span>
-          <span class="hint">앞뒤는 가로로 스크롤</span>
-        </div>` : ''}
+      <div class="tl-nav">
+        <button type="button" class="btn btn-ghost sm" data-shift="-1" aria-label="이전 ${unit}" title="이전 ${unit}">‹</button>
+        <button type="button" class="btn btn-ghost sm" data-shift="0"${w.atHome ? ' disabled' : ''}
+                title="오늘이 든 ${w.weekly ? '주' : w.quarterly ? '분기' : '달'}로">오늘</button>
+        <button type="button" class="btn btn-ghost sm" data-shift="1" aria-label="다음 ${unit}" title="다음 ${unit}">›</button>
+        <span class="tl-range-now">${esc(w.rangeLabel)}</span>
+        <span class="hint">앞뒤는 가로로 스크롤</span>
+      </div>
     </div>`;
 }
 
@@ -167,8 +221,10 @@ export function bindGanttScale(root, w) {
       writePref('kf.tl.scale', tlScale);
     } else if (sh) {
       const n = Number(sh.dataset.shift);
-      tlAnchor = n === 0 ? null : tlAdd(w.anchor, n * TL_WEEKS * 7);
-      if (tlAnchor === tlMonday(state.today)) tlAnchor = null;
+      if (n === 0) tlAnchor = null;
+      else if (w.weekly) tlAnchor = tlAdd(w.anchor, n * TL_WEEKS * 7);
+      else tlAnchor = tlAddMonths(w.anchor, n * (w.quarterly ? 3 : 1));
+      if (tlAnchor === tlHome()) tlAnchor = null;
     } else return;
     window.dispatchEvent(new Event('kf:reload'));
   });
@@ -183,9 +239,11 @@ export function ganttInitialScroll(box, trackSel, w) {
   const track = box.querySelector(trackSel);
   if (!track || box.scrollWidth <= box.clientWidth) return;
   const left = track.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft;
-  // 주간은 기준 날짜 칸의 실제 위치를 쓴다 — 비율 계산은 반 칸쯤 어긋날 수 있다
+  // 주간은 기준 날짜 칸, 월간·분기는 기준 달 칸의 실제 위치를 쓴다 — 비율 계산은 반 칸쯤 어긋날 수 있다
   const dayEl = w.weekly ? track.querySelector(`.tl-day[data-date="${w.anchor}"]`) : null;
   if (dayEl) { box.scrollLeft = dayEl.offsetLeft; return; }
+  const monEl = !w.weekly && !w.atHome ? track.querySelector(`.tl-month[data-month="${w.anchor.slice(0, 7)}"]`) : null;
+  if (monEl) { box.scrollLeft = monEl.offsetLeft; return; }
   if (w.todayAt === null) return;
   box.scrollLeft = Math.max(0, track.clientWidth * (w.todayAt / 100) - (box.clientWidth - left) * 0.35);
 }
