@@ -143,8 +143,9 @@ export async function renderTimeline(root) {
               <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
               ${phaseCmBadge(ph)}
             </span>
-            <span class="tl-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
-              pct === null ? '' : ` · ${pct}%`}</span>
+            <span class="tl-meta tl-ph-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
+              pct === null ? '' : ` · 완료 ${ph.done_count}`}${pct === null ? '' : `
+              <span class="tl-prog" title="완료 ${ph.done_count}/${ph.task_count}"><i class="${pct >= 100 ? 'full' : ''}" style="width:${pct}%"></i></span><b class="tl-pct${pct >= 100 ? ' full' : ''}">${pct}%</b>`}</span>
           </div>
         </div>
         <div class="tl-track">
