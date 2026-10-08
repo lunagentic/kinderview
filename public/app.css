@@ -10,7 +10,7 @@
 
 :root{
   /* 바탕과 면 */
-  --ground:#F4F5F8;
+  --ground:#FFFBF1;
   --surface:#FFFFFF;
   --surface-2:#EEEFF4;
   --line:#E4E6ED;
@@ -20,18 +20,18 @@
   --muted:#727A90;
 
   /* 크롬 (상단바) */
-  --chrome:#1E2440;
-  --chrome-2:#2A3157;
+  --chrome:#231C4F;
+  --chrome-2:#33296B;
   --on-chrome:#EDEFF7;
   --on-chrome-muted:#9AA2C0;
 
   /* 브랜드 */
-  --indigo:#4B3FE4;
-  --orchid:#D24FD8;
-  --amber:#F5B02E;
-  --teal:#14B8A6;
-  --purple:#7A4FD4;
-  --rose:#E5455F;
+  --indigo:#6D3BF5;
+  --orchid:#FF3E9A;
+  --amber:#FF8A1F;
+  --teal:#22C48F;
+  --purple:#8A4DFF;
+  --rose:#FF3E6F;
   --focus:var(--indigo);
 
   /* 프로젝트 색 — id 로 고정 배정된다 (ui.js projectTone).
@@ -39,19 +39,19 @@
      (정상 시야 ΔE 13.3, 기준 15). 색은 보조 신호다 — 어디서든 점 옆에
      프로젝트 이름이 함께 나온다. 로즈는 넣지 않는다: 지연(빨강)과 섞여 경고로 읽힌다.
      대비·색각 검증을 통과한 값이다. 바꾸려면 다시 검증할 것. */
-  --p0:#3B2FC8; --p1:#CE5EC6; --p2:#0E9384; --p3:#C77B12;
+  --p0:#2F7BFF; --p1:#FF3E9A; --p2:#22C48F; --p3:#FF8A1F;
   /* 업무 분류 — 상태·프로젝트가 안 쓰는 색이라야 서로 안 헷갈린다.
      분류는 팀이 직접 더하므로 넉넉히 둔다. 넘치면 처음 색부터 다시 돈다. */
   --c0:#1D6FD4; --c1:#C2410C; --c2:#0F766E;
   --c3:#9333EA; --c4:#B45309; --c5:#BE185D;
 
   /* 상태 */
-  --s-wait:#858CA6;
-  --s-prog:#4B3FE4;
-  --s-review:#7A4FD4;
-  --s-done:#0E9F8F;
-  --s-delay:#DB3A52;
-  --s-issue:#C9820A;
+  --s-wait:#9AA3B5;
+  --s-prog:#2F7BFF;
+  --s-review:#8A4DFF;
+  --s-done:#22C48F;
+  --s-delay:#FF3E6F;
+  --s-issue:#F07A12;
 
   --radius:8px;
   --radius-sm:6px;
@@ -1957,3 +1957,15 @@ body[data-gate="view"] .bd-st .chip-select{pointer-events:none}
 .rp-dia{position:absolute;top:9px;width:11px;height:11px;transform:translateX(-50%) rotate(45deg);background:var(--indigo);border:2px solid var(--surface);z-index:1}
 .rp-dia.done{background:var(--s-done)} .rp-dia.late{background:var(--s-delay)}
 @media (max-width:720px){.rp-srow{grid-template-columns:130px minmax(0,1fr)}.rp-day{min-height:44px}}
+
+/* ── 캐릭터 (샘플) — 빈 자리·브랜드 옆에 선다 ── */
+.brand-char{width:30px;height:30px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.25);background:var(--director-avatar) center/cover no-repeat}
+.brand{flex-direction:row;align-items:center;gap:9px}
+.brand-text{display:flex;flex-direction:column;line-height:1.2}
+.empty{position:relative;padding-left:96px;min-height:84px;text-align:left}
+.empty::before{content:'';position:absolute;left:18px;top:50%;transform:translateY(-50%);width:64px;height:64px;border-radius:50%;
+  background:var(--director-avatar) center/cover no-repeat;box-shadow:0 4px 14px rgba(47,123,255,.18)}
+.rp-card.goal{position:relative;overflow:hidden}
+.rp-card.goal::after{content:'';position:absolute;right:-6px;bottom:-10px;width:72px;height:72px;border-radius:50%;
+  background:var(--director-avatar) center/cover no-repeat;opacity:.9}
+@media (max-width:720px){.empty{padding-left:80px}.empty::before{left:10px;width:54px;height:54px}}
