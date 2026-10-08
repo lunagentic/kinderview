@@ -577,6 +577,7 @@ const TASK_SELECT = `
          (SELECT COUNT(*) FROM issue i
             WHERE i.task_id = t.id AND i.deleted_at IS NULL AND i.status <> 'RESOLVED') AS open_issue_count,
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id) AS subtask_total,
+         (SELECT COUNT(*) FROM attachment a WHERE a.task_id = t.id) AS attachment_count,
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id AND s.is_done = 1) AS subtask_done,
          (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL) AS comment_count,
          (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL

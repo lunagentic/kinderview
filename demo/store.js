@@ -1185,6 +1185,7 @@ function hydrate(t, ref = today()) {
     director_comment_count: commentsOf(t.id)
       .filter((c) => !c.deleted_at && c.author_role === 'DIRECTOR').length,
     subtask_total: subtasksOf(t.id).length,
+    attachment_count: attachmentsOf(t.id).length,
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
     stage: STAGE[t.status],
