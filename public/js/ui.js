@@ -320,10 +320,10 @@ export const empty = ({ title, hint = '', action = '' }) => `
 export const go = (hash) => { window.location.hash = hash; };
 
 // ── 하위 업무 진행 상태 ──────────────────────────────────
-// 대기 · 진행중 · 완료 세 단계. 상위 업무 진척률에 0 · 0.5 · 1 로 들어간다.
+// 대기 · 진행중 · 완료 세 단계. 진척에는 완료만 센다 — 둘 중 하나 끝났으면 50% 다. 진행중은 상태 표시다.
 export const SUB_STATUS = [
   { code: 'TODO', label: '대기', mark: '○', weight: 0 },
-  { code: 'IN_PROGRESS', label: '진행중', mark: '◐', weight: 0.5 },
+  { code: 'IN_PROGRESS', label: '진행중', mark: '◐', weight: 0 },
   { code: 'DONE', label: '완료', mark: '●', weight: 1 },
 ];
 export const subStatusOf = (r) => r.status ?? (r.is_done ? 'DONE' : 'TODO');

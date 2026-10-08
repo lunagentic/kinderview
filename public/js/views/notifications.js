@@ -12,6 +12,7 @@ const INBOX_SECTIONS = {
   DUE_SOON: { title: '내일 마감인 담당 업무', tone: 'prog', mark: '●' },
   ASSIGNED: { title: '새로 배정된 업무', tone: 'wait', mark: '＋' },
   DIRECTOR_COMMENT: { title: '내 업무에 달린 디렉터 코멘트', tone: 'review', mark: '✎' },
+  COMMENT: { title: '내 업무·내 글에 달린 댓글', tone: 'wait', mark: '💬' },
   REVIEW: { title: '검토가 필요한 외주 업무', tone: 'review', mark: '◎' },
 };
 const inboxLine = (it) => {
@@ -21,6 +22,7 @@ const inboxLine = (it) => {
     case 'DUE_SOON': return `내일 마감 · ${shortDate(it.due_date)}`;
     case 'ASSIGNED': return `${it.actor_name ?? '누군가'} 님이 배정 · ${dateTime(it.at)}`;
     case 'DIRECTOR_COMMENT': return `${it.actor_name ?? '디렉터'} · ${dateTime(it.at)}${it.snippet ? ` — ${it.snippet}` : ''}`;
+    case 'COMMENT': return `${it.actor_name ?? '누군가'} · ${it.reply ? '내 코멘트에 답글' : '댓글'} · ${dateTime(it.at)}${it.snippet ? ` — ${it.snippet}` : ''}`;
     case 'REVIEW': return it.review_status === 'REJECTED' ? '검수 반려 — 수정이 필요합니다' : '검수 대기 중';
     default: return '';
   }
@@ -28,12 +30,12 @@ const inboxLine = (it) => {
 const inboxView = (data) => {
   if (!state.me) return empty({ title: '현재 사용자가 없습니다', hint: '상단에서 현재 사용자를 고르면 그 사람의 알림이 보입니다.' });
   const groups = Object.keys(INBOX_SECTIONS).map((k) => [k, data.items.filter((i) => i.kind === k)]).filter(([, v]) => v.length);
-  if (!groups.length) return empty({ title: '지금 챙길 알림이 없습니다', hint: '지연·오늘 마감·내일 마감·새 배정·디렉터 코멘트·검토 요청이 생기면 여기에 섭니다.' });
+  if (!groups.length) return empty({ title: '지금 챙길 알림이 없습니다', hint: '지연·오늘 마감·내일 마감·새 배정·디렉터 코멘트·댓글·검토 요청이 생기면 여기에 섭니다.' });
   return `<div class="inbox">${groups.map(([k, items]) => `
     <section class="inbox-sec">
       <h3><span class="dot ${INBOX_SECTIONS[k].tone}">${INBOX_SECTIONS[k].mark}</span>${INBOX_SECTIONS[k].title} <span class="n">${items.length}건</span></h3>
       ${items.map((it) => `
-        <a class="inbox-item${it.read ? ' read' : ''}" href="#/project/tasks/${esc(it.task_id)}" data-inbox-key="${esc(it.key)}">
+        <a class="inbox-item${it.read ? ' read' : ''}" href="#/project/tasks/${esc(it.task_id)}${it.comment_id ? `?cm=${esc(it.comment_id)}` : ''}" data-inbox-key="${esc(it.key)}">
           <span class="unread" aria-hidden="true"></span>
           ${it.task_key ? `<span class="tkey">${esc(it.task_key)}</span>` : ''}
           <span class="ttl">${esc(it.title)}</span>

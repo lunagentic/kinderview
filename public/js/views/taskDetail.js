@@ -37,7 +37,7 @@ const subCount = (rows = []) => {
   if (!rows.length) return '';
   const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
   const pct = subProgress(rows) ?? 0;
-  return `<span class="sub-n${done === rows.length ? ' all' : ''}" title="완료 ${done}/${rows.length} · 진척 ${pct}%">${done}/${rows.length} · ${pct}%</span>`;
+  return `<span class="sub-n${done === rows.length ? ' all' : ''}" title="완료 ${done}/${rows.length} · ${pct}%">${done}/${rows.length} · ${pct}%</span>`;
 };
 
 // 하위 업무 마감 칸 — 비우면 상위를 따른다. 더 늦게 잡으면 상위 업무·페이즈가 그 날까지 늘어난다.

@@ -1041,14 +1041,14 @@ export function subtaskModal({ task, onChange, focus = null }) {
   let rows = [];
   let changed = false;
 
-  // 진척률 = 상태 무게(대기 0 · 진행중 0.5 · 완료 1)의 평균 — 상위 업무와 페이즈가 같은 숫자를 쓴다
+  // 진척 = 완료 수 / 전체 수 — 상위 업무와 페이즈가 같은 숫자를 쓴다. 진행중은 상태 표시일 뿐 진척에 안 센다
   const bar = () => {
     const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
     const pct = subProgress(rows) ?? 0;
     return `
       <div class="sbm-prog">
         <span class="track"><i style="width:${pct}%"></i></span>
-        <span class="n">${rows.length ? `완료 ${done}/${rows.length} · 진척 ${pct}%` : '하위 업무 없음'}</span>
+        <span class="n">${rows.length ? `완료 ${done}/${rows.length} · ${pct}%` : '하위 업무 없음'}</span>
       </div>`;
   };
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
@@ -1061,7 +1061,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
                title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
-        ${r.done_at ? `<span class="when">${esc(shortDate(r.done_at.slice(0, 10)))} 완료</span>` : ''}
+        <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
         <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`

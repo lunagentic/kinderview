@@ -970,7 +970,7 @@ function updateSubtask(id, body) {
 
 // 하위 업무의 무게 — 상위 업무 진척률에 반영된다 (server/repo.js SUB_WEIGHT)
 const SUB_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE'];
-const subWeight = (s) => (s.status === 'DONE' || (s.status === undefined && s.is_done) ? 1 : s.status === 'IN_PROGRESS' ? 0.5 : 0);
+const subWeight = (s) => (s.status === 'DONE' || (s.status === undefined && s.is_done) ? 1 : 0);
 const subProgressOf = (taskId) => {
   const subs = subtasksOf(taskId);
   return subs.length ? subs.reduce((n, s) => n + subWeight(s), 0) / subs.length : null;
@@ -1068,7 +1068,7 @@ async function removeAttachment(id) {
 }
 
 // ── 앱 안 알림 — 서버 repo.js inbox 와 같은 규칙 ──
-const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
+const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'COMMENT', 'REVIEW'];
 const INBOX_RECENT_DAYS = 7;
 // 디렉터 코멘트 모아보기 — 서버 repo.js directorComments 와 같은 규칙
 function directorCommentsOf() {
@@ -1118,12 +1118,19 @@ function inboxOf(me, ref = today()) {
     if (e.event_type === 'OWNER_CHANGED' && e.to_value !== me) continue;
     items.push({ kind: 'ASSIGNED', key: `ASSIGNED:${e.id}`, actor_name: member(e.actor_slack_user_id)?.display_name ?? e.actor_slack_user_id, at: e.occurred_at, ...dress(t) });
   }
+  // 코멘트 — 내 업무에 달린 것(디렉터 말은 따로 묶는다)과 내 글에 달린 답글. 내가 쓴 것은 뺀다.
   for (const c of DB.comments ?? []) {
-    if (c.deleted_at || c.author_role !== 'DIRECTOR' || c.created_at < since || c.author_slack_user_id === me) continue;
-    const t = byId.get(c.task_id);
+    if (c.deleted_at || !c.task_id || c.created_at < since || c.author_slack_user_id === me) continue;
+    const onMine = byId.has(c.task_id);
+    const parent = c.parent_id ? (DB.comments ?? []).find((x) => x.id === c.parent_id) : null;
+    const replyToMe = parent?.author_slack_user_id === me;
+    if (!onMine && !replyToMe) continue;
+    const t = DB.tasks.find((x) => x.id === c.task_id && !x.deleted_at);
     if (!t) continue;
-    items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, actor_name: member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id,
-      at: c.created_at, snippet: String(c.body).slice(0, 80), ...dress(t) });
+    const base = { actor_name: member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id,
+      at: c.created_at, snippet: String(c.body).slice(0, 80), comment_id: c.id, ...dress(t) };
+    if (c.author_role === 'DIRECTOR' && onMine) items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, ...base });
+    else items.push({ kind: 'COMMENT', key: `COMMENT:${c.id}`, reply: replyToMe && !onMine, ...base });
   }
   for (const t of mine) {
     const rs = outOf(t.id)?.review_status;

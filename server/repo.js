@@ -25,8 +25,8 @@ const CASE_WEIGHT = `CASE t.status
   WHEN 'IN_PROGRESS' THEN 0.5 WHEN 'OUT_IN_PROGRESS' THEN 0.5 WHEN 'OUT_REVISION' THEN 0.5
   ELSE 0.0 END`;
 
-// 하위 업무의 무게 — 상위 업무 진척률에 반영된다
-const SUB_WEIGHT = `CASE s.status WHEN 'DONE' THEN 1.0 WHEN 'IN_PROGRESS' THEN 0.5 ELSE 0.0 END`;
+// 하위 업무의 무게 — 완료만 센다(둘 중 하나 끝났으면 50%). 상위 업무 진척률에 반영된다
+const SUB_WEIGHT = `CASE s.status WHEN 'DONE' THEN 1.0 ELSE 0.0 END`;
 const SUB_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE'];
 
 const pct = (sum, count) => (count === 0 ? null : Math.round((sum / count) * 100));
@@ -958,7 +958,7 @@ export const attachments = {
 
 // ── 앱 안 알림 — 지금 내게 해당하는 일을 데이터에서 센다 (docs/09 의 규칙, 내 것만) ──
 // 저장하지 않는다. '보낸 알림'이 아니라 '지금 챙길 일'이라, 열 때마다 다시 센다. 읽음만 남긴다.
-const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
+const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'COMMENT', 'REVIEW'];
 const RECENT_DAYS = 7;
 // ── 디렉터 코멘트 모아보기 — 누구나 본다. 업무·페이즈에 달린 디렉터 자리의 말을 최신순으로 ──
 export const directorComments = {
@@ -1015,16 +1015,24 @@ export const inbox = {
       if (e.event_type === 'OWNER_CHANGED' && e.to_value !== me) continue;
       items.push({ kind: 'ASSIGNED', key: `ASSIGNED:${e.id}`, actor_name: e.actor_name, at: e.occurred_at, ...dress(t) });
     }
+    // 코멘트 — 내 업무에 달린 것(디렉터 말은 따로 묶는다)과 내 글에 달린 답글. 내가 쓴 것은 뺀다.
     const cm = all(
-      `SELECT c.*, m.display_name AS author_name FROM comment c
+      `SELECT c.*, m.display_name AS author_name, pc.author_slack_user_id AS parent_author,
+              t.id AS t_id, t.title AS t_title, t.seq AS t_seq, t.due_date AS t_due, p.name AS t_project, p.code AS t_code
+         FROM comment c
          LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
-        WHERE c.deleted_at IS NULL AND c.author_role = 'DIRECTOR' AND c.created_at >= :since
-          AND c.author_slack_user_id <> :me`, { since, me });
+         LEFT JOIN comment pc ON pc.id = c.parent_id
+         JOIN task t ON t.id = c.task_id AND t.deleted_at IS NULL
+         LEFT JOIN project p ON p.id = t.project_id
+        WHERE c.deleted_at IS NULL AND c.created_at >= :since AND c.author_slack_user_id <> :me`, { since, me });
     for (const c of cm) {
-      const t = byId.get(c.task_id);
-      if (!t) continue;
-      items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, actor_name: c.author_name, at: c.created_at,
-        snippet: String(c.body).slice(0, 80), ...dress(t) });
+      const onMine = byId.has(c.task_id);
+      const replyToMe = c.parent_author === me;
+      if (!onMine && !replyToMe) continue;
+      const t = { id: c.t_id, title: c.t_title, seq: c.t_seq, due_date: c.t_due, project_name: c.t_project, project_code: c.t_code };
+      const base = { actor_name: c.author_name, at: c.created_at, snippet: String(c.body).slice(0, 80), comment_id: c.id, ...dress(t) };
+      if (c.author_role === 'DIRECTOR' && onMine) items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, ...base });
+      else items.push({ kind: 'COMMENT', key: `COMMENT:${c.id}`, reply: replyToMe && !onMine, ...base });
     }
     for (const t of mine) {
       if (t.area === 'OUT' && ['IN_REVIEW', 'REJECTED'].includes(t.review_status)) {

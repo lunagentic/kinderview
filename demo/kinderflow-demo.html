@@ -1524,7 +1524,11 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .sbm-title:hover{border-color:var(--line)}
 .sbm-title:focus{border-color:var(--focus);background:var(--surface);outline:none}
 .sbm-list li.done .sbm-title{color:var(--muted);text-decoration:line-through}
-.sbm-list .when{font-family:var(--mono);font-size:.7rem;color:var(--muted);white-space:nowrap}
+.sbm-list .when{font-family:var(--mono);font-size:.7rem;color:var(--muted);white-space:nowrap;flex:none;width:64px;text-align:right}
+/* 오른쪽 묶음(마감 · 완료일 · ⇄ · ×)은 폭이 고정이라 줄마다 같은 열에 선다 */
+.sbm-list .x{flex:none;width:22px;text-align:center}
+.sbm-list .sub-due{margin-left:auto}
+@media (max-width:720px){.sbm-list .when{display:none}}
 .sbm-list .x.mv{font-size:.95rem}
 .sbm-list li:hover .x.mv{color:var(--muted)}
 .sbm-list .x.mv:hover{color:var(--indigo);background:var(--surface-2)}
@@ -3710,7 +3714,7 @@ function updateSubtask(id, body) {
 
 // 하위 업무의 무게 — 상위 업무 진척률에 반영된다 (server/repo.js SUB_WEIGHT)
 const SUB_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE'];
-const subWeight = (s) => (s.status === 'DONE' || (s.status === undefined && s.is_done) ? 1 : s.status === 'IN_PROGRESS' ? 0.5 : 0);
+const subWeight = (s) => (s.status === 'DONE' || (s.status === undefined && s.is_done) ? 1 : 0);
 const subProgressOf = (taskId) => {
   const subs = subtasksOf(taskId);
   return subs.length ? subs.reduce((n, s) => n + subWeight(s), 0) / subs.length : null;
@@ -3808,7 +3812,7 @@ async function removeAttachment(id) {
 }
 
 // ── 앱 안 알림 — 서버 repo.js inbox 와 같은 규칙 ──
-const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
+const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'COMMENT', 'REVIEW'];
 const INBOX_RECENT_DAYS = 7;
 // 디렉터 코멘트 모아보기 — 서버 repo.js directorComments 와 같은 규칙
 function directorCommentsOf() {
@@ -3858,12 +3862,19 @@ function inboxOf(me, ref = today()) {
     if (e.event_type === 'OWNER_CHANGED' && e.to_value !== me) continue;
     items.push({ kind: 'ASSIGNED', key: `ASSIGNED:${e.id}`, actor_name: member(e.actor_slack_user_id)?.display_name ?? e.actor_slack_user_id, at: e.occurred_at, ...dress(t) });
   }
+  // 코멘트 — 내 업무에 달린 것(디렉터 말은 따로 묶는다)과 내 글에 달린 답글. 내가 쓴 것은 뺀다.
   for (const c of DB.comments ?? []) {
-    if (c.deleted_at || c.author_role !== 'DIRECTOR' || c.created_at < since || c.author_slack_user_id === me) continue;
-    const t = byId.get(c.task_id);
+    if (c.deleted_at || !c.task_id || c.created_at < since || c.author_slack_user_id === me) continue;
+    const onMine = byId.has(c.task_id);
+    const parent = c.parent_id ? (DB.comments ?? []).find((x) => x.id === c.parent_id) : null;
+    const replyToMe = parent?.author_slack_user_id === me;
+    if (!onMine && !replyToMe) continue;
+    const t = DB.tasks.find((x) => x.id === c.task_id && !x.deleted_at);
     if (!t) continue;
-    items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, actor_name: member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id,
-      at: c.created_at, snippet: String(c.body).slice(0, 80), ...dress(t) });
+    const base = { actor_name: member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id,
+      at: c.created_at, snippet: String(c.body).slice(0, 80), comment_id: c.id, ...dress(t) };
+    if (c.author_role === 'DIRECTOR' && onMine) items.push({ kind: 'DIRECTOR_COMMENT', key: `DCOMMENT:${c.id}`, ...base });
+    else items.push({ kind: 'COMMENT', key: `COMMENT:${c.id}`, reply: replyToMe && !onMine, ...base });
   }
   for (const t of mine) {
     const rs = outOf(t.id)?.review_status;
@@ -5895,10 +5906,10 @@ const empty = ({ title, hint = '', action = '' }) => `
 const go = (hash) => { window.location.hash = hash; };
 
 // ── 하위 업무 진행 상태 ──────────────────────────────────
-// 대기 · 진행중 · 완료 세 단계. 상위 업무 진척률에 0 · 0.5 · 1 로 들어간다.
+// 대기 · 진행중 · 완료 세 단계. 진척에는 완료만 센다 — 둘 중 하나 끝났으면 50% 다. 진행중은 상태 표시다.
 const SUB_STATUS = [
   { code: 'TODO', label: '대기', mark: '○', weight: 0 },
-  { code: 'IN_PROGRESS', label: '진행중', mark: '◐', weight: 0.5 },
+  { code: 'IN_PROGRESS', label: '진행중', mark: '◐', weight: 0 },
   { code: 'DONE', label: '완료', mark: '●', weight: 1 },
 ];
 const subStatusOf = (r) => r.status ?? (r.is_done ? 'DONE' : 'TODO');
@@ -6961,14 +6972,14 @@ function subtaskModal({ task, onChange, focus = null }) {
   let rows = [];
   let changed = false;
 
-  // 진척률 = 상태 무게(대기 0 · 진행중 0.5 · 완료 1)의 평균 — 상위 업무와 페이즈가 같은 숫자를 쓴다
+  // 진척 = 완료 수 / 전체 수 — 상위 업무와 페이즈가 같은 숫자를 쓴다. 진행중은 상태 표시일 뿐 진척에 안 센다
   const bar = () => {
     const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
     const pct = subProgress(rows) ?? 0;
     return `
       <div class="sbm-prog">
         <span class="track"><i style="width:${pct}%"></i></span>
-        <span class="n">${rows.length ? `완료 ${done}/${rows.length} · 진척 ${pct}%` : '하위 업무 없음'}</span>
+        <span class="n">${rows.length ? `완료 ${done}/${rows.length} · ${pct}%` : '하위 업무 없음'}</span>
       </div>`;
   };
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
@@ -6981,7 +6992,7 @@ function subtaskModal({ task, onChange, focus = null }) {
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
                title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
-        ${r.done_at ? `<span class="when">${esc(shortDate(r.done_at.slice(0, 10)))} 완료</span>` : ''}
+        <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
         <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
@@ -9056,7 +9067,7 @@ const subCount = (rows = []) => {
   if (!rows.length) return '';
   const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
   const pct = subProgress(rows) ?? 0;
-  return `<span class="sub-n${done === rows.length ? ' all' : ''}" title="완료 ${done}/${rows.length} · 진척 ${pct}%">${done}/${rows.length} · ${pct}%</span>`;
+  return `<span class="sub-n${done === rows.length ? ' all' : ''}" title="완료 ${done}/${rows.length} · ${pct}%">${done}/${rows.length} · ${pct}%</span>`;
 };
 
 // 하위 업무 마감 칸 — 비우면 상위를 따른다. 더 늦게 잡으면 상위 업무·페이즈가 그 날까지 늘어난다.
@@ -10135,6 +10146,7 @@ const INBOX_SECTIONS = {
   DUE_SOON: { title: '내일 마감인 담당 업무', tone: 'prog', mark: '●' },
   ASSIGNED: { title: '새로 배정된 업무', tone: 'wait', mark: '＋' },
   DIRECTOR_COMMENT: { title: '내 업무에 달린 디렉터 코멘트', tone: 'review', mark: '✎' },
+  COMMENT: { title: '내 업무·내 글에 달린 댓글', tone: 'wait', mark: '💬' },
   REVIEW: { title: '검토가 필요한 외주 업무', tone: 'review', mark: '◎' },
 };
 const inboxLine = (it) => {
@@ -10144,6 +10156,7 @@ const inboxLine = (it) => {
     case 'DUE_SOON': return `내일 마감 · ${shortDate(it.due_date)}`;
     case 'ASSIGNED': return `${it.actor_name ?? '누군가'} 님이 배정 · ${dateTime(it.at)}`;
     case 'DIRECTOR_COMMENT': return `${it.actor_name ?? '디렉터'} · ${dateTime(it.at)}${it.snippet ? ` — ${it.snippet}` : ''}`;
+    case 'COMMENT': return `${it.actor_name ?? '누군가'} · ${it.reply ? '내 코멘트에 답글' : '댓글'} · ${dateTime(it.at)}${it.snippet ? ` — ${it.snippet}` : ''}`;
     case 'REVIEW': return it.review_status === 'REJECTED' ? '검수 반려 — 수정이 필요합니다' : '검수 대기 중';
     default: return '';
   }
@@ -10151,12 +10164,12 @@ const inboxLine = (it) => {
 const inboxView = (data) => {
   if (!state.me) return empty({ title: '현재 사용자가 없습니다', hint: '상단에서 현재 사용자를 고르면 그 사람의 알림이 보입니다.' });
   const groups = Object.keys(INBOX_SECTIONS).map((k) => [k, data.items.filter((i) => i.kind === k)]).filter(([, v]) => v.length);
-  if (!groups.length) return empty({ title: '지금 챙길 알림이 없습니다', hint: '지연·오늘 마감·내일 마감·새 배정·디렉터 코멘트·검토 요청이 생기면 여기에 섭니다.' });
+  if (!groups.length) return empty({ title: '지금 챙길 알림이 없습니다', hint: '지연·오늘 마감·내일 마감·새 배정·디렉터 코멘트·댓글·검토 요청이 생기면 여기에 섭니다.' });
   return `<div class="inbox">${groups.map(([k, items]) => `
     <section class="inbox-sec">
       <h3><span class="dot ${INBOX_SECTIONS[k].tone}">${INBOX_SECTIONS[k].mark}</span>${INBOX_SECTIONS[k].title} <span class="n">${items.length}건</span></h3>
       ${items.map((it) => `
-        <a class="inbox-item${it.read ? ' read' : ''}" href="#/project/tasks/${esc(it.task_id)}" data-inbox-key="${esc(it.key)}">
+        <a class="inbox-item${it.read ? ' read' : ''}" href="#/project/tasks/${esc(it.task_id)}${it.comment_id ? `?cm=${esc(it.comment_id)}` : ''}" data-inbox-key="${esc(it.key)}">
           <span class="unread" aria-hidden="true"></span>
           ${it.task_key ? `<span class="tkey">${esc(it.task_key)}</span>` : ''}
           <span class="ttl">${esc(it.title)}</span>
