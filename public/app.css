@@ -63,7 +63,10 @@
   --mono:var(--sans);
 }
 
+:root{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
 @media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){color-scheme:dark}
   :root:not([data-theme="light"]){
     --ground:#0E1120; --surface:#171B2E; --surface-2:#1F2438;
     --line:#2B3149; --line-soft:#242940;
@@ -580,7 +583,8 @@ body[data-gate="view"] [data-area]{pointer-events:none;appearance:none;-webkit-a
   border-color:transparent;background:none;padding-left:0}
 
 /* 편집이지만 관리자는 아닌 사람 — 지우기만 감춘다 */
-body[data-gate="edit"] .btn-danger:not([data-delete]){display:none}
+/* 창 안의 위험 단추(프로젝트 아카이브·삭제, 페이즈·마일스톤 삭제)만 감춘다. 확인 창의 「삭제」(data-ok)와 업무 삭제는 편집자도 쓴다. */
+body[data-gate="edit"] .modal .btn-danger:not([data-ok]){display:none}
 body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:none}
 .dirty-note{align-self:center;font-size:.75rem;color:var(--s-delay);white-space:nowrap}
 .dirty-note::before{content:'●';margin-right:4px;font-size:.6rem;vertical-align:1px}

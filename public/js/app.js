@@ -22,12 +22,16 @@ window.addEventListener('kf:sync', (e) => {
   const badge = document.getElementById('sync-badge');
   if (!badge) return;
   const ok = Boolean(e.detail?.ok);
+  const reason = e.detail?.reason;
   badge.hidden = false;
   badge.classList.toggle('off', !ok);
-  badge.textContent = ok ? '공유 중' : '이 브라우저에만';
+  badge.textContent = ok ? '공유 중' : (reason || '이 브라우저에만');
   badge.title = ok
     ? '바꾼 내용이 팀 모두에게 보입니다.'
-    : '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.';
+    : reason
+      ? '저장소가 잠깐 받지 못했습니다. 바뀐 내용은 그대로 두고 조금 뒤 다시 올립니다. 이 표시가 사라질 때까지 창을 닫지 마세요.'
+      : '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.';
+  if (!ok && reason) toast('저장이 공유되지 않았습니다. 잠시 뒤 다시 올립니다 — 창을 닫지 마세요.', true);
 });
 
 // 지금 무엇을 할 수 있는지 한 곳에 적어 둔다. CSS 가 이것을 보고 편집칸을 열고 닫는다.

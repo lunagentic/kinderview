@@ -117,6 +117,7 @@ const doc = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <meta name="description" content="프로젝트의 업무와 담당을 명확히 정의하고 진행·이슈를 추적하는 업무 관리 도구">
 <meta name="theme-color" content="#F4F6F8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0D1119" media="(prefers-color-scheme: dark)">

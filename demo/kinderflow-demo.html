@@ -67,7 +67,10 @@
   --mono:var(--sans);
 }
 
+:root{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
 @media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){color-scheme:dark}
   :root:not([data-theme="light"]){
     --ground:#0E1120; --surface:#171B2E; --surface-2:#1F2438;
     --line:#2B3149; --line-soft:#242940;
@@ -584,7 +587,8 @@ body[data-gate="view"] [data-area]{pointer-events:none;appearance:none;-webkit-a
   border-color:transparent;background:none;padding-left:0}
 
 /* 편집이지만 관리자는 아닌 사람 — 지우기만 감춘다 */
-body[data-gate="edit"] .btn-danger:not([data-delete]){display:none}
+/* 창 안의 위험 단추(프로젝트 아카이브·삭제, 페이즈·마일스톤 삭제)만 감춘다. 확인 창의 「삭제」(data-ok)와 업무 삭제는 편집자도 쓴다. */
+body[data-gate="edit"] .modal .btn-danger:not([data-ok]){display:none}
 body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:none}
 .dirty-note{align-self:center;font-size:.75rem;color:var(--s-delay);white-space:nowrap}
 .dirty-note::before{content:'●';margin-right:4px;font-size:.6rem;vertical-align:1px}
@@ -2970,8 +2974,8 @@ async function sbRpc(fn, args = {}) {
 }
 
 /** 지금 공유되고 있는지 화면에 알린다 — 모르고 쓰면 "공유된 줄 알았는데"가 생긴다 */
-const tellSync = (ok) => {
-  try { window.dispatchEvent(new CustomEvent('kf:sync', { detail: { ok } })); } catch { /* 창이 없으면 넘어간다 */ }
+const tellSync = (ok, reason = null) => {
+  try { window.dispatchEvent(new CustomEvent('kf:sync', { detail: { ok, reason } })); } catch { /* 창이 없으면 넘어간다 */ }
 };
 
 /**
@@ -3001,7 +3005,7 @@ async function refreshFromRemote() {
     if (!rows.length) { window.dispatchEvent(new Event('kf:reload')); return; }
     DB = unflatten(rows);
     save(DB, { push: false });
-    shadow = snapshot(flatten(DB));
+    setShadow(snapshot(flatten(DB)));
     lastSeen = rows[rows.length - 1]?.updated_at ?? lastSeen;
     window.dispatchEvent(new Event('kf:reload'));
   } catch { /* 못 닿으면 다음 순번에 다시 맞춘다 */ }
@@ -3067,6 +3071,18 @@ function unflatten(rows) {
 
 let shadow = new Map();    // 마지막으로 올린 모습 — 바뀐 줄만 골라내는 기준
 const snapshot = (rows) => new Map(rows.map((r) => [`${r.collection}/${r.id}`, JSON.stringify(r.data)]));
+// 마지막으로 공유본과 맞췄을 때 있던 줄의 키. 다음에 열 때 "이 브라우저에서 새로 만든 줄"과
+// "남이 지운 줄"을 가르는 기준이다 — 전자는 올리고 후자는 버린다.
+const SHADOW_KEY = 'kf.real.synced.v1';
+const BACKUP_KEY = 'kf.real.backup.v1';
+const rememberSynced = (map) => {
+  try { localStorage.setItem(SHADOW_KEY, JSON.stringify([...map.keys()])); } catch { /* 못 남기면 그만 */ }
+};
+const readSynced = () => {
+  try { const v = JSON.parse(localStorage.getItem(SHADOW_KEY) || 'null'); return v ? new Set(v) : null; }
+  catch { return null; }
+};
+const setShadow = (map) => { shadow = map; rememberSynced(map); };
 
 let flushTimer = null;
 let flushing = false;
@@ -3091,12 +3107,36 @@ function scheduleFlush() {
   flushTimer = setTimeout(() => { flush(); }, 350);
 }
 
+// 한 번에 올리는 줄 수. 저장소가 요청마다 권한을 한 번 세지만, 한 요청이 3초를 넘으면 잘린다.
+const FLUSH_CHUNK = 100;
+// 저장이 실패했을 때 다시 시도하는 간격. 끝까지 실패해도 "이 브라우저에만" 으로 빠지지 않는다 —
+// 저장소가 잠깐 막힌 것과 못 닿는 것은 다르다. 바뀐 줄은 shadow 에 남아 다음 시도에 다시 올라간다.
+const RETRY_AFTER = [5_000, 15_000, 60_000, 180_000];
+let retryTimer = null;
+let retryCount = 0;
+let saveFailed = false;
+
+const saveOk = () => {
+  retryCount = 0;
+  if (saveFailed) { saveFailed = false; tellSync(true); }
+};
+const saveFail = (err) => {
+  console.warn('[kf] 저장이 공유되지 않았습니다. 다시 시도합니다.', err);
+  saveFailed = true;
+  tellSync(false, '저장 안 됨 · 다시 시도 중');
+  clearTimeout(retryTimer);
+  const wait = RETRY_AFTER[Math.min(retryCount, RETRY_AFTER.length - 1)];
+  retryCount += 1;
+  retryTimer = setTimeout(() => { flush(); }, wait);
+};
+
 async function flush() {
   if (!remoteOk) return;
   if (isLocalOnly()) return;
   if (!canEdit()) return;
   if (flushing) { flushAgain = true; return; }
   flushing = true;
+  clearTimeout(retryTimer);
   try {
     const rows = flatten(DB);
     const now = snapshot(rows);
@@ -3107,18 +3147,21 @@ async function flush() {
     // 저장소가 6시간 안에 저장점이 있으면 알아서 건너뛴다.
     if (upserts.length || gone.length) await autoSnapshot();
 
-    if (upserts.length) {
+    // 올라간 줄은 그때그때 shadow 에 반영한다 — 중간에 실패해도 올라간 만큼은 다시 안 올린다
+    for (let i = 0; i < upserts.length; i += FLUSH_CHUNK) {
+      const part = upserts.slice(i, i + FLUSH_CHUNK);
       // 저장된 시각을 되돌려 받는다. 브라우저 시계로 기준을 잡으면 시계가 어긋난 만큼
       // 남이 고친 것을 영영 못 본다 — 기준은 항상 저장소가 찍은 시각이어야 한다.
       const res = await sbFetch(`${SB_TABLE}?select=updated_at`, {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify(upserts),
+        body: JSON.stringify(part),
       });
       if (res.status === 401 || res.status === 403) return writeDenied();
       if (!res.ok) throw new Error(`쓰기 실패 ${res.status} ${await res.text()}`);
       const saved = await res.json().catch(() => []);
       for (const r of saved) if (!lastSeen || r.updated_at > lastSeen) lastSeen = r.updated_at;
+      for (const r of part) shadow.set(`${r.collection}/${r.id}`, now.get(`${r.collection}/${r.id}`));
     }
     for (const key of gone) {
       const cut = key.indexOf('/');
@@ -3130,10 +3173,12 @@ async function flush() {
       );
       if (res.status === 401 || res.status === 403) return writeDenied();
       if (!res.ok) throw new Error(`삭제 실패 ${res.status}`);
+      shadow.delete(key);
     }
-    shadow = now;
+    setShadow(now);
+    saveOk();
   } catch (err) {
-    remoteDown(err);
+    saveFail(err);
   } finally {
     flushing = false;
     if (flushAgain) { flushAgain = false; scheduleFlush(); }
@@ -3152,19 +3197,33 @@ async function syncFromRemote() {
     tellSync(true);
     if (!rows.length) {
       // 비어 있으면 이 브라우저에 있던 것이 공유본이 된다
-      shadow = new Map();
+      setShadow(new Map());
       lastSeen = null;
       await flush();
       return;
     }
     const remote = unflatten(rows);
     lastSeen = rows[rows.length - 1]?.updated_at ?? null;
+    // 이 브라우저에서 만들었는데 아직 공유본에 없는 줄은 살려서 올린다.
+    // 지난번 맞출 때 있었던 줄(synced)이 공유본에서 사라졌다면 남이 지운 것이니 따른다.
+    // 공유본과 로컬 둘 다 있는 줄은 공유본이 이긴다. 덮기 전 로컬 전체를 한 벌 남겨 둔다.
+    const synced = readSynced();
+    const remoteKeys = new Set(rows.map((r) => `${r.collection}/${r.id}`));
+    const localOnly = flatten(DB).filter((r) => r.collection !== 'meta'
+      && !remoteKeys.has(`${r.collection}/${r.id}`) && (!synced || !synced.has(`${r.collection}/${r.id}`)));
+    if (localOnly.length) {
+      try { localStorage.setItem(BACKUP_KEY, localStorage.getItem(LS_KEY) ?? ''); } catch { /* 없으면 그만 */ }
+      for (const r of localOnly) (remote[r.collection] ??= []).push(r.data);
+      console.info(`[kf] 이 브라우저에만 있던 줄 ${localOnly.length}개를 공유본에 합칩니다.`);
+    }
     // 시드가 늘었으면 여기서도 채운다 (구성원·영역 리드·새 업무)
     try { reconcile(remote); } catch (err) { console.warn('[kf] 시드 맞추기 실패', err); }
     DB = remote;
     save();
-    shadow = snapshot(flatten(DB));
-    await flush();   // reconcile 로 는 것이 있으면 올린다
+    // 공유본에 이미 있던 줄만 '맞춘 것'으로 친다 — 합친 줄은 아래 flush 가 올린다
+    shadow = snapshot(flatten(DB).filter((r) => remoteKeys.has(`${r.collection}/${r.id}`)));
+    rememberSynced(shadow);
+    await flush();   // reconcile·합치기로 는 것이 있으면 올린다
   } catch (err) {
     remoteDown(err);
   }
@@ -3182,7 +3241,7 @@ async function pollRemote() {
     if (!rows.length) return;   // 빈 응답을 '전부 지워졌다'로 읽지 않는다
     DB = unflatten(rows);
     save(DB, { push: false });
-    shadow = snapshot(flatten(DB));
+    setShadow(snapshot(flatten(DB)));
     lastSeen = top.updated_at;
     window.dispatchEvent(new Event('kf:reload'));
   } catch { /* 잠깐 못 닿는 것은 넘어간다 */ }
@@ -3193,6 +3252,8 @@ async function pollRemote() {
 let wasAdmin = canAdmin();
 try {
   window.addEventListener('kf:gate', () => {
+    // 코드를 넣었는데 저장소가 끊긴 상태로 남아 있다면 다시 잇는다 — 로컬에만 있던 줄은 합쳐 올린다
+    if (booted && !remoteOk && canEdit() && !isLocalOnly()) { remoteWarned = false; syncFromRemote(); return; }
     const now = canAdmin();
     if (now === wasAdmin) return;
     wasAdmin = now;
@@ -3201,7 +3262,9 @@ try {
 } catch { /* 창이 없으면 넘어간다 */ }
 
 let readyPromise = null;
+let booted = false;   // 처음 맞추기가 끝났는가 — 그 전의 kf:gate 는 다시 잇기로 치지 않는다
 const ensureReady = () => (readyPromise ??= resume().then(syncFromRemote).then(() => {
+  booted = true;
   setInterval(pollRemote, 15_000);
 }));
 
@@ -10403,12 +10466,16 @@ window.addEventListener('kf:sync', (e) => {
   const badge = document.getElementById('sync-badge');
   if (!badge) return;
   const ok = Boolean(e.detail?.ok);
+  const reason = e.detail?.reason;
   badge.hidden = false;
   badge.classList.toggle('off', !ok);
-  badge.textContent = ok ? '공유 중' : '이 브라우저에만';
+  badge.textContent = ok ? '공유 중' : (reason || '이 브라우저에만');
   badge.title = ok
     ? '바꾼 내용이 팀 모두에게 보입니다.'
-    : '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.';
+    : reason
+      ? '저장소가 잠깐 받지 못했습니다. 바뀐 내용은 그대로 두고 조금 뒤 다시 올립니다. 이 표시가 사라질 때까지 창을 닫지 마세요.'
+      : '공유 저장소에 닿지 못했습니다. 바꾼 내용이 이 브라우저에만 남습니다.';
+  if (!ok && reason) toast('저장이 공유되지 않았습니다. 잠시 뒤 다시 올립니다 — 창을 닫지 마세요.', true);
 });
 
 // 지금 무엇을 할 수 있는지 한 곳에 적어 둔다. CSS 가 이것을 보고 편집칸을 열고 닫는다.
