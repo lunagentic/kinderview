@@ -218,7 +218,7 @@ export async function renderTimeline(root) {
               <button class="pr-edit" data-edit-project="${esc(r.id)}"
                       aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>
               <span class="tl-meta">${r.start_date ? `${shortDate(r.start_date)} ~ ${shortDate(r.end_date)}` : '일정 없음'}${
-                r.unphased ? ` · 페이즈 미지정 업무 ${r.unphased}` : ''}</span>
+                ''}</span>
               <span class="tl-group-actions">
                 <button class="btn btn-ghost sm" data-add-phase="${esc(r.id)}">+ 페이즈</button>
                 <button class="btn btn-ghost sm" data-add-milestone="${esc(r.id)}">+ 마일스톤</button>
