@@ -628,7 +628,7 @@ export const comments = {
       `SELECT c.*, m.display_name AS author_name, m.avatar_url AS author_avatar
          FROM comment c
          LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
-        WHERE c.task_id = :t
+        WHERE c.task_id = :t AND c.deleted_at IS NULL
         ORDER BY c.created_at`,
       { t: taskId },
     ).map(strip);
@@ -672,7 +672,7 @@ export const comments = {
     return all(
       `SELECT c.*, m.display_name AS author_name, m.avatar_url AS author_avatar
          FROM phase_comment c LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
-        WHERE c.phase_id = :p ORDER BY c.created_at`, { p: phaseId },
+        WHERE c.phase_id = :p AND c.deleted_at IS NULL ORDER BY c.created_at`, { p: phaseId },
     ).map(strip);
   },
   createPhase(phaseId, input, actor) {
@@ -738,8 +738,12 @@ export const comments = {
     if (!isAdmin && cur.author_slack_user_id !== actor && cur.author_role !== 'DIRECTOR') {
       throw new HttpError(403, '내가 쓴 코멘트만 지울 수 있습니다.');
     }
-    run(`UPDATE ${table} SET deleted_at = :at, updated_at = :at WHERE id = :id AND deleted_at IS NULL`,
-      { id, at: nowISO() });
+    // 행을 지운다 — 「지운 코멘트입니다」 자리가 남으면 지운 게 아니다.
+    // 답글이 딸려 있으면 답글은 뿌리 글로 올라선다. 남의 말까지 따라 지우지는 않는다.
+    tx(() => {
+      run(`UPDATE ${table} SET parent_id = NULL WHERE parent_id = :id`, { id });
+      run(`DELETE FROM ${table} WHERE id = :id`, { id });
+    });
     return { ok: true };
   },
 };

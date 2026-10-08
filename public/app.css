@@ -1773,3 +1773,7 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .mr-sub,.mr-iss{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
 .mr-iss{color:var(--s-issue);font-weight:600}
 @media (max-width:720px){.mr-task{padding:6px 4px}.mr-ttl{flex-basis:100%}}
+/* 코멘트 칸 안의 「댓글」 묶음 머리 — 디렉터 코멘트 아래에 선다 */
+.cm-sec-head{display:flex;align-items:center;gap:6px;margin:14px 0 4px;padding-top:10px;border-top:1px dashed var(--line)}
+.cm-sec-head h4{font-size:.82rem;font-weight:700;color:var(--ink-2);margin:0}
+.cm-sec-head .n{font-family:var(--mono);font-size:.72rem;color:var(--muted)}

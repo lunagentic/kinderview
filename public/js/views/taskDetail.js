@@ -479,6 +479,7 @@ export async function renderTaskDetail(root, id, query = '') {
       }
       taskForm({ task: t, onSaved: reload });
     } else if (e.target.closest('[data-new-issue]')) {
+      e.stopPropagation();   // app.js 의 공통 「+ 이슈 등록」 처리가 또 열지 않게 — 창이 두 겹으로 뜨던 원인
       issueForm({ defaults: { project_id: t.project_id, task_id: t.id }, onSaved: reload });
     } else if (e.target.closest('[data-delete]')) {
       const ok = await confirmModal('이 업무를 삭제할까요? 연결된 이슈는 남습니다.', { confirmLabel: '삭제', danger: true });

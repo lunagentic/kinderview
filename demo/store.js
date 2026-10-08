@@ -765,7 +765,7 @@ const openIssuesOf = (taskId) => liveIssues().filter((i) => i.task_id === taskId
 // 서버(server/repo.js 의 comments)와 같은 규칙이다.
 // 대댓글은 한 단계까지, 지운 글은 자리만 남긴다.
 const commentsOf = (taskId) => (DB.comments ?? [])
-  .filter((c) => c.task_id === taskId)
+  .filter((c) => c.task_id === taskId && !c.deleted_at)
   .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
 const dressComment = (c) => {
@@ -818,7 +818,7 @@ const canFixComment = (c, actor) => c.author_slack_user_id === actor
 
 // 페이즈 코멘트 — 같은 comments 묶음에 phase_id 로 둔다(task_id 는 null)
 const phaseCommentsOf = (phaseId) => (DB.comments ?? [])
-  .filter((c) => c.phase_id === phaseId)
+  .filter((c) => c.phase_id === phaseId && !c.deleted_at)
   .sort((a, b) => a.created_at.localeCompare(b.created_at));
 function listPhaseComments(phaseId) { return phaseCommentsOf(phaseId).map(dressComment); }
 function createPhaseComment(phaseId, input, actor) {
@@ -864,9 +864,11 @@ function removeComment(id, actor) {
   if (!canFixComment(c, actor)) {
     throw new DemoError('내가 쓴 코멘트만 지울 수 있습니다. (디렉터 코멘트는 디렉터·관리자 코드로)');
   }
-  // 행을 없애지 않는다 — 답글이 딸려 있으면 대화가 끊긴다
+  // 행을 지운다 — 「지운 코멘트입니다」 자리가 남으면 지운 게 아니다.
+  // 답글이 딸려 있으면 답글은 뿌리 글로 올라선다. 남의 말까지 따라 지우지는 않는다.
   const at = nowISO();
-  Object.assign(c, { deleted_at: at, updated_at: at });
+  for (const k of DB.comments) if (k.parent_id === id) Object.assign(k, { parent_id: null, updated_at: at });
+  DB.comments = DB.comments.filter((x) => x.id !== id);
   save();
   return { ok: true };
 }

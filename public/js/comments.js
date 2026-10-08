@@ -2,7 +2,10 @@
 // 한쪽에서 남긴 말이 다른 쪽에서 안 보이면 코멘트가 아니라 메모가 된다.
 //
 // 대댓글은 한 단계까지다. 답글에 또 답글을 달면 자료 층이 뿌리 글에 붙여 준다.
-// 지운 글은 자리만 남는다. 답글이 딸려 있으면 대화가 끊기기 때문이다.
+// 지운 글은 자리도 남기지 않는다. 답글이 딸려 있었으면 답글이 뿌리 글로 올라선다.
+//
+// 디렉터 코멘트는 디렉터 코드로 들어온 사람만 쓴다 — 자리에서 내는 말이다.
+// 나머지는 아래 「댓글」 칸에 남긴다. 둘 다 서로의 글에 답글을 달 수 있다.
 //
 // 엔터만 치면 저장한다. 줄을 바꾸려면 Shift+Enter —
 // 코멘트는 대개 한 줄이라 버튼까지 가는 손이 더 비싸다.
@@ -79,28 +82,38 @@ const one = (c, { reply = true } = {}) => {
   </li>`;
 };
 
-/** 뿌리 글 아래에 그 답글을 붙여 시간순으로 편다 */
+/** 뿌리 글 아래에 그 답글을 붙여 시간순으로 편다. 뿌리가 없어진 답글은 뿌리로 올라선다. */
 const order = (rows) => {
-  const roots = rows.filter((c) => !c.parent_id);
-  const kids = (id) => rows.filter((c) => c.parent_id === id);
-  // 지운 뿌리 글이라도 답글이 있으면 자리를 지킨다
-  return roots.flatMap((r) => [r, ...kids(r.id)]);
+  const live = rows.filter((c) => !c.deleted_at);
+  const ids = new Set(live.map((c) => c.id));
+  const roots = live.filter((c) => !c.parent_id || !ids.has(c.parent_id));
+  const kids = (id) => live.filter((c) => c.parent_id === id && c.id !== id);
+  return roots.map((r) => [r, ...kids(r.id)]);
 };
 
+const cmIsDirector = () => currentRole() === 'DIRECTOR';
+const addForm = (kind) => `
+  <form class="cm-add" data-cm-add="${kind}">
+    <textarea name="body" rows="2" maxlength="2000"
+              placeholder="${kind === 'director' ? '이 업무에 대한 의견을 남겨 주세요' : '댓글을 남겨 주세요'}"
+              aria-label="${kind === 'director' ? '디렉터 코멘트' : '댓글'}"></textarea>
+    <button class="btn btn-ghost" type="submit">${cmIcon('send')}${kind === 'director' ? '남기기' : '댓글 남기기'}</button>
+    ${CM_TIP}
+  </form>`;
+
 export function commentList(rows) {
-  const shown = order(rows);
-  const live = rows.filter((c) => !c.deleted_at).length;
+  // 뿌리 글이 디렉터 말이면 디렉터 코멘트 묶음, 아니면 댓글 묶음. 답글은 뿌리를 따라간다.
+  const threads = order(rows);
+  const dir = threads.filter(([r]) => isDir(r)).flat();
+  const rest = threads.filter(([r]) => !isDir(r)).flat();
   return `
-    ${shown.length ? `<ul class="cm-list">${shown.map((c) => one(c)).join('')}</ul>` : ''}
-    ${!live && !shown.length ? '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>' : ''}
-    ${canEdit()
-      ? `<form class="cm-add" data-cm-add>
-           <textarea name="body" rows="2" maxlength="2000"
-                     placeholder="이 업무에 대한 의견을 남겨 주세요" aria-label="디렉터 코멘트"></textarea>
-           <button class="btn btn-ghost" type="submit">${cmIcon('send')}남기기</button>
-           ${CM_TIP}
-         </form>`
-      : '<p class="hint">디렉터 코멘트를 남기려면 편집 코드가 필요합니다.</p>'}`;
+    ${dir.length ? `<ul class="cm-list">${dir.map((c) => one(c)).join('')}</ul>` : '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>'}
+    ${cmIsDirector() && canEdit() ? addForm('director')
+    : canEdit() ? '' : '<p class="hint">코멘트를 남기려면 편집 코드가 필요합니다.</p>'}
+    <div class="cm-sec-head"><h4>댓글</h4>${rest.length ? `<span class="n">${rest.length}</span>` : ''}</div>
+    ${rest.length ? `<ul class="cm-list">${rest.map((c) => one(c)).join('')}</ul>` : ''}
+    ${canEdit() && !cmIsDirector() ? addForm('comment') : ''}
+    ${!rest.length && (cmIsDirector() || !canEdit()) ? '<p class="empty-line">아직 댓글이 없습니다.</p>' : ''}`;
 }
 
 /**
@@ -154,16 +167,18 @@ export function bindComments(box, taskId, { onChange, base = null, highlight = n
     director: rows.filter((c) => !c.deleted_at && c.author_role === 'DIRECTOR').length,
   });
 
-  const post = async (body, parentId) => {
+  const post = async (body, parentId, { kind = 'comment' } = {}) => {
     const text = String(body ?? '').trim();
     if (!text) return false;
+    // 디렉터 칸에서 쓴 글만 디렉터 자리의 말이다. 디렉터가 남의 댓글에 단 답글은 그 사람의 말로 남는다.
+    const asDirector = kind === 'director' && currentRole() === 'DIRECTOR';
     try {
       await api.post(endpoint, {
         body: text,
         parent_id: parentId ?? null,
         // 어느 자리에서 남긴 말인지 함께 적는다 — 나중에 코드가 바뀌어도 그때의 자리가 남는다
-        author_role: currentRole(),
-        author_title: currentLabel(),
+        author_role: asDirector ? 'DIRECTOR' : (currentRole() === 'DIRECTOR' ? 'EDIT' : currentRole()),
+        author_title: asDirector ? currentLabel() : null,
       });
       await load();
       onChange?.(tally());
@@ -176,7 +191,7 @@ export function bindComments(box, taskId, { onChange, base = null, highlight = n
     if (add) {
       e.preventDefault();
       const ta = add.querySelector('[name=body]');
-      if (await post(ta.value)) ta.value = '';
+      if (await post(ta.value, null, { kind: add.dataset.cmAdd })) ta.value = '';
       return;
     }
     const re = e.target.closest('[data-cm-reply-form]');
@@ -269,7 +284,7 @@ export function bindComments(box, taskId, { onChange, base = null, highlight = n
 
     const del = e.target.closest('[data-cm-del]');
     if (del) {
-      const ok = await confirmModal('이 코멘트를 지울까요? 답글이 달려 있으면 자리는 남습니다.',
+      const ok = await confirmModal('이 코멘트를 지울까요? 답글이 달려 있으면 답글은 남습니다.',
         { confirmLabel: '삭제', danger: true });
       if (!ok) return;
       try {

@@ -508,12 +508,11 @@ export function issueForm({ issue = null, defaults = {}, onSaved }) {
           <textarea name="content" required placeholder="무엇이 막고 있는지, 원인은 무엇인지">${esc(issue?.content ?? '')}</textarea>
         </label>
         <label class="field">
-          <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
-          <select name="owner_slack_user_id" data-owner>
+          <span class="lab">담당<span class="req">*</span></span>
+          <select name="owner_slack_user_id" required>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
-              m.slack_user_id === task?.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              m.slack_user_id === (issue?.owner_slack_user_id ?? defaults.owner_slack_user_id ?? state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
           </select>
-          <span class="lead-box" data-lead-box></span>
         </label>
         <label class="field">
           <span class="lab">중요도</span>
@@ -546,11 +545,6 @@ export function issueForm({ issue = null, defaults = {}, onSaved }) {
       const projectSel = form.querySelector('[name=project_id]');
       const taskSel = form.querySelector('[name=task_id]');
 
-      const ownerPicker = memberPicker(form.querySelector('[data-owner-slot] .member-pick'), {
-        multi: false,
-        value: issue?.owner_slack_user_id ? [issue.owner_slack_user_id] : [state.me],
-      });
-
       const loadTasks = async () => {
         const pid = projectSel.value;
         taskSel.innerHTML = '<option value="">연결 안 함</option>';
@@ -565,7 +559,6 @@ export function issueForm({ issue = null, defaults = {}, onSaved }) {
       root.querySelector('[data-save]').addEventListener('click', async () => {
         const fd = new FormData(form);
         const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
-        payload.owner_slack_user_id = ownerPicker.value;
         if (!payload.title?.trim()) return toast('이슈명을 입력해 주세요.', true);
         if (!payload.project_id) return toast('관련 프로젝트를 선택해 주세요.', true);
         if (!payload.content?.trim()) return toast('이슈 내용을 입력해 주세요.', true);

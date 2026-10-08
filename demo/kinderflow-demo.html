@@ -1777,6 +1777,10 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .mr-sub,.mr-iss{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
 .mr-iss{color:var(--s-issue);font-weight:600}
 @media (max-width:720px){.mr-task{padding:6px 4px}.mr-ttl{flex-basis:100%}}
+/* 코멘트 칸 안의 「댓글」 묶음 머리 — 디렉터 코멘트 아래에 선다 */
+.cm-sec-head{display:flex;align-items:center;gap:6px;margin:14px 0 4px;padding-top:10px;border-top:1px dashed var(--line)}
+.cm-sec-head h4{font-size:.82rem;font-weight:700;color:var(--ink-2);margin:0}
+.cm-sec-head .n{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
 
 </style>
 
@@ -3483,7 +3487,7 @@ const openIssuesOf = (taskId) => liveIssues().filter((i) => i.task_id === taskId
 // 서버(server/repo.js 의 comments)와 같은 규칙이다.
 // 대댓글은 한 단계까지, 지운 글은 자리만 남긴다.
 const commentsOf = (taskId) => (DB.comments ?? [])
-  .filter((c) => c.task_id === taskId)
+  .filter((c) => c.task_id === taskId && !c.deleted_at)
   .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
 const dressComment = (c) => {
@@ -3536,7 +3540,7 @@ const canFixComment = (c, actor) => c.author_slack_user_id === actor
 
 // 페이즈 코멘트 — 같은 comments 묶음에 phase_id 로 둔다(task_id 는 null)
 const phaseCommentsOf = (phaseId) => (DB.comments ?? [])
-  .filter((c) => c.phase_id === phaseId)
+  .filter((c) => c.phase_id === phaseId && !c.deleted_at)
   .sort((a, b) => a.created_at.localeCompare(b.created_at));
 function listPhaseComments(phaseId) { return phaseCommentsOf(phaseId).map(dressComment); }
 function createPhaseComment(phaseId, input, actor) {
@@ -3582,9 +3586,11 @@ function removeComment(id, actor) {
   if (!canFixComment(c, actor)) {
     throw new DemoError('내가 쓴 코멘트만 지울 수 있습니다. (디렉터 코멘트는 디렉터·관리자 코드로)');
   }
-  // 행을 없애지 않는다 — 답글이 딸려 있으면 대화가 끊긴다
+  // 행을 지운다 — 「지운 코멘트입니다」 자리가 남으면 지운 게 아니다.
+  // 답글이 딸려 있으면 답글은 뿌리 글로 올라선다. 남의 말까지 따라 지우지는 않는다.
   const at = nowISO();
-  Object.assign(c, { deleted_at: at, updated_at: at });
+  for (const k of DB.comments) if (k.parent_id === id) Object.assign(k, { parent_id: null, updated_at: at });
+  DB.comments = DB.comments.filter((x) => x.id !== id);
   save();
   return { ok: true };
 }
@@ -6339,12 +6345,11 @@ function issueForm({ issue = null, defaults = {}, onSaved }) {
           <textarea name="content" required placeholder="무엇이 막고 있는지, 원인은 무엇인지">${esc(issue?.content ?? '')}</textarea>
         </label>
         <label class="field">
-          <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
-          <select name="owner_slack_user_id" data-owner>
+          <span class="lab">담당<span class="req">*</span></span>
+          <select name="owner_slack_user_id" required>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
-              m.slack_user_id === task?.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              m.slack_user_id === (issue?.owner_slack_user_id ?? defaults.owner_slack_user_id ?? state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
           </select>
-          <span class="lead-box" data-lead-box></span>
         </label>
         <label class="field">
           <span class="lab">중요도</span>
@@ -6377,11 +6382,6 @@ function issueForm({ issue = null, defaults = {}, onSaved }) {
       const projectSel = form.querySelector('[name=project_id]');
       const taskSel = form.querySelector('[name=task_id]');
 
-      const ownerPicker = memberPicker(form.querySelector('[data-owner-slot] .member-pick'), {
-        multi: false,
-        value: issue?.owner_slack_user_id ? [issue.owner_slack_user_id] : [state.me],
-      });
-
       const loadTasks = async () => {
         const pid = projectSel.value;
         taskSel.innerHTML = '<option value="">연결 안 함</option>';
@@ -6396,7 +6396,6 @@ function issueForm({ issue = null, defaults = {}, onSaved }) {
       root.querySelector('[data-save]').addEventListener('click', async () => {
         const fd = new FormData(form);
         const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
-        payload.owner_slack_user_id = ownerPicker.value;
         if (!payload.title?.trim()) return toast('이슈명을 입력해 주세요.', true);
         if (!payload.project_id) return toast('관련 프로젝트를 선택해 주세요.', true);
         if (!payload.content?.trim()) return toast('이슈 내용을 입력해 주세요.', true);
@@ -7248,7 +7247,10 @@ async function directorDigestModal({ phases = [], projects = [] } = {}) {
 // 한쪽에서 남긴 말이 다른 쪽에서 안 보이면 코멘트가 아니라 메모가 된다.
 //
 // 대댓글은 한 단계까지다. 답글에 또 답글을 달면 자료 층이 뿌리 글에 붙여 준다.
-// 지운 글은 자리만 남는다. 답글이 딸려 있으면 대화가 끊기기 때문이다.
+// 지운 글은 자리도 남기지 않는다. 답글이 딸려 있었으면 답글이 뿌리 글로 올라선다.
+//
+// 디렉터 코멘트는 디렉터 코드로 들어온 사람만 쓴다 — 자리에서 내는 말이다.
+// 나머지는 아래 「댓글」 칸에 남긴다. 둘 다 서로의 글에 답글을 달 수 있다.
 //
 // 엔터만 치면 저장한다. 줄을 바꾸려면 Shift+Enter —
 // 코멘트는 대개 한 줄이라 버튼까지 가는 손이 더 비싸다.
@@ -7325,28 +7327,38 @@ const one = (c, { reply = true } = {}) => {
   </li>`;
 };
 
-/** 뿌리 글 아래에 그 답글을 붙여 시간순으로 편다 */
+/** 뿌리 글 아래에 그 답글을 붙여 시간순으로 편다. 뿌리가 없어진 답글은 뿌리로 올라선다. */
 const order = (rows) => {
-  const roots = rows.filter((c) => !c.parent_id);
-  const kids = (id) => rows.filter((c) => c.parent_id === id);
-  // 지운 뿌리 글이라도 답글이 있으면 자리를 지킨다
-  return roots.flatMap((r) => [r, ...kids(r.id)]);
+  const live = rows.filter((c) => !c.deleted_at);
+  const ids = new Set(live.map((c) => c.id));
+  const roots = live.filter((c) => !c.parent_id || !ids.has(c.parent_id));
+  const kids = (id) => live.filter((c) => c.parent_id === id && c.id !== id);
+  return roots.map((r) => [r, ...kids(r.id)]);
 };
 
+const cmIsDirector = () => currentRole() === 'DIRECTOR';
+const addForm = (kind) => `
+  <form class="cm-add" data-cm-add="${kind}">
+    <textarea name="body" rows="2" maxlength="2000"
+              placeholder="${kind === 'director' ? '이 업무에 대한 의견을 남겨 주세요' : '댓글을 남겨 주세요'}"
+              aria-label="${kind === 'director' ? '디렉터 코멘트' : '댓글'}"></textarea>
+    <button class="btn btn-ghost" type="submit">${cmIcon('send')}${kind === 'director' ? '남기기' : '댓글 남기기'}</button>
+    ${CM_TIP}
+  </form>`;
+
 function commentList(rows) {
-  const shown = order(rows);
-  const live = rows.filter((c) => !c.deleted_at).length;
+  // 뿌리 글이 디렉터 말이면 디렉터 코멘트 묶음, 아니면 댓글 묶음. 답글은 뿌리를 따라간다.
+  const threads = order(rows);
+  const dir = threads.filter(([r]) => isDir(r)).flat();
+  const rest = threads.filter(([r]) => !isDir(r)).flat();
   return `
-    ${shown.length ? `<ul class="cm-list">${shown.map((c) => one(c)).join('')}</ul>` : ''}
-    ${!live && !shown.length ? '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>' : ''}
-    ${canEdit()
-      ? `<form class="cm-add" data-cm-add>
-           <textarea name="body" rows="2" maxlength="2000"
-                     placeholder="이 업무에 대한 의견을 남겨 주세요" aria-label="디렉터 코멘트"></textarea>
-           <button class="btn btn-ghost" type="submit">${cmIcon('send')}남기기</button>
-           ${CM_TIP}
-         </form>`
-      : '<p class="hint">디렉터 코멘트를 남기려면 편집 코드가 필요합니다.</p>'}`;
+    ${dir.length ? `<ul class="cm-list">${dir.map((c) => one(c)).join('')}</ul>` : '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>'}
+    ${cmIsDirector() && canEdit() ? addForm('director')
+    : canEdit() ? '' : '<p class="hint">코멘트를 남기려면 편집 코드가 필요합니다.</p>'}
+    <div class="cm-sec-head"><h4>댓글</h4>${rest.length ? `<span class="n">${rest.length}</span>` : ''}</div>
+    ${rest.length ? `<ul class="cm-list">${rest.map((c) => one(c)).join('')}</ul>` : ''}
+    ${canEdit() && !cmIsDirector() ? addForm('comment') : ''}
+    ${!rest.length && (cmIsDirector() || !canEdit()) ? '<p class="empty-line">아직 댓글이 없습니다.</p>' : ''}`;
 }
 
 /**
@@ -7400,16 +7412,18 @@ function bindComments(box, taskId, { onChange, base = null, highlight = null } =
     director: rows.filter((c) => !c.deleted_at && c.author_role === 'DIRECTOR').length,
   });
 
-  const post = async (body, parentId) => {
+  const post = async (body, parentId, { kind = 'comment' } = {}) => {
     const text = String(body ?? '').trim();
     if (!text) return false;
+    // 디렉터 칸에서 쓴 글만 디렉터 자리의 말이다. 디렉터가 남의 댓글에 단 답글은 그 사람의 말로 남는다.
+    const asDirector = kind === 'director' && currentRole() === 'DIRECTOR';
     try {
       await api.post(endpoint, {
         body: text,
         parent_id: parentId ?? null,
         // 어느 자리에서 남긴 말인지 함께 적는다 — 나중에 코드가 바뀌어도 그때의 자리가 남는다
-        author_role: currentRole(),
-        author_title: currentLabel(),
+        author_role: asDirector ? 'DIRECTOR' : (currentRole() === 'DIRECTOR' ? 'EDIT' : currentRole()),
+        author_title: asDirector ? currentLabel() : null,
       });
       await load();
       onChange?.(tally());
@@ -7422,7 +7436,7 @@ function bindComments(box, taskId, { onChange, base = null, highlight = null } =
     if (add) {
       e.preventDefault();
       const ta = add.querySelector('[name=body]');
-      if (await post(ta.value)) ta.value = '';
+      if (await post(ta.value, null, { kind: add.dataset.cmAdd })) ta.value = '';
       return;
     }
     const re = e.target.closest('[data-cm-reply-form]');
@@ -7515,7 +7529,7 @@ function bindComments(box, taskId, { onChange, base = null, highlight = null } =
 
     const del = e.target.closest('[data-cm-del]');
     if (del) {
-      const ok = await confirmModal('이 코멘트를 지울까요? 답글이 달려 있으면 자리는 남습니다.',
+      const ok = await confirmModal('이 코멘트를 지울까요? 답글이 달려 있으면 답글은 남습니다.',
         { confirmLabel: '삭제', danger: true });
       if (!ok) return;
       try {
@@ -9395,6 +9409,7 @@ async function renderTaskDetail(root, id, query = '') {
       }
       taskForm({ task: t, onSaved: reload });
     } else if (e.target.closest('[data-new-issue]')) {
+      e.stopPropagation();   // app.js 의 공통 「+ 이슈 등록」 처리가 또 열지 않게 — 창이 두 겹으로 뜨던 원인
       issueForm({ defaults: { project_id: t.project_id, task_id: t.id }, onSaved: reload });
     } else if (e.target.closest('[data-delete]')) {
       const ok = await confirmModal('이 업무를 삭제할까요? 연결된 이슈는 남습니다.', { confirmLabel: '삭제', danger: true });
