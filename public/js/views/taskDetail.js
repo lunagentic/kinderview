@@ -114,7 +114,7 @@ export async function renderTaskDetail(root, id, query = '') {
         <select class="status-select" data-status aria-label="상태 변경">
           ${statuses.map((s) => `<option value="${esc(s.code)}"${s.code === t.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
         </select>
-        <button class="btn btn-primary" data-save disabled title="바뀐 내용을 저장합니다">저장</button>
+        <button class="btn" data-save disabled title="바뀐 내용을 저장합니다">저장</button>
         <button class="btn" data-edit>수정</button>
         <button class="btn btn-danger" data-delete>삭제</button>
         <span class="dirty-note" data-dirty hidden>저장 안 됨</span>
@@ -253,7 +253,8 @@ export async function renderTaskDetail(root, id, query = '') {
     const n = Object.keys(pending).length;
     const save = root.querySelector('[data-save]');
     const note = root.querySelector('[data-dirty]');
-    if (save) { save.disabled = !n; save.textContent = n ? `저장 (${n})` : '저장'; }
+    // 저장할 것이 생겼을 때만 보라색이다 — 늘 보라색이면 비활성일 때 눌린 듯 어정쩡하게 보인다
+    if (save) { save.disabled = !n; save.textContent = n ? `저장 (${n})` : '저장'; save.classList.toggle('btn-primary', n > 0); }
     if (note) { note.hidden = !n; }
   };
   const stage = (key, value) => {
