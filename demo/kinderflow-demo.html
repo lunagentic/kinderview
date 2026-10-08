@@ -1701,6 +1701,12 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:1px 4px;min-width:36px;box-sizing:border-box}
 .tl-task .tl-tst{flex:none;width:60px;padding:0 4px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 페이즈 줄 — 한 줄: ▸ 이름 … 진척 막대 · % · 완료/전체 · 코멘트. 막대가 화면 밖으로 밀려도 여기서 읽는다 */
+/* 페이즈 줄에 올리면 줄 전체가 살짝 들리고, 제목 칸 빈 곳을 누르면 업무가 펼쳐진다. 이름은 수정 창. */
+.tl-phase .tl-label{cursor:pointer;border-radius:6px 0 0 6px}
+.tl-phase:hover .tl-label,.tl-phase:hover .tl-track{background:var(--surface-2)}
+.tl-phase.is-open .tl-label{background:color-mix(in oklab, var(--indigo) 6%, var(--surface))}
+.tl-phase .tl-name{cursor:text}
+.tl-phase .tl-name:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 .tl-ph-line{flex-direction:row;align-items:center;gap:8px}
 .tl-ph-line .tl-name{flex:1 1 auto;min-width:60px}
 .tl-ph-meta{display:inline-flex;align-items:center;gap:6px;flex:none}
@@ -10208,6 +10214,12 @@ async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
+    // 페이즈 줄의 제목 칸 — 이름(수정)·코멘트 뱃지가 아닌 곳을 누르면 업무가 펼쳐진다
+    const phLbl = e.target.closest('.tl-phase[data-phase-row] .tl-label');
+    if (phLbl && !e.target.closest('.tl-name, [data-phase-cm], a, button')) {
+      e.preventDefault();
+      return togglePhase(phLbl.closest('[data-phase-row]').dataset.phaseRow);
+    }
 
     // 펼친 페이즈 끝의 「+ 업무 등록」 — 프로젝트·페이즈를 채워서 연다. 페이즈는 펼쳐진 채 남는다.
     const addT = e.target.closest('[data-add-task]');

@@ -400,6 +400,12 @@ export async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
+    // 페이즈 줄의 제목 칸 — 이름(수정)·코멘트 뱃지가 아닌 곳을 누르면 업무가 펼쳐진다
+    const phLbl = e.target.closest('.tl-phase[data-phase-row] .tl-label');
+    if (phLbl && !e.target.closest('.tl-name, [data-phase-cm], a, button')) {
+      e.preventDefault();
+      return togglePhase(phLbl.closest('[data-phase-row]').dataset.phaseRow);
+    }
 
     // 펼친 페이즈 끝의 「+ 업무 등록」 — 프로젝트·페이즈를 채워서 연다. 페이즈는 펼쳐진 채 남는다.
     const addT = e.target.closest('[data-add-task]');
