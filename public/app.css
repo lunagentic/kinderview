@@ -1692,6 +1692,15 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .att-chip:hover{border-color:var(--indigo);color:var(--indigo)}
 .sbm-list .lnk-out{color:var(--indigo);text-decoration:none;font-size:.95rem}
 .sbm-comments{margin-top:6px}
+/* 페이즈 창의 업무 목록 */
+.pt-list{display:flex;flex-direction:column;margin-top:6px;max-height:300px;overflow:auto;padding-right:2px}
+.pt-row{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line-soft);background:none;
+  font:inherit;color:inherit;padding:7px 4px;cursor:pointer;border-radius:4px}
+.pt-row:last-child{border-bottom:none}
+.pt-row:hover{background:var(--surface-2)}
+.pt-ttl{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
+.pt-due{flex:none;font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+.pt-row .tl-tst{flex:none;width:60px;text-align:center;margin-right:0}
 .sbm-sec + .sbm-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)}
 /* 뱃지와 상태 칸은 폭을 고정한다 — 글자 길이에 따라 열이 흔들리면 안 된다 */
 .tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:1px 4px;min-width:36px;box-sizing:border-box}
@@ -1703,10 +1712,13 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .tl-phase.is-open .tl-label{background:color-mix(in oklab, var(--indigo) 6%, var(--surface))}
 .tl-phase .tl-name{cursor:text}
 .tl-phase .tl-name:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
-.tl-ph-line{flex-direction:row;align-items:center;gap:8px}
+.tl-ph-line{flex:1 1 auto;min-width:0;flex-direction:row;align-items:center;gap:8px}
 .tl-ph-line .tl-name{flex:1 1 auto;min-width:60px}
-.tl-ph-meta{display:inline-flex;align-items:center;gap:6px;flex:none}
-.tl-cnt{font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap}
+/* 진척·수·코멘트는 오른쪽에 열을 맞춰 선다 */
+.tl-ph-meta{display:inline-flex;align-items:center;gap:6px;flex:none;margin-left:auto}
+.tl-ph-line .ph-cm{flex:none;min-width:36px;justify-content:center}
+.tl-pct{min-width:40px;text-align:right}
+.tl-cnt{font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap;min-width:36px}
 .tl-prog{flex:none;width:64px;height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line-soft);overflow:hidden}
 @media (max-width:720px){.tl-prog{width:40px}.tl-cnt{display:none}}
 .tl-prog i{display:block;height:100%;background:var(--indigo);border-radius:3px}

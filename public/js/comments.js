@@ -117,6 +117,8 @@ export function bindComments(box, taskId, { onChange, base = null, highlight = n
 
   const paint = () => {
     box.innerHTML = commentList(rows);
+    // 자리에 맞는 안내 글 — 페이즈 창은 "이 페이즈에 대한 의견"
+    if (box.dataset.placeholder) box.querySelectorAll('textarea[name=body]').forEach((ta) => { ta.placeholder = box.dataset.placeholder; });
     if (toShow) {
       const row = box.querySelector(`[data-comment="${CSS.escape(toShow)}"]`);
       toShow = null;

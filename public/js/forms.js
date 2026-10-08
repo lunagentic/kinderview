@@ -1105,7 +1105,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
     </div>`;
 
   modal({
-    title: '하위 업무',
+    title: `업무 ${t.key ? `<span class="sub-n">${esc(t.key)}</span>` : ''}`,
     body,
     footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
     onMount({ root, close }) {
@@ -1311,7 +1311,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
 export function phaseCommentsModal({ phase, projectName = '', onChange, highlight = null }) {
   let changed = false;
   modal({
-    title: '페이즈 코멘트',
+    title: `페이즈 <span class="sub-n">${esc(phase.name)}</span>`,
     body: `
       <div class="sbm">
         <div class="sbm-head">
@@ -1319,12 +1319,42 @@ export function phaseCommentsModal({ phase, projectName = '', onChange, highligh
           <h3 class="sbm-ttl">${esc(phase.name)}</h3>
         </div>
         <div class="sbm-sec">
+          <div class="sbm-sec-head"><h4>업무</h4><span class="n" data-pt-n></span></div>
+          <div data-phase-tasks class="pt-list"><p class="hint">불러오는 중…</p></div>
+          <p class="sub-note">줄을 누르면 그 업무의 하위 업무·코멘트 창이 열립니다.</p>
+        </div>
+        <div class="sbm-sec">
           <div class="sbm-sec-head"><h4>디렉터 코멘트</h4></div>
-          <div data-comments class="sbm-comments"></div>
+          <div data-comments class="sbm-comments" data-placeholder="이 페이즈에 대한 의견을 남겨 주세요"></div>
         </div>
       </div>`,
     footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
-    onMount({ root }) {
+    onMount({ root, close }) {
+      // 이 페이즈의 업무 — 마감 순, 기한 없는 것은 뒤로
+      api.get(`/api/tasks?phase=${encodeURIComponent(phase.id)}&done=1&all_backlog=1`).then((rows) => {
+        const box = root.querySelector('[data-phase-tasks]');
+        const sorted = [...rows].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title));
+        const done = sorted.filter((t) => t.status === 'DONE').length;
+        root.querySelector('[data-pt-n]').textContent = sorted.length ? `${done}/${sorted.length} 완료` : '';
+        box.innerHTML = sorted.length ? sorted.map((t) => {
+          const st = statusesFor(t.area).find((s) => s.code === t.status) ?? { label: t.status, tone: 'wait' };
+          return `<button type="button" class="pt-row" data-pt="${esc(t.id)}">
+            ${ticketTag(t)}
+            <span class="pt-ttl">${esc(t.title)}</span>
+            <span class="pt-due">${t.due_date ? esc(shortDate(t.due_date)) : ''}</span>
+            <span class="tl-tst ${esc(st.tone)}${t.is_delayed ? ' late' : ''}">${t.is_delayed ? '지연' : esc(st.label)}</span>
+          </button>`;
+        }).join('') : '<p class="empty-line">이 페이즈에 업무가 없습니다.</p>';
+        box.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-pt]');
+          if (!b) return;
+          const t = sorted.find((x) => x.id === b.dataset.pt);
+          if (!t) return;
+          close();
+          subtaskModal({ task: t, onChange });
+        });
+      }).catch((err) => { root.querySelector('[data-phase-tasks]').innerHTML = `<p class="hint">${esc(err.message)}</p>`; });
+
       bindComments(root.querySelector('[data-comments]'), null, {
         base: `/api/phases/${phase.id}/comments`, highlight,
         onChange: (counts) => { changed = true; onChange?.(counts); },
