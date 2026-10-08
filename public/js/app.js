@@ -106,8 +106,7 @@ const PROJECT_TABS = [
   { key: 'timeline', label: '타임라인' },
   { key: 'board',    label: '간트' },
   { key: 'report',   label: '리포트' },
-  { key: 'monthly',  label: '월간 리포트' },
-  { key: 'tasks',    label: '업무' },
+  { key: 'monthly',  label: '월간 업무' },
 ];
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
 // 저장이 막힌 환경에서도 기본 순서로 그대로 동작해야 한다.
@@ -124,7 +123,7 @@ const homeTab = () => tabOrder[0];
 // 예전 주소를 새 구조로 옮긴다 (#/tasks → #/project/tasks)
 const LEGACY = { overview: 'overview', tasks: 'tasks', issues: 'issues', weekly: 'weekly' };
 // 탭에서 내린 화면도 주소로는 열린다 — 공유해 둔 링크가 죽지 않게
-const HIDDEN_SUBS = ['weekly', 'issues', 'overview'];
+const HIDDEN_SUBS = ['weekly', 'issues', 'overview', 'tasks'];   // 업무 목록·상세는 월간 업무 탭 아래에서 열린다
 
 const subNav = (active) => `
   <nav class="subnav" aria-label="프로젝트 매니징 화면">
@@ -241,7 +240,7 @@ async function render() {
     if (top === 'project') {
       const sub = PROJECT_TABS.some((t) => t.key === rest[0]) || HIDDEN_SUBS.includes(rest[0]) ? rest[0] : homeTab();
       const id = rest[1];
-      fresh.innerHTML = subNav(sub);
+      fresh.innerHTML = subNav(sub === 'tasks' ? 'monthly' : sub);
       enableTabDrag(fresh.querySelector('.subnav'));
       const host = document.createElement('div');
       fresh.appendChild(host);

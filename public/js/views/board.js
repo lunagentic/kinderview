@@ -8,7 +8,7 @@ import { tlSpan, tlMonthStart, tlMonthNext, tlAdd } from '../gantt.js';
 
 // 간트 — 먼데이닷컴식 표. 「이번 달」「지난 달」 묶음(마감 달 기준)에 업무가 한 줄씩 서고,
 // 담당 · 타임라인(그 달 안에서의 기간 막대) · 진행 현황 · 마감 · 진척률 · 파일 열이 붙는다.
-// 월간 리포트가 "숫자"라면 여기는 "줄" — 한 달치 업무를 훑으며 상태를 바로 바꾸는 자리다.
+// 월간 업무가 "숫자"라면 여기는 "줄" — 한 달치 업무를 훑으며 상태를 바로 바꾸는 자리다.
 
 const BOARD_FOLD_KEY = 'kf.board.fold';
 const BOARD_OPEN_KEY = 'kf.board.open';   // 펼쳐 둔 페이즈
@@ -113,7 +113,7 @@ const group = (g, folded, openSet) => `
       <span class="bd-gt">${esc(g.label)}</span>
       <span class="bd-gym">${esc(`${g.ym.slice(0, 4)}년 ${ymLabel(g.ym)}`)}</span>
       <span class="bd-gn">페이즈 ${g.rows.length} · 업무 ${g.rows.reduce((n, p) => n + p.tasks.length, 0)}${g.rows.some((p) => phaseState(p).code === 'LATE') ? ` · <em>지연 ${g.rows.filter((p) => phaseState(p).code === 'LATE').length}</em>` : ''}</span>
-      <a class="lnk bd-more" href="#/project/monthly?month=${esc(g.ym)}">월간 리포트 ›</a>
+      <a class="lnk bd-more" href="#/project/monthly?month=${esc(g.ym)}">월간 업무 ›</a>
       <button class="btn btn-ghost sm bd-add" data-new-task title="업무 등록">＋</button>
     </h2>
     <div class="bd-table" role="table"${folded ? ' hidden' : ''}>

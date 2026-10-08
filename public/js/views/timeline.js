@@ -400,7 +400,7 @@ export async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
-    // 머리줄의 달 이름 — 그 달의 월간 리포트로
+    // 머리줄의 달 이름 — 그 달의 월간 업무로
     const mh = e.target.closest('.tl-axis [data-month]');
     if (mh) { e.preventDefault(); return go(`#/project/monthly?month=${mh.dataset.month}`); }
     // 열린 페이즈의 트랙 빈 곳을 누르면 접힌다 — 막대가 화면 밖으로 밀려 있어도 닫을 수 있다

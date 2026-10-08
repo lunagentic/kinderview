@@ -154,11 +154,11 @@ export function ganttWindow() {
     ].join(''));
 
   // 날짜 머리줄. 창이 같으면 눈금도 같아야 하니 그리는 쪽마다 이걸 쓴다.
-  // 달 이름은 어디서나 월간 리포트로 가는 문이다 — 올리면 그 달 숫자, 누르면 리포트
+  // 달 이름은 어디서나 월간 업무로 가는 문이다 — 올리면 그 달 숫자, 누르면 리포트
   const monthHead = (m) => `
       <span class="tl-month${m.now ? ' now' : ''}${stats ? ' has-stat' : ''}" data-month="${m.start.slice(0, 7)}"
             style="left:${m.left}%;width:${m.width}%" role="link" tabindex="0"
-            ${statTip(`${m.start.slice(0, 4)}년 ${Number(m.start.slice(5, 7))}월`, m.start, tlAdd(tlMonthNext(m.start), -1), '눌러서 월간 리포트')}>
+            ${statTip(`${m.start.slice(0, 4)}년 ${Number(m.start.slice(5, 7))}월`, m.start, tlAdd(tlMonthNext(m.start), -1), '눌러서 월간 업무')}>
         ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' || quarterly ? ` ’${m.start.slice(2, 4)}` : ''}
       </span>`;
   const weekTip = (w) => statTip(`${tlWeekLabel(w.start)} · ${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`, w.start, tlAdd(w.start, 6));

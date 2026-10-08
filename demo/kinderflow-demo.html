@@ -7956,11 +7956,11 @@ function ganttWindow() {
     ].join(''));
 
   // 날짜 머리줄. 창이 같으면 눈금도 같아야 하니 그리는 쪽마다 이걸 쓴다.
-  // 달 이름은 어디서나 월간 리포트로 가는 문이다 — 올리면 그 달 숫자, 누르면 리포트
+  // 달 이름은 어디서나 월간 업무로 가는 문이다 — 올리면 그 달 숫자, 누르면 리포트
   const monthHead = (m) => `
       <span class="tl-month${m.now ? ' now' : ''}${stats ? ' has-stat' : ''}" data-month="${m.start.slice(0, 7)}"
             style="left:${m.left}%;width:${m.width}%" role="link" tabindex="0"
-            ${statTip(`${m.start.slice(0, 4)}년 ${Number(m.start.slice(5, 7))}월`, m.start, tlAdd(tlMonthNext(m.start), -1), '눌러서 월간 리포트')}>
+            ${statTip(`${m.start.slice(0, 4)}년 ${Number(m.start.slice(5, 7))}월`, m.start, tlAdd(tlMonthNext(m.start), -1), '눌러서 월간 업무')}>
         ${Number(m.start.slice(5, 7))}월${m.start.slice(5, 7) === '01' || quarterly ? ` ’${m.start.slice(2, 4)}` : ''}
       </span>`;
   const weekTip = (w) => statTip(`${tlWeekLabel(w.start)} · ${shortDate(w.start)} ~ ${shortDate(tlAdd(w.start, 6))}`, w.start, tlAdd(w.start, 6));
@@ -10168,7 +10168,7 @@ function toMarkdown(report, brief = false) {
 
 
 
-// 월간 리포트 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
+// 월간 업무 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
 // 사람이 따로 적는 칸은 없다. 마감을 그 달로 잡는 것이 곧 목표 선언이고, 숫자는 업무·이슈·이력에서 나온다.
 
 const shiftMonth = (ym, n) => {
@@ -10208,7 +10208,7 @@ async function renderMonthly(root, query) {
   root.innerHTML = `
     <div class="page-head">
       <div>
-        <h1>월간 리포트</h1>
+        <h1>월간 업무</h1>
         <div class="sub">${shortDate(r.period_start)} ~ ${shortDate(r.period_end)} · 이 달에 마감인 업무를 목표로 봅니다 · 기준일 ${shortDate(r.as_of)}</div>
       </div>
       <div class="page-actions">
@@ -10216,7 +10216,7 @@ async function renderMonthly(root, query) {
         <button class="btn mr-now" data-month="${esc(thisMonth)}"${r.month === thisMonth ? ' disabled' : ''}>이번 달</button>
         <button class="btn" data-month="${esc(shiftMonth(r.month, 1))}" aria-label="다음 달">›</button>
         <span class="tl-range-now">${esc(monthTitle(r.month))}</span>
-        <a class="btn" href="#/project/tasks?month=${esc(r.month)}&done=1">업무 탭에서 보기</a>
+        <a class="btn" href="#/project/tasks?month=${esc(r.month)}&done=1">업무 목록·필터</a>
         <button class="btn" data-copy>텍스트 복사</button>
       </div>
     </div>
@@ -10267,7 +10267,7 @@ async function renderMonthly(root, query) {
     if (mb) { go(`#/project/monthly?month=${mb.dataset.month}`); return; }
     if (e.target.closest('[data-copy]')) {
       const lines = [
-        `[월간 리포트] ${monthTitle(r.month)}`,
+        `[월간 업무] ${monthTitle(r.month)}`,
         `목표 ${s.target} · 완료 ${s.done} (${pctText(s.pct)}) · 지연 ${s.delayed} · 미해결 이슈 ${s.open_issues} · 다음 달로 밀림 ${s.slipped}`,
         '',
         ...r.groups.flatMap((g) => [
@@ -10299,7 +10299,7 @@ async function renderMonthly(root, query) {
 
 // 간트 — 먼데이닷컴식 표. 「이번 달」「지난 달」 묶음(마감 달 기준)에 업무가 한 줄씩 서고,
 // 담당 · 타임라인(그 달 안에서의 기간 막대) · 진행 현황 · 마감 · 진척률 · 파일 열이 붙는다.
-// 월간 리포트가 "숫자"라면 여기는 "줄" — 한 달치 업무를 훑으며 상태를 바로 바꾸는 자리다.
+// 월간 업무가 "숫자"라면 여기는 "줄" — 한 달치 업무를 훑으며 상태를 바로 바꾸는 자리다.
 
 const BOARD_FOLD_KEY = 'kf.board.fold';
 const BOARD_OPEN_KEY = 'kf.board.open';   // 펼쳐 둔 페이즈
@@ -10404,7 +10404,7 @@ const group = (g, folded, openSet) => `
       <span class="bd-gt">${esc(g.label)}</span>
       <span class="bd-gym">${esc(`${g.ym.slice(0, 4)}년 ${ymLabel(g.ym)}`)}</span>
       <span class="bd-gn">페이즈 ${g.rows.length} · 업무 ${g.rows.reduce((n, p) => n + p.tasks.length, 0)}${g.rows.some((p) => phaseState(p).code === 'LATE') ? ` · <em>지연 ${g.rows.filter((p) => phaseState(p).code === 'LATE').length}</em>` : ''}</span>
-      <a class="lnk bd-more" href="#/project/monthly?month=${esc(g.ym)}">월간 리포트 ›</a>
+      <a class="lnk bd-more" href="#/project/monthly?month=${esc(g.ym)}">월간 업무 ›</a>
       <button class="btn btn-ghost sm bd-add" data-new-task title="업무 등록">＋</button>
     </h2>
     <div class="bd-table" role="table"${folded ? ' hidden' : ''}>
@@ -10693,7 +10693,7 @@ async function renderReport(root, query) {
       <div><h1>전체 리포트</h1><div class="sub">업무·이슈·일정 데이터에서 바로 계산합니다 · 기준일 ${shortDate(state.today)}</div></div>
       <div class="page-actions">
         <a class="btn" href="#/project/issues">이슈 ${issues.length ? `<b class="bad">${issues.length}</b>` : '목록'}</a>
-        <a class="btn" href="#/project/monthly?month=${esc(ym)}">월간 리포트</a>
+        <a class="btn" href="#/project/monthly?month=${esc(ym)}">월간 업무</a>
       </div>
     </div>
     <div class="rp">
@@ -11285,7 +11285,7 @@ async function renderTimeline(root) {
   root.addEventListener('click', (e) => {
     const fold = e.target.closest('[data-fold-phase]');
     if (fold) { e.preventDefault(); return togglePhase(fold.dataset.foldPhase); }
-    // 머리줄의 달 이름 — 그 달의 월간 리포트로
+    // 머리줄의 달 이름 — 그 달의 월간 업무로
     const mh = e.target.closest('.tl-axis [data-month]');
     if (mh) { e.preventDefault(); return go(`#/project/monthly?month=${mh.dataset.month}`); }
     // 열린 페이즈의 트랙 빈 곳을 누르면 접힌다 — 막대가 화면 밖으로 밀려 있어도 닫을 수 있다
@@ -12308,8 +12308,7 @@ const PROJECT_TABS = [
   { key: 'timeline', label: '타임라인' },
   { key: 'board',    label: '간트' },
   { key: 'report',   label: '리포트' },
-  { key: 'monthly',  label: '월간 리포트' },
-  { key: 'tasks',    label: '업무' },
+  { key: 'monthly',  label: '월간 업무' },
 ];
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
 // 저장이 막힌 환경에서도 기본 순서로 그대로 동작해야 한다.
@@ -12326,7 +12325,7 @@ const homeTab = () => tabOrder[0];
 // 예전 주소를 새 구조로 옮긴다 (#/tasks → #/project/tasks)
 const LEGACY = { overview: 'overview', tasks: 'tasks', issues: 'issues', weekly: 'weekly' };
 // 탭에서 내린 화면도 주소로는 열린다 — 공유해 둔 링크가 죽지 않게
-const HIDDEN_SUBS = ['weekly', 'issues', 'overview'];
+const HIDDEN_SUBS = ['weekly', 'issues', 'overview', 'tasks'];   // 업무 목록·상세는 월간 업무 탭 아래에서 열린다
 
 const subNav = (active) => `
   <nav class="subnav" aria-label="프로젝트 매니징 화면">
@@ -12443,7 +12442,7 @@ async function render() {
     if (top === 'project') {
       const sub = PROJECT_TABS.some((t) => t.key === rest[0]) || HIDDEN_SUBS.includes(rest[0]) ? rest[0] : homeTab();
       const id = rest[1];
-      fresh.innerHTML = subNav(sub);
+      fresh.innerHTML = subNav(sub === 'tasks' ? 'monthly' : sub);
       enableTabDrag(fresh.querySelector('.subnav'));
       const host = document.createElement('div');
       fresh.appendChild(host);

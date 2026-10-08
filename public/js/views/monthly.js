@@ -3,7 +3,7 @@ import {
   esc, shortDate, loading, errorBox, go, projectStyle, progressBar, pctText, ticketTag, statusChip, toast,
 } from '../ui.js';
 
-// 월간 리포트 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
+// 월간 업무 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
 // 사람이 따로 적는 칸은 없다. 마감을 그 달로 잡는 것이 곧 목표 선언이고, 숫자는 업무·이슈·이력에서 나온다.
 
 const shiftMonth = (ym, n) => {
@@ -43,7 +43,7 @@ export async function renderMonthly(root, query) {
   root.innerHTML = `
     <div class="page-head">
       <div>
-        <h1>월간 리포트</h1>
+        <h1>월간 업무</h1>
         <div class="sub">${shortDate(r.period_start)} ~ ${shortDate(r.period_end)} · 이 달에 마감인 업무를 목표로 봅니다 · 기준일 ${shortDate(r.as_of)}</div>
       </div>
       <div class="page-actions">
@@ -51,7 +51,7 @@ export async function renderMonthly(root, query) {
         <button class="btn mr-now" data-month="${esc(thisMonth)}"${r.month === thisMonth ? ' disabled' : ''}>이번 달</button>
         <button class="btn" data-month="${esc(shiftMonth(r.month, 1))}" aria-label="다음 달">›</button>
         <span class="tl-range-now">${esc(monthTitle(r.month))}</span>
-        <a class="btn" href="#/project/tasks?month=${esc(r.month)}&done=1">업무 탭에서 보기</a>
+        <a class="btn" href="#/project/tasks?month=${esc(r.month)}&done=1">업무 목록·필터</a>
         <button class="btn" data-copy>텍스트 복사</button>
       </div>
     </div>
@@ -102,7 +102,7 @@ export async function renderMonthly(root, query) {
     if (mb) { go(`#/project/monthly?month=${mb.dataset.month}`); return; }
     if (e.target.closest('[data-copy]')) {
       const lines = [
-        `[월간 리포트] ${monthTitle(r.month)}`,
+        `[월간 업무] ${monthTitle(r.month)}`,
         `목표 ${s.target} · 완료 ${s.done} (${pctText(s.pct)}) · 지연 ${s.delayed} · 미해결 이슈 ${s.open_issues} · 다음 달로 밀림 ${s.slipped}`,
         '',
         ...r.groups.flatMap((g) => [

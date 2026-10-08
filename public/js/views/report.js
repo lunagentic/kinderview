@@ -165,7 +165,7 @@ export async function renderReport(root, query) {
       <div><h1>전체 리포트</h1><div class="sub">업무·이슈·일정 데이터에서 바로 계산합니다 · 기준일 ${shortDate(state.today)}</div></div>
       <div class="page-actions">
         <a class="btn" href="#/project/issues">이슈 ${issues.length ? `<b class="bad">${issues.length}</b>` : '목록'}</a>
-        <a class="btn" href="#/project/monthly?month=${esc(ym)}">월간 리포트</a>
+        <a class="btn" href="#/project/monthly?month=${esc(ym)}">월간 업무</a>
       </div>
     </div>
     <div class="rp">
