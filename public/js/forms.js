@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
-import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag } from './ui.js';
+import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag, firstUrl } from './ui.js';
+import { bindComments } from './comments.js';
 import { canEdit, canAdmin } from './gate.js';
 import { gatePanel } from './views/gatePanel.js';
 
@@ -1042,7 +1043,7 @@ export function expenseForm({ defaults = {}, onSaved }) {
 // 타임라인 패널에서 상위 업무를 누르면 열린다. 상세로 넘어가지 않고 그 자리에서
 // 하위 업무를 보고, 더하고, 고치고, 체크한다. 담당과 마감은 상위 업무를 따른다.
 // 보기 전용이어도 열린다 — 읽는 것은 막지 않는다. 고치는 손잡이만 감춘다.
-export function subtaskModal({ task, onChange }) {
+export function subtaskModal({ task, onChange, focus = null }) {
   const t = task;
   let rows = [];
   let changed = false;
@@ -1062,6 +1063,7 @@ export function subtaskModal({ task, onChange }) {
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
                title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
@@ -1092,6 +1094,14 @@ export function subtaskModal({ task, onChange }) {
         </form>
         <p class="sub-note">담당은 상위 업무를 따릅니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.</p>
       </div>
+      <div class="sbm-sec sbm-att" data-att-row hidden>
+        <div class="sbm-sec-head"><h4>링크·첨부</h4><a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>더하기는 상세에서 ›</a></div>
+        <div class="att-chips" data-att-chips></div>
+      </div>
+      <div class="sbm-sec">
+        <div class="sbm-sec-head"><h4>디렉터 코멘트</h4></div>
+        <div data-comments class="sbm-comments"></div>
+      </div>
     </div>`;
 
   modal({
@@ -1110,6 +1120,17 @@ export function subtaskModal({ task, onChange }) {
       load();
 
       const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
+
+      // 상세와 같은 코멘트를 쓴다 — 여기서 남긴 말이 상세·타임라인 뱃지에 같이 보인다
+      bindComments(root.querySelector('[data-comments]'), t.id, { onChange: () => { changed = true; } });
+      // 첨부는 칩으로만 — 더하는 건 상세에서
+      api.get(`/api/tasks/${t.id}/attachments`).then((rows) => {
+        if (!rows?.length) return;
+        const box = root.querySelector('[data-att-row]');
+        box.hidden = false;
+        box.querySelector('[data-att-chips]').innerHTML = rows.map((a) => `
+          <a class="att-chip" href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(a.name)}">${a.kind === 'image' ? '🖼' : '🔗'} ${esc(a.name)}</a>`).join('');
+      }).catch(() => {});
 
       root.addEventListener('change', async (e) => {
         const chk = e.target.closest('[data-sub]');
@@ -1272,6 +1293,14 @@ export function subtaskModal({ task, onChange }) {
       obs.observe(document.getElementById('modal-root'), { childList: true });
       // 첫 포커스는 추가 칸이 아니라 목록이어야 한다 — 보러 온 사람이 더 많다
       root.querySelector('[data-close]')?.focus();
+      // 코멘트 뱃지로 들어왔으면 코멘트 칸으로 내려가 쓰기 칸에 바로 커서를 둔다
+      if (focus === 'comments') {
+        setTimeout(() => {
+          const box = root.querySelector('[data-comments]');
+          box?.scrollIntoView({ block: 'nearest' });
+          box?.querySelector('textarea')?.focus();
+        }, 150);
+      }
     },
   });
 }

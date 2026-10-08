@@ -9,6 +9,7 @@ import {
   ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTaskTrack, tlSpan, tlPoint, tlDiff, tlAdd,
 } from '../gantt.js';
 import { canEdit } from '../gate.js';
+import { directorIcon, sendIcon } from '../comments.js';
 
 // 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
 // 페이즈 줄 앞의 ▸ 를 누르면 그 아래로 업무 줄이 같은 날짜 축에 막대로 펼쳐진다 (지라 타임라인과 같다).
@@ -73,6 +74,14 @@ export async function renderTimeline(root) {
 
   // 펼친 페이즈 아래에 서는 업무 줄. 라벨은 번호 · 업무명 · 상태, 트랙은 상태색 막대.
   // 줄을 누르면 하위 업무 창이 뜬다 — 상태·상세는 거기서. 차트 줄은 가볍게 둔다.
+  // 줄 끝의 코멘트 뱃지 — 디렉터 말이 있으면 「디렉터 n」, 아니면 말풍선. 누르면 창이 코멘트 칸으로 열린다.
+  const cmBadge = (t) => {
+    const dir = t.director_comment_count ?? 0;
+    const all = t.comment_count ?? 0;
+    return `<button class="tld-cm tl-cm${dir ? ' dir' : all ? ' on' : ''}" data-cm="${esc(t.id)}"
+       title="${dir ? `디렉터 코멘트 ${dir}건 — 눌러서 읽기` : all ? `코멘트 ${all}건 — 눌러서 읽기` : '디렉터 코멘트 남기기'}"
+       >${dir ? `${directorIcon()}${dir}` : `${sendIcon()}${all ? ` ${all}` : ''}`}</button>`;
+  };
   const taskRow = (t, phaseId) => {
     const st = statusMeta(t.status);
     return `
@@ -81,6 +90,7 @@ export async function renderTimeline(root) {
         <div class="tl-label">
           ${ticketTag(t)}
           <span class="tl-tname">${esc(t.title)}</span>
+          ${cmBadge(t)}
           <span class="tl-tst ${esc(st.tone)}${t.is_delayed ? ' late' : ''}" title="${esc(st.label)}">${
             t.is_delayed ? '지연' : esc(st.label)}</span>
         </div>
@@ -312,9 +322,9 @@ export async function renderTimeline(root) {
     }
     return null;
   };
-  const openSubs = (id) => {
+  const openSubs = (id, { focus = null } = {}) => {
     const t = findTask(id);
-    if (t) subtaskModal({ task: t, onChange: reload });
+    if (t) subtaskModal({ task: t, onChange: reload, focus });
   };
   bindBarDrag(root, win, () => findTask, reload);
   bindLabelResize(root);
@@ -423,6 +433,8 @@ export async function renderTimeline(root) {
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
     // 차트의 업무 줄은 하위 업무 창을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
+    const cm = e.target.closest('.tl-task [data-cm]');
+    if (cm) { e.preventDefault(); openSubs(cm.dataset.cm, { focus: 'comments' }); return undefined; }
     const line = e.target.closest('.tl-task[data-line]');
     if (line && line.dataset.dragged) { delete line.dataset.dragged; return undefined; }   // 끌다 놓은 것은 클릭이 아니다
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(line.dataset.line); return undefined; }

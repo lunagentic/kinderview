@@ -1,4 +1,6 @@
-import { all, one, run, tx, uid, nowISO, today, addDays } from './db.js';
+import { all, one, run, tx, uid, nowISO, today, addDays, uploadsDir } from './db.js';
+import { writeFileSync, unlinkSync } from 'node:fs';
+import { join as joinPath } from 'node:path';
 import {
   PROGRESS_WEIGHT, STAGE, WAIT_STATUSES, IN_PROGRESS_STATUSES, REVIEW_STAGE_STATUSES,
   defaultStatusFor, statusesFor, AREAS,
@@ -809,6 +811,56 @@ export const subtasks = {
 
   remove(id) {
     run('DELETE FROM subtask WHERE id = :id', { id });
+    return { ok: true };
+  },
+};
+
+// ── 첨부 — 링크와 이미지 ──────────────────────────────
+const LINK_RE = /^https?:\/\/[^\s]+$/i;
+const IMAGE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+const IMAGE_MAX = 10 * 1024 * 1024;
+/** 링크 이름이 비면 주소에서 호스트와 경로 앞부분을 쓴다 */
+export const linkName = (url) => {
+  try { const u = new URL(url); return (u.host + (u.pathname === '/' ? '' : u.pathname)).slice(0, 60); }
+  catch { return url.slice(0, 60); }
+};
+export const attachments = {
+  list(taskId) {
+    return all('SELECT * FROM attachment WHERE task_id = :t ORDER BY created_at', { t: taskId });
+  },
+  add(taskId, input, by = null) {
+    const task = one('SELECT id FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
+    if (!task) throw new HttpError(404, '업무를 찾을 수 없습니다.');
+    const id = uid();
+    const at = nowISO();
+    if (input.kind === 'link') {
+      const url = String(input.url ?? '').trim();
+      if (!LINK_RE.test(url)) throw new HttpError(400, 'http:// 또는 https:// 로 시작하는 주소를 넣어 주세요.');
+      const name = String(input.name ?? '').trim().slice(0, 120) || linkName(url);
+      run(`INSERT INTO attachment (id, task_id, kind, url, name, size, by_slack_user_id, created_at)
+           VALUES (:id, :t, 'link', :url, :name, NULL, :by, :at)`, { id, t: taskId, url, name, by, at });
+    } else if (input.kind === 'image') {
+      const ext = IMAGE_TYPES[input.type];
+      if (!ext) throw new HttpError(400, 'png · jpg · gif · webp 이미지만 올릴 수 있습니다.');
+      const buf = Buffer.from(String(input.data ?? ''), 'base64');
+      if (!buf.length) throw new HttpError(400, '이미지 내용이 비어 있습니다.');
+      if (buf.length > IMAGE_MAX) throw new HttpError(400, '이미지는 10MB 까지 올릴 수 있습니다.');
+      const file = `${id}.${ext}`;
+      writeFileSync(joinPath(uploadsDir, file), buf);
+      const name = String(input.name ?? '').trim().slice(0, 120) || file;
+      run(`INSERT INTO attachment (id, task_id, kind, url, name, size, by_slack_user_id, created_at)
+           VALUES (:id, :t, 'image', :url, :name, :size, :by, :at)`,
+        { id, t: taskId, url: `/uploads/${file}`, name, size: buf.length, by, at });
+    } else throw new HttpError(400, '첨부 종류가 올바르지 않습니다.');
+    return one('SELECT * FROM attachment WHERE id = :id', { id });
+  },
+  remove(id) {
+    const cur = one('SELECT * FROM attachment WHERE id = :id', { id });
+    if (!cur) return { ok: true };
+    run('DELETE FROM attachment WHERE id = :id', { id });
+    if (cur.kind === 'image' && cur.url.startsWith('/uploads/')) {
+      try { unlinkSync(joinPath(uploadsDir, cur.url.slice('/uploads/'.length))); } catch { /* 이미 없으면 그만 */ }
+    }
     return { ok: true };
   },
 };

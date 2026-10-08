@@ -568,7 +568,7 @@ body[data-gate="view"] .tk-grip,
 body[data-gate="view"] .tk-project-head .grip{visibility:hidden}
 /* 폼을 여는 단추도 보기 전용에서는 감춘다.
    진짜로 막는 곳은 폼 자체와 저장소다 — 여기는 "눌러도 되는 것처럼" 보이지 않게 하는 일이다. */
-body[data-gate="view"] [data-phase],
+body[data-gate="view"] [data-phase]:not(.tl-name),
 body[data-gate="view"] .tl-add-btn,
 body[data-gate="view"] .tlg-add,
 body[data-gate="view"] [data-add-task],
@@ -577,6 +577,8 @@ body[data-gate="view"] [data-edit],
 body[data-gate="view"] [data-new-issue],
 body[data-gate="view"] .sub-add,
 body[data-gate="view"] .btn-danger{display:none}
+/* 페이즈 이름은 보기 전용에서도 보인다 — 누르는 것만 막는다 */
+body[data-gate="view"] .tl-name[data-phase]{pointer-events:none;cursor:default}
 /* 고르는 칸은 글자로 — 상세의 담당·영역이 그렇다 */
 body[data-gate="view"] [data-owner],
 body[data-gate="view"] [data-area]{pointer-events:none;appearance:none;-webkit-appearance:none;
@@ -1612,6 +1614,46 @@ body[data-gate="view"] .sub-due{pointer-events:none;border-color:transparent;bac
 .sub-add{display:flex;gap:8px;margin-top:12px}
 .sub-add input{flex:1;min-width:0}
 .sub-note{margin:10px 0 0;font-size:.78rem;color:var(--muted)}
+
+/* ── 링크·첨부 ── */
+.auto-link{color:var(--indigo);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
+.auto-link:hover{text-decoration-thickness:2px}
+.att-panel{position:relative}
+.att-panel.is-over{outline:2px dashed var(--indigo);outline-offset:-6px;background:color-mix(in oklab, var(--indigo) 6%, var(--surface))}
+.att-drop-hint{display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-weight:600;color:var(--indigo);pointer-events:none}
+.att-panel.is-over .att-drop-hint{display:flex}
+.att-panel.is-over > :not(.att-drop-hint){opacity:.35}
+.att-links{list-style:none;margin:8px 0 0;padding:0}
+.att-links li{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line-soft);font-size:.88rem;min-width:0}
+.att-links li:last-child{border-bottom:none}
+.att-ic{flex:none;font-size:.9rem}
+.att-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.att-host{flex:none;font-size:.74rem;color:var(--muted);font-family:var(--mono)}
+.att-links .x,.att-img .x{flex:none;border:0;background:none;color:transparent;cursor:pointer;font-size:1.05rem;line-height:1;padding:2px 6px;border-radius:6px}
+.att-links li:hover .x,.att-img:hover .x{color:var(--muted)}
+.att-links .x:hover,.att-img .x:hover{color:var(--s-delay);background:var(--surface-2)}
+.att-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));gap:10px;margin-top:12px}
+.att-img{margin:0;position:relative;min-width:0}
+.att-img a{display:block;aspect-ratio:4/3;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2)}
+.att-img img{width:100%;height:100%;object-fit:cover;display:block}
+.att-img figcaption{font-size:.72rem;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att-img .x{position:absolute;top:4px;right:4px;background:var(--surface);color:var(--muted);opacity:0}
+.att-img:hover .x{opacity:1}
+.att-add{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.att-add input[type=url]{flex:1 1 200px;min-width:0}
+.att-file{cursor:pointer}
+.att-panel.is-busy .att-add{opacity:.5;pointer-events:none}
+body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body[data-gate="view"] [data-att-del]{display:none}
+/* 하위 업무 창의 첨부 칩·코멘트 */
+.att-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.att-chip{display:inline-flex;align-items:center;gap:4px;max-width:260px;font-size:.78rem;padding:3px 9px;border:1px solid var(--line);border-radius:999px;color:var(--ink-2);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att-chip:hover{border-color:var(--indigo);color:var(--indigo)}
+.sbm-list .lnk-out{color:var(--indigo);text-decoration:none;font-size:.95rem}
+.sbm-comments{margin-top:6px}
+.sbm-sec + .sbm-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)}
+.tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;gap:3px;padding:1px 5px}
+.tl-task .tl-cm .cm-i{width:14px;height:14px}
+body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .empty-line{margin:12px 0 0;color:var(--muted);font-size:.86rem}
 @media (max-width:860px){
   /* 손가락으로 누를 만한 크기 */

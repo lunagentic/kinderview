@@ -33,6 +33,8 @@ const cmIcon = (name) => `<svg class="cm-i" viewBox="0 0 24 24" fill="none" stro
 
 /** 디렉터 표. 타임라인 줄의 뱃지가 같은 그림을 쓴다. */
 export const directorIcon = () => cmIcon('director');
+/** 종이비행기 — 코멘트 남기기 단추와 같은 아이콘 */
+export const sendIcon = () => cmIcon('send');
 
 // 엔터로 저장한다는 것은 한 번 보여 줘야 안다. 줄바꿈을 잃었다고 여기면 안 쓰게 된다.
 const CM_TIP = '<span class="cm-tip">Enter 저장 · Shift+Enter 줄바꿈</span>';

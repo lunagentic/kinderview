@@ -170,6 +170,19 @@ CREATE TABLE IF NOT EXISTS subtask (
 );
 CREATE INDEX IF NOT EXISTS idx_subtask_task ON subtask(task_id, sort_order);
 
+-- 업무에 붙는 링크와 이미지. 링크는 URL 만, 이미지는 data/uploads 에 파일로 두고 /uploads/<이름> 으로 연다.
+CREATE TABLE IF NOT EXISTS attachment (
+  id                TEXT PRIMARY KEY,
+  task_id           TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL CHECK (kind IN ('link','image')),
+  url               TEXT NOT NULL,
+  name              TEXT NOT NULL,
+  size              INTEGER,
+  by_slack_user_id  TEXT,
+  created_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_attachment_task ON attachment(task_id, created_at);
+
 -- 업무 분류: 이 일이 무엇인가(신규 기능·기능 개선 …).
 -- 쓰다 보면 늘어난다. 상수로 두면 한 줄 더하는 데 배포가 필요해서 표로 옮겼다.
 -- id 는 지어 준 값이다 — 처음 둘(NEW·IMPROVE)은 이름을 그대로 썼고,

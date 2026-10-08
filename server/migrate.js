@@ -374,12 +374,23 @@ function addSubtaskDue() {
   return '하위 업무 마감일(due_date) 추가';
 }
 
+/** 업무 첨부(링크·이미지) 표 — 스키마에 있으니 없을 때만 만든다. */
+function addAttachments() {
+  if (tableSql('attachment')) return null;
+  db.exec(`CREATE TABLE attachment (
+    id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('link','image')), url TEXT NOT NULL, name TEXT NOT NULL,
+    size INTEGER, by_slack_user_id TEXT, created_at TEXT NOT NULL)`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_attachment_task ON attachment(task_id, created_at)');
+  return '업무 첨부(attachment) 표 추가';
+}
+
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
-    addTicketSeq(), addSubtaskDue()]
+    addTicketSeq(), addSubtaskDue(), addAttachments()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

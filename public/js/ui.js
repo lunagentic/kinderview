@@ -3,6 +3,19 @@ import { state, memberOf, statusMeta, areaMeta, issueStatusMeta } from './state.
 export const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/** 글자 속 주소를 눌러서 열 수 있게 — 이미 esc 를 거친 뒤 바꾼다. 표시는 60자에서 자른다. */
+const URL_RE = /https?:\/\/[^\s<>"']+/g;
+export const linkify = (text) => esc(text).replace(URL_RE, (u) => {
+  const clean = u.replace(/[.,)\]]+$/, '');
+  const tail = u.slice(clean.length);
+  const label = clean.length > 60 ? `${clean.slice(0, 58)}…` : clean;
+  return `<a class="auto-link" href="${clean}" target="_blank" rel="noopener" title="${clean}">${label}</a>${tail}`;
+});
+/** 글자에 주소가 들어 있나 */
+export const hasUrl = (text) => /https?:\/\/\S+/i.test(String(text ?? ''));
+/** 첫 주소 */
+export const firstUrl = (text) => (String(text ?? '').match(/https?:\/\/[^\s<>"']+/i) ?? [null])[0];
+
 // ── 날짜 ────────────────────────────────────────────────
 export const shortDate = (iso) => {
   if (!iso) return '-';

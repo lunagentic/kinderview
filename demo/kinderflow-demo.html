@@ -572,7 +572,7 @@ body[data-gate="view"] .tk-grip,
 body[data-gate="view"] .tk-project-head .grip{visibility:hidden}
 /* 폼을 여는 단추도 보기 전용에서는 감춘다.
    진짜로 막는 곳은 폼 자체와 저장소다 — 여기는 "눌러도 되는 것처럼" 보이지 않게 하는 일이다. */
-body[data-gate="view"] [data-phase],
+body[data-gate="view"] [data-phase]:not(.tl-name),
 body[data-gate="view"] .tl-add-btn,
 body[data-gate="view"] .tlg-add,
 body[data-gate="view"] [data-add-task],
@@ -581,6 +581,8 @@ body[data-gate="view"] [data-edit],
 body[data-gate="view"] [data-new-issue],
 body[data-gate="view"] .sub-add,
 body[data-gate="view"] .btn-danger{display:none}
+/* 페이즈 이름은 보기 전용에서도 보인다 — 누르는 것만 막는다 */
+body[data-gate="view"] .tl-name[data-phase]{pointer-events:none;cursor:default}
 /* 고르는 칸은 글자로 — 상세의 담당·영역이 그렇다 */
 body[data-gate="view"] [data-owner],
 body[data-gate="view"] [data-area]{pointer-events:none;appearance:none;-webkit-appearance:none;
@@ -1616,6 +1618,46 @@ body[data-gate="view"] .sub-due{pointer-events:none;border-color:transparent;bac
 .sub-add{display:flex;gap:8px;margin-top:12px}
 .sub-add input{flex:1;min-width:0}
 .sub-note{margin:10px 0 0;font-size:.78rem;color:var(--muted)}
+
+/* ── 링크·첨부 ── */
+.auto-link{color:var(--indigo);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
+.auto-link:hover{text-decoration-thickness:2px}
+.att-panel{position:relative}
+.att-panel.is-over{outline:2px dashed var(--indigo);outline-offset:-6px;background:color-mix(in oklab, var(--indigo) 6%, var(--surface))}
+.att-drop-hint{display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-weight:600;color:var(--indigo);pointer-events:none}
+.att-panel.is-over .att-drop-hint{display:flex}
+.att-panel.is-over > :not(.att-drop-hint){opacity:.35}
+.att-links{list-style:none;margin:8px 0 0;padding:0}
+.att-links li{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line-soft);font-size:.88rem;min-width:0}
+.att-links li:last-child{border-bottom:none}
+.att-ic{flex:none;font-size:.9rem}
+.att-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.att-host{flex:none;font-size:.74rem;color:var(--muted);font-family:var(--mono)}
+.att-links .x,.att-img .x{flex:none;border:0;background:none;color:transparent;cursor:pointer;font-size:1.05rem;line-height:1;padding:2px 6px;border-radius:6px}
+.att-links li:hover .x,.att-img:hover .x{color:var(--muted)}
+.att-links .x:hover,.att-img .x:hover{color:var(--s-delay);background:var(--surface-2)}
+.att-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));gap:10px;margin-top:12px}
+.att-img{margin:0;position:relative;min-width:0}
+.att-img a{display:block;aspect-ratio:4/3;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2)}
+.att-img img{width:100%;height:100%;object-fit:cover;display:block}
+.att-img figcaption{font-size:.72rem;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att-img .x{position:absolute;top:4px;right:4px;background:var(--surface);color:var(--muted);opacity:0}
+.att-img:hover .x{opacity:1}
+.att-add{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.att-add input[type=url]{flex:1 1 200px;min-width:0}
+.att-file{cursor:pointer}
+.att-panel.is-busy .att-add{opacity:.5;pointer-events:none}
+body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body[data-gate="view"] [data-att-del]{display:none}
+/* 하위 업무 창의 첨부 칩·코멘트 */
+.att-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.att-chip{display:inline-flex;align-items:center;gap:4px;max-width:260px;font-size:.78rem;padding:3px 9px;border:1px solid var(--line);border-radius:999px;color:var(--ink-2);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att-chip:hover{border-color:var(--indigo);color:var(--indigo)}
+.sbm-list .lnk-out{color:var(--indigo);text-decoration:none;font-size:.95rem}
+.sbm-comments{margin-top:6px}
+.sbm-sec + .sbm-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)}
+.tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;gap:3px;padding:1px 5px}
+.tl-task .tl-cm .cm-i{width:14px;height:14px}
+body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .empty-line{margin:12px 0 0;color:var(--muted);font-size:.86rem}
 @media (max-width:860px){
   /* 손가락으로 누를 만한 크기 */
@@ -2908,6 +2950,7 @@ const ROW_KEY = {
   collaborators: (r) => `${r.task_id}/${r.slack_user_id}`,
   outsourcing: (r) => r.task_id,
   area_leads: (r) => `${r.area}/${r.slack_user_id}`,
+  attachments: (r) => r.id,
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
@@ -3492,6 +3535,72 @@ function updateSubtask(id, body) {
 function removeSubtask(id) {
   DB.subtasks = (DB.subtasks ?? []).filter((s) => s.id !== id);
   save();
+  return { ok: true };
+}
+
+// ── 첨부 — 링크·이미지 (서버 repo.js attachments 와 같은 규칙) ──
+// 이미지는 Supabase Storage 버킷 kf-files 에 올리고 공개 주소를 적는다. 저장소에 못 닿는 자리(미리보기)에서는 못 올린다 —
+// base64 를 kf_rows 에 넣으면 동기화가 무거워진다.
+const LINK_RE = /^https?:\/\/[^\s]+$/i;
+const IMAGE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+const IMAGE_MAX = 10 * 1024 * 1024;
+const linkName = (url) => {
+  try { const u = new URL(url); return (u.host + (u.pathname === '/' ? '' : u.pathname)).slice(0, 60); }
+  catch { return url.slice(0, 60); }
+};
+const attachmentsOf = (taskId) => (DB.attachments ?? [])
+  .filter((a) => a.task_id === taskId)
+  .sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+async function uploadImage(file, id) {
+  if (isLocalOnly() || !remoteOk) throw new DemoError('공유 저장소에 닿아야 이미지를 올릴 수 있습니다. 링크는 지금도 붙일 수 있습니다.');
+  const ext = IMAGE_TYPES[file.type];
+  if (!ext) throw new DemoError('png · jpg · gif · webp 이미지만 올릴 수 있습니다.');
+  if (file.size > IMAGE_MAX) throw new DemoError('이미지는 10MB 까지 올릴 수 있습니다.');
+  const path = `${id}.${ext}`;
+  const code = currentCode();
+  const res = await fetch(`${SB_URL}/storage/v1/object/kf-files/${path}`, {
+    method: 'POST',
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': file.type, ...(code ? { 'x-kf-code': code } : {}) },
+    body: file,
+  });
+  if (res.status === 401 || res.status === 403) throw new DemoError('편집 코드가 확인되지 않아 올리지 못했습니다.');
+  if (!res.ok) throw new DemoError(`이미지를 올리지 못했습니다. (${res.status})`);
+  return `${SB_URL}/storage/v1/object/public/kf-files/${path}`;
+}
+
+async function addAttachment(taskId, body) {
+  const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
+  if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
+  const id = uid();
+  let row;
+  if (body.kind === 'link') {
+    const url = String(body.url ?? '').trim();
+    if (!LINK_RE.test(url)) throw new DemoError('http:// 또는 https:// 로 시작하는 주소를 넣어 주세요.');
+    row = { id, task_id: taskId, kind: 'link', url, name: String(body.name ?? '').trim().slice(0, 120) || linkName(url),
+      size: null, by_slack_user_id: currentMe(), created_at: nowISO() };
+  } else if (body.kind === 'image' && body.file) {
+    const url = await uploadImage(body.file, id);
+    row = { id, task_id: taskId, kind: 'image', url, name: String(body.file.name ?? '').slice(0, 120) || `${id}`,
+      size: body.file.size, by_slack_user_id: currentMe(), created_at: nowISO() };
+  } else throw new DemoError('첨부 종류가 올바르지 않습니다.');
+  (DB.attachments ??= []).push(row);
+  save();
+  return row;
+}
+
+async function removeAttachment(id) {
+  const cur = (DB.attachments ?? []).find((a) => a.id === id);
+  DB.attachments = (DB.attachments ?? []).filter((a) => a.id !== id);
+  save();
+  if (cur?.kind === 'image' && cur.url.includes('/kf-files/')) {
+    const path = cur.url.slice(cur.url.indexOf('/kf-files/') + '/kf-files/'.length);
+    const code = currentCode();
+    try {
+      await fetch(`${SB_URL}/storage/v1/object/kf-files/${path}`, { method: 'DELETE',
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, ...(code ? { 'x-kf-code': code } : {}) } });
+    } catch { /* 파일이 남아도 줄은 지웠다 */ }
+  }
   return { ok: true };
 }
 
@@ -4747,6 +4856,11 @@ function handle(method, path, body) {
     if (method === 'GET') return subtasksOf(seg[2]);
     if (method === 'POST') return createSubtask(seg[2], body);
   }
+  if (seg[1] === 'tasks' && seg[2] && seg[3] === 'attachments') {
+    if (method === 'GET') return attachmentsOf(seg[2]);
+    if (method === 'POST') return addAttachment(seg[2], body);
+  }
+  if (seg[1] === 'attachments' && seg[2] && method === 'DELETE') return removeAttachment(seg[2]);
   if (seg[1] === 'subtasks' && seg[2]) {
     if (method === 'PATCH') return updateSubtask(seg[2], body);
     if (method === 'DELETE') return removeSubtask(seg[2]);
@@ -4765,6 +4879,7 @@ function handle(method, path, body) {
         issues: listIssues({ task_id: id, includeResolved: true }),
         subtasks: subtasksOf(id),
         comments: listComments(id),
+        attachments: attachmentsOf(id),
       };
     }
     if (method === 'PATCH') return updateTask(id, body, me);
@@ -5075,6 +5190,19 @@ const issueStatusMeta = (code) =>
 const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/** 글자 속 주소를 눌러서 열 수 있게 — 이미 esc 를 거친 뒤 바꾼다. 표시는 60자에서 자른다. */
+const URL_RE = /https?:\/\/[^\s<>"']+/g;
+const linkify = (text) => esc(text).replace(URL_RE, (u) => {
+  const clean = u.replace(/[.,)\]]+$/, '');
+  const tail = u.slice(clean.length);
+  const label = clean.length > 60 ? `${clean.slice(0, 58)}…` : clean;
+  return `<a class="auto-link" href="${clean}" target="_blank" rel="noopener" title="${clean}">${label}</a>${tail}`;
+});
+/** 글자에 주소가 들어 있나 */
+const hasUrl = (text) => /https?:\/\/\S+/i.test(String(text ?? ''));
+/** 첫 주소 */
+const firstUrl = (text) => (String(text ?? '').match(/https?:\/\/[^\s<>"']+/i) ?? [null])[0];
+
 // ── 날짜 ────────────────────────────────────────────────
 const shortDate = (iso) => {
   if (!iso) return '-';
@@ -5377,6 +5505,7 @@ const empty = ({ title, hint = '', action = '' }) => `
 
 // ── 링크 ────────────────────────────────────────────────
 const go = (hash) => { window.location.hash = hash; };
+
 
 
 
@@ -6423,7 +6552,7 @@ function expenseForm({ defaults = {}, onSaved }) {
 // 타임라인 패널에서 상위 업무를 누르면 열린다. 상세로 넘어가지 않고 그 자리에서
 // 하위 업무를 보고, 더하고, 고치고, 체크한다. 담당과 마감은 상위 업무를 따른다.
 // 보기 전용이어도 열린다 — 읽는 것은 막지 않는다. 고치는 손잡이만 감춘다.
-function subtaskModal({ task, onChange }) {
+function subtaskModal({ task, onChange, focus = null }) {
   const t = task;
   let rows = [];
   let changed = false;
@@ -6443,6 +6572,7 @@ function subtaskModal({ task, onChange }) {
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
                title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
@@ -6473,6 +6603,14 @@ function subtaskModal({ task, onChange }) {
         </form>
         <p class="sub-note">담당은 상위 업무를 따릅니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.</p>
       </div>
+      <div class="sbm-sec sbm-att" data-att-row hidden>
+        <div class="sbm-sec-head"><h4>링크·첨부</h4><a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>더하기는 상세에서 ›</a></div>
+        <div class="att-chips" data-att-chips></div>
+      </div>
+      <div class="sbm-sec">
+        <div class="sbm-sec-head"><h4>디렉터 코멘트</h4></div>
+        <div data-comments class="sbm-comments"></div>
+      </div>
     </div>`;
 
   modal({
@@ -6491,6 +6629,17 @@ function subtaskModal({ task, onChange }) {
       load();
 
       const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
+
+      // 상세와 같은 코멘트를 쓴다 — 여기서 남긴 말이 상세·타임라인 뱃지에 같이 보인다
+      bindComments(root.querySelector('[data-comments]'), t.id, { onChange: () => { changed = true; } });
+      // 첨부는 칩으로만 — 더하는 건 상세에서
+      api.get(`/api/tasks/${t.id}/attachments`).then((rows) => {
+        if (!rows?.length) return;
+        const box = root.querySelector('[data-att-row]');
+        box.hidden = false;
+        box.querySelector('[data-att-chips]').innerHTML = rows.map((a) => `
+          <a class="att-chip" href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(a.name)}">${a.kind === 'image' ? '🖼' : '🔗'} ${esc(a.name)}</a>`).join('');
+      }).catch(() => {});
 
       root.addEventListener('change', async (e) => {
         const chk = e.target.closest('[data-sub]');
@@ -6653,6 +6802,14 @@ function subtaskModal({ task, onChange }) {
       obs.observe(document.getElementById('modal-root'), { childList: true });
       // 첫 포커스는 추가 칸이 아니라 목록이어야 한다 — 보러 온 사람이 더 많다
       root.querySelector('[data-close]')?.focus();
+      // 코멘트 뱃지로 들어왔으면 코멘트 칸으로 내려가 쓰기 칸에 바로 커서를 둔다
+      if (focus === 'comments') {
+        setTimeout(() => {
+          const box = root.querySelector('[data-comments]');
+          box?.scrollIntoView({ block: 'nearest' });
+          box?.querySelector('textarea')?.focus();
+        }, 150);
+      }
     },
   });
 }
@@ -6693,6 +6850,8 @@ const cmIcon = (name) => `<svg class="cm-i" viewBox="0 0 24 24" fill="none" stro
 
 /** 디렉터 표. 타임라인 줄의 뱃지가 같은 그림을 쓴다. */
 const directorIcon = () => cmIcon('director');
+/** 종이비행기 — 코멘트 남기기 단추와 같은 아이콘 */
+const sendIcon = () => cmIcon('send');
 
 // 엔터로 저장한다는 것은 한 번 보여 줘야 안다. 줄바꿈을 잃었다고 여기면 안 쓰게 된다.
 const CM_TIP = '<span class="cm-tip">Enter 저장 · Shift+Enter 줄바꿈</span>';
@@ -8284,12 +8443,34 @@ const rollToast = (rolled, before) => {
   return parts.join(' · ');
 };
 
+// 링크·이미지 첨부 목록. 링크는 이름 + 도메인, 이미지는 썸네일. 둘 다 새 창에서 연다.
+const attHost = (u) => { try { return new URL(u).host; } catch { return ''; } };
+const attList = (rows = []) => {
+  const links = rows.filter((a) => a.kind === 'link');
+  const images = rows.filter((a) => a.kind === 'image');
+  if (!rows.length) return '<p class="empty-line">아직 붙인 링크나 이미지가 없습니다.</p>';
+  return `
+    ${links.length ? `<ul class="att-links">${links.map((a) => `
+      <li>
+        <span class="att-ic">🔗</span>
+        <a href="${esc(a.url)}" target="_blank" rel="noopener" class="att-name" title="${esc(a.url)}">${esc(a.name)}</a>
+        <span class="att-host">${esc(attHost(a.url))}</span>
+        <button class="x" data-att-del="${esc(a.id)}" aria-label="삭제" title="삭제">×</button>
+      </li>`).join('')}</ul>` : ''}
+    ${images.length ? `<div class="att-grid">${images.map((a) => `
+      <figure class="att-img">
+        <a href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(a.name)}"><img src="${esc(a.url)}" alt="${esc(a.name)}" loading="lazy"></a>
+        <figcaption>${esc(a.name)}</figcaption>
+        <button class="x" data-att-del="${esc(a.id)}" aria-label="삭제" title="삭제">×</button>
+      </figure>`).join('')}</div>` : ''}`;
+};
+
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
       <li class="${r.is_done ? 'done' : ''}">
         <label>
           <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''}>
-          <span>${esc(r.title)}</span>
+          <span>${linkify(r.title)}</span>
         </label>
         ${subDue(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
@@ -8370,7 +8551,19 @@ async function renderTaskDetail(root, id) {
             <dt>상태</dt><dd>${statusChip(t.status)}</dd>
             ${t.completed_at ? `<dt>완료</dt><dd class="num">${dateTime(t.completed_at)}</dd>` : ''}
           </dl>
-          ${t.description ? `<p style="margin-top:14px;white-space:pre-wrap;color:var(--ink-2)">${esc(t.description)}</p>` : ''}
+          ${t.description ? `<p style="margin-top:14px;white-space:pre-wrap;color:var(--ink-2)">${linkify(t.description)}</p>` : ''}
+        </div>
+
+        <div class="panel att-panel" data-att-panel>
+          <h3>링크·첨부 <span class="sub-n" data-att-n>${t.attachments?.length ? t.attachments.length : ''}</span></h3>
+          <div data-att-list>${attList(t.attachments ?? [])}</div>
+          <form class="att-add" data-link-add>
+            <input type="url" name="url" placeholder="링크 붙여넣기 (https://…)" aria-label="링크 주소">
+            <button class="btn btn-ghost" type="submit">+ 링크</button>
+            <label class="btn btn-ghost att-file">이미지 올리기<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden data-att-file></label>
+          </form>
+          <p class="sub-note">이미지를 이 칸에 끌어다 놓거나 붙여넣어도 됩니다 (png·jpg·gif·webp, 10MB 까지). 링크는 새 창에서 열립니다.</p>
+          <div class="att-drop-hint" aria-hidden="true">여기에 놓으면 첨부됩니다</div>
         </div>
 
         <div class="panel" data-comments-panel>
@@ -8550,6 +8743,74 @@ async function renderTaskDetail(root, id) {
     }
   });
 
+  // ── 링크·첨부 ──
+  const attPanel = root.querySelector('[data-att-panel]');
+  let atts = t.attachments ?? [];
+  const paintAtt = () => {
+    attPanel.querySelector('[data-att-list]').innerHTML = attList(atts);
+    attPanel.querySelector('[data-att-n]').textContent = atts.length ? atts.length : '';
+  };
+  const reloadAtt = async () => {
+    try { atts = await api.get(`/api/tasks/${t.id}/attachments`); paintAtt(); }
+    catch (err) { toast(err.message, true); }
+  };
+  const addLink = async (url) => {
+    try {
+      await api.post(`/api/tasks/${t.id}/attachments`, { kind: 'link', url });
+      toast('링크를 붙였습니다.');
+      await reloadAtt();
+    } catch (err) { toast(err.message, true); }
+  };
+  const addImages = async (files) => {
+    const list = [...files].filter((f) => f.type.startsWith('image/'));
+    if (!list.length) { toast('이미지 파일만 붙일 수 있습니다.', true); return; }
+    let n = 0;
+    attPanel.classList.add('is-busy');
+    for (const file of list) {
+      attPanel.querySelector('[data-att-n]').textContent = `올리는 중 ${n + 1}/${list.length}…`;
+      try { await api.post(`/api/tasks/${t.id}/attachments`, { kind: 'image', file }); n += 1; }
+      catch (err) { toast(err.message, true); break; }
+    }
+    attPanel.classList.remove('is-busy');
+    if (n) toast(`이미지 ${n}장을 붙였습니다.`);
+    await reloadAtt();
+  };
+  attPanel.querySelector('[data-link-add]').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = e.target.querySelector('[name=url]');
+    const url = input.value.trim();
+    if (!url) return;
+    await addLink(url);
+    input.value = '';
+  });
+  attPanel.addEventListener('change', (e) => {
+    const f = e.target.closest('[data-att-file]');
+    if (f?.files?.length) { addImages(f.files); f.value = ''; }
+  });
+  // 끌어다 놓기 — 패널 전체가 받는다. 파일이면 이미지로, 글자(주소)면 링크로.
+  let dragDepth = 0;
+  attPanel.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth += 1; attPanel.classList.add('is-over'); });
+  attPanel.addEventListener('dragover', (e) => { e.preventDefault(); });
+  attPanel.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) attPanel.classList.remove('is-over'); });
+  attPanel.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dragDepth = 0;
+    attPanel.classList.remove('is-over');
+    if (document.body.dataset.gate === 'view') { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); return; }
+    const files = e.dataTransfer?.files;
+    if (files?.length) { await addImages(files); return; }
+    const text = (e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text') || '').trim().split(/\s+/)[0];
+    if (/^https?:\/\//i.test(text)) await addLink(text);
+  });
+  // 클립보드의 이미지도 받는다 — 캡처해서 바로 붙이는 일이 잦다
+  root.addEventListener('paste', (e) => {
+    if (e.target.closest('input, textarea')) return;
+    const items = [...(e.clipboardData?.items ?? [])].filter((i) => i.type.startsWith('image/'));
+    if (!items.length) return;
+    e.preventDefault();
+    addImages(items.map((i) => i.getAsFile()).filter(Boolean));
+  });
+
   // Ctrl/Cmd+S 로도 저장된다 — 표에서 고치다 손이 가는 키다
   root.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -8585,6 +8846,13 @@ async function renderTaskDetail(root, id) {
   });
 
   root.addEventListener('click', async (e) => {
+    if (e.target.closest('a.auto-link')) { e.stopPropagation(); return; }   // 글자 속 주소는 그냥 연다
+    const adel = e.target.closest('[data-att-del]');
+    if (adel) {
+      try { await api.del(`/api/attachments/${adel.dataset.attDel}`); toast('첨부를 지웠습니다.'); await reloadAtt(); }
+      catch (err) { toast(err.message, true); }
+      return;
+    }
     const del = e.target.closest('[data-sub-del]');
     if (del) {
       try {
@@ -9192,6 +9460,7 @@ async function renderNotifications(root) {
 
 
 
+
 // 간트는 "언제 무엇이 겹치는가"를 읽는 화면이다.
 // 페이즈 줄 앞의 ▸ 를 누르면 그 아래로 업무 줄이 같은 날짜 축에 막대로 펼쳐진다 (지라 타임라인과 같다).
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 업무 막대는 상태색으로 나눈다.
@@ -9255,6 +9524,14 @@ async function renderTimeline(root) {
 
   // 펼친 페이즈 아래에 서는 업무 줄. 라벨은 번호 · 업무명 · 상태, 트랙은 상태색 막대.
   // 줄을 누르면 하위 업무 창이 뜬다 — 상태·상세는 거기서. 차트 줄은 가볍게 둔다.
+  // 줄 끝의 코멘트 뱃지 — 디렉터 말이 있으면 「디렉터 n」, 아니면 말풍선. 누르면 창이 코멘트 칸으로 열린다.
+  const cmBadge = (t) => {
+    const dir = t.director_comment_count ?? 0;
+    const all = t.comment_count ?? 0;
+    return `<button class="tld-cm tl-cm${dir ? ' dir' : all ? ' on' : ''}" data-cm="${esc(t.id)}"
+       title="${dir ? `디렉터 코멘트 ${dir}건 — 눌러서 읽기` : all ? `코멘트 ${all}건 — 눌러서 읽기` : '디렉터 코멘트 남기기'}"
+       >${dir ? `${directorIcon()}${dir}` : `${sendIcon()}${all ? ` ${all}` : ''}`}</button>`;
+  };
   const taskRow = (t, phaseId) => {
     const st = statusMeta(t.status);
     return `
@@ -9263,6 +9540,7 @@ async function renderTimeline(root) {
         <div class="tl-label">
           ${ticketTag(t)}
           <span class="tl-tname">${esc(t.title)}</span>
+          ${cmBadge(t)}
           <span class="tl-tst ${esc(st.tone)}${t.is_delayed ? ' late' : ''}" title="${esc(st.label)}">${
             t.is_delayed ? '지연' : esc(st.label)}</span>
         </div>
@@ -9494,9 +9772,9 @@ async function renderTimeline(root) {
     }
     return null;
   };
-  const openSubs = (id) => {
+  const openSubs = (id, { focus = null } = {}) => {
     const t = findTask(id);
-    if (t) subtaskModal({ task: t, onChange: reload });
+    if (t) subtaskModal({ task: t, onChange: reload, focus });
   };
   bindBarDrag(root, win, () => findTask, reload);
   bindLabelResize(root);
@@ -9605,6 +9883,8 @@ async function renderTimeline(root) {
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
     // 차트의 업무 줄은 하위 업무 창을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
+    const cm = e.target.closest('.tl-task [data-cm]');
+    if (cm) { e.preventDefault(); openSubs(cm.dataset.cm, { focus: 'comments' }); return undefined; }
     const line = e.target.closest('.tl-task[data-line]');
     if (line && line.dataset.dragged) { delete line.dataset.dragged; return undefined; }   // 끌다 놓은 것은 클릭이 아니다
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(line.dataset.line); return undefined; }

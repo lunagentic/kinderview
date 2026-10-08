@@ -3,10 +3,10 @@ import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dbFile, today, applySchema, weekStart, addDays } from './db.js';
+import { dbFile, today, applySchema, weekStart, addDays, uploadsDir } from './db.js';
 import { runMigrations } from './migrate.js';
 import {
-  members, projects, vendors, tasks, subtasks, comments, categories, issues, overview, areaLeads,
+  members, projects, vendors, tasks, subtasks, comments, categories, issues, overview, areaLeads, attachments,
   timeEntries, payments, phases, milestones, timeline, expenses,
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
@@ -141,8 +141,14 @@ route('GET', '/api/tasks/:id', (ctx) => {
     issues: issues.list({ task_id: t.id, includeResolved: true }),
     subtasks: subtasks.list(t.id),
     comments: comments.list(t.id),
+    attachments: attachments.list(t.id),
   };
 });
+
+// ── 첨부 — 링크·이미지. 이미지는 JSON 안에 base64 로 온다(10MB 상한) ──
+route('GET', '/api/tasks/:id/attachments', (ctx) => attachments.list(ctx.params.id));
+route('POST', '/api/tasks/:id/attachments', (ctx) => attachments.add(ctx.params.id, ctx.body, ctx.me));
+route('DELETE', '/api/attachments/:id', (ctx) => attachments.remove(ctx.params.id));
 
 // ── 하위 업무 ───────────────────────────────────────────
 // 코멘트 — 읽기는 누구나, 쓰기는 화면·저장소 쪽 문이 막는다.
@@ -357,6 +363,18 @@ route('POST', '/api/ai/capture', async (ctx) => {
 
 // ── 정적 파일 ───────────────────────────────────────────
 
+// 올린 이미지. 파일 이름은 uuid.ext 뿐이라 경로를 오르내릴 수 없다.
+const serveUpload = async (res, pathname) => {
+  const name = pathname.slice('/uploads/'.length);
+  if (!/^[0-9a-f-]{36}\.(png|jpg|gif|webp)$/.test(name)) { res.writeHead(404).end('not found'); return; }
+  try {
+    const body = await readFile(join(uploadsDir, name));
+    const type = { png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }[extname(name).slice(1)];
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable' });
+    res.end(body);
+  } catch { res.writeHead(404).end('not found'); }
+};
+
 const serveStatic = async (req, res, pathname) => {
   const rel = pathname === '/' ? '/index.html' : pathname;
   const target = join(publicDir, normalize(rel).replace(/^(\.\.[/\\])+/, ''));
@@ -432,6 +450,7 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/slack/command' && req.method === 'POST') return handleSlackCommand(req, res);
 
+  if (pathname.startsWith('/uploads/')) return serveUpload(res, pathname);
   if (!pathname.startsWith('/api/')) return serveStatic(req, res, pathname);
 
   const match = routes.find((r) => r.method === req.method && r.regex.test(pathname));

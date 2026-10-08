@@ -343,6 +343,7 @@ const ROW_KEY = {
   collaborators: (r) => `${r.task_id}/${r.slack_user_id}`,
   outsourcing: (r) => r.task_id,
   area_leads: (r) => `${r.area}/${r.slack_user_id}`,
+  attachments: (r) => r.id,
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
@@ -927,6 +928,72 @@ function updateSubtask(id, body) {
 function removeSubtask(id) {
   DB.subtasks = (DB.subtasks ?? []).filter((s) => s.id !== id);
   save();
+  return { ok: true };
+}
+
+// ── 첨부 — 링크·이미지 (서버 repo.js attachments 와 같은 규칙) ──
+// 이미지는 Supabase Storage 버킷 kf-files 에 올리고 공개 주소를 적는다. 저장소에 못 닿는 자리(미리보기)에서는 못 올린다 —
+// base64 를 kf_rows 에 넣으면 동기화가 무거워진다.
+const LINK_RE = /^https?:\/\/[^\s]+$/i;
+const IMAGE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+const IMAGE_MAX = 10 * 1024 * 1024;
+const linkName = (url) => {
+  try { const u = new URL(url); return (u.host + (u.pathname === '/' ? '' : u.pathname)).slice(0, 60); }
+  catch { return url.slice(0, 60); }
+};
+const attachmentsOf = (taskId) => (DB.attachments ?? [])
+  .filter((a) => a.task_id === taskId)
+  .sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+async function uploadImage(file, id) {
+  if (isLocalOnly() || !remoteOk) throw new DemoError('공유 저장소에 닿아야 이미지를 올릴 수 있습니다. 링크는 지금도 붙일 수 있습니다.');
+  const ext = IMAGE_TYPES[file.type];
+  if (!ext) throw new DemoError('png · jpg · gif · webp 이미지만 올릴 수 있습니다.');
+  if (file.size > IMAGE_MAX) throw new DemoError('이미지는 10MB 까지 올릴 수 있습니다.');
+  const path = `${id}.${ext}`;
+  const code = currentCode();
+  const res = await fetch(`${SB_URL}/storage/v1/object/kf-files/${path}`, {
+    method: 'POST',
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': file.type, ...(code ? { 'x-kf-code': code } : {}) },
+    body: file,
+  });
+  if (res.status === 401 || res.status === 403) throw new DemoError('편집 코드가 확인되지 않아 올리지 못했습니다.');
+  if (!res.ok) throw new DemoError(`이미지를 올리지 못했습니다. (${res.status})`);
+  return `${SB_URL}/storage/v1/object/public/kf-files/${path}`;
+}
+
+async function addAttachment(taskId, body) {
+  const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
+  if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
+  const id = uid();
+  let row;
+  if (body.kind === 'link') {
+    const url = String(body.url ?? '').trim();
+    if (!LINK_RE.test(url)) throw new DemoError('http:// 또는 https:// 로 시작하는 주소를 넣어 주세요.');
+    row = { id, task_id: taskId, kind: 'link', url, name: String(body.name ?? '').trim().slice(0, 120) || linkName(url),
+      size: null, by_slack_user_id: currentMe(), created_at: nowISO() };
+  } else if (body.kind === 'image' && body.file) {
+    const url = await uploadImage(body.file, id);
+    row = { id, task_id: taskId, kind: 'image', url, name: String(body.file.name ?? '').slice(0, 120) || `${id}`,
+      size: body.file.size, by_slack_user_id: currentMe(), created_at: nowISO() };
+  } else throw new DemoError('첨부 종류가 올바르지 않습니다.');
+  (DB.attachments ??= []).push(row);
+  save();
+  return row;
+}
+
+async function removeAttachment(id) {
+  const cur = (DB.attachments ?? []).find((a) => a.id === id);
+  DB.attachments = (DB.attachments ?? []).filter((a) => a.id !== id);
+  save();
+  if (cur?.kind === 'image' && cur.url.includes('/kf-files/')) {
+    const path = cur.url.slice(cur.url.indexOf('/kf-files/') + '/kf-files/'.length);
+    const code = currentCode();
+    try {
+      await fetch(`${SB_URL}/storage/v1/object/kf-files/${path}`, { method: 'DELETE',
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, ...(code ? { 'x-kf-code': code } : {}) } });
+    } catch { /* 파일이 남아도 줄은 지웠다 */ }
+  }
   return { ok: true };
 }
 
@@ -2182,6 +2249,11 @@ function handle(method, path, body) {
     if (method === 'GET') return subtasksOf(seg[2]);
     if (method === 'POST') return createSubtask(seg[2], body);
   }
+  if (seg[1] === 'tasks' && seg[2] && seg[3] === 'attachments') {
+    if (method === 'GET') return attachmentsOf(seg[2]);
+    if (method === 'POST') return addAttachment(seg[2], body);
+  }
+  if (seg[1] === 'attachments' && seg[2] && method === 'DELETE') return removeAttachment(seg[2]);
   if (seg[1] === 'subtasks' && seg[2]) {
     if (method === 'PATCH') return updateSubtask(seg[2], body);
     if (method === 'DELETE') return removeSubtask(seg[2]);
@@ -2200,6 +2272,7 @@ function handle(method, path, body) {
         issues: listIssues({ task_id: id, includeResolved: true }),
         subtasks: subtasksOf(id),
         comments: listComments(id),
+        attachments: attachmentsOf(id),
       };
     }
     if (method === 'PATCH') return updateTask(id, body, me);

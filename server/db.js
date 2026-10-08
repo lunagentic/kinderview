@@ -8,6 +8,9 @@ const dataDir = process.env.KINDERFLOW_DATA_DIR || join(here, '..', 'data');
 const dbPath = process.env.KINDERFLOW_DB || join(dataDir, 'kinderflow.db');
 
 mkdirSync(dataDir, { recursive: true });
+/** 올린 이미지가 놓이는 곳. /uploads/<파일> 로 서빙한다. */
+export const uploadsDir = join(dataDir, 'uploads');
+mkdirSync(uploadsDir, { recursive: true });
 
 export const db = new DatabaseSync(dbPath);
 
