@@ -138,14 +138,14 @@ export async function renderTimeline(root) {
         <div class="tl-label">
           <button class="tlg-fold" data-fold-phase="${esc(ph.id)}" aria-expanded="${open}"
                   aria-label="업무 펼치기/접기" title="${open ? '업무 접기' : '업무 펼치기'}">${open ? '▾' : '▸'}</button>
-          <div class="tl-label-text">
-            <span class="tl-name-row">
-              <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
-              ${phaseCmBadge(ph)}
+          <div class="tl-label-text tl-ph-line">
+            <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
+            <span class="tl-ph-meta" title="${ph.task_count ? `업무 ${ph.task_count}건 · 완료 ${ph.done_count}건` : '업무 없음'}">
+              ${pct === null ? '<span class="tl-cnt">업무 없음</span>' : `
+              <span class="tl-prog"><i class="${pct >= 100 ? 'full' : ''}" style="width:${pct}%"></i></span><b class="tl-pct${pct >= 100 ? ' full' : ''}">${pct}%</b>
+              <span class="tl-cnt">${ph.done_count}/${ph.task_count}</span>`}
             </span>
-            <span class="tl-meta tl-ph-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
-              pct === null ? '' : ` · 완료 ${ph.done_count}`}${pct === null ? '' : `
-              <span class="tl-prog" title="완료 ${ph.done_count}/${ph.task_count}"><i class="${pct >= 100 ? 'full' : ''}" style="width:${pct}%"></i></span><b class="tl-pct${pct >= 100 ? ' full' : ''}">${pct}%</b>`}</span>
+            ${phaseCmBadge(ph)}
           </div>
         </div>
         <div class="tl-track">

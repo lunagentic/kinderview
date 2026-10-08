@@ -1700,9 +1700,13 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 /* 뱃지와 상태 칸은 폭을 고정한다 — 글자 길이에 따라 열이 흔들리면 안 된다 */
 .tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:1px 4px;min-width:36px;box-sizing:border-box}
 .tl-task .tl-tst{flex:none;width:60px;padding:0 4px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* 페이즈 진척 — 이름 아래 작은 막대와 숫자. 막대가 화면 밖으로 밀려도 여기서 읽는다 */
-.tl-ph-meta{display:flex;align-items:center;gap:6px;min-width:0}
-.tl-prog{flex:0 1 90px;min-width:40px;height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line-soft);overflow:hidden}
+/* 페이즈 줄 — 한 줄: ▸ 이름 … 진척 막대 · % · 완료/전체 · 코멘트. 막대가 화면 밖으로 밀려도 여기서 읽는다 */
+.tl-ph-line{flex-direction:row;align-items:center;gap:8px}
+.tl-ph-line .tl-name{flex:1 1 auto;min-width:60px}
+.tl-ph-meta{display:inline-flex;align-items:center;gap:6px;flex:none}
+.tl-cnt{font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap}
+.tl-prog{flex:none;width:64px;height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line-soft);overflow:hidden}
+@media (max-width:720px){.tl-prog{width:40px}.tl-cnt{display:none}}
 .tl-prog i{display:block;height:100%;background:var(--indigo);border-radius:3px}
 .tl-prog i.full{background:var(--s-done)}
 .tl-pct{font-family:var(--mono);font-size:.74rem;color:var(--ink-2);font-weight:700}
@@ -9942,14 +9946,14 @@ async function renderTimeline(root) {
         <div class="tl-label">
           <button class="tlg-fold" data-fold-phase="${esc(ph.id)}" aria-expanded="${open}"
                   aria-label="업무 펼치기/접기" title="${open ? '업무 접기' : '업무 펼치기'}">${open ? '▾' : '▸'}</button>
-          <div class="tl-label-text">
-            <span class="tl-name-row">
-              <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
-              ${phaseCmBadge(ph)}
+          <div class="tl-label-text tl-ph-line">
+            <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
+            <span class="tl-ph-meta" title="${ph.task_count ? `업무 ${ph.task_count}건 · 완료 ${ph.done_count}건` : '업무 없음'}">
+              ${pct === null ? '<span class="tl-cnt">업무 없음</span>' : `
+              <span class="tl-prog"><i class="${pct >= 100 ? 'full' : ''}" style="width:${pct}%"></i></span><b class="tl-pct${pct >= 100 ? ' full' : ''}">${pct}%</b>
+              <span class="tl-cnt">${ph.done_count}/${ph.task_count}</span>`}
             </span>
-            <span class="tl-meta tl-ph-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
-              pct === null ? '' : ` · 완료 ${ph.done_count}`}${pct === null ? '' : `
-              <span class="tl-prog" title="완료 ${ph.done_count}/${ph.task_count}"><i class="${pct >= 100 ? 'full' : ''}" style="width:${pct}%"></i></span><b class="tl-pct${pct >= 100 ? ' full' : ''}">${pct}%</b>`}</span>
+            ${phaseCmBadge(ph)}
           </div>
         </div>
         <div class="tl-track">

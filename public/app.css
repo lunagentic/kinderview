@@ -1696,9 +1696,13 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 /* 뱃지와 상태 칸은 폭을 고정한다 — 글자 길이에 따라 열이 흔들리면 안 된다 */
 .tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:1px 4px;min-width:36px;box-sizing:border-box}
 .tl-task .tl-tst{flex:none;width:60px;padding:0 4px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* 페이즈 진척 — 이름 아래 작은 막대와 숫자. 막대가 화면 밖으로 밀려도 여기서 읽는다 */
-.tl-ph-meta{display:flex;align-items:center;gap:6px;min-width:0}
-.tl-prog{flex:0 1 90px;min-width:40px;height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line-soft);overflow:hidden}
+/* 페이즈 줄 — 한 줄: ▸ 이름 … 진척 막대 · % · 완료/전체 · 코멘트. 막대가 화면 밖으로 밀려도 여기서 읽는다 */
+.tl-ph-line{flex-direction:row;align-items:center;gap:8px}
+.tl-ph-line .tl-name{flex:1 1 auto;min-width:60px}
+.tl-ph-meta{display:inline-flex;align-items:center;gap:6px;flex:none}
+.tl-cnt{font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap}
+.tl-prog{flex:none;width:64px;height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line-soft);overflow:hidden}
+@media (max-width:720px){.tl-prog{width:40px}.tl-cnt{display:none}}
 .tl-prog i{display:block;height:100%;background:var(--indigo);border-radius:3px}
 .tl-prog i.full{background:var(--s-done)}
 .tl-pct{font-family:var(--mono);font-size:.74rem;color:var(--ink-2);font-weight:700}
