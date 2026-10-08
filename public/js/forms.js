@@ -1304,3 +1304,80 @@ export function subtaskModal({ task, onChange, focus = null }) {
     },
   });
 }
+
+
+// ── 페이즈 코멘트 창 ──────────────────────────────────────
+// 타임라인 페이즈 줄의 뱃지에서 연다. 업무 코멘트와 같은 부품(bindComments)을 자리만 바꿔 쓴다.
+export function phaseCommentsModal({ phase, projectName = '', onChange, highlight = null }) {
+  let changed = false;
+  modal({
+    title: '페이즈 코멘트',
+    body: `
+      <div class="sbm">
+        <div class="sbm-head">
+          <span class="sbm-proj">${esc(projectName)}${phase.start_date ? ` · ${esc(shortDate(phase.start_date))} ~ ${esc(shortDate(phase.end_date))}` : ''}</span>
+          <h3 class="sbm-ttl">${esc(phase.name)}</h3>
+        </div>
+        <div class="sbm-sec">
+          <div class="sbm-sec-head"><h4>디렉터 코멘트</h4></div>
+          <div data-comments class="sbm-comments"></div>
+        </div>
+      </div>`,
+    footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
+    onMount({ root }) {
+      bindComments(root.querySelector('[data-comments]'), null, {
+        base: `/api/phases/${phase.id}/comments`, highlight,
+        onChange: (counts) => { changed = true; onChange?.(counts); },
+      });
+      setTimeout(() => root.querySelector('[data-comments] textarea')?.focus(), 150);
+      const obs = new MutationObserver(() => { if (!root.isConnected) { obs.disconnect(); } });
+      obs.observe(document.getElementById('modal-root'), { childList: true });
+      void changed;
+    },
+  });
+}
+
+
+// ── 디렉터 코멘트 모아보기 ─────────────────────────────────
+// 누구나 연다. 업무·페이즈에 달린 디렉터 자리의 말을 최신순으로 — 누르면 그 글로 간다.
+export async function directorDigestModal({ phases = [], projects = [] } = {}) {
+  let data;
+  try { data = await api.get('/api/director-comments'); }
+  catch (err) { toast(err.message, true); return; }
+  const rows = data.rows ?? [];
+  const when = (iso) => `${shortDate(iso.slice(0, 10))} ${iso.slice(11, 16)}`;
+  const body = rows.length ? `
+    <ul class="dd-list">${rows.map((r) => `
+      <li class="dd-item" data-dd="${esc(r.id)}" data-at="${esc(r.at)}" data-task="${esc(r.task_id ?? '')}" data-phase="${esc(r.phase_id ?? '')}" role="button" tabindex="0">
+        <span class="dd-where">${r.at === 'task'
+          ? `<span class="tkey">${esc(r.task_key ?? '')}</span><b>${esc(r.task_title)}</b>`
+          : `<span class="dd-tag">페이즈</span><b>${esc(r.phase_name)}</b>`}
+          <span class="dd-proj">${esc(r.project_name ?? '')}</span></span>
+        <span class="dd-body">${esc(r.body)}</span>
+        <span class="dd-meta">${esc(r.author_title || '디렉터')}${r.author_name ? ` · ${esc(r.author_name)}` : ''} · ${esc(when(r.created_at))}</span>
+      </li>`).join('')}</ul>`
+    : '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>';
+  modal({
+    title: `디렉터 코멘트 ${rows.length ? `<span class="sub-n">${rows.length}건</span>` : ''}`,
+    body: `<div class="dd">${body}</div>`,
+    footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
+    onMount({ root, close }) {
+      root.addEventListener('click', (e) => {
+        const it = e.target.closest('[data-dd]');
+        if (!it) return;
+        close();
+        if (it.dataset.at === 'task') {
+          window.location.hash = `#/project/tasks/${it.dataset.task}?cm=${encodeURIComponent(it.dataset.dd)}`;
+        } else {
+          const ph = phases.find((p) => p.id === it.dataset.phase);
+          const pr = projects.find((p) => p.id === ph?.project_id);
+          if (ph) phaseCommentsModal({ phase: ph, projectName: pr?.name ?? '', highlight: it.dataset.dd });
+          else toast('그 페이즈를 찾을 수 없습니다.', true);
+        }
+      });
+      root.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-dd]')) { e.preventDefault(); e.target.closest('[data-dd]').click(); }
+      });
+    },
+  });
+}

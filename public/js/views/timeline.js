@@ -4,7 +4,7 @@ import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusPick, go, toast, bindDueEdit, confirmModal, titleCell, autoGrow, syncTitleCell, ticketTag, readPref, writePref,
 } from '../ui.js';
-import { phaseForm, milestoneForm, projectForm, subtaskModal, taskForm } from '../forms.js';
+import { phaseForm, milestoneForm, projectForm, subtaskModal, taskForm, phaseCommentsModal, directorDigestModal } from '../forms.js';
 import {
   ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTaskTrack, tlSpan, tlPoint, tlDiff, tlAdd,
 } from '../gantt.js';
@@ -38,12 +38,15 @@ export async function renderTimeline(root) {
   const fetchPhaseTasks = (id) => api.get(`/api/tasks?phase=${encodeURIComponent(id)}&done=1&all_backlog=1`);
   const phaseTasks = new Map();
   let live;
+  let dirTotal = 0;   // 디렉터 코멘트 모아보기 수
   try {
     const [rows, ...loaded] = await Promise.all([
       api.get('/api/timeline'),
+      api.get('/api/director-comments').then((d) => ({ __digest: d.total ?? 0 })).catch(() => ({ __digest: 0 })),
       ...[...openPhases].map((id) => fetchPhaseTasks(id).then((t) => [id, t]).catch(() => [id, null])),
     ]);
     live = rows;
+    dirTotal = loaded.shift()?.__digest ?? 0;
     for (const [id, t] of loaded) if (t) phaseTasks.set(id, t);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
@@ -80,6 +83,14 @@ export async function renderTimeline(root) {
     const all = t.comment_count ?? 0;
     return `<button class="tld-cm tl-cm${dir ? ' dir' : all ? ' on' : ''}" data-cm="${esc(t.id)}"
        title="${dir ? `디렉터 코멘트 ${dir}건 — 눌러서 읽기` : all ? `코멘트 ${all}건 — 눌러서 읽기` : '디렉터 코멘트 남기기'}"
+       >${dir ? `${directorIcon()}${dir}` : `${sendIcon()}${all ? ` ${all}` : ''}`}</button>`;
+  };
+  // 페이즈 줄의 코멘트 뱃지 — 업무 줄과 같은 모양, 자리만 페이즈
+  const phaseCmBadge = (ph) => {
+    const dir = ph.director_comment_count ?? 0;
+    const all = ph.comment_count ?? 0;
+    return `<button class="tld-cm tl-cm ph-cm${dir ? ' dir' : all ? ' on' : ''}" data-phase-cm="${esc(ph.id)}"
+       title="${dir ? `디렉터 코멘트 ${dir}건 — 눌러서 읽기` : all ? `코멘트 ${all}건 — 눌러서 읽기` : '이 페이즈에 디렉터 코멘트 남기기'}"
        >${dir ? `${directorIcon()}${dir}` : `${sendIcon()}${all ? ` ${all}` : ''}`}</button>`;
   };
   const taskRow = (t, phaseId) => {
@@ -128,7 +139,10 @@ export async function renderTimeline(root) {
           <button class="tlg-fold" data-fold-phase="${esc(ph.id)}" aria-expanded="${open}"
                   aria-label="업무 펼치기/접기" title="${open ? '업무 접기' : '업무 펼치기'}">${open ? '▾' : '▸'}</button>
           <div class="tl-label-text">
-            <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
+            <span class="tl-name-row">
+              <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
+              ${phaseCmBadge(ph)}
+            </span>
             <span class="tl-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
               pct === null ? '' : ` · ${pct}%`}</span>
           </div>
@@ -183,6 +197,7 @@ export async function renderTimeline(root) {
       <span class="tl-key"><i class="k-ms done"></i>달성</span>
       <span class="tl-key"><i class="k-today"></i>오늘</span>
       <span class="tl-hint">▸ 를 누르면 그 페이즈의 업무가 아래에 펼쳐집니다</span>
+      <button class="btn btn-ghost sm tl-dd" data-director-digest title="업무·페이즈에 달린 디렉터 코멘트를 모아 봅니다">${directorIcon()}디렉터 코멘트 <b data-dd-n>${dirTotal}</b></button>
     </div>
 
     <div class="tl-wrap">
@@ -435,6 +450,18 @@ export async function renderTimeline(root) {
     // 차트의 업무 줄은 하위 업무 창을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
     const cm = e.target.closest('.tl-task [data-cm]');
     if (cm) { e.preventDefault(); openSubs(cm.dataset.cm, { focus: 'comments' }); return undefined; }
+    if (e.target.closest('[data-director-digest]')) {
+      e.preventDefault();
+      return directorDigestModal({ phases: allPhases, projects: live.map((r) => ({ id: r.id, name: r.name })) });
+    }
+    const pcm = e.target.closest('[data-phase-cm]');
+    if (pcm) {
+      e.preventDefault();
+      const found = allPhases.find((p) => p.id === pcm.dataset.phaseCm);
+      const proj = live.find((r) => r.id === found?.project_id);
+      if (found) phaseCommentsModal({ phase: found, projectName: proj?.name ?? '', onChange: () => reload() });
+      return undefined;
+    }
     const line = e.target.closest('.tl-task[data-line]');
     if (line && line.dataset.dragged) { delete line.dataset.dragged; return undefined; }   // 끌다 놓은 것은 클릭이 아니다
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(line.dataset.line); return undefined; }
@@ -588,7 +615,7 @@ function bindLabelResize(root) {
   handle.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || narrow) return;
     e.preventDefault();
-    const cur = parseFloat(getComputedStyle(chart).getPropertyValue('--tl-label')) || 260;
+    const cur = parseFloat(getComputedStyle(chart).getPropertyValue('--tl-label')) || 420;
     drag = { x0: e.clientX, w0: cur };
     handle.setPointerCapture?.(e.pointerId);
     handle.classList.add('on');

@@ -392,12 +392,24 @@ function addReadMarks() {
   return '알림 읽음(read_mark) 표 추가';
 }
 
+/** 페이즈 코멘트 표 */
+function addPhaseComments() {
+  if (tableSql('phase_comment')) return null;
+  db.exec(`CREATE TABLE phase_comment (
+    id TEXT PRIMARY KEY, phase_id TEXT NOT NULL REFERENCES phase(id) ON DELETE CASCADE,
+    parent_id TEXT REFERENCES phase_comment(id) ON DELETE CASCADE, body TEXT NOT NULL,
+    author_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id), author_role TEXT, author_title TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, edited_at TEXT, deleted_at TEXT)`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_phase_comment_phase ON phase_comment(phase_id, created_at)');
+  return '페이즈 코멘트(phase_comment) 표 추가';
+}
+
 /** 앱 시작 시 한 번 실행한다. 옮길 것이 없으면 아무 일도 하지 않는다. */
 export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
-    addTicketSeq(), addSubtaskDue(), addAttachments(), addReadMarks()]
+    addTicketSeq(), addSubtaskDue(), addAttachments(), addReadMarks(), addPhaseComments()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

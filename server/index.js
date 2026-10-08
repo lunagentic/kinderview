@@ -7,7 +7,7 @@ import { dbFile, today, applySchema, weekStart, addDays, uploadsDir } from './db
 import { runMigrations } from './migrate.js';
 import {
   members, projects, vendors, tasks, subtasks, comments, categories, issues, overview, areaLeads, attachments,
-  timeEntries, payments, phases, milestones, timeline, expenses, inbox,
+  timeEntries, payments, phases, milestones, timeline, expenses, inbox, directorComments,
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
 import * as weekly from './weekly.js';
@@ -159,6 +159,8 @@ route('POST', '/api/categories', (ctx) => categories.create(ctx.body));
 
 route('GET', '/api/tasks/:id/comments', (ctx) => comments.list(ctx.params.id));
 route('POST', '/api/tasks/:id/comments', (ctx) => comments.create(ctx.params.id, ctx.body, ctx.me));
+route('GET', '/api/phases/:id/comments', (ctx) => comments.listPhase(ctx.params.id));
+route('POST', '/api/phases/:id/comments', (ctx) => comments.createPhase(ctx.params.id, ctx.body, ctx.me));
 route('PATCH', '/api/comments/:id', (ctx) => comments.update(ctx.params.id, ctx.body, ctx.me));
 route('DELETE', '/api/comments/:id', (ctx) => comments.remove(ctx.params.id, ctx.me, true));
 
@@ -248,6 +250,7 @@ route('POST', '/api/weekly/:id/share', async (ctx) => {
 
 // ── 앱 안 알림 — 내 업무에 지금 해당하는 일 ──
 route('GET', '/api/inbox', (ctx) => inbox.list(ctx.url.searchParams.get('me') || ctx.me));
+route('GET', '/api/director-comments', () => directorComments.list());
 route('POST', '/api/inbox/read', (ctx) => inbox.markRead(ctx.me, Array.isArray(ctx.body?.keys) ? ctx.body.keys : []));
 
 route('GET', '/api/notifications', () => ({

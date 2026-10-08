@@ -73,7 +73,8 @@ const subList = (rows = []) => (rows.length
       </li>`).join('')}</ul>`
   : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
 
-export async function renderTaskDetail(root, id) {
+export async function renderTaskDetail(root, id, query = '') {
+  const wantComment = new URLSearchParams(query).get('cm');
   root.innerHTML = loading();
   let t;
   try {
@@ -430,7 +431,8 @@ export async function renderTaskDetail(root, id) {
     } catch (err) { toast(err.message, true); }
   });
 
-  bindComments(root.querySelector('[data-comments]'), t.id);
+  bindComments(root.querySelector('[data-comments]'), t.id, { highlight: wantComment });
+  if (wantComment) setTimeout(() => root.querySelector('[data-comments-panel]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 100);
 
   autoGrow(root);
 

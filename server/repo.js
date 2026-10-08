@@ -176,7 +176,9 @@ export const phases = {
     return all(
       `SELECT ph.*,
               (SELECT COUNT(*) FROM task t WHERE t.phase_id = ph.id AND t.deleted_at IS NULL) AS task_count,
-              (SELECT COUNT(*) FROM task t WHERE t.phase_id = ph.id AND t.deleted_at IS NULL AND t.status = 'DONE') AS done_count
+              (SELECT COUNT(*) FROM task t WHERE t.phase_id = ph.id AND t.deleted_at IS NULL AND t.status = 'DONE') AS done_count,
+              (SELECT COUNT(*) FROM phase_comment c WHERE c.phase_id = ph.id AND c.deleted_at IS NULL) AS comment_count,
+              (SELECT COUNT(*) FROM phase_comment c WHERE c.phase_id = ph.id AND c.deleted_at IS NULL AND c.author_role = 'DIRECTOR') AS director_comment_count
        FROM phase ph
        ${projectId ? 'WHERE ph.project_id = :pid' : ''}
        ORDER BY ph.project_id, ph.sort_order, ph.start_date`,
@@ -665,10 +667,49 @@ export const comments = {
     return comments.get(id);
   },
 
+  // 페이즈 코멘트 — 업무 코멘트와 같은 규칙, 자리만 페이즈
+  listPhase(phaseId) {
+    return all(
+      `SELECT c.*, m.display_name AS author_name, m.avatar_url AS author_avatar
+         FROM phase_comment c LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
+        WHERE c.phase_id = :p ORDER BY c.created_at`, { p: phaseId },
+    ).map(strip);
+  },
+  createPhase(phaseId, input, actor) {
+    const body = String(input.body ?? '').trim();
+    if (!body) throw new HttpError(400, '내용을 입력해 주세요.');
+    if (body.length > 2000) throw new HttpError(400, '코멘트는 2000자까지 쓸 수 있습니다.');
+    if (!one('SELECT id FROM phase WHERE id = :id', { id: phaseId })) throw new HttpError(404, '페이즈를 찾을 수 없습니다.');
+    const author = ensureMember(actor);
+    if (!author) throw new HttpError(400, '누구로 쓰는지 알 수 없습니다.');
+    let parent = null;
+    if (input.parent_id) {
+      const p = one('SELECT id, parent_id, phase_id FROM phase_comment WHERE id = :id', { id: input.parent_id });
+      if (!p || p.phase_id !== phaseId) throw new HttpError(400, '답글을 달 코멘트를 찾을 수 없습니다.');
+      parent = p.parent_id ?? p.id;
+    }
+    const id = uid();
+    const at = nowISO();
+    const role = ['EDIT', 'DIRECTOR', 'ADMIN'].includes(input.author_role) ? input.author_role : null;
+    const title = role === 'DIRECTOR' ? titleOf(input.author_title) : null;
+    run(`INSERT INTO phase_comment (id, phase_id, parent_id, body, author_slack_user_id, author_role, author_title, created_at, updated_at)
+         VALUES (:id, :p, :parent, :body, :author, :role, :title, :at, :at)`,
+      { id, p: phaseId, parent, body, author, role, title, at });
+    return comments.get(id);
+  },
+
+  // 어느 표에 있나 — 업무 코멘트가 먼저, 없으면 페이즈 코멘트
+  tableOf(id) {
+    if (one('SELECT id FROM comment WHERE id = :id', { id })) return 'comment';
+    if (one('SELECT id FROM phase_comment WHERE id = :id', { id })) return 'phase_comment';
+    return null;
+  },
+
   get(id) {
+    const table = comments.tableOf(id) ?? 'comment';
     return strip(one(
       `SELECT c.*, m.display_name AS author_name, m.avatar_url AS author_avatar
-         FROM comment c
+         FROM ${table} c
          LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
         WHERE c.id = :id`,
       { id },
@@ -676,26 +717,28 @@ export const comments = {
   },
 
   update(id, patch, actor) {
-    const cur = one('SELECT * FROM comment WHERE id = :id', { id });
+    const table = comments.tableOf(id) ?? 'comment';
+    const cur = one(`SELECT * FROM ${table} WHERE id = :id`, { id });
     if (!cur) throw new HttpError(404, '코멘트를 찾을 수 없습니다.');
     if (cur.deleted_at) throw new HttpError(400, '지운 코멘트는 고칠 수 없습니다.');
-    // 남의 말을 고치면 그때부터 기록이 아니다
-    if (cur.author_slack_user_id !== actor) throw new HttpError(403, '내가 쓴 코멘트만 고칠 수 있습니다.');
+    // 남의 말을 고치면 그때부터 기록이 아니다. 디렉터 자리의 말은 자리가 정리한다(서버판은 문이 없어 누구나 그 자리다).
+    if (cur.author_slack_user_id !== actor && cur.author_role !== 'DIRECTOR') throw new HttpError(403, '내가 쓴 코멘트만 고칠 수 있습니다.');
     const body = String(patch.body ?? '').trim();
     if (!body) throw new HttpError(400, '내용을 입력해 주세요.');
     if (body.length > 2000) throw new HttpError(400, '코멘트는 2000자까지 쓸 수 있습니다.');
     const at = nowISO();
-    run('UPDATE comment SET body = :body, updated_at = :at, edited_at = :at WHERE id = :id', { id, body, at });
+    run(`UPDATE ${table} SET body = :body, updated_at = :at, edited_at = :at WHERE id = :id`, { id, body, at });
     return comments.get(id);
   },
 
   remove(id, actor, isAdmin = false) {
-    const cur = one('SELECT * FROM comment WHERE id = :id', { id });
+    const table = comments.tableOf(id) ?? 'comment';
+    const cur = one(`SELECT * FROM ${table} WHERE id = :id`, { id });
     if (!cur) throw new HttpError(404, '코멘트를 찾을 수 없습니다.');
-    if (!isAdmin && cur.author_slack_user_id !== actor) {
+    if (!isAdmin && cur.author_slack_user_id !== actor && cur.author_role !== 'DIRECTOR') {
       throw new HttpError(403, '내가 쓴 코멘트만 지울 수 있습니다.');
     }
-    run('UPDATE comment SET deleted_at = :at, updated_at = :at WHERE id = :id AND deleted_at IS NULL',
+    run(`UPDATE ${table} SET deleted_at = :at, updated_at = :at WHERE id = :id AND deleted_at IS NULL`,
       { id, at: nowISO() });
     return { ok: true };
   },
@@ -869,6 +912,29 @@ export const attachments = {
 // 저장하지 않는다. '보낸 알림'이 아니라 '지금 챙길 일'이라, 열 때마다 다시 센다. 읽음만 남긴다.
 const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
 const RECENT_DAYS = 7;
+// ── 디렉터 코멘트 모아보기 — 누구나 본다. 업무·페이즈에 달린 디렉터 자리의 말을 최신순으로 ──
+export const directorComments = {
+  list() {
+    const onTasks = all(
+      `SELECT c.id, c.body, c.created_at, c.author_slack_user_id, c.author_title, m.display_name AS author_name,
+              'task' AS at, t.id AS task_id, t.title AS task_title, t.seq, p.code AS project_code, p.name AS project_name,
+              NULL AS phase_id, NULL AS phase_name
+         FROM comment c JOIN task t ON t.id = c.task_id LEFT JOIN project p ON p.id = t.project_id
+         LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
+        WHERE c.deleted_at IS NULL AND c.author_role = 'DIRECTOR' AND t.deleted_at IS NULL`);
+    const onPhases = all(
+      `SELECT c.id, c.body, c.created_at, c.author_slack_user_id, c.author_title, m.display_name AS author_name,
+              'phase' AS at, NULL AS task_id, NULL AS task_title, NULL AS seq, p.code AS project_code, p.name AS project_name,
+              ph.id AS phase_id, ph.name AS phase_name
+         FROM phase_comment c JOIN phase ph ON ph.id = c.phase_id LEFT JOIN project p ON p.id = ph.project_id
+         LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
+        WHERE c.deleted_at IS NULL AND c.author_role = 'DIRECTOR'`);
+    const rows = [...onTasks, ...onPhases].map((r) => ({ ...r, task_key: r.task_id ? ticketKey(r.project_code, r.seq) : null }))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return { total: rows.length, rows };
+  },
+};
+
 export const inbox = {
   list(me, ref = today()) {
     if (!me) return { items: [], unread: 0 };

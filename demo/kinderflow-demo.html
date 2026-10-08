@@ -880,7 +880,7 @@ body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:n
 .tl-wrap::-webkit-scrollbar,.tlg-scroll::-webkit-scrollbar{height:10px}
 .tl-wrap::-webkit-scrollbar-track,.tlg-scroll::-webkit-scrollbar-track{background:var(--surface-2);border-radius:5px}
 .tl-wrap::-webkit-scrollbar-thumb,.tlg-scroll::-webkit-scrollbar-thumb{background:var(--muted);border-radius:5px;border:2px solid var(--surface-2)}
-.tl-chart{min-width:660px;position:relative;--tl-label:260px;--tl-gap:12px}
+.tl-chart{min-width:660px;position:relative;--tl-label:420px;--tl-gap:12px}
 
 /* 보기 단위 — 월간 / 주간 */
 .tl-scale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 2px 10px}
@@ -1317,6 +1317,22 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
    막대를 누르면 그 페이즈 업무가 영역별로 아래에 열린다.
    막대는 '보기', 왼쪽 이름은 '수정' — 하는 일을 나눴다. */
 .tl-hint{margin-left:auto;color:var(--muted)}
+.tl-dd{display:inline-flex;align-items:center;gap:5px;color:var(--indigo);border-color:color-mix(in oklab, var(--indigo) 35%, var(--line))}
+.tl-dd .cm-i{width:13px;height:13px}
+.tl-dd b{font-weight:700}
+/* 디렉터 코멘트 모아보기 */
+.dd-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.dd-item{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--line-soft);border-radius:var(--radius);background:var(--surface);cursor:pointer}
+.dd-item:hover{border-color:var(--indigo);background:var(--surface-2)}
+.dd-where{display:flex;align-items:center;gap:8px;min-width:0;font-size:.86rem}
+.dd-where b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.dd-proj{margin-left:auto;font-size:.74rem;color:var(--muted);white-space:nowrap}
+.dd-tag{font-family:var(--mono);font-size:.68rem;color:var(--indigo);border:1px solid currentColor;border-radius:3px;padding:0 5px}
+.dd-body{font-size:.88rem;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.dd-meta{font-size:.74rem;color:var(--muted)}
+/* 모아보기에서 넘어온 글은 잠깐 밝힌다 */
+.cm.is-hit{animation:cm-hit 2.4s ease-out}
+@keyframes cm-hit{0%,60%{background:color-mix(in oklab, var(--indigo) 14%, transparent);box-shadow:0 0 0 2px color-mix(in oklab, var(--indigo) 40%, transparent)}100%{background:transparent;box-shadow:none}}
 .tl-bar.on{box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--pc)}
 
 /* (페이즈 패널은 없어졌다 — 업무 줄은 차트 안에서 펼쳐진다) */
@@ -1678,7 +1694,14 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .sbm-list .lnk-out{color:var(--indigo);text-decoration:none;font-size:.95rem}
 .sbm-comments{margin-top:6px}
 .sbm-sec + .sbm-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)}
-.tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;gap:3px;padding:1px 5px}
+/* 뱃지와 상태 칸은 폭을 고정한다 — 글자 길이에 따라 열이 흔들리면 안 된다 */
+.tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:1px 4px;min-width:36px;box-sizing:border-box}
+.tl-task .tl-tst{flex:none;min-width:46px;text-align:center;box-sizing:border-box}
+.tl-name-row{display:flex;align-items:center;gap:6px;min-width:0}
+.tl-name-row .tl-name{min-width:0}
+.ph-cm{flex:none;display:inline-flex;align-items:center;gap:3px;padding:1px 5px}
+.ph-cm .cm-i{width:14px;height:14px}
+body[data-gate="view"] .ph-cm{pointer-events:auto}
 .tl-task .tl-cm .cm-i{width:14px;height:14px}
 body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .empty-line{margin:12px 0 0;color:var(--muted);font-size:.86rem}
@@ -3442,12 +3465,43 @@ function createComment(taskId, input, actor) {
   return dressComment(row);
 }
 
+// 내 말, 또는 디렉터 코드로 디렉터 자리의 말, 또는 관리자
+const canFixComment = (c, actor) => c.author_slack_user_id === actor
+  || (c.author_role === 'DIRECTOR' && currentRole() === 'DIRECTOR') || canAdmin();
+
+// 페이즈 코멘트 — 같은 comments 묶음에 phase_id 로 둔다(task_id 는 null)
+const phaseCommentsOf = (phaseId) => (DB.comments ?? [])
+  .filter((c) => c.phase_id === phaseId)
+  .sort((a, b) => a.created_at.localeCompare(b.created_at));
+function listPhaseComments(phaseId) { return phaseCommentsOf(phaseId).map(dressComment); }
+function createPhaseComment(phaseId, input, actor) {
+  const body = String(input.body ?? '').trim();
+  if (!body) throw new DemoError('내용을 입력해 주세요.');
+  if (body.length > 2000) throw new DemoError('코멘트는 2000자까지 쓸 수 있습니다.');
+  if (!(DB.phases ?? []).some((p) => p.id === phaseId)) throw new DemoError('페이즈를 찾을 수 없습니다.');
+  let parent = null;
+  if (input.parent_id) {
+    const pc = (DB.comments ?? []).find((c) => c.id === input.parent_id && c.phase_id === phaseId);
+    if (!pc) throw new DemoError('답글을 달 코멘트를 찾을 수 없습니다.');
+    parent = pc.parent_id ?? pc.id;
+  }
+  const at = nowISO();
+  const role = ['EDIT', 'DIRECTOR', 'ADMIN'].includes(input.author_role) ? input.author_role : null;
+  const title = role === 'DIRECTOR' ? (String(input.author_title ?? '').trim().slice(0, 24) || null) : null;
+  const row = { id: uid(), task_id: null, phase_id: phaseId, parent_id: parent, body,
+    author_slack_user_id: actor, author_role: role, author_title: title,
+    created_at: at, updated_at: at, edited_at: null, deleted_at: null };
+  (DB.comments ??= []).push(row);
+  save();
+  return dressComment(row);
+}
+
 function updateComment(id, input, actor) {
   const c = (DB.comments ?? []).find((x) => x.id === id);
   if (!c) throw new DemoError('코멘트를 찾을 수 없습니다.');
   if (c.deleted_at) throw new DemoError('지운 코멘트는 고칠 수 없습니다.');
-  // 남의 말을 고치면 그때부터 기록이 아니다
-  if (c.author_slack_user_id !== actor) throw new DemoError('내가 쓴 코멘트만 고칠 수 있습니다.');
+  // 남의 말을 고치면 그때부터 기록이 아니다. 디렉터 자리의 말은 디렉터 코드가, 그 밖은 관리자가 정리할 수 있다.
+  if (!canFixComment(c, actor)) throw new DemoError('내가 쓴 코멘트만 고칠 수 있습니다. (디렉터 코멘트는 디렉터·관리자 코드로)');
   const body = String(input.body ?? '').trim();
   if (!body) throw new DemoError('내용을 입력해 주세요.');
   if (body.length > 2000) throw new DemoError('코멘트는 2000자까지 쓸 수 있습니다.');
@@ -3460,8 +3514,8 @@ function updateComment(id, input, actor) {
 function removeComment(id, actor) {
   const c = (DB.comments ?? []).find((x) => x.id === id);
   if (!c) throw new DemoError('코멘트를 찾을 수 없습니다.');
-  if (!canAdmin() && c.author_slack_user_id !== actor) {
-    throw new DemoError('내가 쓴 코멘트만 지울 수 있습니다.');
+  if (!canFixComment(c, actor)) {
+    throw new DemoError('내가 쓴 코멘트만 지울 수 있습니다. (디렉터 코멘트는 디렉터·관리자 코드로)');
   }
   // 행을 없애지 않는다 — 답글이 딸려 있으면 대화가 끊긴다
   const at = nowISO();
@@ -3631,6 +3685,31 @@ async function removeAttachment(id) {
 // ── 앱 안 알림 — 서버 repo.js inbox 와 같은 규칙 ──
 const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
 const INBOX_RECENT_DAYS = 7;
+// 디렉터 코멘트 모아보기 — 서버 repo.js directorComments 와 같은 규칙
+function directorCommentsOf() {
+  const rows = [];
+  for (const c of DB.comments ?? []) {
+    if (c.deleted_at || c.author_role !== 'DIRECTOR') continue;
+    const base = { id: c.id, body: c.body, created_at: c.created_at, author_slack_user_id: c.author_slack_user_id,
+      author_title: c.author_title, author_name: member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id };
+    if (c.task_id) {
+      const t = DB.tasks.find((x) => x.id === c.task_id && !x.deleted_at);
+      if (!t) continue;
+      const p = project(t.project_id);
+      rows.push({ ...base, at: 'task', task_id: t.id, task_title: t.title, task_key: ticketKey(p?.code, t.seq),
+        project_name: p?.name ?? null, phase_id: null, phase_name: null });
+    } else if (c.phase_id) {
+      const ph = (DB.phases ?? []).find((x) => x.id === c.phase_id);
+      if (!ph) continue;
+      const p = project(ph.project_id);
+      rows.push({ ...base, at: 'phase', task_id: null, task_title: null, task_key: null,
+        project_name: p?.name ?? null, phase_id: ph.id, phase_name: ph.name });
+    }
+  }
+  rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return { total: rows.length, rows };
+}
+
 function inboxOf(me, ref = today()) {
   if (!me) return { items: [], unread: 0 };
   const tomorrow = addDays(ref, 1);
@@ -4638,10 +4717,13 @@ const phasesOf = (projectId) => (DB.phases ?? [])
   .filter((ph) => !projectId || ph.project_id === projectId)
   .map((ph) => {
     const own = DB.tasks.filter((t) => !t.deleted_at && t.phase_id === ph.id);
+    const cms = phaseCommentsOf(ph.id).filter((c) => !c.deleted_at);
     return {
       ...ph,
       task_count: own.length,
       done_count: own.filter((t) => t.status === 'DONE').length,
+      comment_count: cms.length,
+      director_comment_count: cms.filter((c) => c.author_role === 'DIRECTOR').length,
     };
   })
   .sort((a, b) => (a.project_id === b.project_id
@@ -4928,6 +5010,10 @@ function handle(method, path, body) {
     if (method === 'GET') return listComments(seg[2]);
     if (method === 'POST') return createComment(seg[2], body, me);
   }
+  if (seg[1] === 'phases' && seg[2] && seg[3] === 'comments') {
+    if (method === 'GET') return listPhaseComments(seg[2]);
+    if (method === 'POST') return createPhaseComment(seg[2], body, me);
+  }
   if (seg[1] === 'comments' && seg[2]) {
     if (method === 'PATCH') return updateComment(seg[2], body, me);
     if (method === 'DELETE') return removeComment(seg[2], me);
@@ -5159,6 +5245,7 @@ function handle(method, path, body) {
   if (seg[1] === 'payments' && seg[2] && method === 'PATCH') return updatePayment(seg[2], body);
 
   if (p === '/api/inbox' && method === 'GET') return inboxOf(sp.get('me') || me);
+  if (p === '/api/director-comments' && method === 'GET') return directorCommentsOf();
   if (p === '/api/inbox/read' && method === 'POST') return markInboxRead(me, Array.isArray(body?.keys) ? body.keys : []);
   if (p === '/api/notifications' && method === 'GET') {
     return { slack_configured: false, rows: DB.notifications.slice(0, 200) };
@@ -6898,6 +6985,83 @@ function subtaskModal({ task, onChange, focus = null }) {
 }
 
 
+// ── 페이즈 코멘트 창 ──────────────────────────────────────
+// 타임라인 페이즈 줄의 뱃지에서 연다. 업무 코멘트와 같은 부품(bindComments)을 자리만 바꿔 쓴다.
+function phaseCommentsModal({ phase, projectName = '', onChange, highlight = null }) {
+  let changed = false;
+  modal({
+    title: '페이즈 코멘트',
+    body: `
+      <div class="sbm">
+        <div class="sbm-head">
+          <span class="sbm-proj">${esc(projectName)}${phase.start_date ? ` · ${esc(shortDate(phase.start_date))} ~ ${esc(shortDate(phase.end_date))}` : ''}</span>
+          <h3 class="sbm-ttl">${esc(phase.name)}</h3>
+        </div>
+        <div class="sbm-sec">
+          <div class="sbm-sec-head"><h4>디렉터 코멘트</h4></div>
+          <div data-comments class="sbm-comments"></div>
+        </div>
+      </div>`,
+    footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
+    onMount({ root }) {
+      bindComments(root.querySelector('[data-comments]'), null, {
+        base: `/api/phases/${phase.id}/comments`, highlight,
+        onChange: (counts) => { changed = true; onChange?.(counts); },
+      });
+      setTimeout(() => root.querySelector('[data-comments] textarea')?.focus(), 150);
+      const obs = new MutationObserver(() => { if (!root.isConnected) { obs.disconnect(); } });
+      obs.observe(document.getElementById('modal-root'), { childList: true });
+      void changed;
+    },
+  });
+}
+
+
+// ── 디렉터 코멘트 모아보기 ─────────────────────────────────
+// 누구나 연다. 업무·페이즈에 달린 디렉터 자리의 말을 최신순으로 — 누르면 그 글로 간다.
+async function directorDigestModal({ phases = [], projects = [] } = {}) {
+  let data;
+  try { data = await api.get('/api/director-comments'); }
+  catch (err) { toast(err.message, true); return; }
+  const rows = data.rows ?? [];
+  const when = (iso) => `${shortDate(iso.slice(0, 10))} ${iso.slice(11, 16)}`;
+  const body = rows.length ? `
+    <ul class="dd-list">${rows.map((r) => `
+      <li class="dd-item" data-dd="${esc(r.id)}" data-at="${esc(r.at)}" data-task="${esc(r.task_id ?? '')}" data-phase="${esc(r.phase_id ?? '')}" role="button" tabindex="0">
+        <span class="dd-where">${r.at === 'task'
+          ? `<span class="tkey">${esc(r.task_key ?? '')}</span><b>${esc(r.task_title)}</b>`
+          : `<span class="dd-tag">페이즈</span><b>${esc(r.phase_name)}</b>`}
+          <span class="dd-proj">${esc(r.project_name ?? '')}</span></span>
+        <span class="dd-body">${esc(r.body)}</span>
+        <span class="dd-meta">${esc(r.author_title || '디렉터')}${r.author_name ? ` · ${esc(r.author_name)}` : ''} · ${esc(when(r.created_at))}</span>
+      </li>`).join('')}</ul>`
+    : '<p class="empty-line">아직 디렉터 코멘트가 없습니다.</p>';
+  modal({
+    title: `디렉터 코멘트 ${rows.length ? `<span class="sub-n">${rows.length}건</span>` : ''}`,
+    body: `<div class="dd">${body}</div>`,
+    footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
+    onMount({ root, close }) {
+      root.addEventListener('click', (e) => {
+        const it = e.target.closest('[data-dd]');
+        if (!it) return;
+        close();
+        if (it.dataset.at === 'task') {
+          window.location.hash = `#/project/tasks/${it.dataset.task}?cm=${encodeURIComponent(it.dataset.dd)}`;
+        } else {
+          const ph = phases.find((p) => p.id === it.dataset.phase);
+          const pr = projects.find((p) => p.id === ph?.project_id);
+          if (ph) phaseCommentsModal({ phase: ph, projectName: pr?.name ?? '', highlight: it.dataset.dd });
+          else toast('그 페이즈를 찾을 수 없습니다.', true);
+        }
+      });
+      root.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-dd]')) { e.preventDefault(); e.target.closest('[data-dd]').click(); }
+      });
+    },
+  });
+}
+
+
 // 디렉터 코멘트 — 업무에 달리는 의견. 업무 상세와 타임라인이 같은 것을 쓴다 —
 // 한쪽에서 남긴 말이 다른 쪽에서 안 보이면 코멘트가 아니라 메모가 된다.
 //
@@ -6913,6 +7077,10 @@ function subtaskModal({ task, onChange, focus = null }) {
 
 
 const mine = (c) => c.author_slack_user_id === state.me;
+// 디렉터 코드로 들어온 사람은 디렉터 자리에서 남긴 말을 고치고 지울 수 있다 — 자리의 말이지 사람의 말이 아니다.
+// 디렉터 코드가 사람에게 묶이기 전에 남긴 코멘트도 이 길로 정리한다.
+const directorsOwn = (c) => c.author_role === 'DIRECTOR' && currentRole() === 'DIRECTOR';
+const canFix = (c) => (mine(c) || directorsOwn(c) || canAdmin()) && canEdit();
 
 // 손짓 아이콘. Tailwind 가 함께 내놓는 Heroicons 의 선 그림을 그대로 넣는다 —
 // 글자보다 줄이 덜 먹고, 좁은 화면에서도 버튼이 접히지 않는다.
@@ -6968,8 +7136,8 @@ const one = (c, { reply = true } = {}) => {
       ${gone ? '' : `
         <div class="cm-acts">
           ${reply && canEdit() ? `<button class="lnk" data-cm-reply="${esc(c.id)}">${cmIcon('reply')}답글</button>` : ''}
-          ${mine(c) && canEdit() ? `<button class="lnk" data-cm-edit="${esc(c.id)}">${cmIcon('edit')}수정</button>` : ''}
-          ${(mine(c) || canAdmin()) && canEdit() ? `<button class="lnk bad" data-cm-del="${esc(c.id)}">${cmIcon('del')}삭제</button>` : ''}
+          ${canFix(c) ? `<button class="lnk" data-cm-edit="${esc(c.id)}">${cmIcon('edit')}수정</button>` : ''}
+          ${canFix(c) ? `<button class="lnk bad" data-cm-del="${esc(c.id)}">${cmIcon('del')}삭제</button>` : ''}
         </div>`}
     </div>
   </li>`;
@@ -7005,10 +7173,24 @@ function commentList(rows) {
  * 뱃지를 고쳐 달아야 하는 쪽이 있다. 디렉터 것은 따로 센다: 타임라인 줄에서
  * 디렉터 말이 달린 업무는 먼저 눈에 들어와야 한다.
  */
-function bindComments(box, taskId, { onChange } = {}) {
+function bindComments(box, taskId, { onChange, base = null, highlight = null } = {}) {
+  // base 를 주면 그 주소에서 읽고 쓴다 — 페이즈 코멘트(/api/phases/:id/comments)가 그렇다
+  const endpoint = base ?? `/api/tasks/${taskId}/comments`;
   let rows = [];
+  let toShow = highlight;   // 모아보기에서 넘어왔으면 그 글로 내려가 잠깐 밝힌다
 
-  const paint = () => { box.innerHTML = commentList(rows); };
+  const paint = () => {
+    box.innerHTML = commentList(rows);
+    if (toShow) {
+      const row = box.querySelector(`[data-comment="${CSS.escape(toShow)}"]`);
+      toShow = null;
+      if (row) {
+        row.classList.add('is-hit');
+        setTimeout(() => row.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
+        setTimeout(() => row.classList.remove('is-hit'), 2600);
+      }
+    }
+  };
 
   /** 열려 있던 답글·수정칸을 접는다. 감춰 둔 본문은 도로 보여 준다. */
   const closeSubs = () => {
@@ -7022,7 +7204,7 @@ function bindComments(box, taskId, { onChange } = {}) {
 
   const load = async () => {
     try {
-      rows = await api.get(`/api/tasks/${taskId}/comments`);
+      rows = await api.get(endpoint);
       paint();
     } catch (err) {
       box.innerHTML = `<p class="hint">${esc(err.message)}</p>`;
@@ -7038,7 +7220,7 @@ function bindComments(box, taskId, { onChange } = {}) {
     const text = String(body ?? '').trim();
     if (!text) return false;
     try {
-      await api.post(`/api/tasks/${taskId}/comments`, {
+      await api.post(endpoint, {
         body: text,
         parent_id: parentId ?? null,
         // 어느 자리에서 남긴 말인지 함께 적는다 — 나중에 코드가 바뀌어도 그때의 자리가 남는다
@@ -8560,7 +8742,8 @@ const subList = (rows = []) => (rows.length
       </li>`).join('')}</ul>`
   : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
 
-async function renderTaskDetail(root, id) {
+async function renderTaskDetail(root, id, query = '') {
+  const wantComment = new URLSearchParams(query).get('cm');
   root.innerHTML = loading();
   let t;
   try {
@@ -8917,7 +9100,8 @@ async function renderTaskDetail(root, id) {
     } catch (err) { toast(err.message, true); }
   });
 
-  bindComments(root.querySelector('[data-comments]'), t.id);
+  bindComments(root.querySelector('[data-comments]'), t.id, { highlight: wantComment });
+  if (wantComment) setTimeout(() => root.querySelector('[data-comments-panel]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 100);
 
   autoGrow(root);
 
@@ -9648,12 +9832,15 @@ async function renderTimeline(root) {
   const fetchPhaseTasks = (id) => api.get(`/api/tasks?phase=${encodeURIComponent(id)}&done=1&all_backlog=1`);
   const phaseTasks = new Map();
   let live;
+  let dirTotal = 0;   // 디렉터 코멘트 모아보기 수
   try {
     const [rows, ...loaded] = await Promise.all([
       api.get('/api/timeline'),
+      api.get('/api/director-comments').then((d) => ({ __digest: d.total ?? 0 })).catch(() => ({ __digest: 0 })),
       ...[...openPhases].map((id) => fetchPhaseTasks(id).then((t) => [id, t]).catch(() => [id, null])),
     ]);
     live = rows;
+    dirTotal = loaded.shift()?.__digest ?? 0;
     for (const [id, t] of loaded) if (t) phaseTasks.set(id, t);
   } catch (err) {
     root.innerHTML = errorBox(err.message);
@@ -9690,6 +9877,14 @@ async function renderTimeline(root) {
     const all = t.comment_count ?? 0;
     return `<button class="tld-cm tl-cm${dir ? ' dir' : all ? ' on' : ''}" data-cm="${esc(t.id)}"
        title="${dir ? `디렉터 코멘트 ${dir}건 — 눌러서 읽기` : all ? `코멘트 ${all}건 — 눌러서 읽기` : '디렉터 코멘트 남기기'}"
+       >${dir ? `${directorIcon()}${dir}` : `${sendIcon()}${all ? ` ${all}` : ''}`}</button>`;
+  };
+  // 페이즈 줄의 코멘트 뱃지 — 업무 줄과 같은 모양, 자리만 페이즈
+  const phaseCmBadge = (ph) => {
+    const dir = ph.director_comment_count ?? 0;
+    const all = ph.comment_count ?? 0;
+    return `<button class="tld-cm tl-cm ph-cm${dir ? ' dir' : all ? ' on' : ''}" data-phase-cm="${esc(ph.id)}"
+       title="${dir ? `디렉터 코멘트 ${dir}건 — 눌러서 읽기` : all ? `코멘트 ${all}건 — 눌러서 읽기` : '이 페이즈에 디렉터 코멘트 남기기'}"
        >${dir ? `${directorIcon()}${dir}` : `${sendIcon()}${all ? ` ${all}` : ''}`}</button>`;
   };
   const taskRow = (t, phaseId) => {
@@ -9738,7 +9933,10 @@ async function renderTimeline(root) {
           <button class="tlg-fold" data-fold-phase="${esc(ph.id)}" aria-expanded="${open}"
                   aria-label="업무 펼치기/접기" title="${open ? '업무 접기' : '업무 펼치기'}">${open ? '▾' : '▸'}</button>
           <div class="tl-label-text">
-            <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
+            <span class="tl-name-row">
+              <button class="tl-name" data-phase="${esc(ph.id)}" title="페이즈 이름·기간 수정">${esc(ph.name)}</button>
+              ${phaseCmBadge(ph)}
+            </span>
             <span class="tl-meta">${ph.task_count ? `업무 ${ph.task_count}` : '업무 없음'}${
               pct === null ? '' : ` · ${pct}%`}</span>
           </div>
@@ -9793,6 +9991,7 @@ async function renderTimeline(root) {
       <span class="tl-key"><i class="k-ms done"></i>달성</span>
       <span class="tl-key"><i class="k-today"></i>오늘</span>
       <span class="tl-hint">▸ 를 누르면 그 페이즈의 업무가 아래에 펼쳐집니다</span>
+      <button class="btn btn-ghost sm tl-dd" data-director-digest title="업무·페이즈에 달린 디렉터 코멘트를 모아 봅니다">${directorIcon()}디렉터 코멘트 <b data-dd-n>${dirTotal}</b></button>
     </div>
 
     <div class="tl-wrap">
@@ -10045,6 +10244,18 @@ async function renderTimeline(root) {
     // 차트의 업무 줄은 하위 업무 창을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
     const cm = e.target.closest('.tl-task [data-cm]');
     if (cm) { e.preventDefault(); openSubs(cm.dataset.cm, { focus: 'comments' }); return undefined; }
+    if (e.target.closest('[data-director-digest]')) {
+      e.preventDefault();
+      return directorDigestModal({ phases: allPhases, projects: live.map((r) => ({ id: r.id, name: r.name })) });
+    }
+    const pcm = e.target.closest('[data-phase-cm]');
+    if (pcm) {
+      e.preventDefault();
+      const found = allPhases.find((p) => p.id === pcm.dataset.phaseCm);
+      const proj = live.find((r) => r.id === found?.project_id);
+      if (found) phaseCommentsModal({ phase: found, projectName: proj?.name ?? '', onChange: () => reload() });
+      return undefined;
+    }
     const line = e.target.closest('.tl-task[data-line]');
     if (line && line.dataset.dragged) { delete line.dataset.dragged; return undefined; }   // 끌다 놓은 것은 클릭이 아니다
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(line.dataset.line); return undefined; }
@@ -10198,7 +10409,7 @@ function bindLabelResize(root) {
   handle.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || narrow) return;
     e.preventDefault();
-    const cur = parseFloat(getComputedStyle(chart).getPropertyValue('--tl-label')) || 260;
+    const cur = parseFloat(getComputedStyle(chart).getPropertyValue('--tl-label')) || 420;
     drag = { x0: e.clientX, w0: cur };
     handle.setPointerCapture?.(e.pointerId);
     handle.classList.add('on');
@@ -11125,7 +11336,7 @@ async function render() {
       const host = document.createElement('div');
       fresh.appendChild(host);
       if (sub === 'overview') await renderOverview(host);
-      else if (sub === 'tasks') { if (id) await renderTaskDetail(host, id); else await renderTasks(host, query); }
+      else if (sub === 'tasks') { if (id) await renderTaskDetail(host, id, query); else await renderTasks(host, query); }
       else if (sub === 'timeline') await renderTimeline(host);
       else if (sub === 'issues') { if (id) await renderIssueDetail(host, id); else await renderIssues(host, query); }
       else await renderWeekly(host, query);

@@ -13,6 +13,10 @@ import { state, memberOf } from './state.js';
 import { canEdit, canAdmin, currentRole, currentLabel } from './gate.js';
 
 const mine = (c) => c.author_slack_user_id === state.me;
+// 디렉터 코드로 들어온 사람은 디렉터 자리에서 남긴 말을 고치고 지울 수 있다 — 자리의 말이지 사람의 말이 아니다.
+// 디렉터 코드가 사람에게 묶이기 전에 남긴 코멘트도 이 길로 정리한다.
+const directorsOwn = (c) => c.author_role === 'DIRECTOR' && currentRole() === 'DIRECTOR';
+const canFix = (c) => (mine(c) || directorsOwn(c) || canAdmin()) && canEdit();
 
 // 손짓 아이콘. Tailwind 가 함께 내놓는 Heroicons 의 선 그림을 그대로 넣는다 —
 // 글자보다 줄이 덜 먹고, 좁은 화면에서도 버튼이 접히지 않는다.
@@ -68,8 +72,8 @@ const one = (c, { reply = true } = {}) => {
       ${gone ? '' : `
         <div class="cm-acts">
           ${reply && canEdit() ? `<button class="lnk" data-cm-reply="${esc(c.id)}">${cmIcon('reply')}답글</button>` : ''}
-          ${mine(c) && canEdit() ? `<button class="lnk" data-cm-edit="${esc(c.id)}">${cmIcon('edit')}수정</button>` : ''}
-          ${(mine(c) || canAdmin()) && canEdit() ? `<button class="lnk bad" data-cm-del="${esc(c.id)}">${cmIcon('del')}삭제</button>` : ''}
+          ${canFix(c) ? `<button class="lnk" data-cm-edit="${esc(c.id)}">${cmIcon('edit')}수정</button>` : ''}
+          ${canFix(c) ? `<button class="lnk bad" data-cm-del="${esc(c.id)}">${cmIcon('del')}삭제</button>` : ''}
         </div>`}
     </div>
   </li>`;
@@ -105,10 +109,24 @@ export function commentList(rows) {
  * 뱃지를 고쳐 달아야 하는 쪽이 있다. 디렉터 것은 따로 센다: 타임라인 줄에서
  * 디렉터 말이 달린 업무는 먼저 눈에 들어와야 한다.
  */
-export function bindComments(box, taskId, { onChange } = {}) {
+export function bindComments(box, taskId, { onChange, base = null, highlight = null } = {}) {
+  // base 를 주면 그 주소에서 읽고 쓴다 — 페이즈 코멘트(/api/phases/:id/comments)가 그렇다
+  const endpoint = base ?? `/api/tasks/${taskId}/comments`;
   let rows = [];
+  let toShow = highlight;   // 모아보기에서 넘어왔으면 그 글로 내려가 잠깐 밝힌다
 
-  const paint = () => { box.innerHTML = commentList(rows); };
+  const paint = () => {
+    box.innerHTML = commentList(rows);
+    if (toShow) {
+      const row = box.querySelector(`[data-comment="${CSS.escape(toShow)}"]`);
+      toShow = null;
+      if (row) {
+        row.classList.add('is-hit');
+        setTimeout(() => row.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
+        setTimeout(() => row.classList.remove('is-hit'), 2600);
+      }
+    }
+  };
 
   /** 열려 있던 답글·수정칸을 접는다. 감춰 둔 본문은 도로 보여 준다. */
   const closeSubs = () => {
@@ -122,7 +140,7 @@ export function bindComments(box, taskId, { onChange } = {}) {
 
   const load = async () => {
     try {
-      rows = await api.get(`/api/tasks/${taskId}/comments`);
+      rows = await api.get(endpoint);
       paint();
     } catch (err) {
       box.innerHTML = `<p class="hint">${esc(err.message)}</p>`;
@@ -138,7 +156,7 @@ export function bindComments(box, taskId, { onChange } = {}) {
     const text = String(body ?? '').trim();
     if (!text) return false;
     try {
-      await api.post(`/api/tasks/${taskId}/comments`, {
+      await api.post(endpoint, {
         body: text,
         parent_id: parentId ?? null,
         // 어느 자리에서 남긴 말인지 함께 적는다 — 나중에 코드가 바뀌어도 그때의 자리가 남는다

@@ -183,6 +183,22 @@ CREATE TABLE IF NOT EXISTS attachment (
 );
 CREATE INDEX IF NOT EXISTS idx_attachment_task ON attachment(task_id, created_at);
 
+-- 페이즈에 달리는 코멘트. 업무 코멘트와 같은 모양이고 자리만 다르다(업무 → 페이즈).
+CREATE TABLE IF NOT EXISTS phase_comment (
+  id                   TEXT PRIMARY KEY,
+  phase_id             TEXT NOT NULL REFERENCES phase(id) ON DELETE CASCADE,
+  parent_id            TEXT REFERENCES phase_comment(id) ON DELETE CASCADE,
+  body                 TEXT NOT NULL,
+  author_slack_user_id TEXT NOT NULL REFERENCES member(slack_user_id),
+  author_role          TEXT,
+  author_title         TEXT,
+  created_at           TEXT NOT NULL,
+  updated_at           TEXT NOT NULL,
+  edited_at            TEXT,
+  deleted_at           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_phase_comment_phase ON phase_comment(phase_id, created_at);
+
 -- 앱 안 알림을 누가 어디까지 읽었나. key 는 종류:업무:기준일(또는 이벤트·코멘트 id).
 CREATE TABLE IF NOT EXISTS read_mark (
   who      TEXT NOT NULL,

@@ -876,7 +876,7 @@ body[data-gate="view"] [data-save],body[data-gate="view"] [data-dirty]{display:n
 .tl-wrap::-webkit-scrollbar,.tlg-scroll::-webkit-scrollbar{height:10px}
 .tl-wrap::-webkit-scrollbar-track,.tlg-scroll::-webkit-scrollbar-track{background:var(--surface-2);border-radius:5px}
 .tl-wrap::-webkit-scrollbar-thumb,.tlg-scroll::-webkit-scrollbar-thumb{background:var(--muted);border-radius:5px;border:2px solid var(--surface-2)}
-.tl-chart{min-width:660px;position:relative;--tl-label:260px;--tl-gap:12px}
+.tl-chart{min-width:660px;position:relative;--tl-label:420px;--tl-gap:12px}
 
 /* 보기 단위 — 월간 / 주간 */
 .tl-scale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 2px 10px}
@@ -1313,6 +1313,22 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
    막대를 누르면 그 페이즈 업무가 영역별로 아래에 열린다.
    막대는 '보기', 왼쪽 이름은 '수정' — 하는 일을 나눴다. */
 .tl-hint{margin-left:auto;color:var(--muted)}
+.tl-dd{display:inline-flex;align-items:center;gap:5px;color:var(--indigo);border-color:color-mix(in oklab, var(--indigo) 35%, var(--line))}
+.tl-dd .cm-i{width:13px;height:13px}
+.tl-dd b{font-weight:700}
+/* 디렉터 코멘트 모아보기 */
+.dd-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.dd-item{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--line-soft);border-radius:var(--radius);background:var(--surface);cursor:pointer}
+.dd-item:hover{border-color:var(--indigo);background:var(--surface-2)}
+.dd-where{display:flex;align-items:center;gap:8px;min-width:0;font-size:.86rem}
+.dd-where b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.dd-proj{margin-left:auto;font-size:.74rem;color:var(--muted);white-space:nowrap}
+.dd-tag{font-family:var(--mono);font-size:.68rem;color:var(--indigo);border:1px solid currentColor;border-radius:3px;padding:0 5px}
+.dd-body{font-size:.88rem;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.dd-meta{font-size:.74rem;color:var(--muted)}
+/* 모아보기에서 넘어온 글은 잠깐 밝힌다 */
+.cm.is-hit{animation:cm-hit 2.4s ease-out}
+@keyframes cm-hit{0%,60%{background:color-mix(in oklab, var(--indigo) 14%, transparent);box-shadow:0 0 0 2px color-mix(in oklab, var(--indigo) 40%, transparent)}100%{background:transparent;box-shadow:none}}
 .tl-bar.on{box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--pc)}
 
 /* (페이즈 패널은 없어졌다 — 업무 줄은 차트 안에서 펼쳐진다) */
@@ -1674,7 +1690,14 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .sbm-list .lnk-out{color:var(--indigo);text-decoration:none;font-size:.95rem}
 .sbm-comments{margin-top:6px}
 .sbm-sec + .sbm-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)}
-.tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;gap:3px;padding:1px 5px}
+/* 뱃지와 상태 칸은 폭을 고정한다 — 글자 길이에 따라 열이 흔들리면 안 된다 */
+.tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:1px 4px;min-width:36px;box-sizing:border-box}
+.tl-task .tl-tst{flex:none;min-width:46px;text-align:center;box-sizing:border-box}
+.tl-name-row{display:flex;align-items:center;gap:6px;min-width:0}
+.tl-name-row .tl-name{min-width:0}
+.ph-cm{flex:none;display:inline-flex;align-items:center;gap:3px;padding:1px 5px}
+.ph-cm .cm-i{width:14px;height:14px}
+body[data-gate="view"] .ph-cm{pointer-events:auto}
 .tl-task .tl-cm .cm-i{width:14px;height:14px}
 body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .empty-line{margin:12px 0 0;color:var(--muted);font-size:.86rem}

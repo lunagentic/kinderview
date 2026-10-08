@@ -812,12 +812,43 @@ function createComment(taskId, input, actor) {
   return dressComment(row);
 }
 
+// 내 말, 또는 디렉터 코드로 디렉터 자리의 말, 또는 관리자
+const canFixComment = (c, actor) => c.author_slack_user_id === actor
+  || (c.author_role === 'DIRECTOR' && currentRole() === 'DIRECTOR') || canAdmin();
+
+// 페이즈 코멘트 — 같은 comments 묶음에 phase_id 로 둔다(task_id 는 null)
+const phaseCommentsOf = (phaseId) => (DB.comments ?? [])
+  .filter((c) => c.phase_id === phaseId)
+  .sort((a, b) => a.created_at.localeCompare(b.created_at));
+function listPhaseComments(phaseId) { return phaseCommentsOf(phaseId).map(dressComment); }
+function createPhaseComment(phaseId, input, actor) {
+  const body = String(input.body ?? '').trim();
+  if (!body) throw new DemoError('내용을 입력해 주세요.');
+  if (body.length > 2000) throw new DemoError('코멘트는 2000자까지 쓸 수 있습니다.');
+  if (!(DB.phases ?? []).some((p) => p.id === phaseId)) throw new DemoError('페이즈를 찾을 수 없습니다.');
+  let parent = null;
+  if (input.parent_id) {
+    const pc = (DB.comments ?? []).find((c) => c.id === input.parent_id && c.phase_id === phaseId);
+    if (!pc) throw new DemoError('답글을 달 코멘트를 찾을 수 없습니다.');
+    parent = pc.parent_id ?? pc.id;
+  }
+  const at = nowISO();
+  const role = ['EDIT', 'DIRECTOR', 'ADMIN'].includes(input.author_role) ? input.author_role : null;
+  const title = role === 'DIRECTOR' ? (String(input.author_title ?? '').trim().slice(0, 24) || null) : null;
+  const row = { id: uid(), task_id: null, phase_id: phaseId, parent_id: parent, body,
+    author_slack_user_id: actor, author_role: role, author_title: title,
+    created_at: at, updated_at: at, edited_at: null, deleted_at: null };
+  (DB.comments ??= []).push(row);
+  save();
+  return dressComment(row);
+}
+
 function updateComment(id, input, actor) {
   const c = (DB.comments ?? []).find((x) => x.id === id);
   if (!c) throw new DemoError('코멘트를 찾을 수 없습니다.');
   if (c.deleted_at) throw new DemoError('지운 코멘트는 고칠 수 없습니다.');
-  // 남의 말을 고치면 그때부터 기록이 아니다
-  if (c.author_slack_user_id !== actor) throw new DemoError('내가 쓴 코멘트만 고칠 수 있습니다.');
+  // 남의 말을 고치면 그때부터 기록이 아니다. 디렉터 자리의 말은 디렉터 코드가, 그 밖은 관리자가 정리할 수 있다.
+  if (!canFixComment(c, actor)) throw new DemoError('내가 쓴 코멘트만 고칠 수 있습니다. (디렉터 코멘트는 디렉터·관리자 코드로)');
   const body = String(input.body ?? '').trim();
   if (!body) throw new DemoError('내용을 입력해 주세요.');
   if (body.length > 2000) throw new DemoError('코멘트는 2000자까지 쓸 수 있습니다.');
@@ -830,8 +861,8 @@ function updateComment(id, input, actor) {
 function removeComment(id, actor) {
   const c = (DB.comments ?? []).find((x) => x.id === id);
   if (!c) throw new DemoError('코멘트를 찾을 수 없습니다.');
-  if (!canAdmin() && c.author_slack_user_id !== actor) {
-    throw new DemoError('내가 쓴 코멘트만 지울 수 있습니다.');
+  if (!canFixComment(c, actor)) {
+    throw new DemoError('내가 쓴 코멘트만 지울 수 있습니다. (디렉터 코멘트는 디렉터·관리자 코드로)');
   }
   // 행을 없애지 않는다 — 답글이 딸려 있으면 대화가 끊긴다
   const at = nowISO();
@@ -1001,6 +1032,31 @@ async function removeAttachment(id) {
 // ── 앱 안 알림 — 서버 repo.js inbox 와 같은 규칙 ──
 const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'REVIEW'];
 const INBOX_RECENT_DAYS = 7;
+// 디렉터 코멘트 모아보기 — 서버 repo.js directorComments 와 같은 규칙
+function directorCommentsOf() {
+  const rows = [];
+  for (const c of DB.comments ?? []) {
+    if (c.deleted_at || c.author_role !== 'DIRECTOR') continue;
+    const base = { id: c.id, body: c.body, created_at: c.created_at, author_slack_user_id: c.author_slack_user_id,
+      author_title: c.author_title, author_name: member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id };
+    if (c.task_id) {
+      const t = DB.tasks.find((x) => x.id === c.task_id && !x.deleted_at);
+      if (!t) continue;
+      const p = project(t.project_id);
+      rows.push({ ...base, at: 'task', task_id: t.id, task_title: t.title, task_key: ticketKey(p?.code, t.seq),
+        project_name: p?.name ?? null, phase_id: null, phase_name: null });
+    } else if (c.phase_id) {
+      const ph = (DB.phases ?? []).find((x) => x.id === c.phase_id);
+      if (!ph) continue;
+      const p = project(ph.project_id);
+      rows.push({ ...base, at: 'phase', task_id: null, task_title: null, task_key: null,
+        project_name: p?.name ?? null, phase_id: ph.id, phase_name: ph.name });
+    }
+  }
+  rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return { total: rows.length, rows };
+}
+
 function inboxOf(me, ref = today()) {
   if (!me) return { items: [], unread: 0 };
   const tomorrow = addDays(ref, 1);
@@ -2008,10 +2064,13 @@ const phasesOf = (projectId) => (DB.phases ?? [])
   .filter((ph) => !projectId || ph.project_id === projectId)
   .map((ph) => {
     const own = DB.tasks.filter((t) => !t.deleted_at && t.phase_id === ph.id);
+    const cms = phaseCommentsOf(ph.id).filter((c) => !c.deleted_at);
     return {
       ...ph,
       task_count: own.length,
       done_count: own.filter((t) => t.status === 'DONE').length,
+      comment_count: cms.length,
+      director_comment_count: cms.filter((c) => c.author_role === 'DIRECTOR').length,
     };
   })
   .sort((a, b) => (a.project_id === b.project_id
@@ -2298,6 +2357,10 @@ function handle(method, path, body) {
     if (method === 'GET') return listComments(seg[2]);
     if (method === 'POST') return createComment(seg[2], body, me);
   }
+  if (seg[1] === 'phases' && seg[2] && seg[3] === 'comments') {
+    if (method === 'GET') return listPhaseComments(seg[2]);
+    if (method === 'POST') return createPhaseComment(seg[2], body, me);
+  }
   if (seg[1] === 'comments' && seg[2]) {
     if (method === 'PATCH') return updateComment(seg[2], body, me);
     if (method === 'DELETE') return removeComment(seg[2], me);
@@ -2529,6 +2592,7 @@ function handle(method, path, body) {
   if (seg[1] === 'payments' && seg[2] && method === 'PATCH') return updatePayment(seg[2], body);
 
   if (p === '/api/inbox' && method === 'GET') return inboxOf(sp.get('me') || me);
+  if (p === '/api/director-comments' && method === 'GET') return directorCommentsOf();
   if (p === '/api/inbox/read' && method === 'POST') return markInboxRead(me, Array.isArray(body?.keys) ? body.keys : []);
   if (p === '/api/notifications' && method === 'GET') {
     return { slack_configured: false, rows: DB.notifications.slice(0, 200) };

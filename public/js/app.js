@@ -241,7 +241,7 @@ async function render() {
       const host = document.createElement('div');
       fresh.appendChild(host);
       if (sub === 'overview') await renderOverview(host);
-      else if (sub === 'tasks') { if (id) await renderTaskDetail(host, id); else await renderTasks(host, query); }
+      else if (sub === 'tasks') { if (id) await renderTaskDetail(host, id, query); else await renderTasks(host, query); }
       else if (sub === 'timeline') await renderTimeline(host);
       else if (sub === 'issues') { if (id) await renderIssueDetail(host, id); else await renderIssues(host, query); }
       else await renderWeekly(host, query);
