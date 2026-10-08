@@ -15,6 +15,9 @@ const BOARD_OPEN_KEY = 'kf.board.open';   // 펼쳐 둔 페이즈
 const ymOf = (iso) => iso.slice(0, 7);
 const shiftYm = (ym, n) => { const d = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const ymLabel = (ym) => `${Number(ym.slice(5, 7))}월`;
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// 먼데이식 날짜 「Oct 04」
+const mdDate = (iso) => (iso ? `${MON[Number(iso.slice(5, 7)) - 1]} ${iso.slice(8, 10)}` : '-');
 
 /** 그 달 안에서의 기간 막대. 시작일이 없으면 마감일 하루. 창 밖은 잘린다. */
 const barOf = (t, ym) => {
@@ -42,7 +45,7 @@ const taskRow = (t, ym) => `
     <div class="bd-c bd-own" role="cell" title="${esc(t.owner_name ?? '')}">${avatar(memberOf(t.owner_slack_user_id), 'sm')}</div>
     <div class="bd-c bd-bar" role="cell">${barOf(t, ym)}</div>
     <div class="bd-c bd-st" role="cell">${statusPick(t)}</div>
-    <div class="bd-c bd-due${t.is_delayed ? ' late' : ''}" role="cell">${t.due_date ? esc(shortDate(t.due_date)) : '-'}${t.is_delayed ? `<small>${Math.abs(t.d_day)}일 지연</small>` : ''}</div>
+    <div class="bd-c bd-due${t.is_delayed ? ' late' : ''}" role="cell">${mdDate(t.due_date)}${t.is_delayed ? `<small>${Math.abs(t.d_day)}일 지연</small>` : ''}</div>
     <div class="bd-c bd-prog" role="cell"><span class="track"><i class="${t.progress >= 100 ? 'full' : ''}" style="width:${t.progress ?? 0}%"></i></span><b>${t.progress ?? 0}%</b>
       ${t.subtask_total ? `<small title="하위 업무 완료 ${t.subtask_done}/${t.subtask_total}">${t.subtask_done}/${t.subtask_total}</small>` : ''}</div>
     <div class="bd-c bd-file" role="cell">${t.attachment_count
@@ -81,14 +84,14 @@ const phaseRow = (ph, ym, open) => {
        title="${open ? '업무 접기' : '업무 펼치기'}" aria-expanded="${open}" style="${ph.project_id ? projectStyle(ph.project_id) : ''}">
     <div class="bd-c bd-name" role="cell">
       <span class="bd-caret">${open ? '▾' : '▸'}</span>
-      <span class="bd-pttl">${esc(ph.name)}</span>
+      <span class="bd-pttl" title="${esc(ph.project_name)}">${esc(ph.name)}</span>
       <span class="bd-proj">${esc(ph.project_name)}</span>
-      <span class="bd-pn">${ph.tasks.length ? `업무 ${ph.tasks.length}${late ? ` · <em>지연 ${late}</em>` : ''}` : ''}</span>
+      <span class="bd-pn">${ph.tasks.length ? `${ph.tasks.length}${late ? ` · <em>지연 ${late}</em>` : ''}` : ''}</span>
     </div>
     <div class="bd-c bd-own" role="cell">${owners(ph.tasks)}</div>
     <div class="bd-c bd-bar" role="cell">${phaseBar(ph, ym)}</div>
     <div class="bd-c bd-st" role="cell"><span class="bd-pst ${st.tone}">${st.label}</span></div>
-    <div class="bd-c bd-due${st.code === 'LATE' ? ' late' : ''}" role="cell">${ph.end_date ? esc(shortDate(ph.end_date)) : '-'}</div>
+    <div class="bd-c bd-due${st.code === 'LATE' ? ' late' : ''}" role="cell">${mdDate(ph.end_date)}</div>
     <div class="bd-c bd-prog" role="cell"><span class="track"><i class="${ph.progress >= 100 ? 'full' : ''}" style="width:${ph.progress ?? 0}%"></i></span><b>${ph.progress ?? 0}%</b>
       ${ph.tasks.length ? `<small title="완료 ${done}/${ph.tasks.length}">${done}/${ph.tasks.length}</small>` : ''}</div>
     <div class="bd-c bd-file" role="cell">${files ? `<span class="bd-att" title="링크·이미지 ${files}">📎 ${files}</span>` : ''}</div>
@@ -111,6 +114,7 @@ const group = (g, folded, openSet) => `
       <span class="bd-gym">${esc(`${g.ym.slice(0, 4)}년 ${ymLabel(g.ym)}`)}</span>
       <span class="bd-gn">페이즈 ${g.rows.length} · 업무 ${g.rows.reduce((n, p) => n + p.tasks.length, 0)}${g.rows.some((p) => phaseState(p).code === 'LATE') ? ` · <em>지연 ${g.rows.filter((p) => phaseState(p).code === 'LATE').length}</em>` : ''}</span>
       <a class="lnk bd-more" href="#/project/monthly?month=${esc(g.ym)}">월간 리포트 ›</a>
+      <button class="btn btn-ghost sm bd-add" data-new-task title="업무 등록">＋</button>
     </h2>
     <div class="bd-table" role="table"${folded ? ' hidden' : ''}>
       ${head()}
@@ -171,7 +175,7 @@ export async function renderBoard(root, query) {
   const openSet = new Set((readPref(BOARD_OPEN_KEY) || '').split(',').filter(Boolean));
   root.innerHTML = `
     <div class="page-head">
-      <div><h1>간트</h1><div class="sub">이번 달과 지난 달에 걸린 페이즈가 한 줄씩. 누르면 업무가 펼쳐지고, 업무 진행 현황은 여기서 바로 바꿉니다.</div></div>
+      <div><h1>간트</h1><div class="sub">이번 달과 지난 달에 걸린 페이즈가 한 줄씩. 줄을 누르면 업무가 펼쳐집니다.</div></div>
       <div class="page-actions">
         <button class="btn" data-month="${esc(shiftYm(base, -1))}" aria-label="이전 달">‹</button>
         <button class="btn" data-month="${esc(thisYm)}"${base === thisYm ? ' disabled' : ''}>이번 달</button>
