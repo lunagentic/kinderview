@@ -1646,6 +1646,7 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
   border-bottom:1px solid var(--line-soft)}
 .subs li:last-child{border-bottom:none}
 .subs label{display:flex;align-items:center;gap:9px;flex:1;cursor:pointer;min-width:0}
+.subs .sub-ttl{flex:1;min-width:0}
 .subs input[type=checkbox]{width:16px;height:16px;flex:none;accent-color:var(--s-done);cursor:pointer}
 .subs li span{font-size:.9rem;overflow-wrap:anywhere}
 .subs li.done span{color:var(--muted);text-decoration:line-through}
@@ -1777,3 +1778,12 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .cm-sec-head{display:flex;align-items:center;gap:6px;margin:14px 0 4px;padding-top:10px;border-top:1px dashed var(--line)}
 .cm-sec-head h4{font-size:.82rem;font-weight:700;color:var(--ink-2);margin:0}
 .cm-sec-head .n{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+
+/* 하위 업무 진행 상태 — 작은 알약 셀렉트. 대기는 회색, 진행중은 남색, 완료는 초록 */
+.sub-st{flex:none;appearance:none;-webkit-appearance:none;font:inherit;font-size:.74rem;font-weight:600;line-height:1;
+  padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
+.sub-st[data-st="IN_PROGRESS"]{color:var(--indigo);border-color:color-mix(in oklab, var(--indigo) 45%, var(--line));background:color-mix(in oklab, var(--indigo) 8%, var(--surface))}
+.sub-st[data-st="DONE"]{color:var(--s-done);border-color:color-mix(in oklab, var(--s-done) 45%, var(--line));background:color-mix(in oklab, var(--s-done) 10%, var(--surface))}
+.sub-st:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.subs li.prog .sub-ttl,.sbm-list li.prog .sbm-title{color:var(--ink)}
+body[data-gate="view"] .sub-st{pointer-events:none}

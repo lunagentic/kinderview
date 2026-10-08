@@ -1650,6 +1650,7 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
   border-bottom:1px solid var(--line-soft)}
 .subs li:last-child{border-bottom:none}
 .subs label{display:flex;align-items:center;gap:9px;flex:1;cursor:pointer;min-width:0}
+.subs .sub-ttl{flex:1;min-width:0}
 .subs input[type=checkbox]{width:16px;height:16px;flex:none;accent-color:var(--s-done);cursor:pointer}
 .subs li span{font-size:.9rem;overflow-wrap:anywhere}
 .subs li.done span{color:var(--muted);text-decoration:line-through}
@@ -1781,6 +1782,15 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .cm-sec-head{display:flex;align-items:center;gap:6px;margin:14px 0 4px;padding-top:10px;border-top:1px dashed var(--line)}
 .cm-sec-head h4{font-size:.82rem;font-weight:700;color:var(--ink-2);margin:0}
 .cm-sec-head .n{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+
+/* 하위 업무 진행 상태 — 작은 알약 셀렉트. 대기는 회색, 진행중은 남색, 완료는 초록 */
+.sub-st{flex:none;appearance:none;-webkit-appearance:none;font:inherit;font-size:.74rem;font-weight:600;line-height:1;
+  padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
+.sub-st[data-st="IN_PROGRESS"]{color:var(--indigo);border-color:color-mix(in oklab, var(--indigo) 45%, var(--line));background:color-mix(in oklab, var(--indigo) 8%, var(--surface))}
+.sub-st[data-st="DONE"]{color:var(--s-done);border-color:color-mix(in oklab, var(--s-done) 45%, var(--line));background:color-mix(in oklab, var(--s-done) 10%, var(--surface))}
+.sub-st:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.subs li.prog .sub-ttl,.sbm-list li.prog .sbm-title{color:var(--ink)}
+body[data-gate="view"] .sub-st{pointer-events:none}
 
 </style>
 
@@ -3641,7 +3651,7 @@ function createSubtask(taskId, body) {
   const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
   if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
   const next = subtasksOf(taskId).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
-  const row = { id: uid(), task_id: taskId, title, is_done: false, sort_order: next,
+  const row = { id: uid(), task_id: taskId, title, is_done: false, status: 'TODO', sort_order: next,
     seq: nextSeq(t.project_id), due_date: due, created_at: nowISO(), done_at: null };
   (DB.subtasks ??= []).push(row);
   const rolled = rollUpDue(taskId, due);
@@ -3673,12 +3683,48 @@ function updateSubtask(id, body) {
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
     row.title = title;
   }
-  if (body.is_done !== undefined) {
-    row.is_done = Boolean(body.is_done);
+  // 진행 상태 — status 로도, 예전 체크(is_done)로도 받는다. 둘은 같은 것이다.
+  let status;
+  if (body.status !== undefined) {
+    if (!SUB_STATUSES.includes(body.status)) throw new DemoError('하위 업무 상태는 대기·진행중·완료 중 하나입니다.');
+    status = body.status;
+  } else if (body.is_done !== undefined) status = body.is_done ? 'DONE' : 'TODO';
+  let nudged = null;
+  if (status !== undefined) {
+    row.status = status;
+    row.is_done = status === 'DONE';
     row.done_at = row.is_done ? nowISO() : null;
+    nudged = rollUpStatus(row.task_id);
   }
   save();
-  return { ...subtasksOf(row.task_id).find((s) => s.id === id), rolled };
+  return { ...subtasksOf(row.task_id).find((s) => s.id === id), rolled, nudged };
+}
+
+// 하위 업무의 무게 — 상위 업무 진척률에 반영된다 (server/repo.js SUB_WEIGHT)
+const SUB_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE'];
+const subWeight = (s) => (s.status === 'DONE' || (s.status === undefined && s.is_done) ? 1 : s.status === 'IN_PROGRESS' ? 0.5 : 0);
+const subProgressOf = (taskId) => {
+  const subs = subtasksOf(taskId);
+  return subs.length ? subs.reduce((n, s) => n + subWeight(s), 0) / subs.length : null;
+};
+/**
+ * 하위 업무 상태가 상위 업무를 민다. 하나라도 움직이면 「대기」 상위는 「진행중」으로,
+ * 전부 끝나면 「진행중」까지의 상위는 「검토」로 간다. 완료는 사람이 누른다. 외주 상태·검토·완료는 건드리지 않는다.
+ */
+function rollUpStatus(taskId) {
+  const subs = subtasksOf(taskId);
+  const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
+  if (!subs.length || !t) return null;
+  const allDone = subs.every((s) => (s.status ?? (s.is_done ? 'DONE' : 'TODO')) === 'DONE');
+  const anyMoved = subs.some((s) => (s.status ?? (s.is_done ? 'DONE' : 'TODO')) !== 'TODO');
+  let next = null;
+  if (allDone && (t.status === 'TODO' || t.status === 'IN_PROGRESS')) next = 'REVIEW';
+  else if (anyMoved && t.status === 'TODO') next = 'IN_PROGRESS';
+  if (!next) return null;
+  const before = t.status;
+  Object.assign(t, { status: next, updated_at: nowISO() });
+  logEvent(t.id, 'STATUS_CHANGED', before, next, currentMe());
+  return next;
 }
 
 function removeSubtask(id) {
@@ -3867,6 +3913,9 @@ function hydrate(t, ref = today()) {
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
     stage: STAGE[t.status],
+    // 진척률 — 상태 무게와 하위 업무 평균 중 큰 쪽. 완료면 100. (server/repo.js progress_weight)
+    progress_weight: t.status === 'DONE' ? 1 : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0),
+    progress: Math.round((t.status === 'DONE' ? 1 : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0)) * 100),
     d_day: t.due_date ? daysBetween(ref, t.due_date) : null,
     collaborators: DB.collaborators
       .filter((c) => c.task_id === t.id)
@@ -3967,7 +4016,7 @@ function overview(ref = today()) {
       if (!map.has(k)) map.set(k, blank());
       const g = map.get(k);
       g.count += 1;
-      g.weight += PROGRESS_WEIGHT[t.status] ?? 0;
+      g.weight += t.progress_weight ?? PROGRESS_WEIGHT[t.status] ?? 0;
       if (t.status === 'DONE') g.done += 1;
       if (t.stage === 'PROGRESS') g.in_progress += 1;
       if (t.stage === 'REVIEW') g.review += 1;
@@ -4047,7 +4096,7 @@ function overview(ref = today()) {
         }));
     })(),
     board_truncated: rows.length > 400,
-    progress: pct(rows.reduce((s, t) => s + (PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
+    progress: pct(rows.reduce((s, t) => s + (t.progress_weight ?? PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
   };
 }
 
@@ -4873,6 +4922,9 @@ const phasesOf = (projectId) => (DB.phases ?? [])
       ...ph,
       task_count: own.length,
       done_count: own.filter((t) => t.status === 'DONE').length,
+      // 진척률은 업무 상태 무게와 하위 업무를 합친 평균 — 완료 비율이 아니다
+      progress: own.length ? Math.round(own.reduce((n, t) => n + (t.status === 'DONE' ? 1
+        : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0)), 0) / own.length * 100) : null,
       comment_count: cms.length,
       director_comment_count: cms.filter((c) => c.author_role === 'DIRECTOR').length,
     };
@@ -4974,7 +5026,7 @@ function timelineRows() {
     .map((p) => {
       const ps = allPhases.filter((ph) => ph.project_id === p.id).map((ph) => ({
         ...ph,
-        progress: ph.task_count ? Math.round((ph.done_count / ph.task_count) * 100) : null,
+        progress: ph.task_count ? (ph.progress ?? 0) : null,
       }));
       const rowTasks = DB.tasks.filter((t) => !t.deleted_at && t.project_id === p.id);
       // 기간이 없는 페이즈는 그 페이즈 업무의 일정으로 채운다
@@ -5833,6 +5885,29 @@ const empty = ({ title, hint = '', action = '' }) => `
 
 // ── 링크 ────────────────────────────────────────────────
 const go = (hash) => { window.location.hash = hash; };
+
+// ── 하위 업무 진행 상태 ──────────────────────────────────
+// 대기 · 진행중 · 완료 세 단계. 상위 업무 진척률에 0 · 0.5 · 1 로 들어간다.
+const SUB_STATUS = [
+  { code: 'TODO', label: '대기', mark: '○', weight: 0 },
+  { code: 'IN_PROGRESS', label: '진행중', mark: '◐', weight: 0.5 },
+  { code: 'DONE', label: '완료', mark: '●', weight: 1 },
+];
+const subStatusOf = (r) => r.status ?? (r.is_done ? 'DONE' : 'TODO');
+const subWeightOf = (r) => SUB_STATUS.find((s) => s.code === subStatusOf(r))?.weight ?? 0;
+/** 하위 업무 묶음의 진척률(%). 없으면 null */
+const subProgress = (rows = []) => (rows.length
+  ? Math.round((rows.reduce((n, r) => n + subWeightOf(r), 0) / rows.length) * 100) : null);
+/** 상태 고르기 — 작은 알약 셀렉트. 상태별 색은 CSS 의 data-st 로 */
+const subStatusPick = (r) => {
+  const cur = subStatusOf(r);
+  return `<select class="sub-st" data-sub-status="${esc(r.id)}" data-st="${cur}" aria-label="하위 업무 진행 상태" title="진행 상태">
+    ${SUB_STATUS.map((s) => `<option value="${s.code}"${s.code === cur ? ' selected' : ''}>${s.mark} ${s.label}</option>`).join('')}
+  </select>`;
+};
+/** 상위 업무가 밀렸을 때의 안내 글 */
+const nudgeNote = (nudged) => (nudged
+  ? `상위 업무 상태가 「${nudged === 'REVIEW' ? '검토' : nudged === 'IN_PROGRESS' ? '진행중' : nudged}」로 바뀌었습니다` : null);
 
 
 
@@ -6878,18 +6953,19 @@ function subtaskModal({ task, onChange, focus = null }) {
   let rows = [];
   let changed = false;
 
+  // 진척률 = 상태 무게(대기 0 · 진행중 0.5 · 완료 1)의 평균 — 상위 업무와 페이즈가 같은 숫자를 쓴다
   const bar = () => {
-    const done = rows.filter((r) => r.is_done).length;
-    const pct = rows.length ? Math.round((done / rows.length) * 100) : 0;
+    const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
+    const pct = subProgress(rows) ?? 0;
     return `
       <div class="sbm-prog">
         <span class="track"><i style="width:${pct}%"></i></span>
-        <span class="n">${rows.length ? `${done}/${rows.length} · ${pct}%` : '하위 업무 없음'}</span>
+        <span class="n">${rows.length ? `완료 ${done}/${rows.length} · 진척 ${pct}%` : '하위 업무 없음'}</span>
       </div>`;
   };
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
-      <li class="${r.is_done ? 'done' : ''}" data-row="${esc(r.id)}">
-        <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''} aria-label="완료">
+      <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
+        ${subStatusPick(r)}
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
@@ -6963,11 +7039,15 @@ function subtaskModal({ task, onChange, focus = null }) {
       }).catch(() => {});
 
       root.addEventListener('change', async (e) => {
-        const chk = e.target.closest('[data-sub]');
-        if (chk) {
-          if (!editable()) { chk.checked = !chk.checked; return; }
-          try { await api.patch(`/api/subtasks/${chk.dataset.sub}`, { is_done: chk.checked }); changed = true; }
-          catch (err) { toast(err.message, true); }
+        const sst = e.target.closest('[data-sub-status]');
+        if (sst) {
+          if (!editable()) return load();
+          try {
+            const r = await api.patch(`/api/subtasks/${sst.dataset.subStatus}`, { status: sst.value });
+            changed = true;
+            const note = nudgeNote(r?.nudged);
+            if (note) toast(note);
+          } catch (err) { toast(err.message, true); }
           return load();
         }
         const sdue = e.target.closest('[data-sub-due]');
@@ -8954,8 +9034,9 @@ const priorityLabel = (code) => state.meta.priorities.find((s) => s.code === cod
 
 const subCount = (rows = []) => {
   if (!rows.length) return '';
-  const done = rows.filter((r) => r.is_done).length;
-  return `<span class="sub-n${done === rows.length ? ' all' : ''}">${done}/${rows.length}</span>`;
+  const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
+  const pct = subProgress(rows) ?? 0;
+  return `<span class="sub-n${done === rows.length ? ' all' : ''}" title="완료 ${done}/${rows.length} · 진척 ${pct}%">${done}/${rows.length} · ${pct}%</span>`;
 };
 
 // 하위 업무 마감 칸 — 비우면 상위를 따른다. 더 늦게 잡으면 상위 업무·페이즈가 그 날까지 늘어난다.
@@ -8993,11 +9074,9 @@ const attList = (rows = []) => {
 
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
-      <li class="${r.is_done ? 'done' : ''}">
-        <label>
-          <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''}>
-          <span>${linkify(r.title)}</span>
-        </label>
+      <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}">
+        ${subStatusPick(r)}
+        <span class="sub-ttl">${linkify(r.title)}</span>
         ${subDue(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
@@ -9236,10 +9315,12 @@ async function renderTaskDetail(root, id, query = '') {
       } catch (err) { toast(err.message, true); await reloadSubs(); }
       return undefined;
     }
-    const sub = e.target.closest('[data-sub]');
+    const sub = e.target.closest('[data-sub-status]');
     if (sub) {
       try {
-        await api.patch(`/api/subtasks/${sub.dataset.sub}`, { is_done: sub.checked });
+        const r = await api.patch(`/api/subtasks/${sub.dataset.subStatus}`, { status: sub.value });
+        const note = nudgeNote(r?.nudged);
+        if (note) { toast(note); reload(); return; }   // 상위 상태가 바뀌었으니 화면 전체를 다시 그린다
         await reloadSubs();
       } catch (err) { toast(err.message, true); await reloadSubs(); }
       return;
@@ -10372,7 +10453,7 @@ async function renderTimeline(root) {
     ${ganttScaleBar(w)}
 
     <div class="tl-legend">
-      <span class="tl-key"><i class="k-bar"></i>페이즈 기간 — 진한 부분이 완료 비율</span>
+      <span class="tl-key"><i class="k-bar"></i>페이즈 기간 — 진한 부분이 진척률</span>
       <span class="tl-key"><i class="k-task"></i>업무 — 상태색</span>
       <span class="tl-key"><i class="k-ms plan"></i>마일스톤 예정</span>
       <span class="tl-key"><i class="k-ms late"></i>지연</span>
@@ -11579,7 +11660,7 @@ const EDIT_TARGETS = [
   '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
   '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
   '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
-  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]',
 ].join(',');
 
 const blockWhenLocked = (e) => {

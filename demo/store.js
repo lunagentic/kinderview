@@ -919,7 +919,7 @@ function createSubtask(taskId, body) {
   const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
   if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
   const next = subtasksOf(taskId).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
-  const row = { id: uid(), task_id: taskId, title, is_done: false, sort_order: next,
+  const row = { id: uid(), task_id: taskId, title, is_done: false, status: 'TODO', sort_order: next,
     seq: nextSeq(t.project_id), due_date: due, created_at: nowISO(), done_at: null };
   (DB.subtasks ??= []).push(row);
   const rolled = rollUpDue(taskId, due);
@@ -951,12 +951,48 @@ function updateSubtask(id, body) {
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
     row.title = title;
   }
-  if (body.is_done !== undefined) {
-    row.is_done = Boolean(body.is_done);
+  // 진행 상태 — status 로도, 예전 체크(is_done)로도 받는다. 둘은 같은 것이다.
+  let status;
+  if (body.status !== undefined) {
+    if (!SUB_STATUSES.includes(body.status)) throw new DemoError('하위 업무 상태는 대기·진행중·완료 중 하나입니다.');
+    status = body.status;
+  } else if (body.is_done !== undefined) status = body.is_done ? 'DONE' : 'TODO';
+  let nudged = null;
+  if (status !== undefined) {
+    row.status = status;
+    row.is_done = status === 'DONE';
     row.done_at = row.is_done ? nowISO() : null;
+    nudged = rollUpStatus(row.task_id);
   }
   save();
-  return { ...subtasksOf(row.task_id).find((s) => s.id === id), rolled };
+  return { ...subtasksOf(row.task_id).find((s) => s.id === id), rolled, nudged };
+}
+
+// 하위 업무의 무게 — 상위 업무 진척률에 반영된다 (server/repo.js SUB_WEIGHT)
+const SUB_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE'];
+const subWeight = (s) => (s.status === 'DONE' || (s.status === undefined && s.is_done) ? 1 : s.status === 'IN_PROGRESS' ? 0.5 : 0);
+const subProgressOf = (taskId) => {
+  const subs = subtasksOf(taskId);
+  return subs.length ? subs.reduce((n, s) => n + subWeight(s), 0) / subs.length : null;
+};
+/**
+ * 하위 업무 상태가 상위 업무를 민다. 하나라도 움직이면 「대기」 상위는 「진행중」으로,
+ * 전부 끝나면 「진행중」까지의 상위는 「검토」로 간다. 완료는 사람이 누른다. 외주 상태·검토·완료는 건드리지 않는다.
+ */
+function rollUpStatus(taskId) {
+  const subs = subtasksOf(taskId);
+  const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
+  if (!subs.length || !t) return null;
+  const allDone = subs.every((s) => (s.status ?? (s.is_done ? 'DONE' : 'TODO')) === 'DONE');
+  const anyMoved = subs.some((s) => (s.status ?? (s.is_done ? 'DONE' : 'TODO')) !== 'TODO');
+  let next = null;
+  if (allDone && (t.status === 'TODO' || t.status === 'IN_PROGRESS')) next = 'REVIEW';
+  else if (anyMoved && t.status === 'TODO') next = 'IN_PROGRESS';
+  if (!next) return null;
+  const before = t.status;
+  Object.assign(t, { status: next, updated_at: nowISO() });
+  logEvent(t.id, 'STATUS_CHANGED', before, next, currentMe());
+  return next;
 }
 
 function removeSubtask(id) {
@@ -1145,6 +1181,9 @@ function hydrate(t, ref = today()) {
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
     stage: STAGE[t.status],
+    // 진척률 — 상태 무게와 하위 업무 평균 중 큰 쪽. 완료면 100. (server/repo.js progress_weight)
+    progress_weight: t.status === 'DONE' ? 1 : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0),
+    progress: Math.round((t.status === 'DONE' ? 1 : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0)) * 100),
     d_day: t.due_date ? daysBetween(ref, t.due_date) : null,
     collaborators: DB.collaborators
       .filter((c) => c.task_id === t.id)
@@ -1245,7 +1284,7 @@ function overview(ref = today()) {
       if (!map.has(k)) map.set(k, blank());
       const g = map.get(k);
       g.count += 1;
-      g.weight += PROGRESS_WEIGHT[t.status] ?? 0;
+      g.weight += t.progress_weight ?? PROGRESS_WEIGHT[t.status] ?? 0;
       if (t.status === 'DONE') g.done += 1;
       if (t.stage === 'PROGRESS') g.in_progress += 1;
       if (t.stage === 'REVIEW') g.review += 1;
@@ -1325,7 +1364,7 @@ function overview(ref = today()) {
         }));
     })(),
     board_truncated: rows.length > 400,
-    progress: pct(rows.reduce((s, t) => s + (PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
+    progress: pct(rows.reduce((s, t) => s + (t.progress_weight ?? PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
   };
 }
 
@@ -2151,6 +2190,9 @@ const phasesOf = (projectId) => (DB.phases ?? [])
       ...ph,
       task_count: own.length,
       done_count: own.filter((t) => t.status === 'DONE').length,
+      // 진척률은 업무 상태 무게와 하위 업무를 합친 평균 — 완료 비율이 아니다
+      progress: own.length ? Math.round(own.reduce((n, t) => n + (t.status === 'DONE' ? 1
+        : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0)), 0) / own.length * 100) : null,
       comment_count: cms.length,
       director_comment_count: cms.filter((c) => c.author_role === 'DIRECTOR').length,
     };
@@ -2252,7 +2294,7 @@ function timelineRows() {
     .map((p) => {
       const ps = allPhases.filter((ph) => ph.project_id === p.id).map((ph) => ({
         ...ph,
-        progress: ph.task_count ? Math.round((ph.done_count / ph.task_count) * 100) : null,
+        progress: ph.task_count ? (ph.progress ?? 0) : null,
       }));
       const rowTasks = DB.tasks.filter((t) => !t.deleted_at && t.project_id === p.id);
       // 기간이 없는 페이즈는 그 페이즈 업무의 일정으로 채운다

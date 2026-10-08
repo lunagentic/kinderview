@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
-import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag, firstUrl } from './ui.js';
+import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag, firstUrl, subStatusOf, subProgress, subStatusPick, nudgeNote,} from './ui.js';
 import { bindComments } from './comments.js';
 import { canEdit, canAdmin } from './gate.js';
 import { gatePanel } from './views/gatePanel.js';
@@ -1041,18 +1041,19 @@ export function subtaskModal({ task, onChange, focus = null }) {
   let rows = [];
   let changed = false;
 
+  // 진척률 = 상태 무게(대기 0 · 진행중 0.5 · 완료 1)의 평균 — 상위 업무와 페이즈가 같은 숫자를 쓴다
   const bar = () => {
-    const done = rows.filter((r) => r.is_done).length;
-    const pct = rows.length ? Math.round((done / rows.length) * 100) : 0;
+    const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
+    const pct = subProgress(rows) ?? 0;
     return `
       <div class="sbm-prog">
         <span class="track"><i style="width:${pct}%"></i></span>
-        <span class="n">${rows.length ? `${done}/${rows.length} · ${pct}%` : '하위 업무 없음'}</span>
+        <span class="n">${rows.length ? `완료 ${done}/${rows.length} · 진척 ${pct}%` : '하위 업무 없음'}</span>
       </div>`;
   };
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
-      <li class="${r.is_done ? 'done' : ''}" data-row="${esc(r.id)}">
-        <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''} aria-label="완료">
+      <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
+        ${subStatusPick(r)}
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
@@ -1126,11 +1127,15 @@ export function subtaskModal({ task, onChange, focus = null }) {
       }).catch(() => {});
 
       root.addEventListener('change', async (e) => {
-        const chk = e.target.closest('[data-sub]');
-        if (chk) {
-          if (!editable()) { chk.checked = !chk.checked; return; }
-          try { await api.patch(`/api/subtasks/${chk.dataset.sub}`, { is_done: chk.checked }); changed = true; }
-          catch (err) { toast(err.message, true); }
+        const sst = e.target.closest('[data-sub-status]');
+        if (sst) {
+          if (!editable()) return load();
+          try {
+            const r = await api.patch(`/api/subtasks/${sst.dataset.subStatus}`, { status: sst.value });
+            changed = true;
+            const note = nudgeNote(r?.nudged);
+            if (note) toast(note);
+          } catch (err) { toast(err.message, true); }
           return load();
         }
         const sdue = e.target.closest('[data-sub-due]');

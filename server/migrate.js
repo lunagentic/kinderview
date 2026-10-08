@@ -374,6 +374,15 @@ function addSubtaskDue() {
   return '하위 업무 마감일(due_date) 추가';
 }
 
+/** 하위 업무 진행 상태 — 체크(완료)만 있던 것에 「진행중」을 더한다 */
+function addSubtaskStatus() {
+  const sql = tableSql('subtask');
+  if (!sql || /\bstatus\b/.test(sql)) return null;
+  db.exec("ALTER TABLE subtask ADD COLUMN status TEXT NOT NULL DEFAULT 'TODO'");
+  db.exec("UPDATE subtask SET status = 'DONE' WHERE is_done = 1");
+  return '하위 업무 진행 상태(status) 추가';
+}
+
 /** 업무 첨부(링크·이미지) 표 — 스키마에 있으니 없을 때만 만든다. */
 function addAttachments() {
   if (tableSql('attachment')) return null;
@@ -409,7 +418,7 @@ export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
-    addTicketSeq(), addSubtaskDue(), addAttachments(), addReadMarks(), addPhaseComments()]
+    addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

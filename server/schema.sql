@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS subtask (
   task_id     TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
   title       TEXT NOT NULL,
   is_done     INTEGER NOT NULL DEFAULT 0,
+  status      TEXT NOT NULL DEFAULT 'TODO',   -- TODO · IN_PROGRESS · DONE. is_done 은 status = DONE 과 같이 움직인다
   sort_order  INTEGER NOT NULL DEFAULT 0,
   seq         INTEGER,            -- 상위 업무의 프로젝트 번호열에서 받는다
   due_date    TEXT,               -- 비우면 상위 업무 마감을 따른다. 더 늦게 잡으면 상위·페이즈가 그 날까지 늘어난다

@@ -189,7 +189,7 @@ export async function renderTimeline(root) {
     ${ganttScaleBar(w)}
 
     <div class="tl-legend">
-      <span class="tl-key"><i class="k-bar"></i>페이즈 기간 — 진한 부분이 완료 비율</span>
+      <span class="tl-key"><i class="k-bar"></i>페이즈 기간 — 진한 부분이 진척률</span>
       <span class="tl-key"><i class="k-task"></i>업무 — 상태색</span>
       <span class="tl-key"><i class="k-ms plan"></i>마일스톤 예정</span>
       <span class="tl-key"><i class="k-ms late"></i>지연</span>

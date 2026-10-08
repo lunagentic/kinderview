@@ -2,8 +2,7 @@ import { api } from '../api.js';
 import { state, areaMeta, coLeadsOf, leadOf } from '../state.js';
 import {
   esc, statusChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
-  titleCell, autoGrow, syncTitleCell, linkify,
-} from '../ui.js';
+  titleCell, autoGrow, syncTitleCell, linkify, subStatusOf, subProgress, subStatusPick, nudgeNote,} from '../ui.js';
 import { taskForm, issueForm } from '../forms.js';
 import { bindComments } from '../comments.js';
 
@@ -24,8 +23,9 @@ const priorityLabel = (code) => state.meta.priorities.find((s) => s.code === cod
 
 const subCount = (rows = []) => {
   if (!rows.length) return '';
-  const done = rows.filter((r) => r.is_done).length;
-  return `<span class="sub-n${done === rows.length ? ' all' : ''}">${done}/${rows.length}</span>`;
+  const done = rows.filter((r) => subStatusOf(r) === 'DONE').length;
+  const pct = subProgress(rows) ?? 0;
+  return `<span class="sub-n${done === rows.length ? ' all' : ''}" title="완료 ${done}/${rows.length} · 진척 ${pct}%">${done}/${rows.length} · ${pct}%</span>`;
 };
 
 // 하위 업무 마감 칸 — 비우면 상위를 따른다. 더 늦게 잡으면 상위 업무·페이즈가 그 날까지 늘어난다.
@@ -63,11 +63,9 @@ const attList = (rows = []) => {
 
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
-      <li class="${r.is_done ? 'done' : ''}">
-        <label>
-          <input type="checkbox" data-sub="${esc(r.id)}"${r.is_done ? ' checked' : ''}>
-          <span>${linkify(r.title)}</span>
-        </label>
+      <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}">
+        ${subStatusPick(r)}
+        <span class="sub-ttl">${linkify(r.title)}</span>
         ${subDue(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
@@ -306,10 +304,12 @@ export async function renderTaskDetail(root, id, query = '') {
       } catch (err) { toast(err.message, true); await reloadSubs(); }
       return undefined;
     }
-    const sub = e.target.closest('[data-sub]');
+    const sub = e.target.closest('[data-sub-status]');
     if (sub) {
       try {
-        await api.patch(`/api/subtasks/${sub.dataset.sub}`, { is_done: sub.checked });
+        const r = await api.patch(`/api/subtasks/${sub.dataset.subStatus}`, { status: sub.value });
+        const note = nudgeNote(r?.nudged);
+        if (note) { toast(note); reload(); return; }   // 상위 상태가 바뀌었으니 화면 전체를 다시 그린다
         await reloadSubs();
       } catch (err) { toast(err.message, true); await reloadSubs(); }
       return;

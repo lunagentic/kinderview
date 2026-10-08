@@ -25,6 +25,10 @@ const CASE_WEIGHT = `CASE t.status
   WHEN 'IN_PROGRESS' THEN 0.5 WHEN 'OUT_IN_PROGRESS' THEN 0.5 WHEN 'OUT_REVISION' THEN 0.5
   ELSE 0.0 END`;
 
+// 하위 업무의 무게 — 상위 업무 진척률에 반영된다
+const SUB_WEIGHT = `CASE s.status WHEN 'DONE' THEN 1.0 WHEN 'IN_PROGRESS' THEN 0.5 ELSE 0.0 END`;
+const SUB_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE'];
+
 const pct = (sum, count) => (count === 0 ? null : Math.round((sum / count) * 100));
 
 // ── 구성원 ──────────────────────────────────────────────
@@ -177,6 +181,9 @@ export const phases = {
       `SELECT ph.*,
               (SELECT COUNT(*) FROM task t WHERE t.phase_id = ph.id AND t.deleted_at IS NULL) AS task_count,
               (SELECT COUNT(*) FROM task t WHERE t.phase_id = ph.id AND t.deleted_at IS NULL AND t.status = 'DONE') AS done_count,
+              (SELECT ROUND(AVG(CASE WHEN t.status = 'DONE' THEN 1.0
+                 ELSE MAX(${CASE_WEIGHT}, COALESCE((SELECT AVG(${SUB_WEIGHT}) FROM subtask s WHERE s.task_id = t.id), 0.0)) END) * 100)
+                 FROM task t WHERE t.phase_id = ph.id AND t.deleted_at IS NULL) AS progress,
               (SELECT COUNT(*) FROM phase_comment c WHERE c.phase_id = ph.id AND c.deleted_at IS NULL) AS comment_count,
               (SELECT COUNT(*) FROM phase_comment c WHERE c.phase_id = ph.id AND c.deleted_at IS NULL AND c.author_role = 'DIRECTOR') AS director_comment_count
        FROM phase ph
@@ -275,7 +282,8 @@ export function timeline() {
   return projectRows.map((p) => {
     const ps = phaseRows.filter((ph) => ph.project_id === p.id).map((ph) => ({
       ...ph,
-      progress: ph.task_count ? Math.round((ph.done_count / ph.task_count) * 100) : null,
+      // 진척률은 업무 상태 무게와 하위 업무를 합친 평균 — 완료 비율이 아니다
+      progress: ph.task_count ? Math.round(ph.progress ?? 0) : null,
     }));
     const rowTasks = openTasks.filter((t) => t.project_id === p.id);
     // 페이즈에 기간이 없으면 그 페이즈 업무의 일정으로 채운다
@@ -573,7 +581,9 @@ const TASK_SELECT = `
          (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL) AS comment_count,
          (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL
             AND c.author_role = 'DIRECTOR') AS director_comment_count,
-         ${CASE_WEIGHT} AS progress_weight
+         (SELECT AVG(${SUB_WEIGHT}) FROM subtask s WHERE s.task_id = t.id) AS subtask_progress,
+         CASE WHEN t.status = 'DONE' THEN 1.0
+              ELSE MAX(${CASE_WEIGHT}, COALESCE((SELECT AVG(${SUB_WEIGHT}) FROM subtask s WHERE s.task_id = t.id), 0.0)) END AS progress_weight
   FROM task t
   LEFT JOIN project p ON p.id = t.project_id
   LEFT JOIN phase ph ON ph.id = t.phase_id
@@ -601,6 +611,8 @@ const decorate = (row) => {
   row.director_comment_count = row.director_comment_count ?? 0;
   row.subtask_total = row.subtask_total ?? 0;
   row.subtask_done = row.subtask_done ?? 0;
+  // 진척률 — 상태 무게와 하위 업무 평균 중 큰 쪽. 완료면 100.
+  row.progress = Math.round((row.progress_weight ?? 0) * 100);
   row.owner_active = !!row.owner_active;
   row.is_outsourcing = row.area === 'OUT';
   row.stage = STAGE[row.status];
@@ -809,8 +821,8 @@ export const subtasks = {
     let rolled = null;
     tx(() => {
       run(
-        `INSERT INTO subtask (id, task_id, title, is_done, sort_order, seq, due_date, created_at)
-         VALUES (:id, :t, :title, 0, :n, :seq, :due, :at)`,
+        `INSERT INTO subtask (id, task_id, title, is_done, status, sort_order, seq, due_date, created_at)
+         VALUES (:id, :t, :title, 0, 'TODO', :n, :seq, :due, :at)`,
         { id, t: taskId, title, n: next, seq: nextSeq(task.project_id), due, at: nowISO() },
       );
       rolled = rollUpDue(taskId, due, actor);
@@ -847,13 +859,23 @@ export const subtasks = {
       if (!title) throw new HttpError(400, '하위 업무명을 입력해 주세요.');
       run('UPDATE subtask SET title = :title WHERE id = :id', { id, title });
     }
-    if (patch.is_done !== undefined) {
-      const done = patch.is_done ? 1 : 0;
-      // 완료 시각은 체크와 함께 움직인다 (CHECK 제약과 짝을 맞춘다)
-      run('UPDATE subtask SET is_done = :done, done_at = :at WHERE id = :id',
-        { id, done, at: done ? nowISO() : null });
+    // 진행 상태 — status 로도, 예전 체크(is_done)로도 받는다. 둘은 같은 것이다.
+    let status;
+    if (patch.status !== undefined) {
+      if (!SUB_STATUSES.includes(patch.status)) throw new HttpError(400, '하위 업무 상태는 대기·진행중·완료 중 하나입니다.');
+      status = patch.status;
+    } else if (patch.is_done !== undefined) status = patch.is_done ? 'DONE' : 'TODO';
+    let nudged = null;
+    if (status !== undefined) {
+      const done = status === 'DONE' ? 1 : 0;
+      tx(() => {
+        // 완료 시각은 완료와 함께 움직인다 (CHECK 제약과 짝을 맞춘다)
+        run('UPDATE subtask SET status = :st, is_done = :done, done_at = :at WHERE id = :id',
+          { id, st: status, done, at: done ? nowISO() : null });
+        nudged = rollUpStatus(cur.task_id, actor);
+      });
     }
-    return { ...this.list(cur.task_id).find((r) => r.id === id), rolled };
+    return { ...this.list(cur.task_id).find((r) => r.id === id), rolled, nudged };
   },
 
   remove(id) {
@@ -861,6 +883,28 @@ export const subtasks = {
     return { ok: true };
   },
 };
+
+/**
+ * 하위 업무 상태가 상위 업무를 민다. 하나라도 움직이면 「대기」 상위는 「진행중」으로,
+ * 전부 끝나면 「진행중」까지의 상위는 「검토」로 간다. 완료는 사람이 누른다 — 하위가 다 끝났다고 상위가 끝난 건 아니다.
+ * 외주 상태(OUT_*)와 이미 검토·완료인 업무는 건드리지 않는다. 바꿨으면 새 상태를, 아니면 null 을 돌려준다.
+ */
+function rollUpStatus(taskId, actor) {
+  const subs = all('SELECT status FROM subtask WHERE task_id = :t', { t: taskId });
+  if (!subs.length) return null;
+  const t = one('SELECT id, status FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
+  if (!t) return null;
+  const allDone = subs.every((s) => s.status === 'DONE');
+  const anyMoved = subs.some((s) => s.status !== 'TODO');
+  let next = null;
+  if (allDone && (t.status === 'TODO' || t.status === 'IN_PROGRESS')) next = 'REVIEW';
+  else if (anyMoved && t.status === 'TODO') next = 'IN_PROGRESS';
+  if (!next) return null;
+  const at = nowISO();
+  run('UPDATE task SET status = :st, updated_at = :at WHERE id = :id', { id: taskId, st: next, at });
+  if (actor) logEvent(taskId, 'STATUS_CHANGED', t.status, next, actor, at);
+  return next;
+}
 
 // ── 첨부 — 링크와 이미지 ──────────────────────────────
 const LINK_RE = /^https?:\/\/[^\s]+$/i;
@@ -1573,7 +1617,7 @@ export function overview(ref = today()) {
       if (!map.has(key)) map.set(key, { count: 0, weight: 0, done: 0, delayed: 0, issue: 0, in_progress: 0, review: 0 });
       const g = map.get(key);
       g.count += 1;
-      g.weight += PROGRESS_WEIGHT[t.status] ?? 0;
+      g.weight += t.progress_weight ?? PROGRESS_WEIGHT[t.status] ?? 0;
       if (t.status === 'DONE') g.done += 1;
       if (t.stage === 'PROGRESS') g.in_progress += 1;
       if (t.stage === 'REVIEW') g.review += 1;
@@ -1660,6 +1704,6 @@ export function overview(ref = today()) {
     handover,
     board,
     board_truncated: rows.length > BOARD_CAP,
-    progress: pct(rows.reduce((s, t) => s + (PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
+    progress: pct(rows.reduce((s, t) => s + (t.progress_weight ?? PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
   };
 }

@@ -318,3 +318,26 @@ export const empty = ({ title, hint = '', action = '' }) => `
 
 // ── 링크 ────────────────────────────────────────────────
 export const go = (hash) => { window.location.hash = hash; };
+
+// ── 하위 업무 진행 상태 ──────────────────────────────────
+// 대기 · 진행중 · 완료 세 단계. 상위 업무 진척률에 0 · 0.5 · 1 로 들어간다.
+export const SUB_STATUS = [
+  { code: 'TODO', label: '대기', mark: '○', weight: 0 },
+  { code: 'IN_PROGRESS', label: '진행중', mark: '◐', weight: 0.5 },
+  { code: 'DONE', label: '완료', mark: '●', weight: 1 },
+];
+export const subStatusOf = (r) => r.status ?? (r.is_done ? 'DONE' : 'TODO');
+export const subWeightOf = (r) => SUB_STATUS.find((s) => s.code === subStatusOf(r))?.weight ?? 0;
+/** 하위 업무 묶음의 진척률(%). 없으면 null */
+export const subProgress = (rows = []) => (rows.length
+  ? Math.round((rows.reduce((n, r) => n + subWeightOf(r), 0) / rows.length) * 100) : null);
+/** 상태 고르기 — 작은 알약 셀렉트. 상태별 색은 CSS 의 data-st 로 */
+export const subStatusPick = (r) => {
+  const cur = subStatusOf(r);
+  return `<select class="sub-st" data-sub-status="${esc(r.id)}" data-st="${cur}" aria-label="하위 업무 진행 상태" title="진행 상태">
+    ${SUB_STATUS.map((s) => `<option value="${s.code}"${s.code === cur ? ' selected' : ''}>${s.mark} ${s.label}</option>`).join('')}
+  </select>`;
+};
+/** 상위 업무가 밀렸을 때의 안내 글 */
+export const nudgeNote = (nudged) => (nudged
+  ? `상위 업무 상태가 「${nudged === 'REVIEW' ? '검토' : nudged === 'IN_PROGRESS' ? '진행중' : nudged}」로 바뀌었습니다` : null);
