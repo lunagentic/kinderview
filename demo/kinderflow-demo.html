@@ -1772,7 +1772,13 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .mr-task:hover{background:var(--surface-2)}
 .mr-task.done .mr-ttl{color:var(--muted);text-decoration:line-through}
 .mr-ttl{flex:1 1 200px;min-width:0;text-decoration:underline;text-underline-offset:2px}
-.mr-own{color:var(--muted);font-size:.82rem}
+.mr-own{color:var(--muted);font-size:.82rem;display:inline-flex}
+/* 줄 안의 편집 부품 — 담당 셀렉트 · 마감 단추 · 상태 알약 */
+.mr-own-pick{font:inherit;font-size:.8rem;padding:2px 22px 2px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink-2);cursor:pointer;max-width:120px}
+.mr-own-pick:hover{border-color:var(--muted)}
+.mr-due .due-view{font-family:var(--mono);font-size:.78rem;padding:2px 6px}
+.mr-st{display:inline-flex}
+body[data-gate="view"] .mr-own-pick{pointer-events:none;border-color:transparent;padding-left:0;appearance:none;-webkit-appearance:none;background:none}
 .mr-due{font-family:var(--mono);font-size:.76rem;color:var(--ink-2)}
 .mr-due.late{color:var(--s-delay);font-weight:700}
 .mr-sub,.mr-iss{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
@@ -4992,7 +4998,7 @@ const monthlyBrief = (t) => ({
   owner_name: t.owner_name, owner_slack_user_id: t.owner_slack_user_id,
   status: t.status, status_label: sLabel(t.status), priority: t.priority,
   due_date: t.due_date, completed_at: t.completed_at,
-  is_delayed: t.is_delayed, open_issue_count: t.open_issue_count,
+  is_delayed: t.is_delayed, d_day: t.d_day, open_issue_count: t.open_issue_count,
   subtask_total: t.subtask_total, subtask_done: t.subtask_done,
 });
 function monthlyForMonth(ym, ref = today()) {
@@ -10347,6 +10353,7 @@ function toMarkdown(report, brief = false) {
 
 
 
+
 // 월간 업무 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
 // 사람이 따로 적는 칸은 없다. 마감을 그 달로 잡는 것이 곧 목표 선언이고, 숫자는 업무·이슈·이력에서 나온다.
 
@@ -10358,15 +10365,20 @@ const shiftMonth = (ym, n) => {
 };
 const monthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
+// 줄에서 바로 고친다 — 담당(셀렉트) · 마감(누르면 날짜 입력) · 상태(색 알약 셀렉트). 업무 탭·상세와 같은 부품, 같은 PATCH.
+const ownerPick = (t) => `<select class="mr-own-pick" data-owner="${esc(t.id)}" aria-label="담당 변경" title="눌러서 담당 바꾸기">
+    ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+    ${activeMembers().some((m) => m.slack_user_id === t.owner_slack_user_id) ? '' : `<option value="${esc(t.owner_slack_user_id ?? '')}" selected>${esc(t.owner_name ?? '')}</option>`}
+  </select>`;
 const mrTaskLine = (t) => `
-  <li class="mr-task${t.status === 'DONE' ? ' done' : ''}${t.is_delayed ? ' late' : ''}">
+  <li class="mr-task${t.status === 'DONE' ? ' done' : ''}${t.is_delayed ? ' late' : ''}" data-task="${esc(t.id)}">
     ${ticketTag(t)}
     <a href="#/project/tasks/${esc(t.id)}" class="mr-ttl">${esc(t.title)}</a>
-    <span class="mr-own">${esc(t.owner_name ?? '')}</span>
-    <span class="mr-due${t.is_delayed ? ' late' : ''}">${esc(shortDate(t.due_date))}${t.is_delayed ? ' · 지연' : ''}</span>
     ${t.subtask_total ? `<span class="mr-sub">하위 ${t.subtask_done}/${t.subtask_total}</span>` : ''}
     ${t.open_issue_count ? `<span class="mr-iss" title="미해결 이슈">이슈 ${t.open_issue_count}</span>` : ''}
-    ${statusChip(t.status)}
+    <span class="mr-own">${ownerPick(t)}</span>
+    <span class="mr-due${t.is_delayed ? ' late' : ''}">${dueCell(t)}</span>
+    <span class="mr-st">${statusPick(t)}</span>
   </li>`;
 
 async function renderMonthly(root, query) {
@@ -10388,7 +10400,7 @@ async function renderMonthly(root, query) {
     <div class="page-head">
       <div>
         <h1>월간 업무</h1>
-        <div class="sub">${shortDate(r.period_start)} ~ ${shortDate(r.period_end)} · 이 달에 마감인 업무를 목표로 봅니다 · 기준일 ${shortDate(r.as_of)}</div>
+        <div class="sub">${shortDate(r.period_start)} ~ ${shortDate(r.period_end)} · 이 달에 마감인 업무를 목표로 봅니다 · 기준일 ${shortDate(r.as_of)} · 담당 · 마감 · 상태는 줄에서 바로 바꿉니다</div>
       </div>
       <div class="page-actions">
         <button class="btn" data-month="${esc(shiftMonth(r.month, -1))}" aria-label="이전 달">‹</button>
@@ -10441,6 +10453,34 @@ async function renderMonthly(root, query) {
       </section>
     </div>`;
 
+  const reload = () => window.dispatchEvent(new Event('kf:reload'));
+  const taskOf = (id) => r.groups.flatMap((g) => g.phases.flatMap((ph) => ph.tasks)).find((t) => t.id === id);
+  // 마감 — 다른 달로 옮기면 그 달 목표가 된다. 비우면 백로그라 이 달 목록에서 빠진다.
+  bindDueEdit(root, async (id, value) => {
+    const t = taskOf(id);
+    try {
+      await api.patch(`/api/tasks/${id}`, { due_date: value || null });
+      if (!value) toast('마감을 비웠습니다. 백로그로 가서 이 달 목표에서 빠집니다.');
+      else if (value.slice(0, 7) !== r.month) toast(`${shortDate(t?.due_date)} → ${shortDate(value)} · ${Number(value.slice(5, 7))}월 목표로 옮겼습니다.`);
+      else toast('마감일을 바꿨습니다.');
+    } catch (err) { toast(err.message, true); }
+    reload();
+  });
+  root.addEventListener('change', async (e) => {
+    const own = e.target.closest('[data-owner]');
+    if (own) {
+      try { await api.patch(`/api/tasks/${own.dataset.owner}`, { owner_slack_user_id: own.value }); toast('담당을 바꿨습니다.'); }
+      catch (err) { toast(err.message, true); }
+      return reload();
+    }
+    const st = e.target.closest('[data-status]');
+    if (st) {
+      try { await api.patch(`/api/tasks/${st.dataset.status}`, { status: st.value }); toast('상태를 바꿨습니다.'); }
+      catch (err) { toast(err.message, true); }
+      return reload();
+    }
+    return undefined;
+  });
   root.addEventListener('click', async (e) => {
     const mb = e.target.closest('[data-month]');
     if (mb) { go(`#/project/monthly?month=${mb.dataset.month}`); return; }

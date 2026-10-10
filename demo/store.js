@@ -2081,7 +2081,7 @@ const monthlyBrief = (t) => ({
   owner_name: t.owner_name, owner_slack_user_id: t.owner_slack_user_id,
   status: t.status, status_label: sLabel(t.status), priority: t.priority,
   due_date: t.due_date, completed_at: t.completed_at,
-  is_delayed: t.is_delayed, open_issue_count: t.open_issue_count,
+  is_delayed: t.is_delayed, d_day: t.d_day, open_issue_count: t.open_issue_count,
   subtask_total: t.subtask_total, subtask_done: t.subtask_done,
 });
 function monthlyForMonth(ym, ref = today()) {

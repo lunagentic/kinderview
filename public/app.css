@@ -1768,7 +1768,13 @@ body[data-gate="view"] .tl-task .tl-cm{pointer-events:auto}
 .mr-task:hover{background:var(--surface-2)}
 .mr-task.done .mr-ttl{color:var(--muted);text-decoration:line-through}
 .mr-ttl{flex:1 1 200px;min-width:0;text-decoration:underline;text-underline-offset:2px}
-.mr-own{color:var(--muted);font-size:.82rem}
+.mr-own{color:var(--muted);font-size:.82rem;display:inline-flex}
+/* 줄 안의 편집 부품 — 담당 셀렉트 · 마감 단추 · 상태 알약 */
+.mr-own-pick{font:inherit;font-size:.8rem;padding:2px 22px 2px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink-2);cursor:pointer;max-width:120px}
+.mr-own-pick:hover{border-color:var(--muted)}
+.mr-due .due-view{font-family:var(--mono);font-size:.78rem;padding:2px 6px}
+.mr-st{display:inline-flex}
+body[data-gate="view"] .mr-own-pick{pointer-events:none;border-color:transparent;padding-left:0;appearance:none;-webkit-appearance:none;background:none}
 .mr-due{font-family:var(--mono);font-size:.76rem;color:var(--ink-2)}
 .mr-due.late{color:var(--s-delay);font-weight:700}
 .mr-sub,.mr-iss{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
