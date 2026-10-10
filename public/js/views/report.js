@@ -23,7 +23,7 @@ const cards = (ov, tasks) => {
       <section class="rp-card">
         <h3>전체 업무</h3>
         <div class="rp-big">${ov.summary.total}<small>건</small></div>
-        <div class="rp-sub">미완료 ${open.length} · 지연 <b class="${ov.summary.delayed ? 'bad' : ''}">${ov.summary.delayed}</b> · 미해결 이슈 <b class="${ov.summary.issues ? 'bad' : ''}">${ov.summary.issues}</b></div>
+        <div class="rp-sub">미완료 ${open.length} · 지연 <b class="${ov.summary.delayed ? 'bad' : ''}">${ov.summary.delayed}</b> · 미해결 이슈 <b class="${ov.summary.issues ? 'bad' : ''}">${ov.summary.issues}</b> · 협업으로 붙은 자리 ${tasks.reduce((n, t) => n + (t.collaborators?.length ?? 0), 0)}</div>
       </section>
       <section class="rp-card">
         <h3>미완료 업무 우선순위</h3>
@@ -42,10 +42,26 @@ const cards = (ov, tasks) => {
 };
 
 // ── 담당자별 진행 막대 ───────────────────────────────────
-const ownerChart = (ov) => {
+// 협업으로 붙은 업무 — 사람마다 { total, open }. 담당 수와 섞지 않는다(두 번 세게 된다).
+const collabOf = (tasks) => {
+  const map = new Map();
+  for (const t of tasks) for (const c of t.collaborators ?? []) {
+    const g = map.get(c.slack_user_id) ?? { total: 0, open: 0, name: c.display_name };
+    g.total += 1; if (t.status !== 'DONE') g.open += 1;
+    map.set(c.slack_user_id, g);
+  }
+  return map;
+};
+const ownerChart = (ov, tasks) => {
+  const co = collabOf(tasks);
   const owners = ov.owners.filter((o) => o.count > 0);
+  // 협업만 있는 사람도 열에 선다
+  for (const [uid, g] of co) if (!owners.some((o) => o.slack_user_id === uid)) {
+    const m = memberOf(uid);
+    owners.push({ slack_user_id: uid, display_name: m?.display_name ?? g.name ?? uid, count: 0, done: 0, in_progress: 0, review: 0, delayed: 0 });
+  }
   if (!owners.length) return '<p class="hint">담당 업무가 없습니다.</p>';
-  const max = Math.max(...owners.map((o) => o.count));
+  const max = Math.max(...owners.map((o) => Math.max(o.count, co.get(o.slack_user_id)?.total ?? 0)), 1);
   const seg = (n, cls, label) => (n ? `<i class="${cls}" style="flex:${n}" title="${esc(label)} ${n}"></i>` : '');
   return `
     <div class="rp-chart">
@@ -53,17 +69,23 @@ const ownerChart = (ov) => {
       <div class="rp-cols">
         ${owners.map((o) => {
           const wait = Math.max(0, o.count - o.done - o.in_progress - o.review);
+          const c = co.get(o.slack_user_id) ?? { total: 0, open: 0 };
           return `
-          <div class="rp-col" title="${esc(o.display_name)} · 전체 ${o.count} · 완료 ${o.done} · 지연 ${o.delayed}">
-            <div class="rp-barbox"><div class="rp-bar" style="height:${(o.count / max) * 100}%">
-              ${seg(o.delayed, 'late', '지연')}${seg(o.review, 'review', '검토')}${seg(o.in_progress, 'prog', '진행중')}${seg(wait, 'wait', '대기')}${seg(o.done, 'done', '완료')}
-            </div></div>
+          <div class="rp-col" title="${esc(o.display_name)} · 담당 ${o.count} · 완료 ${o.done} · 지연 ${o.delayed}${c.total ? ` · 협업 ${c.total} (미완료 ${c.open})` : ''}">
+            <div class="rp-barbox">
+              <div class="rp-bar" style="height:${(o.count / max) * 100}%">
+                ${seg(o.delayed, 'late', '지연')}${seg(o.review, 'review', '검토')}${seg(o.in_progress, 'prog', '진행중')}${seg(wait, 'wait', '대기')}${seg(o.done, 'done', '완료')}
+              </div>
+              ${c.total ? `<div class="rp-bar co" style="height:${(c.total / max) * 100}%" title="협업 ${c.total} (미완료 ${c.open})" data-co="${c.total}">
+                ${seg(c.open, 'open', '협업 미완료')}${seg(c.total - c.open, 'done', '협업 완료')}
+              </div>` : ''}
+            </div>
             <div class="rp-who">${avatar(memberOf(o.slack_user_id), 'sm')}<span>${esc(o.display_name)}</span></div>
           </div>`;
         }).join('')}
       </div>
     </div>
-    <div class="rp-legend"><span><i class="done"></i>완료</span><span><i class="wait"></i>대기</span><span><i class="prog"></i>진행중</span><span><i class="review"></i>검토</span><span><i class="late"></i>지연</span></div>`;
+    <div class="rp-legend"><span><i class="done"></i>완료</span><span><i class="wait"></i>대기</span><span><i class="prog"></i>진행중</span><span><i class="review"></i>검토</span><span><i class="late"></i>지연</span><span><i class="co"></i>협업(담당 아님)</span></div>`;
 };
 
 // ── 마일스톤 달력 ───────────────────────────────────────
@@ -95,17 +117,22 @@ const calendar = (ym, milestones, tasks) => {
 
 // ── 담당자 × 프로젝트 자리표 ─────────────────────────────
 const matrix = (tasks, projects) => {
-  const owners = [...new Map(tasks.map((t) => [t.owner_slack_user_id, t.owner_name])).entries()];
+  const people = new Map(tasks.map((t) => [t.owner_slack_user_id, t.owner_name]));
+  for (const t of tasks) for (const c of t.collaborators ?? []) if (!people.has(c.slack_user_id)) people.set(c.slack_user_id, c.display_name);
+  const owners = [...people.entries()];
   if (!owners.length || !projects.length) return '<p class="hint">표시할 담당 업무가 없습니다.</p>';
+  // 담당 점 + 협업 태그. 협업은 담당 수에 안 섞는다.
   const cell = (uid, pid) => {
     const mine = tasks.filter((t) => t.owner_slack_user_id === uid && t.project_id === pid);
-    if (!mine.length) return '<i class="rp-dot none" title="업무 없음"></i>';
+    const coOpen = tasks.filter((t) => t.project_id === pid && t.status !== 'DONE' && (t.collaborators ?? []).some((c) => c.slack_user_id === uid)).length;
+    const coTag = coOpen ? `<span class="rp-cotag" title="협업자로 붙은 미완료 업무 ${coOpen}">협 ${coOpen}</span>` : '';
+    if (!mine.length) return `<i class="rp-dot none" title="담당 업무 없음${coOpen ? ` · 협업 ${coOpen}` : ''}"></i>${coTag}`;
     const open = mine.filter((t) => t.status !== 'DONE');
     const late = open.filter((t) => t.is_delayed).length;
-    const tip = `${mine.length}건 · 미완료 ${open.length}${late ? ` · 지연 ${late}` : ''}`;
-    if (!open.length) return `<i class="rp-dot done" title="${esc(tip)} · 모두 완료">✓</i>`;
-    if (late) return `<i class="rp-dot late" title="${esc(tip)}">${late}</i>`;
-    return `<i class="rp-dot on" title="${esc(tip)}">${open.length}</i>`;
+    const tip = `담당 ${mine.length}건 · 미완료 ${open.length}${late ? ` · 지연 ${late}` : ''}${coOpen ? ` · 협업 ${coOpen}` : ''}`;
+    if (!open.length) return `<i class="rp-dot done" title="${esc(tip)} · 모두 완료">✓</i>${coTag}`;
+    if (late) return `<i class="rp-dot late" title="${esc(tip)}">${late}</i>${coTag}`;
+    return `<i class="rp-dot on" title="${esc(tip)}">${open.length}</i>${coTag}`;
   };
   return `
     <div class="rp-matrix-wrap"><table class="rp-matrix">
@@ -114,7 +141,7 @@ const matrix = (tasks, projects) => {
         <tr><th>${avatar(memberOf(uid), 'sm')}<span>${esc(name ?? uid)}</span></th>
           ${projects.map((p) => `<td><a href="#/project/tasks?owner=${encodeURIComponent(uid)}&project=${encodeURIComponent(p.id)}&month=all">${cell(uid, p.id)}</a></td>`).join('')}</tr>`).join('')}
       </tbody></table></div>
-    <div class="rp-legend"><span><i class="rp-dot on sm"></i>미완료 n건</span><span><i class="rp-dot late sm"></i>지연 n건</span><span><i class="rp-dot done sm"></i>모두 완료</span><span><i class="rp-dot none sm"></i>없음</span></div>`;
+    <div class="rp-legend"><span><i class="rp-dot on sm"></i>미완료 n건</span><span><i class="rp-dot late sm"></i>지연 n건</span><span><i class="rp-dot done sm"></i>모두 완료</span><span><i class="rp-dot none sm"></i>없음</span><span><span class="rp-cotag">협 n</span> 협업자로 붙은 미완료 업무</span></div>`;
 };
 
 // ── 프로젝트 · 페이즈 일정 ────────────────────────────────
@@ -173,7 +200,7 @@ export async function renderReport(root, query) {
       <div class="rp-grid">
         <section class="rp-card wide">
           <h3>담당자별 진행 상황</h3>
-          ${ownerChart(ov)}
+          ${ownerChart(ov, tasks)}
         </section>
         <section class="rp-card">
           <h3>마일스톤 일정
