@@ -1,9 +1,9 @@
 import { api } from '../api.js';
 import {
   esc, shortDate, loading, errorBox, go, projectStyle, progressBar, pctText, ticketTag, toast,
-  dueCell, bindDueEdit, statusPick,
+  dueCell, bindDueEdit, statusPick, avatar,
 } from '../ui.js';
-import { activeMembers } from '../state.js';
+import { activeMembers, memberOf } from '../state.js';
 
 // 월간 업무 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
 // 사람이 따로 적는 칸은 없다. 마감을 그 달로 잡는 것이 곧 목표 선언이고, 숫자는 업무·이슈·이력에서 나온다.
@@ -21,6 +21,22 @@ const ownerPick = (t) => `<select class="mr-own-pick" data-owner="${esc(t.id)}" 
     ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
     ${activeMembers().some((m) => m.slack_user_id === t.owner_slack_user_id) ? '' : `<option value="${esc(t.owner_slack_user_id ?? '')}" selected>${esc(t.owner_name ?? '')}</option>`}
   </select>`;
+// 협업자 — 담당 옆에 겹친 아바타. 누르면 체크 목록이 열려 바로 더하고 뺀다.
+const coCell = (t) => {
+  const co = t.collaborators ?? [];
+  const names = co.map((c) => c.display_name).join(', ');
+  return `<button type="button" class="mr-co${co.length ? '' : ' none'}" data-co-pick="${esc(t.id)}" aria-expanded="false"
+      title="${esc(co.length ? `협업자: ${names} — 눌러서 바꾸기` : '협업자 더하기')}" aria-label="협업자">
+      ${co.slice(0, 3).map((c) => avatar(memberOf(c.slack_user_id) ?? c, 'sm')).join('')}${co.length > 3 ? `<i>+${co.length - 3}</i>` : ''}${co.length ? '' : '<i class="plus">+</i>'}
+    </button>`;
+};
+const coPicker = (t) => `
+  <div class="mr-co-pick" data-co-pick-for="${esc(t.id)}" role="group" aria-label="협업자 고르기">
+    ${activeMembers().filter((m) => m.slack_user_id !== t.owner_slack_user_id).map((m) => `
+      <label><input type="checkbox" data-co-member="${esc(m.slack_user_id)}"${(t.collaborators ?? []).some((c) => c.slack_user_id === m.slack_user_id) ? ' checked' : ''}>
+        ${avatar(m, 'sm')}<span>${esc(m.display_name)}</span></label>`).join('')}
+    <span class="hint">체크하면 바로 저장됩니다 · 담당은 뺐습니다</span>
+  </div>`;
 const mrTaskLine = (t) => `
   <li class="mr-task${t.status === 'DONE' ? ' done' : ''}${t.is_delayed ? ' late' : ''}" data-task="${esc(t.id)}">
     ${ticketTag(t)}
@@ -28,6 +44,7 @@ const mrTaskLine = (t) => `
     ${t.subtask_total ? `<span class="mr-sub">하위 ${t.subtask_done}/${t.subtask_total}</span>` : ''}
     ${t.open_issue_count ? `<span class="mr-iss" title="미해결 이슈">이슈 ${t.open_issue_count}</span>` : ''}
     <span class="mr-own">${ownerPick(t)}</span>
+    ${coCell(t)}
     <span class="mr-due${t.is_delayed ? ' late' : ''}">${dueCell(t)}</span>
     <span class="mr-st">${statusPick(t)}</span>
   </li>`;
@@ -117,7 +134,44 @@ export async function renderMonthly(root, query) {
     } catch (err) { toast(err.message, true); }
     reload();
   });
+  const closePickers = () => root.querySelectorAll('.mr-co-pick').forEach((el) => {
+    root.querySelector(`[data-co-pick="${CSS.escape(el.dataset.coPickFor)}"]`)?.setAttribute('aria-expanded', 'false');
+    el.remove();
+  });
+  root.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-co-pick]');
+    if (btn) {
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      closePickers();
+      if (open) return;
+      const t = taskOf(btn.dataset.coPick);
+      if (!t) return;
+      btn.setAttribute('aria-expanded', 'true');
+      btn.closest('.mr-task').insertAdjacentHTML('afterend', coPicker(t));
+      return;
+    }
+    if (!e.target.closest('.mr-co-pick')) closePickers();
+  });
+  root.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePickers(); });
   root.addEventListener('change', async (e) => {
+    const cm = e.target.closest('[data-co-member]');
+    if (cm) {
+      const box = cm.closest('.mr-co-pick');
+      const id = box.dataset.coPickFor;
+      const ids = [...box.querySelectorAll('[data-co-member]:checked')].map((x) => x.dataset.coMember);
+      try {
+        await api.patch(`/api/tasks/${id}`, { collaborators: ids });
+        toast(ids.length ? `협업자 ${ids.length}명으로 바꿨습니다.` : '협업자를 모두 뺐습니다.');
+        // 줄만 다시 그린다 — 목록이 열린 채로 더 고를 수 있어야 한다
+        const t = taskOf(id);
+        if (t) {
+          t.collaborators = ids.map((uid) => { const m = memberOf(uid); return { slack_user_id: uid, display_name: m?.display_name ?? uid, avatar_url: m?.avatar_url ?? null }; });
+          const btn = root.querySelector(`[data-co-pick="${CSS.escape(id)}"]`);
+          if (btn) { const h = document.createElement('div'); h.innerHTML = coCell(t); const nb = h.firstElementChild; nb.setAttribute('aria-expanded', 'true'); btn.replaceWith(nb); }
+        }
+      } catch (err) { toast(err.message, true); reload(); }
+      return undefined;
+    }
     const own = e.target.closest('[data-owner]');
     if (own) {
       try { await api.patch(`/api/tasks/${own.dataset.owner}`, { owner_slack_user_id: own.value }); toast('담당을 바꿨습니다.'); }
@@ -144,7 +198,7 @@ export async function renderMonthly(root, query) {
           `■ ${g.project_name} ${g.done}/${g.target}`,
           ...g.phases.flatMap((ph) => [
             `  ▸ ${ph.phase_name} ${ph.done}/${ph.tasks.length}`,
-            ...ph.tasks.map((t) => `    · ${t.key ? `${t.key} ` : ''}${t.title}  ${t.owner_name ?? ''}  ${shortDate(t.due_date)}  ${t.status_label}${t.is_delayed ? ' (지연)' : ''}`),
+            ...ph.tasks.map((t) => `    · ${t.key ? `${t.key} ` : ''}${t.title}  ${t.owner_name ?? ''}${t.collaborators?.length ? ` +${t.collaborators.map((c) => c.display_name).join(',')}` : ''}  ${shortDate(t.due_date)}  ${t.status_label}${t.is_delayed ? ' (지연)' : ''}`),
           ]),
         ]),
         '',

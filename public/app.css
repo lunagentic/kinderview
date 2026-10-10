@@ -1972,3 +1972,16 @@ body[data-gate="view"] .bd-st .chip-select{pointer-events:none}
 .tf-subs{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 .tf-subs h4{margin:0 0 4px;font-size:.9rem;font-weight:700;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .tf-subs h4 .hint{font-weight:400}
+
+/* 월간 업무 — 협업자 아바타 묶음과 체크 목록 */
+.mr-co{display:inline-flex;align-items:center;border:0;background:none;padding:2px 4px;border-radius:999px;cursor:pointer;min-height:26px}
+.mr-co .avatar{margin-left:-6px;box-shadow:0 0 0 2px var(--surface)} .mr-co .avatar:first-child{margin-left:0}
+.mr-co i{font-style:normal;font-family:var(--mono);font-size:.68rem;color:var(--muted);margin-left:4px}
+.mr-co .plus{width:22px;height:22px;border-radius:50%;border:1px dashed var(--line);display:inline-flex;align-items:center;justify-content:center;margin:0;color:var(--muted);font-size:.9rem}
+.mr-co:hover .plus,.mr-co[aria-expanded="true"] .plus{border-color:var(--indigo);color:var(--indigo)}
+.mr-co:hover{background:var(--surface-2)}
+.mr-co-pick{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:2px 0 8px 28px;padding:8px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--surface-2)}
+.mr-co-pick label{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer}
+.mr-co-pick input{accent-color:var(--indigo)}
+.mr-co-pick .hint{flex-basis:100%;font-size:.72rem}
+body[data-gate="view"] .mr-co{pointer-events:none} body[data-gate="view"] .mr-co .plus{display:none}

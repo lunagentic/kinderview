@@ -2083,6 +2083,7 @@ const monthlyBrief = (t) => ({
   due_date: t.due_date, completed_at: t.completed_at,
   is_delayed: t.is_delayed, d_day: t.d_day, open_issue_count: t.open_issue_count,
   subtask_total: t.subtask_total, subtask_done: t.subtask_done,
+  collaborators: t.collaborators ?? [],
 });
 function monthlyForMonth(ym, ref = today()) {
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(ym)) ? ym : today().slice(0, 7);

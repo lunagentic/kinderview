@@ -21,6 +21,7 @@ function brief(t) {
     due_date: t.due_date, completed_at: t.completed_at,
     is_delayed: t.is_delayed, d_day: t.d_day, open_issue_count: t.open_issue_count,
     subtask_total: t.subtask_total, subtask_done: t.subtask_done,
+    collaborators: t.collaborators ?? [],
   };
 }
 
