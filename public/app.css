@@ -2003,3 +2003,18 @@ body[data-gate="view"] .mr-co{pointer-events:none} body[data-gate="view"] .mr-co
 .mr-task:hover .mr-del,.mr-del:focus-visible{color:var(--muted)}
 .mr-del:hover{color:var(--s-delay);background:var(--surface-2)}
 body[data-gate="view"] .mr-del{display:none}
+
+/* 월간 업무 — 여러 업무 골라 한 번에 */
+.mr-pick{flex:none;width:15px;height:15px;accent-color:var(--indigo);cursor:pointer;margin:0 4px 0 0}
+.mr-proj h4 .mr-pick,.mr-ph-head .mr-pick{vertical-align:-2px;margin-right:6px}
+.mr-bulk{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:50;display:flex;flex-wrap:wrap;width:max-content;align-items:center;gap:8px 10px;
+  max-width:min(1200px,calc(100vw - 24px));padding:10px 14px;border-radius:12px;background:var(--chrome);color:var(--on-chrome);box-shadow:0 10px 30px rgba(10,14,30,.3)}
+.mr-bulk label{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--on-chrome-muted)}
+.mr-bulk select,.mr-bulk input{font:inherit;font-size:.8rem;padding:4px 6px;border-radius:6px;border:1px solid var(--chrome-2);background:var(--surface);color:var(--ink)}
+.mr-bulk .btn{background:var(--surface);color:var(--ink)} .mr-bulk .btn-ghost{background:none;color:var(--on-chrome-muted)}
+.mr-bulk .btn-danger{color:var(--s-delay)}
+.mr-bulk .sep{width:1px;height:20px;background:var(--chrome-2)}
+.has-bulk{padding-bottom:90px}
+body[data-gate="view"] .mr-pick,body[data-gate="view"] .mr-bulk{display:none}
+@media (max-width:720px){.mr-bulk{left:8px;right:8px;transform:none;max-width:none;bottom:8px}.mr-bulk .sep{display:none}}
+body.bulk-on .toast-root{bottom:96px}

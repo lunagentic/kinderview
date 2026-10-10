@@ -3,7 +3,7 @@ import {
   esc, shortDate, loading, errorBox, go, projectStyle, progressBar, pctText, ticketTag, toast,
   dueCell, bindDueEdit, statusPick, avatar, confirmModal,
 } from '../ui.js';
-import { activeMembers, memberOf } from '../state.js';
+import { state, activeMembers, memberOf } from '../state.js';
 
 // 월간 업무 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
 // 사람이 따로 적는 칸은 없다. 마감을 그 달로 잡는 것이 곧 목표 선언이고, 숫자는 업무·이슈·이력에서 나온다.
@@ -40,6 +40,7 @@ const coPicker = (t) => `
   </div>`;
 const mrTaskLine = (t) => `
   <li class="mr-task${t.status === 'DONE' ? ' done' : ''}${t.is_delayed ? ' late' : ''}" data-task="${esc(t.id)}">
+    <input type="checkbox" class="mr-pick" data-pick="${esc(t.id)}" aria-label="선택">
     ${ticketTag(t)}
     <a href="#/project/tasks/${esc(t.id)}" class="mr-ttl">${esc(t.title)}</a>
     ${t.subtask_total ? `<span class="mr-sub">하위 ${t.subtask_done}/${t.subtask_total}</span>` : ''}
@@ -96,10 +97,10 @@ export async function renderMonthly(root, query) {
         <h3><span class="n">①</span>목표 업무 — 프로젝트 › 페이즈</h3>
         ${r.groups.length ? r.groups.map((g) => `
           <div class="mr-proj" style="${g.project_id ? projectStyle(g.project_id) : ''}">
-            <h4>${esc(g.project_name)} <span class="n">${g.done}/${g.target}</span></h4>
+            <h4><input type="checkbox" class="mr-pick" data-pick-group aria-label="이 프로젝트 전체 선택">${esc(g.project_name)} <span class="n">${g.done}/${g.target}</span></h4>
             ${g.phases.map((ph) => `
               <div class="mr-phase">
-                <div class="mr-ph-head">${esc(ph.phase_name)} <span class="n">${ph.done}/${ph.tasks.length}</span></div>
+                <div class="mr-ph-head"><input type="checkbox" class="mr-pick" data-pick-group aria-label="이 페이즈 전체 선택">${esc(ph.phase_name)} <span class="n">${ph.done}/${ph.tasks.length}</span></div>
                 <ul>${ph.tasks.map(mrTaskLine).join('')}</ul>
               </div>`).join('')}
           </div>`).join('')
@@ -125,6 +126,116 @@ export async function renderMonthly(root, query) {
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
   const taskOf = (id) => r.groups.flatMap((g) => g.phases.flatMap((ph) => ph.tasks)).find((t) => t.id === id);
+
+  // ── 여러 업무 한 번에 ──────────────────────────────────
+  // 줄 앞 체크로 고르고(페이즈·프로젝트 머리 체크는 그 묶음 전체, Shift 는 범위), 아래 띠에서 한 번에 바꾼다.
+  // 결국 줄마다 같은 PATCH 다 — 이력·알림이 건마다 남는다. 데모 저장소를 위해 차례로 보낸다.
+  const picked = new Set();
+  let lastPick = null;
+  const bar = document.createElement('div');
+  bar.className = 'mr-bulk';
+  bar.hidden = true;
+  bar.innerHTML = `
+    <b data-bulk-n>0건 선택</b>
+    <label>담당 <select data-bulk-owner><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(m.display_name)}</option>`).join('')}</select></label>
+    <button class="btn sm" type="button" data-bulk="owner">담당 지정</button>
+    <span class="sep"></span>
+    <label>협업자 더하기 <select data-bulk-co><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(m.display_name)}</option>`).join('')}</select></label>
+    <button class="btn sm" type="button" data-bulk="co">더하기</button>
+    <span class="sep"></span>
+    <label>상태 <select data-bulk-status><option value="">—</option>${(state.meta?.normal_statuses ?? []).map((st) => `<option value="${esc(st.code)}">${esc(st.label)}</option>`).join('')}</select></label>
+    <button class="btn sm" type="button" data-bulk="status">바꾸기</button>
+    <span class="sep"></span>
+    <label>마감 <input type="date" data-bulk-due></label>
+    <button class="btn sm" type="button" data-bulk="due">바꾸기</button>
+    <span class="sep"></span>
+    <button class="btn sm btn-danger" type="button" data-bulk="del">삭제</button>
+    <button class="btn btn-ghost sm" type="button" data-bulk="clear">선택 해제</button>`;
+  root.appendChild(bar);
+  document.body.classList.remove('bulk-on');   // 다시 그릴 때마다 선택이 비므로 띠도 내린다
+  const rowIds = () => [...root.querySelectorAll('.mr-task[data-task]')].map((li) => li.dataset.task);
+  const paintPicks = () => {
+    root.querySelectorAll('[data-pick]').forEach((cb) => { cb.checked = picked.has(cb.dataset.pick); });
+    root.querySelectorAll('[data-pick-group]').forEach((cb) => {
+      const box = cb.closest('.mr-phase, .mr-proj');
+      const ids = [...box.querySelectorAll('[data-pick]')].map((x) => x.dataset.pick);
+      const n = ids.filter((id) => picked.has(id)).length;
+      cb.checked = ids.length > 0 && n === ids.length;
+      cb.indeterminate = n > 0 && n < ids.length;
+    });
+    bar.hidden = !picked.size;
+    bar.querySelector('[data-bulk-n]').textContent = `${picked.size}건 선택`;
+    root.classList.toggle('has-bulk', picked.size > 0);
+    document.body.classList.toggle('bulk-on', picked.size > 0);
+  };
+  root.addEventListener('click', (e) => {
+    const cb = e.target.closest('[data-pick]');
+    if (cb) {
+      const id = cb.dataset.pick;
+      if (e.shiftKey && lastPick) {
+        const all = rowIds();
+        const [a, b] = [all.indexOf(lastPick), all.indexOf(id)].sort((x, y) => x - y);
+        if (a >= 0 && b >= 0) all.slice(a, b + 1).forEach((x) => (cb.checked ? picked.add(x) : picked.delete(x)));
+      } else if (cb.checked) picked.add(id); else picked.delete(id);
+      lastPick = id;
+      paintPicks();
+      return;
+    }
+    const gcb = e.target.closest('[data-pick-group]');
+    if (gcb) {
+      const box = gcb.closest('.mr-phase, .mr-proj');
+      box.querySelectorAll('[data-pick]').forEach((x) => (gcb.checked ? picked.add(x.dataset.pick) : picked.delete(x.dataset.pick)));
+      paintPicks();
+    }
+  });
+  const runAll = async (label, fn) => {
+    const ids = [...picked];
+    bar.querySelectorAll('button, select, input').forEach((el) => { el.disabled = true; });
+    let ok = 0; let fail = 0; let skip = 0;
+    for (const id of ids) {
+      try { const r2 = await fn(id, taskOf(id)); if (r2 === 'skip') skip += 1; else ok += 1; }
+      catch { fail += 1; }
+    }
+    toast(`${ok}건 ${label}${skip ? ` · 건너뜀 ${skip}` : ''}${fail ? ` · 실패 ${fail}` : ''}`, Boolean(fail));
+    reload();
+  };
+  bar.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-bulk]');
+    if (!b) return;
+    const kind = b.dataset.bulk;
+    if (kind === 'clear') { picked.clear(); paintPicks(); return; }
+    if (kind === 'owner') {
+      const v = bar.querySelector('[data-bulk-owner]').value;
+      if (!v) return void toast('지정할 담당을 골라 주세요.', true);
+      return runAll(`담당을 ${memberOf(v)?.display_name ?? ''}(으)로 지정했습니다`, (id) => api.patch(`/api/tasks/${id}`, { owner_slack_user_id: v }));
+    }
+    if (kind === 'co') {
+      const v = bar.querySelector('[data-bulk-co]').value;
+      if (!v) return void toast('더할 협업자를 골라 주세요.', true);
+      return runAll(`협업자에 ${memberOf(v)?.display_name ?? ''}을(를) 더했습니다`, async (id, t) => {
+        const cur = (t?.collaborators ?? []).map((c) => c.slack_user_id);
+        if (t?.owner_slack_user_id === v || cur.includes(v)) return 'skip';   // 담당이거나 이미 있으면 건너뛴다
+        return api.patch(`/api/tasks/${id}`, { collaborators: [...cur, v] });
+      });
+    }
+    if (kind === 'status') {
+      const v = bar.querySelector('[data-bulk-status]').value;
+      if (!v) return void toast('바꿀 상태를 골라 주세요.', true);
+      // 외주 업무는 상태 목록이 달라 건너뛴다
+      return runAll('상태를 바꿨습니다', (id, t) => (t?.area === 'OUT' ? 'skip' : api.patch(`/api/tasks/${id}`, { status: v })));
+    }
+    if (kind === 'due') {
+      const v = bar.querySelector('[data-bulk-due]').value;
+      if (!v) return void toast('마감일을 골라 주세요.', true);
+      return runAll('마감일을 바꿨습니다', (id) => api.patch(`/api/tasks/${id}`, { due_date: v }));
+    }
+    if (kind === 'del') {
+      const ok = await confirmModal(`고른 ${picked.size}건을 삭제할까요? 연결된 이슈는 남습니다.`, { confirmLabel: '삭제', danger: true });
+      if (!ok) return;
+      return runAll('삭제했습니다', (id) => api.del(`/api/tasks/${id}`));
+    }
+    return undefined;
+  });
   // 마감 — 다른 달로 옮기면 그 달 목표가 된다. 비우면 백로그라 이 달 목록에서 빠진다.
   bindDueEdit(root, async (id, value) => {
     const t = taskOf(id);
