@@ -1998,6 +1998,12 @@ body[data-gate="view"] .mr-co{pointer-events:none} body[data-gate="view"] .mr-co
 .rp-legend i.co{background:repeating-linear-gradient(135deg,transparent 0 2px,var(--indigo) 2px 3px);border:1px solid var(--line);border-radius:2px}
 .rp-cotag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;font-family:var(--mono);font-size:.68rem;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);vertical-align:middle}
 
+/* 월간 업무 줄의 삭제 — 올리기 전엔 숨는다 */
+.mr-del{flex:none;border:0;background:none;color:transparent;cursor:pointer;font-size:1rem;line-height:1;padding:2px 6px;border-radius:4px}
+.mr-task:hover .mr-del,.mr-del:focus-visible{color:var(--muted)}
+.mr-del:hover{color:var(--s-delay);background:var(--surface-2)}
+body[data-gate="view"] .mr-del{display:none}
+
 </style>
 
   <header class="topbar">
@@ -10418,6 +10424,7 @@ const mrTaskLine = (t) => `
     ${coCell(t)}
     <span class="mr-due${t.is_delayed ? ' late' : ''}">${dueCell(t)}</span>
     <span class="mr-st">${statusPick(t)}</span>
+    <button type="button" class="x mr-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
   </li>`;
 
 async function renderMonthly(root, query) {
@@ -10508,6 +10515,18 @@ async function renderMonthly(root, query) {
   const closePickers = () => root.querySelectorAll('.mr-co-pick').forEach((el) => {
     root.querySelector(`[data-co-pick="${CSS.escape(el.dataset.coPickFor)}"]`)?.setAttribute('aria-expanded', 'false');
     el.remove();
+  });
+  // 삭제 — 간트·업무 탭과 같은 확인 창. 연결된 이슈는 남는다.
+  root.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-del-task]');
+    if (!del) return;
+    e.preventDefault();
+    const t = taskOf(del.dataset.delTask);
+    const ok = await confirmModal(`「${t?.title ?? '이 업무'}」을(를) 삭제할까요? 연결된 이슈는 남습니다.`, { confirmLabel: '삭제', danger: true });
+    if (!ok) return;
+    try { await api.del(`/api/tasks/${del.dataset.delTask}`); toast('업무를 삭제했습니다.'); }
+    catch (err) { toast(err.message, true); }
+    reload();
   });
   root.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-co-pick]');

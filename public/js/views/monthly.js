@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import {
   esc, shortDate, loading, errorBox, go, projectStyle, progressBar, pctText, ticketTag, toast,
-  dueCell, bindDueEdit, statusPick, avatar,
+  dueCell, bindDueEdit, statusPick, avatar, confirmModal,
 } from '../ui.js';
 import { activeMembers, memberOf } from '../state.js';
 
@@ -47,6 +47,7 @@ const mrTaskLine = (t) => `
     ${coCell(t)}
     <span class="mr-due${t.is_delayed ? ' late' : ''}">${dueCell(t)}</span>
     <span class="mr-st">${statusPick(t)}</span>
+    <button type="button" class="x mr-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
   </li>`;
 
 export async function renderMonthly(root, query) {
@@ -137,6 +138,18 @@ export async function renderMonthly(root, query) {
   const closePickers = () => root.querySelectorAll('.mr-co-pick').forEach((el) => {
     root.querySelector(`[data-co-pick="${CSS.escape(el.dataset.coPickFor)}"]`)?.setAttribute('aria-expanded', 'false');
     el.remove();
+  });
+  // 삭제 — 간트·업무 탭과 같은 확인 창. 연결된 이슈는 남는다.
+  root.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-del-task]');
+    if (!del) return;
+    e.preventDefault();
+    const t = taskOf(del.dataset.delTask);
+    const ok = await confirmModal(`「${t?.title ?? '이 업무'}」을(를) 삭제할까요? 연결된 이슈는 남습니다.`, { confirmLabel: '삭제', danger: true });
+    if (!ok) return;
+    try { await api.del(`/api/tasks/${del.dataset.delTask}`); toast('업무를 삭제했습니다.'); }
+    catch (err) { toast(err.message, true); }
+    reload();
   });
   root.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-co-pick]');
