@@ -1039,10 +1039,6 @@ body[data-gate="admin"] .tl-task .tlg-bar{cursor:grab;touch-action:pan-y}
 .hovertip b{font-weight:600}
 .hovertip .tip-sub{color:var(--on-chrome-muted)}
 
-.tl-table{margin-top:14px}
-.tl-table summary{cursor:pointer;font-size:.8rem;color:var(--muted);padding:6px 2px}
-.tl-table summary:hover{color:var(--ink)}
-.tl-table .table-wrap{margin-top:8px}
 
 @media (max-width:860px){
   .tl-chart{--tl-label:170px;min-width:560px}
@@ -1957,3 +1953,16 @@ body[data-gate="view"] .bd-st .chip-select{pointer-events:none}
 .rp-dia{position:absolute;top:9px;width:11px;height:11px;transform:translateX(-50%) rotate(45deg);background:var(--indigo);border:2px solid var(--surface);z-index:1}
 .rp-dia.done{background:var(--s-done)} .rp-dia.late{background:var(--s-delay)}
 @media (max-width:720px){.rp-srow{grid-template-columns:130px minmax(0,1fr)}.rp-day{min-height:44px}}
+
+/* 업무 내용 — 상세에서 바로 적는다. 테두리는 손이 갔을 때만 */
+.desc-edit{width:100%;min-height:72px;font:inherit;font-size:.9rem;line-height:1.55;color:var(--ink);background:none;
+  border:1px solid transparent;border-radius:6px;padding:6px 8px;margin:-6px 0 0 -8px;resize:vertical;box-sizing:content-box;max-width:calc(100% - 16px)}
+.desc-edit:hover{border-color:var(--line)} .desc-edit:focus{border-color:var(--focus);background:var(--surface);outline:none}
+.desc-view{white-space:pre-wrap;color:var(--ink-2);font-size:.9rem;line-height:1.55;margin:0}
+/* 상세의 하위 업무 제목도 하위 업무 창과 같은 입력칸 */
+.subs .sbm-title{flex:1;min-width:0}
+.subs li.done .sbm-title{color:var(--muted);text-decoration:line-through}
+/* 업무 수정 창 안의 하위 업무 칸 */
+.tf-subs{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.tf-subs h4{margin:0 0 4px;font-size:.9rem;font-weight:700;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.tf-subs h4 .hint{font-weight:400}
