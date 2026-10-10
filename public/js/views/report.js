@@ -32,7 +32,7 @@ const cards = (ov, tasks) => {
         </div>
         <div class="rp-legend">${byPrio.map((p) => `<span><i class="pr-${p.code.toLowerCase()}"></i>${esc(p.label)} ${p.n}</span>`).join('')}</div>
       </section>
-      <section class="rp-card goal">
+      <section class="rp-card">
         <h3>전체 진척</h3>
         <div class="rp-goal"><b>실행 ${pctText(ov.progress)}</b><span>목표 100%</span></div>
         <div class="rp-goalbar"><i style="width:${ov.progress ?? 0}%"></i></div>

@@ -243,25 +243,6 @@ export async function renderTimeline(root) {
       <div class="tl-backlog-body" id="tl-backlog-body">불러오는 중…</div>
     </details>
 
-    <details class="tl-table">
-      <summary>표로 보기</summary>
-      <div class="table-wrap">
-        <table class="list">
-          <thead><tr><th>프로젝트</th><th>페이즈</th><th>시작</th><th>종료</th><th class="num">업무</th><th class="num">진행</th></tr></thead>
-          <tbody>
-            ${live.flatMap((r) => r.phases.map((ph) => `
-              <tr>
-                <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
-                <td data-label="페이즈">${esc(ph.name)}${ph.derived ? ' <span class="hint">(계산)</span>' : ''}</td>
-                <td data-label="시작">${shortDate(ph.start_date)}</td>
-                <td data-label="종료">${shortDate(ph.end_date)}</td>
-                <td data-label="업무" class="num">${ph.task_count}</td>
-                <td data-label="진행" class="num">${ph.progress === null ? '-' : `${ph.progress}%`}</td>
-              </tr>`)).join('') || '<tr><td colspan="6">페이즈가 없습니다.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </details>
 
     <section class="section">
       <div class="section-head">

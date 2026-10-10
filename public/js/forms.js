@@ -227,7 +227,12 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         </div>
         <p class="hint" style="margin-top:10px">외주 작업의 <b>내부 담당자</b>는 위의 담당자입니다. 외부 업체·작업자는 KinderFlow 계정이 아닙니다.</p>
       </fieldset>
-    </form>`;
+    </form>
+    ${editing ? `
+    <div class="tf-subs" data-subs-section>
+      <h4>하위 업무 <span class="hint">여기서 바꾼 것은 바로 저장됩니다 · 아래 「저장」은 업무 본체만</span></h4>
+      <div data-subs-slot></div>
+    </div>` : ''}`;
 
   const footer = `
     <label style="display:flex;align-items:center;gap:7px;font-size:.85rem;color:var(--muted)">
@@ -243,6 +248,16 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
     body, footer, wide: true,
     onMount({ root, close }) {
       const form = root.querySelector('#task-form');
+      // 수정 창에서 하위 업무를 같이 본다. 바뀌면 창을 닫을 때 바깥을 새로 그린다 — 저장 없이 닫아도.
+      let subsChanged = false;
+      const subsSlot = root.querySelector('[data-subs-slot]');   // 폼 밖에 둔다 — 폼 안에 폼을 넣을 수 없고, 하위 업무 입력칸이 업무 폼 값에 섞이면 안 된다
+      if (subsSlot && task?.id) {
+        mountSubtasks(subsSlot, task, { onChange: () => { subsChanged = true; } });
+        const obs = new MutationObserver(() => {
+          if (!root.isConnected) { obs.disconnect(); if (subsChanged) window.dispatchEvent(new Event('kf:reload')); }
+        });
+        obs.observe(document.getElementById('modal-root'), { childList: true });
+      }
       const areaSel = form.querySelector('[name=area]');
       const statusSel = form.querySelector('[name=status]');
       const outBox = form.querySelector('[data-out]');
@@ -1036,6 +1051,121 @@ export function expenseForm({ defaults = {}, onSaved }) {
 // 타임라인 패널에서 상위 업무를 누르면 열린다. 상세로 넘어가지 않고 그 자리에서
 // 하위 업무를 보고, 더하고, 고치고, 체크한다. 담당과 마감은 상위 업무를 따른다.
 // 보기 전용이어도 열린다 — 읽는 것은 막지 않는다. 고치는 손잡이만 감춘다.
+/**
+ * 하위 업무 목록 한 벌 — 목록 · 상태 · 제목 · 마감 · 삭제 · 추가. 업무 수정 창이 쓴다.
+ * 바뀌는 즉시 저장된다(하위 업무 창과 같다). onChange 는 뭔가 바뀔 때마다 부른다.
+ */
+export function mountSubtasks(box, task, { onChange } = {}) {
+  const t = task;
+  let rows = [];
+  const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
+  const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
+      <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
+        ${subStatusPick(r)}
+        ${ticketTag({ ...r, project_id: t.project_id })}
+        <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
+               data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
+               data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감" title="비우면 상위 업무 마감을 따릅니다.">
+        <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
+        <button class="x" type="button" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
+      </li>`).join('')}</ul>`
+    : '<p class="empty-line">아직 하위 업무가 없습니다. 아래에서 더해 주세요.</p>');
+  const paint = () => {
+    box.innerHTML = `
+      <div data-list>${list()}</div>
+      <form class="sub-add" data-sub-add>
+        <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
+        <button class="btn btn-ghost" type="submit">+ 추가</button>
+      </form>`;
+  };
+  const load = async () => {
+    try { rows = await api.get(`/api/tasks/${t.id}/subtasks`); }
+    catch (err) { toast(err.message, true); rows = []; }
+    const keep = box.querySelector('[data-sub-add] [name=title]')?.value ?? '';
+    paint();
+    const inp = box.querySelector('[data-sub-add] [name=title]');
+    if (inp && keep) inp.value = keep;
+  };
+  const touched = () => onChange?.();
+
+  box.addEventListener('change', async (e) => {
+    const sst = e.target.closest('[data-sub-status]');
+    if (sst) {
+      if (!editable()) return load();
+      try {
+        const r = await api.patch(`/api/subtasks/${sst.dataset.subStatus}`, { status: sst.value });
+        touched();
+        const note = nudgeNote(r?.nudged);
+        if (note) toast(note);
+      } catch (err) { toast(err.message, true); }
+      return load();
+    }
+    const ttl = e.target.closest('[data-sub-title]');
+    if (ttl) {
+      const next = ttl.value.trim();
+      const cur = rows.find((r) => r.id === ttl.dataset.subTitle);
+      if (!next) { toast('하위 업무명을 비울 수는 없습니다.', true); ttl.value = cur?.title ?? ''; return undefined; }
+      if (next === cur?.title) return undefined;
+      if (!editable()) { ttl.value = cur?.title ?? ''; return undefined; }
+      try { await api.patch(`/api/subtasks/${ttl.dataset.subTitle}`, { title: next }); touched(); toast('하위 업무명을 바꿨습니다.'); }
+      catch (err) { toast(err.message, true); }
+      return load();
+    }
+    const sdue = e.target.closest('[data-sub-due]');
+    if (sdue) {
+      const cur = rows.find((r) => r.id === sdue.dataset.subDue);
+      if (!editable()) { sdue.value = cur?.due_date ?? ''; return undefined; }
+      try {
+        const res = await api.patch(`/api/subtasks/${sdue.dataset.subDue}`, { due_date: sdue.value || null });
+        touched();
+        const r = res.rolled ?? {};
+        if (r.task_due || r.phase_end) toast(`상위 업무 마감이 ${shortDate(r.task_due ?? t.due_date)}로 밀렸습니다${r.phase_end ? ` · 페이즈 종료일도 ${shortDate(r.phase_end)}로` : ''}`);
+      } catch (err) { toast(err.message, true); }
+      return load();
+    }
+    return undefined;
+  });
+  box.addEventListener('keydown', (e) => {
+    const ttl = e.target.closest('[data-sub-title]');
+    if (!ttl) return;
+    if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();   // 창까지 닫히면 안 된다 — 글자만 되돌린다
+      ttl.value = rows.find((r) => r.id === ttl.dataset.subTitle)?.title ?? '';
+      ttl.blur();
+    }
+  });
+  box.addEventListener('submit', async (e) => {
+    const add = e.target.closest('[data-sub-add]');
+    if (!add) return;
+    e.preventDefault();
+    e.stopPropagation();   // 바깥 폼(업무 수정)의 제출로 번지지 않게
+    if (!editable()) return;
+    const input = add.querySelector('[name=title]');
+    const title = input.value.trim();
+    if (!title) return;
+    try {
+      await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+      touched();
+      input.value = '';
+      await load();
+      box.querySelector('[data-sub-add] [name=title]')?.focus();
+    } catch (err) { toast(err.message, true); }
+  });
+  box.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-sub-del]');
+    if (!del) return;
+    if (!editable()) return;
+    try { await api.del(`/api/subtasks/${del.dataset.subDel}`); touched(); }
+    catch (err) { toast(err.message, true); }
+    load();
+  });
+  load();
+  return { reload: load };
+}
+
 export function subtaskModal({ task, onChange, focus = null }) {
   const t = task;
   let rows = [];

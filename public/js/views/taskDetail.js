@@ -1,8 +1,9 @@
 import { api } from '../api.js';
+import { canEdit } from '../gate.js';
 import { state, areaMeta, coLeadsOf, leadOf } from '../state.js';
 import {
   esc, statusChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
-  titleCell, autoGrow, syncTitleCell, linkify, subStatusOf, subProgress, subStatusPick, nudgeNote,} from '../ui.js';
+  titleCell, autoGrow, syncTitleCell, linkify, subStatusOf, subProgress, subStatusPick, nudgeNote, firstUrl,} from '../ui.js';
 import { taskForm, issueForm } from '../forms.js';
 import { bindComments } from '../comments.js';
 
@@ -75,9 +76,11 @@ const attList = (rows = []) => {
 
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
-      <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}">
+      <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
         ${subStatusPick(r)}
-        <span class="sub-ttl">${linkify(r.title)}</span>
+        <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
+               data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
         ${subDue(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
@@ -159,7 +162,13 @@ export async function renderTaskDetail(root, id, query = '') {
             <dt>상태</dt><dd>${statusChip(t.status)}</dd>
             ${t.completed_at ? `<dt>완료</dt><dd class="num">${dateTime(t.completed_at)}</dd>` : ''}
           </dl>
-          ${t.description ? `<p style="margin-top:14px;white-space:pre-wrap;color:var(--ink-2)">${linkify(t.description)}</p>` : ''}
+        </div>
+
+        <div class="panel" data-desc-panel>
+          <h3>업무 내용</h3>
+          ${canEdit()
+    ? `<textarea class="desc-edit" data-desc rows="3" maxlength="4000" placeholder="필요한 배경이나 완료 기준을 적어 두세요. 적은 뒤 「저장」을 누릅니다." aria-label="업무 내용">${esc(t.description ?? '')}</textarea>`
+    : (t.description ? `<p class="desc-view">${linkify(t.description)}</p>` : '<p class="empty-line">아직 적은 내용이 없습니다.</p>')}
         </div>
 
         <div class="panel" data-subs-panel>
@@ -308,6 +317,23 @@ export async function renderTaskDetail(root, id, query = '') {
       } catch (err) { toast(err.message, true); await reloadSubs(); }
       return undefined;
     }
+    // 하위 업무 제목 — 하위 업무 창과 같은 규칙. 빈 값은 거부, 같으면 무시
+    const sttl = e.target.closest('[data-sub-title]');
+    if (sttl) {
+      const next = sttl.value.trim();
+      const cur = (t.subtasks ?? []).find((r) => r.id === sttl.dataset.subTitle);
+      if (!next) { toast('하위 업무명을 비울 수는 없습니다.', true); sttl.value = cur?.title ?? ''; return undefined; }
+      if (next === cur?.title) return undefined;
+      try {
+        await api.patch(`/api/subtasks/${sttl.dataset.subTitle}`, { title: next });
+        toast('하위 업무명을 바꿨습니다.');
+        await reloadSubs();
+      } catch (err) { toast(err.message, true); await reloadSubs(); }
+      return undefined;
+    }
+    // 업무 내용 — 다른 칸처럼 모아 두었다가 「저장」으로 올린다
+    const desc = e.target.closest('[data-desc]');
+    if (desc) { stage('description', desc.value.trim() || null); return undefined; }
     const sub = e.target.closest('[data-sub-status]');
     if (sub) {
       try {
@@ -440,8 +466,22 @@ export async function renderTaskDetail(root, id, query = '') {
   if (wantComment) setTimeout(() => root.querySelector('[data-comments-panel]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 100);
 
   autoGrow(root);
+  root.addEventListener('input', (e) => {
+    const desc = e.target.closest('[data-desc]');
+    if (desc) stage('description', desc.value.trim() || null);
+  });
 
   root.addEventListener('keydown', (e) => {
+    const sttl = e.target.closest('[data-sub-title]');
+    if (sttl) {
+      if (e.key === 'Enter') { e.preventDefault(); sttl.blur(); }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        sttl.value = (t.subtasks ?? []).find((r) => r.id === sttl.dataset.subTitle)?.title ?? '';
+        sttl.blur();
+      }
+      return;
+    }
     const ttl = e.target.closest('[data-title]');
     if (!ttl) return;
     if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
