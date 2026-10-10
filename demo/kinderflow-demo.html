@@ -1984,10 +1984,14 @@ body[data-gate="view"] .bd-st .chip-select{pointer-events:none}
 .mr-co .plus{width:22px;height:22px;border-radius:50%;border:1px dashed var(--line);display:inline-flex;align-items:center;justify-content:center;margin:0;color:var(--muted);font-size:.9rem}
 .mr-co:hover .plus,.mr-co[aria-expanded="true"] .plus{border-color:var(--indigo);color:var(--indigo)}
 .mr-co:hover{background:var(--surface-2)}
-.mr-co-pick{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:2px 0 8px 28px;padding:8px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--surface-2)}
-.mr-co-pick label{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer}
+.mr-co-wrap{position:relative;display:inline-flex}
+.mr-co .caret{margin-left:2px;font-size:.6rem;color:var(--muted)}
+.mr-co-pick{position:absolute;top:calc(100% + 4px);left:0;z-index:30;min-width:170px;max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:2px;
+  padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:0 8px 24px rgba(20,24,45,.14)}
+.mr-co-pick label{display:flex;align-items:center;gap:8px;font-size:.84rem;cursor:pointer;padding:5px 8px;border-radius:6px;white-space:nowrap}
+.mr-co-pick label:hover{background:var(--surface-2)}
 .mr-co-pick input{accent-color:var(--indigo)}
-.mr-co-pick .hint{flex-basis:100%;font-size:.72rem}
+.mr-co-pick .hint{font-size:.7rem;padding:4px 8px 2px;border-top:1px solid var(--line-soft);margin-top:2px}
 body[data-gate="view"] .mr-co{pointer-events:none} body[data-gate="view"] .mr-co .plus{display:none}
 
 /* 리포트 — 협업 막대(빗금)와 「협 n」 태그 */
@@ -10402,17 +10406,18 @@ const ownerPick = (t) => `<select class="mr-own-pick" data-owner="${esc(t.id)}" 
 const coCell = (t) => {
   const co = t.collaborators ?? [];
   const names = co.map((c) => c.display_name).join(', ');
-  return `<button type="button" class="mr-co${co.length ? '' : ' none'}" data-co-pick="${esc(t.id)}" aria-expanded="false"
+  return `<span class="mr-co-wrap"><button type="button" class="mr-co${co.length ? '' : ' none'}" data-co-pick="${esc(t.id)}" aria-expanded="false" aria-haspopup="listbox"
       title="${esc(co.length ? `협업자: ${names} — 눌러서 바꾸기` : '협업자 더하기')}" aria-label="협업자">
-      ${co.slice(0, 3).map((c) => avatar(memberOf(c.slack_user_id) ?? c, 'sm')).join('')}${co.length > 3 ? `<i>+${co.length - 3}</i>` : ''}${co.length ? '' : '<i class="plus">+</i>'}
-    </button>`;
+      ${co.slice(0, 3).map((c) => avatar(memberOf(c.slack_user_id) ?? c, 'sm')).join('')}${co.length > 3 ? `<i>+${co.length - 3}</i>` : ''}${co.length ? '' : '<i class="plus">+</i>'}<i class="caret">▾</i>
+    </button></span>`;
 };
+// 드롭다운 — 단추 아래에 열리는 체크 목록. 여러 명을 고르고, 고를 때마다 바로 저장된다.
 const coPicker = (t) => `
-  <div class="mr-co-pick" data-co-pick-for="${esc(t.id)}" role="group" aria-label="협업자 고르기">
+  <div class="mr-co-pick" data-co-pick-for="${esc(t.id)}" role="listbox" aria-multiselectable="true" aria-label="협업자 고르기">
     ${activeMembers().filter((m) => m.slack_user_id !== t.owner_slack_user_id).map((m) => `
-      <label><input type="checkbox" data-co-member="${esc(m.slack_user_id)}"${(t.collaborators ?? []).some((c) => c.slack_user_id === m.slack_user_id) ? ' checked' : ''}>
+      <label role="option"><input type="checkbox" data-co-member="${esc(m.slack_user_id)}"${(t.collaborators ?? []).some((c) => c.slack_user_id === m.slack_user_id) ? ' checked' : ''}>
         ${avatar(m, 'sm')}<span>${esc(m.display_name)}</span></label>`).join('')}
-    <span class="hint">체크하면 바로 저장됩니다 · 담당은 뺐습니다</span>
+    <span class="hint">고르면 바로 저장 · 담당은 뺐습니다</span>
   </div>`;
 const mrTaskLine = (t) => `
   <li class="mr-task${t.status === 'DONE' ? ' done' : ''}${t.is_delayed ? ' late' : ''}" data-task="${esc(t.id)}">
@@ -10537,7 +10542,7 @@ async function renderMonthly(root, query) {
       const t = taskOf(btn.dataset.coPick);
       if (!t) return;
       btn.setAttribute('aria-expanded', 'true');
-      btn.closest('.mr-task').insertAdjacentHTML('afterend', coPicker(t));
+      btn.closest('.mr-co-wrap').insertAdjacentHTML('beforeend', coPicker(t));
       return;
     }
     if (!e.target.closest('.mr-co-pick')) closePickers();
@@ -10557,7 +10562,7 @@ async function renderMonthly(root, query) {
         if (t) {
           t.collaborators = ids.map((uid) => { const m = memberOf(uid); return { slack_user_id: uid, display_name: m?.display_name ?? uid, avatar_url: m?.avatar_url ?? null }; });
           const btn = root.querySelector(`[data-co-pick="${CSS.escape(id)}"]`);
-          if (btn) { const h = document.createElement('div'); h.innerHTML = coCell(t); const nb = h.firstElementChild; nb.setAttribute('aria-expanded', 'true'); btn.replaceWith(nb); }
+          if (btn) { const h = document.createElement('div'); h.innerHTML = coCell(t); const nb = h.querySelector('.mr-co'); nb.setAttribute('aria-expanded', 'true'); btn.replaceWith(nb); }
         }
       } catch (err) { toast(err.message, true); reload(); }
       return undefined;

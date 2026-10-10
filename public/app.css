@@ -1980,10 +1980,14 @@ body[data-gate="view"] .bd-st .chip-select{pointer-events:none}
 .mr-co .plus{width:22px;height:22px;border-radius:50%;border:1px dashed var(--line);display:inline-flex;align-items:center;justify-content:center;margin:0;color:var(--muted);font-size:.9rem}
 .mr-co:hover .plus,.mr-co[aria-expanded="true"] .plus{border-color:var(--indigo);color:var(--indigo)}
 .mr-co:hover{background:var(--surface-2)}
-.mr-co-pick{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:2px 0 8px 28px;padding:8px 12px;border:1px dashed var(--line);border-radius:8px;background:var(--surface-2)}
-.mr-co-pick label{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer}
+.mr-co-wrap{position:relative;display:inline-flex}
+.mr-co .caret{margin-left:2px;font-size:.6rem;color:var(--muted)}
+.mr-co-pick{position:absolute;top:calc(100% + 4px);left:0;z-index:30;min-width:170px;max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:2px;
+  padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:0 8px 24px rgba(20,24,45,.14)}
+.mr-co-pick label{display:flex;align-items:center;gap:8px;font-size:.84rem;cursor:pointer;padding:5px 8px;border-radius:6px;white-space:nowrap}
+.mr-co-pick label:hover{background:var(--surface-2)}
 .mr-co-pick input{accent-color:var(--indigo)}
-.mr-co-pick .hint{flex-basis:100%;font-size:.72rem}
+.mr-co-pick .hint{font-size:.7rem;padding:4px 8px 2px;border-top:1px solid var(--line-soft);margin-top:2px}
 body[data-gate="view"] .mr-co{pointer-events:none} body[data-gate="view"] .mr-co .plus{display:none}
 
 /* 리포트 — 협업 막대(빗금)와 「협 n」 태그 */

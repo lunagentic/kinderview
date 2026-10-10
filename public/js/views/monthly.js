@@ -25,17 +25,18 @@ const ownerPick = (t) => `<select class="mr-own-pick" data-owner="${esc(t.id)}" 
 const coCell = (t) => {
   const co = t.collaborators ?? [];
   const names = co.map((c) => c.display_name).join(', ');
-  return `<button type="button" class="mr-co${co.length ? '' : ' none'}" data-co-pick="${esc(t.id)}" aria-expanded="false"
+  return `<span class="mr-co-wrap"><button type="button" class="mr-co${co.length ? '' : ' none'}" data-co-pick="${esc(t.id)}" aria-expanded="false" aria-haspopup="listbox"
       title="${esc(co.length ? `협업자: ${names} — 눌러서 바꾸기` : '협업자 더하기')}" aria-label="협업자">
-      ${co.slice(0, 3).map((c) => avatar(memberOf(c.slack_user_id) ?? c, 'sm')).join('')}${co.length > 3 ? `<i>+${co.length - 3}</i>` : ''}${co.length ? '' : '<i class="plus">+</i>'}
-    </button>`;
+      ${co.slice(0, 3).map((c) => avatar(memberOf(c.slack_user_id) ?? c, 'sm')).join('')}${co.length > 3 ? `<i>+${co.length - 3}</i>` : ''}${co.length ? '' : '<i class="plus">+</i>'}<i class="caret">▾</i>
+    </button></span>`;
 };
+// 드롭다운 — 단추 아래에 열리는 체크 목록. 여러 명을 고르고, 고를 때마다 바로 저장된다.
 const coPicker = (t) => `
-  <div class="mr-co-pick" data-co-pick-for="${esc(t.id)}" role="group" aria-label="협업자 고르기">
+  <div class="mr-co-pick" data-co-pick-for="${esc(t.id)}" role="listbox" aria-multiselectable="true" aria-label="협업자 고르기">
     ${activeMembers().filter((m) => m.slack_user_id !== t.owner_slack_user_id).map((m) => `
-      <label><input type="checkbox" data-co-member="${esc(m.slack_user_id)}"${(t.collaborators ?? []).some((c) => c.slack_user_id === m.slack_user_id) ? ' checked' : ''}>
+      <label role="option"><input type="checkbox" data-co-member="${esc(m.slack_user_id)}"${(t.collaborators ?? []).some((c) => c.slack_user_id === m.slack_user_id) ? ' checked' : ''}>
         ${avatar(m, 'sm')}<span>${esc(m.display_name)}</span></label>`).join('')}
-    <span class="hint">체크하면 바로 저장됩니다 · 담당은 뺐습니다</span>
+    <span class="hint">고르면 바로 저장 · 담당은 뺐습니다</span>
   </div>`;
 const mrTaskLine = (t) => `
   <li class="mr-task${t.status === 'DONE' ? ' done' : ''}${t.is_delayed ? ' late' : ''}" data-task="${esc(t.id)}">
@@ -160,7 +161,7 @@ export async function renderMonthly(root, query) {
       const t = taskOf(btn.dataset.coPick);
       if (!t) return;
       btn.setAttribute('aria-expanded', 'true');
-      btn.closest('.mr-task').insertAdjacentHTML('afterend', coPicker(t));
+      btn.closest('.mr-co-wrap').insertAdjacentHTML('beforeend', coPicker(t));
       return;
     }
     if (!e.target.closest('.mr-co-pick')) closePickers();
@@ -180,7 +181,7 @@ export async function renderMonthly(root, query) {
         if (t) {
           t.collaborators = ids.map((uid) => { const m = memberOf(uid); return { slack_user_id: uid, display_name: m?.display_name ?? uid, avatar_url: m?.avatar_url ?? null }; });
           const btn = root.querySelector(`[data-co-pick="${CSS.escape(id)}"]`);
-          if (btn) { const h = document.createElement('div'); h.innerHTML = coCell(t); const nb = h.firstElementChild; nb.setAttribute('aria-expanded', 'true'); btn.replaceWith(nb); }
+          if (btn) { const h = document.createElement('div'); h.innerHTML = coCell(t); const nb = h.querySelector('.mr-co'); nb.setAttribute('aria-expanded', 'true'); btn.replaceWith(nb); }
         }
       } catch (err) { toast(err.message, true); reload(); }
       return undefined;
