@@ -591,7 +591,7 @@ body[data-gate="view"] .tk-grip,
 body[data-gate="view"] .tk-project-head .grip{visibility:hidden}
 /* 폼을 여는 단추도 보기 전용에서는 감춘다.
    진짜로 막는 곳은 폼 자체와 저장소다 — 여기는 "눌러도 되는 것처럼" 보이지 않게 하는 일이다. */
-body[data-gate="view"] [data-phase]:not(.tl-name),
+
 body[data-gate="view"] .tl-add-btn,
 body[data-gate="view"] .tlg-add,
 body[data-gate="view"] [data-add-task],
@@ -2022,6 +2022,30 @@ body[data-gate="view"] .mr-del{display:none}
 body[data-gate="view"] .mr-pick,body[data-gate="view"] .mr-bulk{display:none}
 @media (max-width:720px){.mr-bulk{left:8px;right:8px;transform:none;max-width:none;bottom:8px}.mr-bulk .sep{display:none}}
 body.bulk-on .toast-root{bottom:96px}
+
+/* ── 모바일 ── */
+@media (max-width:720px){
+  /* 타임라인 페이즈 줄: 진척 막대를 빼고 이름에 자리를 준다 — 이름이 0 폭으로 접히던 문제 */
+  .tl-ph-line .tl-name{flex:1 1 auto;min-width:56px}
+  .tl-ph-line .tl-prog{display:none}
+  .tl-chart{--tl-label:200px}
+  .tl-ph-line{gap:4px}
+  .tl-ph-line .ph-cm{min-width:28px;padding:1px 3px}
+  /* 월간 업무 줄: 한 줄로 — 제목(말줄임) · 담당 · 마감 · 상태 */
+  .mr-task{flex-wrap:nowrap;gap:6px;padding:7px 2px}
+  .mr-task .tkey,.mr-task .mr-sub,.mr-task .mr-iss,.mr-task .mr-co-wrap,.mr-task .mr-del{display:none}
+  .mr-ttl{flex:1 1 auto;flex-basis:auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.86rem}
+  .mr-own-pick{max-width:62px;min-height:0;height:26px;padding:0 14px 0 6px;font-size:.72rem;background-position:right 3px center}
+  .mr-st .chip-select{min-height:0}
+  .mr-own{font-size:.74rem;flex:none}
+  .mr-due{flex:none;font-size:.72rem}
+  .mr-due .due-view{padding:1px 2px;font-size:.72rem}
+  .mr-due .dday{display:none}
+  .mr-st{flex:none}
+  .mr-st .chip-select{font-size:.68rem;padding:1px 14px 1px 9px}
+  .mr-phase ul{padding-left:0}
+  .mr-proj{padding:8px 8px 10px}
+}
 
 </style>
 
