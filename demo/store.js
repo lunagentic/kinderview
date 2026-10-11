@@ -646,8 +646,24 @@ async function syncFromRemote() {
     // 공유본과 로컬 둘 다 있는 줄은 공유본이 이긴다. 덮기 전 로컬 전체를 한 벌 남겨 둔다.
     const synced = readSynced();
     const remoteKeys = new Set(rows.map((r) => `${r.collection}/${r.id}`));
-    const localOnly = flatten(DB).filter((r) => r.collection !== 'meta'
-      && !remoteKeys.has(`${r.collection}/${r.id}`) && (!synced || !synced.has(`${r.collection}/${r.id}`)));
+    // 합칠 줄은 좁게 고른다 — 넓게 고르면 옛 미리보기 데이터가 공유본 옆에 중복으로 선다.
+    //  · 이 브라우저가 공유본과 한 번도 맞춘 적이 없으면(synced 없음) 로컬 줄은 미리보기 시드다 → 합치지 않는다.
+    //  · 쓸 수 없는 자리(보기 전용·미리보기)에서는 올리지도 못하니 합치지 않는다 — 공유본만 보인다.
+    //  · 공유본에 같은 이름의 프로젝트가 이미 있으면 그 프로젝트와 딸린 페이즈·업무는 옛 사본이다 → 버린다.
+    //  · 페이즈·마일스톤·업무는 공유본(또는 함께 살리는 프로젝트)에 붙어 있어야 한다.
+    const canMerge = Boolean(synced) && canEdit() && !isLocalOnly();
+    let localOnly = canMerge ? flatten(DB).filter((r) => r.collection !== 'meta'
+      && !remoteKeys.has(`${r.collection}/${r.id}`) && !synced.has(`${r.collection}/${r.id}`)) : [];
+    if (localOnly.length) {
+      const remoteNames = new Set((remote.projects ?? []).map((pr) => pr.name));
+      const keptProjects = new Set((remote.projects ?? []).map((pr) => pr.id));
+      for (const r of localOnly) if (r.collection === 'projects' && !remoteNames.has(r.data.name)) keptProjects.add(r.data.id);
+      localOnly = localOnly.filter((r) => {
+        if (r.collection === 'projects') return keptProjects.has(r.data.id);
+        if (['phases', 'milestones', 'tasks'].includes(r.collection) && r.data.project_id) return keptProjects.has(r.data.project_id);
+        return true;
+      });
+    }
     if (localOnly.length) {
       try { localStorage.setItem(BACKUP_KEY, localStorage.getItem(LS_KEY) ?? ''); } catch { /* 없으면 그만 */ }
       for (const r of localOnly) (remote[r.collection] ??= []).push(r.data);
