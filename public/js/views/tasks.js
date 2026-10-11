@@ -438,10 +438,8 @@ export async function renderTasks(root, query) {
       return go(`#/project/tasks${next.toString() ? `?${next.toString()}` : ''}`);
     }
 
-    if (e.target.closest('[data-reset]')) return setParam({
-      owner: '', stage: '', delayed: '', issue: '', area: '', project: '', q: '', done: '',
-      month: rawMonth || 'all',   // 달은 그대로 두되 빈 주소로는 만들지 않는다
-    });
+    // 초기화 — 기본 상태(업무 전체 · 프로젝트 전체 · 영역 전체 · 리드 전체)로 돌아간다. 보기만 유지
+    if (e.target.closest('[data-reset]')) return go(`#/project/tasks${gantt ? '?view=gantt' : ''}`);
 
     if (e.target.closest('[data-new-project]')) {
       return projectForm({ onSaved: reload });
