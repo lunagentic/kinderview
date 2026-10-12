@@ -338,6 +338,30 @@ export const subStatusPick = (r) => {
     ${SUB_STATUS.map((s) => `<option value="${s.code}"${s.code === cur ? ' selected' : ''}>${s.mark} ${s.label}</option>`).join('')}
   </select>`;
 };
+/**
+ * 하위 업무의 영역 · 담당 고르기 — 업무 영역과 실무 담당은 하위 업무에 붙는다.
+ * 영역을 바꾸면 담당이 리드를 따르고 있었을 때 새 영역 리드로 간다(저장소 규칙). 담당은 직접 고를 수도 있다.
+ */
+export const subAreaPick = (r) => {
+  const cur = r.area ?? '';
+  const list = (state.meta?.areas ?? []).filter((a) => a.code !== 'OUT');
+  return `<select class="sub-area${cur ? '' : ' none'}" data-sub-area="${esc(r.id)}" aria-label="하위 업무 영역" title="업무 영역">
+    <option value=""${cur ? '' : ' selected'}>영역 없음</option>
+    ${list.map((a) => `<option value="${esc(a.code)}"${a.code === cur ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}
+  </select>`;
+};
+export const subOwnerPick = (r) => {
+  const cur = r.owner_slack_user_id ?? '';
+  const people = (state.members ?? []).filter((m) => m.is_active || m.slack_user_id === cur);
+  return `<select class="sub-owner${cur ? '' : ' none'}" data-sub-owner="${esc(r.id)}" aria-label="하위 업무 담당" title="담당">
+    <option value=""${cur ? '' : ' selected'}>담당 없음</option>
+    ${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === cur ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+  </select>`;
+};
+/** 보기 전용 칩 — 타임라인처럼 좁은 줄에 */
+export const subAreaChip = (r) => (r.area
+  ? `<span class="sub-area-chip" title="업무 영역">${esc(areaMeta(r.area).label)}</span>` : '');
+
 /** 상위 업무가 밀렸을 때의 안내 글 */
 export const nudgeNote = (nudged) => (nudged
   ? `상위 업무 상태가 「${nudged === 'REVIEW' ? '검토' : nudged === 'IN_PROGRESS' ? '진행중' : nudged}」로 바뀌었습니다` : null);

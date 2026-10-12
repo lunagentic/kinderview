@@ -87,6 +87,7 @@ tx(() => {
 
   const leadOf = Object.fromEntries(AREA_LEADS);
   const taskIdByTitle = {};
+  const taskInfo = {};   // 하위 업무가 영역·담당을 물려받는다
   for (const [pk, phaseKey, group, detail, area, due, priority, note, who] of TASKS) {
     const id = uid();
     const title = taskTitle(group, detail);
@@ -103,23 +104,35 @@ tx(() => {
          VALUES (:id, :pid, :phase, :title, :area, :owner, 'TODO', :priority,
                  NULL, :due, :desc, NULL, :by, :created, :created)`,
       {
+        // 업무 영역은 하위 업무에 붙는다 — 상위 area 는 외주 표시뿐
         id, pid: projectId[pk], phase: phaseId[phaseKey] ?? null,
-        title, area, owner, priority, due, desc: note || null, by: 'U01KIM', created,
+        title, area: area === 'OUT' ? 'OUT' : null, owner, priority, due, desc: note || null, by: 'U01KIM', created,
       });
+    taskInfo[id] = { area: area === 'OUT' ? null : area, owner, title };
 
     run(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
          VALUES (:id, :t, 'CREATED', NULL, 'TODO', :actor, :at)`,
       { id: uid(), t: id, actor: 'U01KIM', at: created });
   }
 
+  const withSubs = new Set();
   for (const [group, detail, items] of SUBTASKS ?? []) {
     const taskId = taskIdByTitle[taskTitle(group, detail)];
     if (!taskId) throw new Error(`하위 업무를 붙일 업무를 못 찾았습니다: ${taskTitle(group, detail)}`);
+    withSubs.add(taskId);
+    const info = taskInfo[taskId];
     items.forEach((title, i) => {
-      run(`INSERT INTO subtask (id, task_id, title, is_done, sort_order, created_at)
-           VALUES (:id, :t, :title, 0, :n, :at)`,
-        { id: uid(), t: taskId, title, n: i + 1, at: nowISO() });
+      run(`INSERT INTO subtask (id, task_id, title, is_done, sort_order, area, owner_slack_user_id, assigned_at, created_at)
+           VALUES (:id, :t, :title, 0, :n, :area, :own, :at, :at)`,
+        { id: uid(), t: taskId, title, n: i + 1, area: info.area, own: info.owner, at: nowISO() });
     });
+  }
+  // 하위가 없는 업무는 같은 이름의 하위 하나에 영역·담당을 둔다 — 영역은 하위 업무에 있다
+  for (const [taskId, info] of Object.entries(taskInfo)) {
+    if (withSubs.has(taskId) || !info.area) continue;
+    run(`INSERT INTO subtask (id, task_id, title, is_done, sort_order, area, owner_slack_user_id, assigned_at, created_at)
+         VALUES (:id, :t, :title, 0, 1, :area, :own, :at, :at)`,
+      { id: `sub-${taskId}`, t: taskId, title: info.title, area: info.area, own: info.owner, at: nowISO() });
   }
 
   for (const [title, type, from, to, daysAgo] of EXTRA_EVENTS) {

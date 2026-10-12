@@ -12,6 +12,9 @@ const daysSince = (isoTimestamp, today) =>
 
 const SEVERITY_RANK = { high: 0, medium: 1, low: 2 };
 
+// 업무가 걸친 영역 — 하위 업무 영역 + 외주 표시 (server/domain.js taskAreas 와 같다. 이 파일은 import 없이 돈다)
+const ruleTaskAreas = (t) => [...(t.area === 'OUT' ? ['OUT'] : []), ...(t.sub_areas ?? [])];
+
 const risk = (code, severity, title, detail, items) => ({
   code, severity, title, detail, items, count: items.length,
 });
@@ -140,7 +143,7 @@ export function detectRisks(ctx) {
   const inactive = new Set(members.filter((m) => !m.is_active).map((m) => m.slack_user_id));
   const orphanAreas = areaLeads.filter((l) => inactive.has(l.slack_user_id));
   const handover = orphanAreas.map((l) => {
-    const rows = open.filter((t) => t.area === l.area);
+    const rows = open.filter((t) => ruleTaskAreas(t).includes(l.area));
     return {
       id: l.area, kind: 'area', label: l.display_name ?? l.slack_user_id,
       sub: `${l.area} 영역 리드 · 미완료 ${rows.length}건`,
@@ -150,9 +153,11 @@ export function detectRisks(ctx) {
   // 리드가 아예 없는 영역에 업무가 쌓여 있는 경우도 같은 공백이다
   const ledAreas = new Set(areaLeads.map((l) => l.area));
   for (const t of open) {
-    if (ledAreas.has(t.area) || handover.some((h) => h.id === t.area)) continue;
-    handover.push({ id: t.area, kind: 'area', label: t.area, sub: '리드 미지정', note: '담당 공백' });
-    ledAreas.add(t.area);
+    for (const area of ruleTaskAreas(t)) {
+      if (ledAreas.has(area) || handover.some((h) => h.id === area)) continue;
+      handover.push({ id: area, kind: 'area', label: area, sub: '리드 미지정', note: '담당 공백' });
+      ledAreas.add(area);
+    }
   }
   if (handover.length) {
     out.push(risk('HANDOVER', 'high', '리드가 비어 있는 업무 영역이 있습니다',

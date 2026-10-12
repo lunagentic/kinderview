@@ -2125,3 +2125,25 @@ body[data-gate="view"] .tl-grip{display:none}
 .bd-scale i::before{content:"";position:absolute;left:50%;top:-4px;height:3px;border-left:1px solid var(--md-line)}
 .bd-scale .now{position:absolute;top:0;transform:translateX(-50%);font-size:.6rem;font-weight:700;color:#fff;background:var(--bd, var(--indigo));
   border-radius:3px;padding:0 3px;line-height:1.4}
+
+/* 하위 업무의 영역 · 담당 — 업무 영역과 실무 담당은 하위 업무에 붙는다 */
+.sub-area,.sub-owner{flex:none;appearance:none;-webkit-appearance:none;font:inherit;font-size:.74rem;line-height:1;
+  padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink-2);cursor:pointer;max-width:110px}
+.sub-area{color:var(--indigo);border-color:color-mix(in oklab, var(--indigo) 35%, var(--line));background:color-mix(in oklab, var(--indigo) 6%, var(--surface))}
+.sub-area.none,.sub-owner.none{color:var(--muted);border-style:dashed;background:var(--surface)}
+.sub-area:focus-visible,.sub-owner:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-events:none}
+.sub-add .sub-area{max-width:120px}
+.sub-area-chip{display:inline-flex;align-items:center;flex:none;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:999px;
+  color:var(--indigo);background:color-mix(in oklab, var(--indigo) 8%, var(--surface));border:1px solid color-mix(in oklab, var(--indigo) 25%, var(--line));white-space:nowrap}
+.tl-sown{flex:none;font-size:.7rem;color:var(--muted);white-space:nowrap}
+.chip.out{color:var(--s-issue);border-color:currentColor}
+.out-check{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.84rem}
+.out-check .hint{font-size:.74rem}
+.lead-box:empty{display:none}
+@media (max-width:720px){.sbm-list li,.subs li{flex-wrap:wrap}.tl-sub .sub-area-chip,.tl-sown{display:none}}
+@media (max-width:720px){
+  .subs li .sbm-title,.sbm-list li .sbm-title{flex:1 1 55%;min-width:0}
+  .sub-area,.sub-owner{min-height:0;height:28px;padding:0 9px}
+  .sub-add .sub-area{height:36px}
+}

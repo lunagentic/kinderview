@@ -101,7 +101,8 @@ CREATE TABLE IF NOT EXISTS task (
   project_id          TEXT REFERENCES project(id),
   phase_id            TEXT REFERENCES phase(id) ON DELETE SET NULL,
   title               TEXT NOT NULL,
-  area                TEXT NOT NULL CHECK (area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','OUT','KBOARD','ETC')),
+  -- 업무 영역은 하위 업무에 붙는다. 상위 업무의 area 는 이제 외주 여부만 뜻한다 — 'OUT' 이거나 비어 있다.
+  area                TEXT CHECK (area IS NULL OR area = 'OUT'),
   -- 분류(신규 기능·기능 개선 …). 값 집합은 domain.js 가 들고 있다 —
   -- 여기 CHECK 로 묶으면 분류를 하나 더할 때마다 표를 다시 만들어야 한다.
   category            TEXT,
@@ -122,11 +123,11 @@ CREATE TABLE IF NOT EXISTS task (
   CHECK (start_date IS NULL OR due_date IS NULL OR start_date <= due_date),
   -- 페이즈는 프로젝트 안에 있다. 프로젝트가 없으면 페이즈도 없다.
   CHECK (project_id IS NOT NULL OR phase_id IS NULL),
-  -- 상태 체계는 업무 영역에 따라 분리된다 (일반 4단계 / 외주 6단계)
+  -- 상태 체계는 외주 여부에 따라 분리된다 (일반 4단계 / 외주 6단계)
   CHECK (
-    (area =  'OUT' AND status IN ('REQUEST_PLANNED','REQUESTED','OUT_IN_PROGRESS','OUT_REVIEW','OUT_REVISION','DONE'))
+    (area = 'OUT' AND status IN ('REQUEST_PLANNED','REQUESTED','OUT_IN_PROGRESS','OUT_REVIEW','OUT_REVISION','DONE'))
     OR
-    (area <> 'OUT' AND status IN ('TODO','IN_PROGRESS','REVIEW','DONE'))
+    (area IS NULL AND status IN ('TODO','IN_PROGRESS','REVIEW','DONE'))
   ),
   CHECK (
     (status =  'DONE' AND completed_at IS NOT NULL) OR
@@ -154,8 +155,8 @@ CREATE TABLE IF NOT EXISTS area_lead (
 -- 여기에 두면 role 컬럼이 아직 없는 옛 DB 에서 스키마 적용 자체가 실패한다
 -- (스키마는 마이그레이션보다 먼저 돈다).
 
--- 하위 업무: 업무 하나를 이루는 작은 항목들 (예: 편집 디자인 18종).
--- 담당과 마감을 따로 갖지 않는다 — 그것들이 달라야 하면 업무로 만들어야 한다.
+-- 하위 업무: 업무 하나를 이루는 작은 항목들 (예: 기획 → 디자인 → 개발).
+-- 업무 영역과 실무 담당은 하위 업무에 붙는다. 담당 기본값은 그 영역의 리드다.
 CREATE TABLE IF NOT EXISTS subtask (
   id          TEXT PRIMARY KEY,
   task_id     TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
@@ -165,6 +166,10 @@ CREATE TABLE IF NOT EXISTS subtask (
   sort_order  INTEGER NOT NULL DEFAULT 0,
   seq         INTEGER,            -- 상위 업무의 프로젝트 번호열에서 받는다
   due_date    TEXT,               -- 비우면 상위 업무 마감을 따른다. 더 늦게 잡으면 상위·페이즈가 그 날까지 늘어난다
+  area        TEXT CHECK (area IS NULL OR area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','KBOARD','ETC')),
+  owner_slack_user_id TEXT REFERENCES member(slack_user_id),
+  assigned_at TEXT,               -- 담당이 정해진 때 · 정한 사람 — 알림함의 「배정」에 쓴다
+  assigned_by TEXT,
   created_at  TEXT NOT NULL,
   done_at     TEXT,
   CHECK ((is_done = 1 AND done_at IS NOT NULL) OR (is_done = 0 AND done_at IS NULL))

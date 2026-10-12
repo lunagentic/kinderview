@@ -1,6 +1,7 @@
 // 스키마 변경 시 기존 로컬 DB 를 옮긴다.
 // SQLite 의 CHECK 제약은 테이블 정의에 들어 있어, 값 집합이 바뀌면 테이블을 다시 만들어야 한다.
 
+import { readFileSync } from 'node:fs';
 import { db, one, run } from './db.js';
 
 const tableSql = (name) =>
@@ -15,7 +16,8 @@ function migrateAreas() {
   const sql = tableSql('task');
   // 가장 최근에 더한 영역이 CHECK 에 있으면 이미 옮긴 것이다.
   // 영역을 새로 더할 때 아래 CHECK 와 이 이름을 함께 바꾼다.
-  if (!sql || sql.includes("'KBOARD'")) return null;
+  // 영역이 하위 업무로 옮겨 간 뒤(area 가 NULL 을 받음)에는 이 개편이 할 일이 없다.
+  if (!sql || sql.includes("'KBOARD'") || !/\barea\s+TEXT NOT NULL/.test(sql)) return null;
 
   db.exec('PRAGMA foreign_keys = OFF');
   db.exec('BEGIN');
@@ -383,6 +385,98 @@ function addSubtaskStatus() {
   return '하위 업무 진행 상태(status) 추가';
 }
 
+/**
+ * 업무 영역을 하위 업무로 — 상위 업무의 area 는 외주 여부만 남긴다('OUT' 또는 NULL).
+ * NOT NULL·CHECK 를 바꾸는 것이라 task 를 다시 만든다. 새 정의는 schema.sql 의 task 를 그대로 쓴다.
+ */
+function migrateTaskAreaNullable() {
+  const sql = tableSql('task');
+  if (!sql || !/\barea\s+TEXT NOT NULL/.test(sql)) return null;
+  const schema = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
+  const def = schema.match(/CREATE TABLE IF NOT EXISTS task \(([\s\S]*?)\n\);/);
+  if (!def) throw new Error('schema.sql 에서 task 정의를 찾지 못했습니다.');
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN');
+  try {
+    db.exec(`CREATE TABLE task_area_migrated (${def[1]}\n)`);
+    const have = new Set(db.prepare('PRAGMA table_info(task)').all().map((c) => c.name));
+    const cols = db.prepare('PRAGMA table_info(task_area_migrated)').all().map((c) => c.name).filter((n) => have.has(n));
+    const list = cols.join(', ');
+    // 외주가 아닌 업무의 영역은 아래 moveAreaToSubtasks 가 하위 업무로 옮긴다 — 그때까지 잠시 들고 있을 곳
+    db.exec('CREATE TABLE IF NOT EXISTS task_area_legacy (task_id TEXT PRIMARY KEY, area TEXT NOT NULL)');
+    db.exec("INSERT OR REPLACE INTO task_area_legacy SELECT id, area FROM task WHERE area <> 'OUT'");
+    const sel = cols.map((c) => (c === 'area' ? "CASE WHEN area = 'OUT' THEN 'OUT' ELSE NULL END" : c)).join(', ');
+    db.exec(`INSERT INTO task_area_migrated (${list}) SELECT ${sel} FROM task`);
+    db.exec('DROP TABLE task');
+    db.exec('ALTER TABLE task_area_migrated RENAME TO task');
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    db.exec('PRAGMA foreign_keys = ON');
+    throw err;
+  }
+  db.exec('PRAGMA foreign_keys = ON');
+  return '상위 업무 영역을 외주 여부로 좁힘 (영역은 하위 업무로)';
+}
+
+/** 하위 업무에 영역 · 담당 · 배정 시각 */
+function addSubtaskAreaOwner() {
+  const sql = tableSql('subtask');
+  if (!sql || /\bowner_slack_user_id\b/.test(sql)) return null;
+  db.exec("ALTER TABLE subtask ADD COLUMN area TEXT CHECK (area IS NULL OR area IN ('PLAN','DESIGN','DEV','CONTENT','MKT','BIZ','OPS','KBOARD','ETC'))");
+  db.exec('ALTER TABLE subtask ADD COLUMN owner_slack_user_id TEXT REFERENCES member(slack_user_id)');
+  db.exec('ALTER TABLE subtask ADD COLUMN assigned_at TEXT');
+  db.exec('ALTER TABLE subtask ADD COLUMN assigned_by TEXT');
+  return '하위 업무 영역·담당(area, owner_slack_user_id) 추가';
+}
+
+/**
+ * 옛 상위 업무의 영역·담당을 하위 업무로 옮긴다(한 번만 — 옮긴 뒤 task_area_legacy 를 지운다).
+ * 하위가 있으면 영역이 빈 하위마다 상위 영역과 상위 담당을 넣고,
+ * 하위가 없으면 같은 제목·마감의 하위 하나를 만들어 넣는다(상태도 옮긴다). id 는 sub-<업무 id>.
+ */
+function moveAreaToSubtasks() {
+  if (!tableSql('task_area_legacy') || !/\bowner_slack_user_id\b/.test(tableSql('subtask'))) return null;
+  const rows = db.prepare(`SELECT t.id, t.title, t.due_date, t.status, t.owner_slack_user_id, t.project_id, t.created_at, t.deleted_at,
+      l.area, (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id) AS n
+    FROM task_area_legacy l JOIN task t ON t.id = l.task_id`).all();
+  let filled = 0;
+  let made = 0;
+  db.exec('BEGIN');
+  try {
+    const at = new Date().toISOString();
+    for (const t of rows) {
+      const area = t.area === 'OUT' ? null : t.area;
+      if (t.n) {
+        filled += db.prepare(`UPDATE subtask SET area = COALESCE(area, :area),
+            owner_slack_user_id = COALESCE(owner_slack_user_id, :own), assigned_at = COALESCE(assigned_at, :at)
+          WHERE task_id = :t`).run({ area, own: t.owner_slack_user_id, at, t: t.id }).changes;
+        continue;
+      }
+      if (t.deleted_at) continue;   // 지운 업무에는 하위를 새로 만들지 않는다
+      const st = t.status === 'DONE' ? 'DONE' : ['IN_PROGRESS', 'REVIEW'].includes(t.status) ? 'IN_PROGRESS' : 'TODO';
+      let seq = null;
+      if (t.project_id) {
+        db.prepare('UPDATE project SET seq_counter = seq_counter + 1 WHERE id = :p').run({ p: t.project_id });
+        seq = db.prepare('SELECT seq_counter AS n FROM project WHERE id = :p').get({ p: t.project_id }).n;
+      }
+      db.prepare(`INSERT OR IGNORE INTO subtask (id, task_id, title, is_done, status, sort_order, seq, due_date,
+          area, owner_slack_user_id, assigned_at, created_at, done_at)
+        VALUES (:id, :t, :title, :done, :st, 1, :seq, NULL, :area, :own, :at, :created, :doneAt)`).run({
+        id: `sub-${t.id}`, t: t.id, title: t.title, done: st === 'DONE' ? 1 : 0, st, seq, area,
+        own: t.owner_slack_user_id, at, created: t.created_at, doneAt: st === 'DONE' ? at : null,
+      });
+      made += 1;
+    }
+    db.exec('DROP TABLE task_area_legacy');
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return `업무 영역·담당을 하위 업무로 옮김 (하위 ${filled}건 채움, ${made}건 새로 만듦)`;
+}
+
 /** 업무 첨부(링크·이미지) 표 — 스키마에 있으니 없을 때만 만든다. */
 function addAttachments() {
   if (tableSql('attachment')) return null;
@@ -418,7 +512,8 @@ export function runMigrations() {
   // 순서가 중요하다 — migrateAreas 가 task 를 재생성하므로 컬럼 추가는 그 뒤에
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
-    addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments()]
+    addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

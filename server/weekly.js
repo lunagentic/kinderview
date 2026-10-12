@@ -3,7 +3,7 @@
 
 import { all, one, run, uid, nowISO, today, addDays, weekStart } from './db.js';
 import { tasks, issues, overview, members } from './repo.js';
-import { PROGRESS_WEIGHT, statusLabel, areaLabel } from './domain.js';
+import { PROGRESS_WEIGHT, statusLabel, areaLabel, taskAreas } from './domain.js';
 
 const inPeriod = (iso, start, end) => !!iso && iso.slice(0, 10) >= start && iso.slice(0, 10) <= end;
 
@@ -48,7 +48,7 @@ export function buildSnapshot({ periodStart, periodEnd, ref }) {
   // ── ③ 업무 영역별 진행
   const areaRows = ov.areas.map((a) => ({
     ...a,
-    completed_this_week: completedThisWeek.filter((t) => t.area === a.code).length,
+    completed_this_week: completedThisWeek.filter((t) => taskAreas(t).includes(a.code)).length,
   }));
 
   // ── ④ 주요 완료 업무
@@ -123,7 +123,8 @@ export function buildSnapshot({ periodStart, periodEnd, ref }) {
 
 function brief(t) {
   return {
-    id: t.id, title: t.title, project_name: t.project_name, area: t.area, area_label: areaLabel(t.area),
+    id: t.id, title: t.title, project_name: t.project_name, area: t.area,
+    area_label: taskAreas(t).map(areaLabel).join(' · ') || '-',
     owner_name: t.owner_name, owner_slack_user_id: t.owner_slack_user_id,
     status: t.status, status_label: statusLabel(t.status), priority: t.priority,
     due_date: t.due_date, start_date: t.start_date, completed_at: t.completed_at,

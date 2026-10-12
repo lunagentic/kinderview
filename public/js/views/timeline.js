@@ -3,7 +3,7 @@ import { state, statusMeta } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusPick, go, toast, bindDueEdit, confirmModal, titleCell, autoGrow, syncTitleCell, ticketTag, readPref, writePref,
-  subStatusPick, subStatusOf, nudgeNote,
+  subStatusPick, subStatusOf, nudgeNote, subAreaChip,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm, subtaskModal, taskForm, phaseCommentsModal, directorDigestModal } from '../forms.js';
 import {
@@ -159,6 +159,7 @@ export async function renderTimeline(root) {
         id: r.id,
         html: `${subStatusPick(r)}${ticketTag({ ...r, project_id: t.project_id })}
           <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}">${esc(r.title)}</span>
+          ${subAreaChip(r)}${r.owner_name ? `<span class="tl-sown" title="담당 ${esc(r.owner_name)}">${esc(r.owner_name)}</span>` : ''}
           <span class="tl-sdue${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}">${due ? esc(shortDate(due)) : ''}</span>`,
       }, dot);
     }).join('');

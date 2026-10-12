@@ -1,10 +1,11 @@
 import { api } from '../api.js';
 import { canEdit } from '../gate.js';
-import { state, areaMeta, coLeadsOf, leadOf } from '../state.js';
+import { state, areaMeta, memberOf } from '../state.js';
 import {
   esc, statusChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
-  titleCell, autoGrow, syncTitleCell, linkify, subStatusOf, subProgress, subStatusPick, nudgeNote, firstUrl,} from '../ui.js';
-import { taskForm, issueForm } from '../forms.js';
+  titleCell, autoGrow, syncTitleCell, linkify, subStatusOf, subProgress, subStatusPick, nudgeNote, firstUrl,
+  subAreaPick, subOwnerPick,} from '../ui.js';
+import { taskForm, issueForm, subAddArea, subAssignChange } from '../forms.js';
 import { bindComments } from '../comments.js';
 
 const EVENT_LABEL = {
@@ -80,6 +81,7 @@ const subList = (rows = []) => (rows.length
         ${subStatusPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${subAreaPick(r)}${subOwnerPick(r)}
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
         ${subDue(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
@@ -106,12 +108,8 @@ export async function renderTaskDetail(root, id, query = '') {
         <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}${t.key ? ` · <span class="tkey">${esc(t.key)}</span>` : ''}</div>
         <h1>${titleCell(t, 'h1')}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          <span class="area-pick" title="업무 영역 변경">
-            <select data-area aria-label="업무 영역 변경">
-              ${state.meta.areas.map((a) => `<option value="${esc(a.code)}"${
-                a.code === t.area ? ' selected' : ''}>${esc(a.full)}</option>`).join('')}
-            </select>
-          </span>
+          ${t.area === 'OUT' ? '<span class="chip out" title="외주 업무 — 업무 수정에서 끌 수 있습니다">외주</span>' : ''}
+          ${(t.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="하위 업무의 영역">${esc(areaMeta(a).label)}</span>`).join('')}
           <span class="area-pick" title="분류 변경">
             <select data-category aria-label="분류 변경">
               <option value=""${t.category ? '' : ' selected'}>분류 없음</option>
@@ -140,16 +138,14 @@ export async function renderTaskDetail(root, id, query = '') {
         <div class="panel">
           <h3>업무 정보</h3>
           <dl class="kv">
-            <dt>담당</dt><dd class="owner-cell">
-              <select data-owner aria-label="담당 변경">
+            <dt>책임자</dt><dd class="owner-cell">
+              <select data-owner aria-label="책임자 변경">
                 ${state.members.filter((m) => m.is_active).map((m) => `<option value="${esc(m.slack_user_id)}"${
                   m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
               </select>
-              ${t.owner_slack_user_id === leadOf(t.area)?.slack_user_id
-                ? `<span class="area-lead-tag">${esc(areaMeta(t.area).full)} 리드</span>` : ''}
             </dd>
-            ${coLeadsOf(t.area).length ? `<dt>공동</dt><dd>${
-              coLeadsOf(t.area).map((l) => person(l.slack_user_id, l.display_name)).join(' ')}</dd>` : ''}
+            ${(t.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${
+              t.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}
             <dt>협업자</dt><dd>${t.collaborators.length
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
@@ -177,9 +173,10 @@ export async function renderTaskDetail(root, id, query = '') {
           <form class="sub-add" data-sub-add>
             <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)"
                    aria-label="하위 업무명">
+            ${subAddArea(t.subtasks)}
             <button class="btn btn-ghost" type="submit">추가</button>
           </form>
-          <p class="sub-note">담당은 위 업무를 따릅니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
+          <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
         </div>
 
         <div class="panel att-panel" data-att-panel>
@@ -277,20 +274,6 @@ export async function renderTaskDetail(root, id, query = '') {
   root.addEventListener('change', async (e) => {
     const own = e.target.closest('[data-owner]');
     if (own) { stage('owner_slack_user_id', own.value); return undefined; }
-    const areaSel = e.target.closest('[data-area]');
-    if (areaSel) {
-      const next = areaSel.value;
-      // 영역이 곧 담당이다 — 바뀌면 그 영역의 리드가 맡는다
-      const lead = leadOf(next);
-      if (next !== t.area && !lead) {
-        toast(`'${areaMeta(next).full}' 영역의 리드가 지정되지 않았습니다.`, true);
-        areaSel.value = t.area;
-        return undefined;
-      }
-      stage('area', next);
-      if (next !== t.area) toast(`저장하면 담당이 ${lead.display_name}(${areaMeta(next).full} 리드)으로 바뀝니다.`);
-      return undefined;
-    }
     const cat = e.target.closest('[data-category]');
     if (cat) { stage('category', cat.value || null); return undefined; }
     const ttl = e.target.closest('[data-title]');
@@ -334,6 +317,7 @@ export async function renderTaskDetail(root, id, query = '') {
     // 업무 내용 — 다른 칸처럼 모아 두었다가 「저장」으로 올린다
     const desc = e.target.closest('[data-desc]');
     if (desc) { stage('description', desc.value.trim() || null); return undefined; }
+    if (await subAssignChange(e, { editable: () => true, after: () => reload() })) return undefined;
     const sub = e.target.closest('[data-sub-status]');
     if (sub) {
       try {
@@ -455,7 +439,7 @@ export async function renderTaskDetail(root, id, query = '') {
     const title = input.value.trim();
     if (!title) return;
     try {
-      await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+      await api.post(`/api/tasks/${t.id}/subtasks`, { title, area: form.querySelector('[name=area]')?.value || null });
       input.value = '';
       await reloadSubs();
       input.focus();   // 여러 개를 잇달아 넣는 일이 많다

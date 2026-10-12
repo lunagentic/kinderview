@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state, activeProjects, areaMeta, leadNames } from '../state.js';
+import { state, activeProjects, areaMeta } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
@@ -114,25 +114,27 @@ export async function renderTasks(root, query) {
   const groups = [];
   // 프로젝트를 아직 안 정한 업무 — 맨 앞에 둔다. 자리를 못 잡은 일이라 먼저 보여야 한다.
   const loose = rows.filter((t) => !t.project_id);
-  if (loose.length) {
-    const areas = [];
-    for (const a of state.meta.areas) {
-      const inArea = loose.filter((t) => t.area === a.code);
-      if (inArea.length) areas.push({ area: a, rows: rank.size ? inArea.sort(byRank) : inArea });
+  // 묶음은 프로젝트 › 페이즈 — 업무 영역은 하위 업무에 붙어 있어 줄마다 칩으로 보인다
+  const byPhase = (list) => {
+    const out = [];
+    const keys = [...new Set(list.map((t) => t.phase_id ?? ''))]
+      .sort((a, b) => (a === '') - (b === ''));
+    for (const k of keys) {
+      const inPh = list.filter((t) => (t.phase_id ?? '') === k);
+      out.push({ area: { code: k, full: k ? (inPh[0].phase_name ?? '페이즈') : '페이즈 없음', phase: true },
+        rows: rank.size ? inPh.sort(byRank) : inPh });
     }
-    groups.push({ project: NO_PROJECT, count: loose.length, areas, loose: true });
+    return out;
+  };
+  if (loose.length) {
+    groups.push({ project: NO_PROJECT, count: loose.length, areas: byPhase(loose), loose: true });
   }
   for (const pr of ordered) {
     const mine = rows.filter((t) => t.project_id === pr.id);
     // 업무가 아직 하나도 없는 프로젝트도 보여 준다. 안 보이면 방금 만든 프로젝트가
     // 사라진 것처럼 보인다. 조건에 안 걸린 것뿐인 프로젝트는 접어 둔다.
     if (!mine.length && pr.task_count) continue;
-    const areas = [];
-    for (const a of state.meta.areas) {
-      const inArea = mine.filter((t) => t.area === a.code);
-      if (inArea.length) areas.push({ area: a, rows: rank.size ? inArea.sort(byRank) : inArea });
-    }
-    groups.push({ project: pr, count: mine.length, areas });
+    groups.push({ project: pr, count: mine.length, areas: byPhase(mine) });
   }
   const manual = rows.some((t) => rank.has(t.id));
   // 타임라인 보기의 날짜 창 — 걸러진 업무의 시작·마감이 다 들어가게
@@ -152,6 +154,7 @@ export async function renderTasks(root, query) {
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
         ${ticketTag(t)}${titleCell(t)}
+        ${(t.area === 'OUT' ? ['OUT'] : []).concat(t.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="업무 영역(하위 업무)">${esc(state.meta.areas.find((x) => x.code === a)?.label ?? a)}</span>`).join('')}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}${
           t.comment_count ? `<i class="tk-cm" title="디렉터 코멘트 ${t.comment_count}건">💬 ${t.comment_count}</i>` : ''}</span>
@@ -208,7 +211,7 @@ export async function renderTasks(root, query) {
     <div class="filter-row" style="margin-bottom:18px">
       <select data-f="project"><option value="">프로젝트 전체</option>${projectOptions}</select>
       <select data-f="area"><option value="">영역 전체</option>${areaOptions}</select>
-      <select data-f="owner"><option value="">리드 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
+      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label class="chk"><input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함</label>
       <button class="btn btn-ghost" data-reset>필터 초기화</button>
@@ -244,10 +247,8 @@ export async function renderTasks(root, query) {
         ${g.areas.map((a) => `
           <div class="tk-area">
             <div class="tk-area-head">
-              <a class="lab" href="#/project/tasks?area=${encodeURIComponent(a.area.code)}&month=all&done=1"
-                 title="${esc(a.area.full)} 업무 전체 보기">${esc(a.area.full)}</a>
+              <span class="lab">${esc(a.area.full)}</span>
               <span class="n">${a.rows.length}건</span>
-              <span class="lead">${esc(leadNames(a.area.code))}</span>
             </div>
             <div class="tk-rows">${a.rows.map(taskRow).join('')}</div>
           </div>`).join('')}

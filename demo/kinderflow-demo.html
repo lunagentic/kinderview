@@ -2130,6 +2130,28 @@ body[data-gate="view"] .tl-grip{display:none}
 .bd-scale .now{position:absolute;top:0;transform:translateX(-50%);font-size:.6rem;font-weight:700;color:#fff;background:var(--bd, var(--indigo));
   border-radius:3px;padding:0 3px;line-height:1.4}
 
+/* 하위 업무의 영역 · 담당 — 업무 영역과 실무 담당은 하위 업무에 붙는다 */
+.sub-area,.sub-owner{flex:none;appearance:none;-webkit-appearance:none;font:inherit;font-size:.74rem;line-height:1;
+  padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink-2);cursor:pointer;max-width:110px}
+.sub-area{color:var(--indigo);border-color:color-mix(in oklab, var(--indigo) 35%, var(--line));background:color-mix(in oklab, var(--indigo) 6%, var(--surface))}
+.sub-area.none,.sub-owner.none{color:var(--muted);border-style:dashed;background:var(--surface)}
+.sub-area:focus-visible,.sub-owner:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-events:none}
+.sub-add .sub-area{max-width:120px}
+.sub-area-chip{display:inline-flex;align-items:center;flex:none;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:999px;
+  color:var(--indigo);background:color-mix(in oklab, var(--indigo) 8%, var(--surface));border:1px solid color-mix(in oklab, var(--indigo) 25%, var(--line));white-space:nowrap}
+.tl-sown{flex:none;font-size:.7rem;color:var(--muted);white-space:nowrap}
+.chip.out{color:var(--s-issue);border-color:currentColor}
+.out-check{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.84rem}
+.out-check .hint{font-size:.74rem}
+.lead-box:empty{display:none}
+@media (max-width:720px){.sbm-list li,.subs li{flex-wrap:wrap}.tl-sub .sub-area-chip,.tl-sown{display:none}}
+@media (max-width:720px){
+  .subs li .sbm-title,.sbm-list li .sbm-title{flex:1 1 55%;min-width:0}
+  .sub-area,.sub-owner{min-height:0;height:28px;padding:0 9px}
+  .sub-add .sub-area{height:36px}
+}
+
 </style>
 
   <header class="topbar">
@@ -2183,6 +2205,11 @@ const AREAS = [
   { code: 'KBOARD',  label: 'KinderBoard', full: 'KinderBoard' },
   { code: 'ETC',     label: '기타',       full: '기타' },
 ];
+
+// 하위 업무가 고를 수 있는 영역 — 외주는 상위 업무의 표시라 빠진다
+const SUB_AREAS = AREAS.filter((a) => a.code !== 'OUT');
+/** 업무가 걸친 영역들 — 하위 업무의 영역에 외주 표시를 더한 것. 영역별 집계·필터가 같은 규칙을 쓴다 */
+const taskAreas = (t) => [...(t.area === 'OUT' ? ['OUT'] : []), ...(t.sub_areas ?? [])];
 
 // 일반 업무 4단계
 const NORMAL_STATUSES = [
@@ -2486,6 +2513,9 @@ const daysSince = (isoTimestamp, today) =>
 
 const SEVERITY_RANK = { high: 0, medium: 1, low: 2 };
 
+// 업무가 걸친 영역 — 하위 업무 영역 + 외주 표시 (server/domain.js taskAreas 와 같다. 이 파일은 import 없이 돈다)
+const ruleTaskAreas = (t) => [...(t.area === 'OUT' ? ['OUT'] : []), ...(t.sub_areas ?? [])];
+
 const risk = (code, severity, title, detail, items) => ({
   code, severity, title, detail, items, count: items.length,
 });
@@ -2614,7 +2644,7 @@ function detectRisks(ctx) {
   const inactive = new Set(members.filter((m) => !m.is_active).map((m) => m.slack_user_id));
   const orphanAreas = areaLeads.filter((l) => inactive.has(l.slack_user_id));
   const handover = orphanAreas.map((l) => {
-    const rows = open.filter((t) => t.area === l.area);
+    const rows = open.filter((t) => ruleTaskAreas(t).includes(l.area));
     return {
       id: l.area, kind: 'area', label: l.display_name ?? l.slack_user_id,
       sub: `${l.area} 영역 리드 · 미완료 ${rows.length}건`,
@@ -2624,9 +2654,11 @@ function detectRisks(ctx) {
   // 리드가 아예 없는 영역에 업무가 쌓여 있는 경우도 같은 공백이다
   const ledAreas = new Set(areaLeads.map((l) => l.area));
   for (const t of open) {
-    if (ledAreas.has(t.area) || handover.some((h) => h.id === t.area)) continue;
-    handover.push({ id: t.area, kind: 'area', label: t.area, sub: '리드 미지정', note: '담당 공백' });
-    ledAreas.add(t.area);
+    for (const area of ruleTaskAreas(t)) {
+      if (ledAreas.has(area) || handover.some((h) => h.id === area)) continue;
+      handover.push({ id: area, kind: 'area', label: area, sub: '리드 미지정', note: '담당 공백' });
+      ledAreas.add(area);
+    }
   }
   if (handover.length) {
     out.push(risk('HANDOVER', 'high', '리드가 비어 있는 업무 영역이 있습니다',
@@ -3238,6 +3270,7 @@ function buildSeed() {
     ],
   };
   numberTickets(seed);   // 시드 업무도 번호를 갖는다 — 넣은 순서대로
+  liftAreasToSubtasks(seed);   // 시드의 영역은 하위 업무로 (상위는 외주 표시만)
   return seed;
 }
 
@@ -3270,6 +3303,40 @@ function numberTickets(db) {
  * 키를 올려 새로 만들면 그동안 등록한 업무가 다 날아가므로 이렇게 한다.
  * 구성원과 영역 리드는 화면에서 만들 수 없는 값이라 시드를 따라가도 잃을 것이 없다.
  */
+/**
+ * 업무 영역은 하위 업무에 붙는다 — 옛 데이터(상위 업무에 영역이 있던 것)를 한 번 옮긴다 (server/migrate.js moveAreaToSubtasks).
+ * 하위가 있으면 영역이 빈 하위마다 상위 영역·담당을, 없으면 같은 제목의 하위 하나(sub-<업무 id>)를 만들어 넣는다.
+ * 그 뒤 상위 area 는 외주(OUT)가 아니면 비운다. 여러 브라우저가 돌려도 같은 결과가 나오게 id 를 고정한다.
+ */
+function liftAreasToSubtasks(db) {
+  let n = 0;
+  db.subtasks ??= [];
+  for (const t of db.tasks ?? []) {
+    if (!t.area || t.area === 'OUT') continue;
+    const area = t.area;
+    const subs = db.subtasks.filter((x) => x.task_id === t.id);
+    const at = nowISO();
+    if (subs.length) {
+      for (const x of subs) {
+        x.area ??= area;
+        if (!x.owner_slack_user_id) { x.owner_slack_user_id = t.owner_slack_user_id; x.assigned_at ??= at; }
+      }
+    } else if (!t.deleted_at && !db.subtasks.some((x) => x.id === `sub-${t.id}`)) {
+      // 지운 업무에는 하위를 새로 만들지 않는다 — 영역만 비운다
+      const st = t.status === 'DONE' ? 'DONE' : ['IN_PROGRESS', 'REVIEW'].includes(t.status) ? 'IN_PROGRESS' : 'TODO';
+      const p = (db.projects ?? []).find((x) => x.id === t.project_id);
+      let seq = null;
+      if (p) { p.seq_counter = (p.seq_counter ?? 0) + 1; seq = p.seq_counter; }
+      db.subtasks.push({ id: `sub-${t.id}`, task_id: t.id, title: t.title, is_done: st === 'DONE', status: st,
+        sort_order: 1, seq, due_date: null, area, owner_slack_user_id: t.owner_slack_user_id,
+        assigned_at: at, assigned_by: null, created_at: t.created_at ?? at, done_at: st === 'DONE' ? at : null });
+    }
+    t.area = null;
+    n += 1;
+  }
+  return n;
+}
+
 function reconcile(db) {
   let changed = false;
 
@@ -3380,6 +3447,7 @@ function reconcile(db) {
     changed = true;
   }
 
+  if (liftAreasToSubtasks(db)) changed = true;
   return changed;
 }
 
@@ -3511,6 +3579,7 @@ async function refreshFromRemote() {
     // 여기서 통째로 갈아 끼우면 이 브라우저에 있던 것까지 날아간다.
     if (!rows.length) { window.dispatchEvent(new Event('kf:reload')); return; }
     DB = unflatten(rows);
+    liftAreasToSubtasks(DB);   // 아직 안 옮긴 공유본이어도 화면은 새 구조로
     save(DB, { push: false });
     setShadow(snapshot(flatten(DB)));
     lastSeen = rows[rows.length - 1]?.updated_at ?? lastSeen;
@@ -3709,6 +3778,9 @@ async function syncFromRemote() {
       await flush();
       return;
     }
+    // 공유본 그대로의 모습 — reconcile 이 같은 객체를 고치기 전에 찍어 둔다.
+    // 이것이 '맞춘 것'의 기준이라, 옮기기·시드 맞추기로 바뀐 줄은 아래 flush 가 올린다.
+    const remoteSnap = snapshot(rows);
     const remote = unflatten(rows);
     lastSeen = rows[rows.length - 1]?.updated_at ?? null;
     // 이 브라우저에서 만들었는데 아직 공유본에 없는 줄은 살려서 올린다.
@@ -3743,8 +3815,8 @@ async function syncFromRemote() {
     try { reconcile(remote); } catch (err) { console.warn('[kf] 시드 맞추기 실패', err); }
     DB = remote;
     save();
-    // 공유본에 이미 있던 줄만 '맞춘 것'으로 친다 — 합친 줄은 아래 flush 가 올린다
-    shadow = snapshot(flatten(DB).filter((r) => remoteKeys.has(`${r.collection}/${r.id}`)));
+    // 공유본에 이미 있던 줄을 공유본의 값 그대로 '맞춘 것'으로 친다 — 합친 줄과 reconcile 이 바꾼 줄은 아래 flush 가 올린다
+    shadow = remoteSnap;
     rememberSynced(shadow);
     await flush();   // reconcile·합치기로 는 것이 있으면 올린다
   } catch (err) {
@@ -3763,6 +3835,7 @@ async function pollRemote() {
     const rows = await remoteReadAll();
     if (!rows.length) return;   // 빈 응답을 '전부 지워졌다'로 읽지 않는다
     DB = unflatten(rows);
+    liftAreasToSubtasks(DB);   // 아직 안 옮긴 공유본이어도 화면은 새 구조로
     save(DB, { push: false });
     setShadow(snapshot(flatten(DB)));
     lastSeen = top.updated_at;
@@ -3966,7 +4039,15 @@ const subtasksOf = (taskId) => {
   return (DB.subtasks ?? [])
     .filter((s) => s.task_id === taskId)
     .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at))
-    .map((s) => ({ ...s, due_date: s.due_date ?? null, key: ticketKey(code, s.seq) }));
+    .map((s) => ({ ...s, due_date: s.due_date ?? null, key: ticketKey(code, s.seq),
+      area: s.area ?? null, owner_slack_user_id: s.owner_slack_user_id ?? null,
+      owner_name: s.owner_slack_user_id ? (member(s.owner_slack_user_id)?.display_name ?? s.owner_slack_user_id) : null }));
+};
+/** 하위 업무의 영역 — 외주는 없다. 비우면 null (server/repo.js subtasks.takeArea) */
+const takeSubArea = (v) => {
+  if (!v) return null;
+  if (!SUB_AREAS.some((a) => a.code === v)) throw new DemoError('없는 업무 영역입니다.');
+  return v;
 };
 
 // 하위 업무 마감이 상위 업무 마감보다 늦으면 상위가, 그게 페이즈 종료일보다 늦으면 페이즈가 그 날까지 늘어난다.
@@ -3998,22 +4079,26 @@ function rollUpDue(taskId, due) {
   return out;
 }
 
-function createSubtask(taskId, body) {
+function createSubtask(taskId, body, actor = null) {
   const title = String(body.title ?? '').trim();
   if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
   const due = cleanSubDue(body.due_date) ?? null;
   const t = DB.tasks.find((x) => x.id === taskId && !x.deleted_at);
   if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
   const next = subtasksOf(taskId).reduce((n, s) => Math.max(n, s.sort_order), 0) + 1;
+  // 영역을 고르면 담당 기본값은 그 영역의 리드다. 직접 고른 담당이 더 세다.
+  const area = takeSubArea(body.area);
+  const owner = body.owner_slack_user_id ? ensureMember(body.owner_slack_user_id) : (area ? areaLeadOf(area) : null);
   const row = { id: uid(), task_id: taskId, title, is_done: false, status: 'TODO', sort_order: next,
-    seq: nextSeq(t.project_id), due_date: due, created_at: nowISO(), done_at: null };
+    seq: nextSeq(t.project_id), due_date: due, area, owner_slack_user_id: owner,
+    assigned_at: owner ? nowISO() : null, assigned_by: owner ? actor : null, created_at: nowISO(), done_at: null };
   (DB.subtasks ??= []).push(row);
   const rolled = rollUpDue(taskId, due);
   save();
   return { ...subtasksOf(taskId).find((s) => s.id === row.id), rolled };
 }
 
-function updateSubtask(id, body) {
+function updateSubtask(id, body, actor = null) {
   const row = (DB.subtasks ?? []).find((s) => s.id === id);
   if (!row) throw new DemoError('하위 업무를 찾을 수 없습니다.');
   let rolled = { task_due: null, phase_end: null };
@@ -4036,6 +4121,21 @@ function updateSubtask(id, body) {
     const title = String(body.title).trim();
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
     row.title = title;
+  }
+  // 영역 — 바꾸면 담당이 리드를 따르고 있었을 때(또는 비어 있을 때)만 새 영역 리드로 간다
+  let owner = row.owner_slack_user_id ?? null;
+  if (body.area !== undefined) {
+    const area = takeSubArea(body.area);
+    if (area !== (row.area ?? null) && (!owner || owner === (row.area ? areaLeadOf(row.area) : null))) {
+      owner = area ? areaLeadOf(area) : owner;
+    }
+    row.area = area;
+  }
+  if (body.owner_slack_user_id !== undefined) owner = body.owner_slack_user_id ? ensureMember(body.owner_slack_user_id) : null;
+  if (owner !== (row.owner_slack_user_id ?? null)) {
+    row.owner_slack_user_id = owner;
+    row.assigned_at = owner ? nowISO() : null;
+    row.assigned_by = owner ? actor : null;
   }
   // 진행 상태 — status 로도, 예전 체크(is_done)로도 받는다. 둘은 같은 것이다.
   let status;
@@ -4185,7 +4285,9 @@ function inboxOf(me, ref = today()) {
   if (!me) return { items: [], unread: 0 };
   const tomorrow = addDays(ref, 1);
   const since = `${addDays(ref, -INBOX_RECENT_DAYS)}T00:00:00`;
-  const mine = DB.tasks.filter((t) => !t.deleted_at && t.owner_slack_user_id === me);
+  // 내 업무 — 책임자이거나, 아직 안 끝난 하위 업무를 맡고 있는 업무
+  const mine = DB.tasks.filter((t) => !t.deleted_at && (t.owner_slack_user_id === me
+    || (DB.subtasks ?? []).some((x) => x.task_id === t.id && x.owner_slack_user_id === me && x.status !== 'DONE')));
   const byId = new Map(mine.map((t) => [t.id, t]));
   const dress = (t) => ({ task_id: t.id, task_key: ticketKey(project(t.project_id)?.code, t.seq), title: t.title,
     project_name: project(t.project_id)?.name ?? null, due_date: t.due_date ?? null });
@@ -4203,6 +4305,15 @@ function inboxOf(me, ref = today()) {
     if (!t) continue;
     if (e.event_type === 'OWNER_CHANGED' && e.to_value !== me) continue;
     items.push({ kind: 'ASSIGNED', key: `ASSIGNED:${e.id}`, actor_name: member(e.actor_slack_user_id)?.display_name ?? e.actor_slack_user_id, at: e.occurred_at, ...dress(t) });
+  }
+  // 하위 업무 배정 — 영역 리드라서, 혹은 누가 골라서 내가 맡게 된 하위 업무
+  for (const x of DB.subtasks ?? []) {
+    if (x.owner_slack_user_id !== me || !x.assigned_at || x.assigned_at < since || x.assigned_by === me) continue;
+    const t = byId.get(x.task_id);
+    if (!t) continue;
+    items.push({ kind: 'ASSIGNED', key: `SUB_ASSIGNED:${x.id}:${x.assigned_at}`,
+      actor_name: x.assigned_by ? (member(x.assigned_by)?.display_name ?? x.assigned_by) : null,
+      at: x.assigned_at, sub_title: x.title, ...dress(t) });
   }
   // 코멘트 — 내 업무에 달린 것(디렉터 말은 따로 묶는다)과 내 글에 달린 답글. 내가 쓴 것은 뺀다.
   for (const c of DB.comments ?? []) {
@@ -4274,6 +4385,9 @@ function hydrate(t, ref = today()) {
     attachment_count: attachmentsOf(t.id).length,
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
+    // 업무 영역·실무 담당은 하위 업무에 있다 — 상위에서는 모아 보여 준다
+    sub_areas: [...new Set(subtasksOf(t.id).map((x) => x.area).filter(Boolean))],
+    sub_owners: [...new Set(subtasksOf(t.id).map((x) => x.owner_slack_user_id).filter(Boolean))],
     stage: STAGE[t.status],
     // 진척률 — 상태 무게와 하위 업무 평균 중 큰 쪽. 완료면 100. (server/repo.js progress_weight)
     progress_weight: t.status === 'DONE' ? 1 : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0),
@@ -4319,12 +4433,14 @@ function listTasks(f = {}) {
     // 'YYYY-MM' 한 달 — 마감일 기준
     rows = rows.filter((t) => (t.due_date ?? '').slice(0, 7) === f.month);
   }
-  if (f.area?.length) rows = rows.filter((t) => f.area.includes(t.area));
+  // 영역은 하위 업무에 있다 — 그 영역의 하위가 하나라도 있는 업무. 외주(OUT)는 상위 표시다.
+  if (f.area?.length) rows = rows.filter((t) => taskAreas(t).some((a) => f.area.includes(a)));
   // 'NONE' 은 분류를 아직 안 정한 업무를 뜻한다
   if (f.category?.length) {
     rows = rows.filter((t) => (t.category ? f.category.includes(t.category) : f.category.includes('NONE')));
   }
-  if (f.owner?.length) rows = rows.filter((t) => f.owner.includes(t.owner_slack_user_id));
+  // 담당 — 상위 책임자이거나 하위 업무 담당
+  if (f.owner?.length) rows = rows.filter((t) => f.owner.includes(t.owner_slack_user_id) || t.sub_owners.some((o) => f.owner.includes(o)));
   if (f.status?.length) rows = rows.filter((t) => f.status.includes(t.status));
   if (f.stage === 'WAIT') rows = rows.filter((t) => WAIT_STATUSES.includes(t.status));
   if (f.stage === 'IN_PROGRESS') rows = rows.filter((t) => IN_PROGRESS_STATUSES.includes(t.status));
@@ -4371,9 +4487,9 @@ const pct = (sum, n) => (n === 0 ? null : Math.round((sum / n) * 100));
 function overview(ref = today()) {
   const rows = listTasks({ today: ref, includeDone: true });
   const blank = () => ({ count: 0, weight: 0, done: 0, delayed: 0, issue: 0, in_progress: 0, review: 0 });
-  const group = (keyFn) => {
+  const group = (keyFn, list = rows) => {
     const map = new Map();
-    for (const t of rows) {
+    for (const t of list) {
       const k = keyFn(t);
       if (!map.has(k)) map.set(k, blank());
       const g = map.get(k);
@@ -4389,7 +4505,8 @@ function overview(ref = today()) {
   };
 
   const byProject = group((t) => t.project_id);
-  const byArea = group((t) => t.area);
+  // 영역은 하위 업무에 있다 — 한 업무가 여러 영역에 걸치면 각 영역에 한 번씩 센다
+  const byArea = new Map(AREAS.map((a) => [a.code, group(() => a.code, rows.filter((t) => taskAreas(t).includes(a.code))).get(a.code)]).filter(([, g]) => g));
   const byOwner = group((t) => t.owner_slack_user_id);
 
   const owners = [...byOwner.entries()].map(([id, g]) => {
@@ -4511,19 +4628,15 @@ function setLead(area, slackUserId, actor) {
   DB.area_leads.push({ area, slack_user_id: slackUserId, role: 'LEAD', updated_at: nowISO() });
   let moved = 0;
   if (before !== slackUserId) {
-    for (const t of DB.tasks) {
-      if (t.area !== area || t.status === 'DONE' || t.deleted_at) continue;
-      // 담당을 따로 정해 둔 업무는 그대로 둔다 — 리드를 바꿀 때마다 지워지면 안 된다
-      if (t.owner_slack_user_id !== before) continue;
-      t.owner_slack_user_id = slackUserId;
-      t.updated_at = nowISO();
-      logEvent(t.id, 'OWNER_CHANGED', before, slackUserId, actor);
+    // 리드를 따르고 있던 하위 업무만 옮긴다 — 담당을 따로 정해 둔 것은 그대로 둔다
+    for (const x of DB.subtasks ?? []) {
+      if (x.area !== area || x.status === 'DONE' || x.owner_slack_user_id !== before) continue;
+      if (DB.tasks.find((t) => t.id === x.task_id)?.deleted_at) continue;
+      x.owner_slack_user_id = slackUserId;
+      x.assigned_at = nowISO();
+      x.assigned_by = actor ?? null;
       moved += 1;
     }
-    DB.collaborators = DB.collaborators.filter((c) => {
-      const t = DB.tasks.find((x) => x.id === c.task_id);
-      return !(t && t.area === area && t.status !== 'DONE' && c.slack_user_id === slackUserId);
-    });
   }
   return { area, slack_user_id: slackUserId, moved };
 }
@@ -4627,13 +4740,18 @@ function createCategory(input) {
 function createTask(input, actor) {
   if (!input.title?.trim()) throw new DemoError('업무명을 입력해 주세요.');
   // 프로젝트는 비워 둘 수 있다 — 어디에 붙일지 나중에 정하는 일도 일단 받아 적는다.
-  const area = input.area;
-  if (!AREAS.some((a) => a.code === area)) throw new DemoError('업무 영역을 선택해 주세요.');
-  // 담당은 기본이 그 영역의 리드다. 다른 사람을 고르면 그 사람이 맡는다.
-  const owner = input.owner_slack_user_id ? ensureMember(input.owner_slack_user_id) : areaLeadOf(area);
-  if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다. 영역 리드를 먼저 설정하거나 담당을 직접 골라 주세요.`);
+  // 업무 영역은 하위 업무에 붙는다. 상위의 area 는 외주 여부뿐이다 (server/repo.js splitArea).
+  // 예전처럼 영역 코드가 오면(AI 캡처 등) 같은 이름의 첫 하위 업무를 그 영역으로 만든다.
+  const rawArea = input.area || null;
+  const area = rawArea === 'OUT' || input.outsourcing ? 'OUT' : null;
+  const subArea = input.first_sub_area || (rawArea && rawArea !== 'OUT' ? rawArea : null);
+  if (subArea && !SUB_AREAS.some((a) => a.code === subArea)) throw new DemoError('없는 업무 영역입니다.');
+  // 책임자는 기본이 등록한 사람이다(영역을 함께 받았으면 그 영역 리드). 다른 사람을 고르면 그 사람이 맡는다.
+  const owner = input.owner_slack_user_id ? ensureMember(input.owner_slack_user_id)
+    : (subArea && areaLeadOf(subArea)) || (member(actor) ? actor : null);
+  if (!owner) throw new DemoError('책임자를 골라 주세요.');
   const status = input.status || defaultStatusFor(area);
-  if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
+  if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError(area === 'OUT' ? '외주 업무에 맞지 않는 상태입니다.' : '외주 업무 상태는 외주 업무에서만 씁니다.');
   const due = input.due_date || (area === 'OUT' ? input.delivery_due_date : null) || null;
   // 마감일을 비우면 백로그다 — 아직 언제 할지 안 정한 일.
   if (input.start_date && input.start_date > due) throw new DemoError('시작일은 마감일보다 늦을 수 없습니다.');
@@ -4655,6 +4773,7 @@ function createTask(input, actor) {
   setCollaborators(t.id, input.collaborators || [], owner);
   if (area === 'OUT') upsertOutsourcing(t.id, input);
   logEvent(t.id, 'CREATED', null, status, actor);
+  if (subArea) createSubtask(t.id, { title: t.title, area: subArea, owner_slack_user_id: input.sub_owner_slack_user_id }, actor);
   const hydrated = hydrate(t);
   notifyTaskCreated(hydrated, actor);
   save();
@@ -4666,22 +4785,17 @@ function updateTask(id, input, actor) {
   if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
   const before = hydrate(t);
 
-  const area = input.area ?? t.area;
-  // 영역이 바뀌어도 그 상태를 쓸 수 있으면 그대로 둔다 (외주 ↔ 일반일 때만 처음으로)
+  // area 는 외주 여부 — 'OUT' 이거나 비어 있다. 다른 영역 코드는 하위 업무 몫이라 '외주 아님'으로 읽는다.
+  const area = input.area === undefined ? (t.area ?? null) : (input.area === 'OUT' ? 'OUT' : null);
+  // 외주를 켜거나 꺼도 그 상태를 쓸 수 있으면 그대로 둔다 (외주 ↔ 일반일 때만 처음으로)
   const status = input.status ?? (
     area === t.area || domainStatusesFor(area).some((x) => x.code === t.status)
       ? t.status
       : defaultStatusFor(area));
-  if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError('업무 영역에 맞지 않는 상태입니다.');
+  if (!domainStatusesFor(area).some((s) => s.code === status)) throw new DemoError(area === 'OUT' ? '외주 업무에 맞지 않는 상태입니다.' : '외주 업무 상태는 외주 업무에서만 씁니다.');
+  // 책임자는 사람이 고른다. 영역 리드를 따라가는 것은 하위 업무 담당이다.
   let owner = t.owner_slack_user_id;
-  if (input.owner_slack_user_id) {
-    // 직접 고른 담당이 가장 세다
-    owner = ensureMember(input.owner_slack_user_id);
-  } else if (area !== t.area && t.owner_slack_user_id === areaLeadOf(t.area)) {
-    // 리드를 따르고 있던 업무만 새 영역의 리드로 따라간다
-    owner = areaLeadOf(area);
-    if (!owner) throw new DemoError(`'${AREAS.find((a) => a.code === area)?.full ?? area}' 영역의 리드가 지정되지 않았습니다.`);
-  }
+  if (input.owner_slack_user_id) owner = ensureMember(input.owner_slack_user_id);
   // 빈 문자열로 오면 '비운다'는 뜻이다 (백로그로 내린다)
   const due = input.due_date === undefined ? t.due_date : (input.due_date || null);
   // 프로젝트도 마찬가지 — 빈 값이 오면 프로젝트 미정으로 내린다
@@ -4818,13 +4932,19 @@ function setTime({ task_id, slack_user_id, work_date, hours }) {
   return { hours: h };
 }
 
+/** 시간 집계의 영역 열쇠 — 외주면 OUT, 하위 영역이 하나면 그것, 여럿이면 MULTI, 없으면 NONE */
+function demoTimeArea(t) {
+  if (t.area === 'OUT') return 'OUT';
+  const list = [...new Set(subtasksOf(t.id).map((x) => x.area).filter(Boolean))];
+  return list.length === 1 ? list[0] : list.length ? 'MULTI' : 'NONE';
+}
 function timeSummary(from, to) {
   const rows = (DB.time_entries ?? []).filter((e) => e.work_date >= from && e.work_date <= to)
     .map((e) => {
       const t = DB.tasks.find((x) => x.id === e.task_id && !x.deleted_at);
       const p = t?.project_id ? project(t.project_id) : null;
       return t && (!t.project_id ? true : (p && !p.is_archived))
-        ? { hours: e.hours, slack_user_id: e.slack_user_id, area: t.area,
+        ? { hours: e.hours, slack_user_id: e.slack_user_id, area: demoTimeArea(t),
             project_id: t.project_id, project_name: p?.name ?? null,
             display_name: member(e.slack_user_id)?.display_name ?? e.slack_user_id }
         : null;
@@ -4842,7 +4962,7 @@ function timeSummary(from, to) {
     period: { from, to },
     total: rows.reduce((n, r) => n + r.hours, 0),
     projects: group((r) => r.project_id, (r) => r.project_name),
-    areas: group((r) => r.area, (r) => AREA_MAP[r.area]?.full ?? r.area),
+    areas: group((r) => r.area, (r) => (r.area === 'MULTI' ? '여러 영역' : r.area === 'NONE' ? '영역 없음' : AREA_MAP[r.area]?.full ?? r.area)),
     members: group((r) => r.slack_user_id, (r) => r.display_name),
   };
 }
@@ -5086,7 +5206,7 @@ function buildSnapshot(periodStart, periodEnd, ref) {
 
   const brief = (t) => ({
     id: t.id, title: t.title, project_name: t.project_name, area: t.area,
-    area_label: AREA_MAP[t.area]?.label ?? t.area,
+    area_label: taskAreas(t).map((a) => AREA_MAP[a]?.label ?? a).join(' · ') || '-',
     owner_name: t.owner_name, owner_slack_user_id: t.owner_slack_user_id,
     status: t.status, status_label: sLabel(t.status), priority: t.priority,
     due_date: t.due_date, start_date: t.start_date, completed_at: t.completed_at,
@@ -5117,7 +5237,7 @@ function buildSnapshot(periodStart, periodEnd, ref) {
       };
     }),
     areas: ov.areas.map((a) => ({
-      ...a, completed_this_week: completed.filter((t) => t.area === a.code).length,
+      ...a, completed_this_week: completed.filter((t) => taskAreas(t).includes(a.code)).length,
     })),
     completed: {
       rows: [...completed].sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
@@ -5626,7 +5746,7 @@ function handle(method, path, body) {
 
   if (seg[1] === 'tasks' && seg[2] && seg[3] === 'subtasks') {
     if (method === 'GET') return subtasksOf(seg[2]);
-    if (method === 'POST') return createSubtask(seg[2], body);
+    if (method === 'POST') return createSubtask(seg[2], body, me);
   }
   if (seg[1] === 'tasks' && seg[2] && seg[3] === 'attachments') {
     if (method === 'GET') return attachmentsOf(seg[2]);
@@ -5634,7 +5754,7 @@ function handle(method, path, body) {
   }
   if (seg[1] === 'attachments' && seg[2] && method === 'DELETE') return removeAttachment(seg[2]);
   if (seg[1] === 'subtasks' && seg[2]) {
-    if (method === 'PATCH') return updateSubtask(seg[2], body);
+    if (method === 'PATCH') return updateSubtask(seg[2], body, me);
     if (method === 'DELETE') return removeSubtask(seg[2]);
   }
 
@@ -6307,6 +6427,30 @@ const subStatusPick = (r) => {
     ${SUB_STATUS.map((s) => `<option value="${s.code}"${s.code === cur ? ' selected' : ''}>${s.mark} ${s.label}</option>`).join('')}
   </select>`;
 };
+/**
+ * 하위 업무의 영역 · 담당 고르기 — 업무 영역과 실무 담당은 하위 업무에 붙는다.
+ * 영역을 바꾸면 담당이 리드를 따르고 있었을 때 새 영역 리드로 간다(저장소 규칙). 담당은 직접 고를 수도 있다.
+ */
+const subAreaPick = (r) => {
+  const cur = r.area ?? '';
+  const list = (state.meta?.areas ?? []).filter((a) => a.code !== 'OUT');
+  return `<select class="sub-area${cur ? '' : ' none'}" data-sub-area="${esc(r.id)}" aria-label="하위 업무 영역" title="업무 영역">
+    <option value=""${cur ? '' : ' selected'}>영역 없음</option>
+    ${list.map((a) => `<option value="${esc(a.code)}"${a.code === cur ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}
+  </select>`;
+};
+const subOwnerPick = (r) => {
+  const cur = r.owner_slack_user_id ?? '';
+  const people = (state.members ?? []).filter((m) => m.is_active || m.slack_user_id === cur);
+  return `<select class="sub-owner${cur ? '' : ' none'}" data-sub-owner="${esc(r.id)}" aria-label="하위 업무 담당" title="담당">
+    <option value=""${cur ? '' : ' selected'}>담당 없음</option>
+    ${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === cur ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+  </select>`;
+};
+/** 보기 전용 칩 — 타임라인처럼 좁은 줄에 */
+const subAreaChip = (r) => (r.area
+  ? `<span class="sub-area-chip" title="업무 영역">${esc(areaMeta(r.area).label)}</span>` : '');
+
 /** 상위 업무가 밀렸을 때의 안내 글 */
 const nudgeNote = (nudged) => (nudged
   ? `상위 업무 상태가 「${nudged === 'REVIEW' ? '검토' : nudged === 'IN_PROGRESS' ? '진행중' : nudged}」로 바뀌었습니다` : null);
@@ -6415,7 +6559,11 @@ const opts = (list, selected, { value = 'code', label = 'label' } = {}) =>
 function taskForm({ task = null, defaults = {}, onSaved }) {
   if (!openable()) return;
   const editing = Boolean(task);
-  const area0 = task?.area ?? defaults.area ?? 'PLAN';
+  // 업무 영역은 하위 업무에 붙는다 — 상위 업무에서 고르는 것은 외주 여부와(등록 때) 첫 하위 업무의 영역뿐이다
+  const out0 = (task?.area ?? defaults.area) === 'OUT';
+  const area0 = out0 ? 'OUT' : null;
+  const subArea0 = editing ? '' : (defaults.first_sub_area ?? (defaults.area && defaults.area !== 'OUT' ? defaults.area : ''));
+  const subAreas = (state.meta.areas ?? []).filter((a) => a.code !== 'OUT');
 
   const body = `
     ${editing ? '' : `
@@ -6443,10 +6591,16 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
           </select>
         </label>
 
-        <label class="field">
-          <span class="lab">업무 영역<span class="req">*</span></span>
-          <select name="area" required>${opts(state.meta.areas, area0)}</select>
-        </label>
+        <div class="field">
+          ${editing ? `
+          <span class="lab">외주</span>` : `
+          <span class="lab">첫 하위 업무 영역 <span class="hint" style="font-weight:400">고르면 같은 이름의 하위 업무가 그 영역 리드에게 갑니다</span></span>
+          <select name="first_sub_area" data-sub-area0>
+            <option value="">나중에 정함</option>
+            ${opts(subAreas, subArea0)}
+          </select>`}
+          <label class="out-check"><input type="checkbox" name="outsourcing" data-out-check${out0 ? ' checked' : ''}> 외주 업무 <span class="hint">업체·납품일과 외주 상태를 씁니다</span></label>
+        </div>
 
         <label class="field">
           <span class="lab">분류 <span class="hint" style="font-weight:400">나중에 정해도 됩니다</span></span>
@@ -6464,10 +6618,10 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
-          <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
+          <span class="lab">책임자 <span class="hint" style="font-weight:400">업무 전체를 챙기는 사람 · 실무 담당은 하위 업무마다</span></span>
           <select name="owner_slack_user_id" data-owner>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
-              m.slack_user_id === task?.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              m.slack_user_id === (task?.owner_slack_user_id ?? defaults.owner ?? state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
           </select>
           <span class="lead-box" data-lead-box></span>
         </label>
@@ -6574,7 +6728,8 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         });
         obs.observe(document.getElementById('modal-root'), { childList: true });
       }
-      const areaSel = form.querySelector('[name=area]');
+      const outCheck = form.querySelector('[data-out-check]');
+      const subAreaSel = form.querySelector('[data-sub-area0]');
       const statusSel = form.querySelector('[name=status]');
       const outBox = form.querySelector('[data-out]');
       const dueInput = form.querySelector('[name=due_date]');
@@ -6587,35 +6742,29 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         value: (task?.collaborators ?? []).map((c) => c.slack_user_id),
       });
 
-      // 담당을 직접 골랐는지 기억한다. 손대지 않았으면 영역을 바꿀 때 리드를 따라간다.
+      // 책임자는 사람이 고른다. 첫 하위 업무 영역을 고르면 그 하위의 담당(영역 리드)을 알려 준다.
       const ownerSel = form.querySelector('[data-owner]');
-      let ownerPicked = Boolean(task?.owner_slack_user_id
-        && task.owner_slack_user_id !== leadOf(task.area)?.slack_user_id);
-      ownerSel.addEventListener('change', () => { ownerPicked = true; syncLead(); });
+      ownerSel.addEventListener('change', () => syncLead());
 
       const syncLead = () => {
-        const lead = leadOf(areaSel.value);
-        const co = coLeadsOf(areaSel.value);
-        if (!ownerPicked && lead) ownerSel.value = lead.slack_user_id;
-        const owner = memberOf(ownerSel.value);
-        const isLead = owner && owner.slack_user_id === lead?.slack_user_id;
-        leadBox.innerHTML = lead
-          ? (isLead ? `<span class="lead-co">${esc(areaMeta(areaSel.value).full)} 리드</span>` : '')
-            + (co.length ? `<span class="lead-co">· 공동 ${esc(co.map((l) => l.display_name).join(' · '))}</span>` : '')
-          : '<span class="lead-none">이 영역의 리드가 없습니다 · 담당을 직접 골라 주세요</span>';
-        // 담당인 사람은 협업자로 또 고를 수 없다
-        collabPicker.setExclude([ownerSel.value, ...co.map((l) => l.slack_user_id)].filter(Boolean));
+        const sub = subAreaSel?.value;
+        const lead = sub ? leadOf(sub) : null;
+        leadBox.innerHTML = !sub ? ''
+          : lead ? `<span class="lead-co">첫 하위 업무 담당 · ${esc(areaMeta(sub).full)} 리드 ${esc(lead.display_name)}</span>`
+            : '<span class="lead-none">이 영역의 리드가 없습니다 · 하위 업무 담당은 나중에 고릅니다</span>';
+        // 책임자는 협업자로 또 고를 수 없다
+        collabPicker.setExclude([ownerSel.value].filter(Boolean));
       };
 
       const syncArea = () => {
-        const area = areaSel.value;
-        const isOut = area === 'OUT';
+        const isOut = outCheck.checked;
         outBox.hidden = !isOut;
-        const list = statusesFor(area);
+        const list = statusesFor(isOut ? 'OUT' : null);
         const keep = list.some((s) => s.code === statusSel.value) ? statusSel.value : list[0].code;
         statusSel.innerHTML = opts(list, keep);
       };
-      areaSel.addEventListener('change', () => { syncArea(); syncLead(); });
+      outCheck.addEventListener('change', syncArea);
+      subAreaSel?.addEventListener('change', syncLead);
       syncArea();
       syncLead();
 
@@ -6812,7 +6961,8 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
           const f = r.fields;
           if (f.title) form.querySelector('[name=title]').value = f.title;
           if (f.project_id) form.querySelector('[name=project_id]').value = f.project_id;
-          if (f.area) { areaSel.value = f.area; syncArea(); syncLead(); }
+          if (f.area === 'OUT') { outCheck.checked = true; syncArea(); }
+          else if (f.area && subAreaSel) { subAreaSel.value = f.area; syncLead(); }
           if (f.due_date) dueInput.value = f.due_date;
           if (f.priority) form.querySelector('[name=priority]').value = f.priority;
           captureRes.hidden = false;
@@ -6835,10 +6985,13 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
         const fd = new FormData(form);
         const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
         payload.collaborators = collabPicker.value;
+        // area 는 외주 여부만 — 영역은 하위 업무에
+        payload.area = outCheck.checked ? 'OUT' : null;
+        delete payload.outsourcing;
 
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
         // 프로젝트는 비워 둬도 된다 — '프로젝트 미정'으로 들어간다
-        if (!payload.owner_slack_user_id) return toast('담당을 골라 주세요.', true);
+        if (!payload.owner_slack_user_id) return toast('책임자를 골라 주세요.', true);
         // 마감일을 비우면 백로그로 들어간다 — 막지 않는다.
         // 외주만은 납품 예정일이 곧 마감이라 하나는 있어야 한다.
         if (payload.area === 'OUT' && !payload.due_date && !payload.delivery_due_date) {
@@ -6861,7 +7014,8 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
           if (!editing && keepOpen) {
             close();
             taskForm({
-              defaults: { project_id: payload.project_id, area: payload.area, owner: payload.owner_slack_user_id },
+              defaults: { project_id: payload.project_id, area: payload.area, first_sub_area: payload.first_sub_area,
+                owner: payload.owner_slack_user_id },
               onSaved,
             });
           } else {
@@ -7434,6 +7588,32 @@ function expenseForm({ defaults = {}, onSaved }) {
  * 하위 업무 목록 한 벌 — 목록 · 상태 · 제목 · 마감 · 삭제 · 추가. 업무 수정 창이 쓴다.
  * 바뀌는 즉시 저장된다(하위 업무 창과 같다). onChange 는 뭔가 바뀔 때마다 부른다.
  */
+/** 하위 업무 추가 칸의 영역 고르기 — 기본은 바로 앞 하위 업무의 영역(이어서 넣는 일이 많다) */
+const subAddArea = (rows = []) => {
+  const last = [...rows].reverse().find((r) => r.area)?.area ?? '';
+  const list = (state.meta?.areas ?? []).filter((a) => a.code !== 'OUT');
+  return `<select name="area" class="sub-area" aria-label="새 하위 업무 영역" title="영역 — 고르면 그 영역 리드가 담당">
+    <option value="">영역 없음</option>
+    ${list.map((a) => `<option value="${esc(a.code)}"${a.code === last ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}
+  </select>`;
+};
+
+/** 하위 업무 줄의 영역·담당 셀렉트가 바뀌면 저장한다. 다룬 변경이면 true */
+async function subAssignChange(e, { editable, after }) {
+  const ar = e.target.closest('[data-sub-area]');
+  const ow = e.target.closest('[data-sub-owner]');
+  if (!ar && !ow) return false;
+  if (!editable()) { await after(); return true; }
+  try {
+    const r = ar
+      ? await api.patch(`/api/subtasks/${ar.dataset.subArea}`, { area: ar.value || null })
+      : await api.patch(`/api/subtasks/${ow.dataset.subOwner}`, { owner_slack_user_id: ow.value || null });
+    toast(ar ? `영역을 바꿨습니다${r.owner_name ? ` · 담당 ${r.owner_name}` : ''}` : `담당을 ${r.owner_name ?? '비움'}(으)로 바꿨습니다.`);
+  } catch (err) { toast(err.message, true); }
+  await after();
+  return true;
+}
+
 function mountSubtasks(box, task, { onChange } = {}) {
   const t = task;
   let rows = [];
@@ -7444,6 +7624,7 @@ function mountSubtasks(box, task, { onChange } = {}) {
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${subAreaPick(r)}${subOwnerPick(r)}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감" title="비우면 상위 업무 마감을 따릅니다.">
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
@@ -7455,6 +7636,7 @@ function mountSubtasks(box, task, { onChange } = {}) {
       <div data-list>${list()}</div>
       <form class="sub-add" data-sub-add>
         <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
+        ${subAddArea(rows)}
         <button class="btn btn-ghost" type="submit">+ 추가</button>
       </form>`;
   };
@@ -7469,6 +7651,7 @@ function mountSubtasks(box, task, { onChange } = {}) {
   const touched = () => onChange?.();
 
   box.addEventListener('change', async (e) => {
+    if (await subAssignChange(e, { editable, after: () => { touched(); return load(); } })) return undefined;
     const sst = e.target.closest('[data-sub-status]');
     if (sst) {
       if (!editable()) return load();
@@ -7526,7 +7709,7 @@ function mountSubtasks(box, task, { onChange } = {}) {
     const title = input.value.trim();
     if (!title) return;
     try {
-      await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+      await api.post(`/api/tasks/${t.id}/subtasks`, { title, area: add.querySelector('[name=area]')?.value || null });
       touched();
       input.value = '';
       await load();
@@ -7566,6 +7749,7 @@ function subtaskModal({ task, onChange, focus = null }) {
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${subAreaPick(r)}${subOwnerPick(r)}
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
@@ -7584,7 +7768,7 @@ function subtaskModal({ task, onChange, focus = null }) {
                data-task-title="${esc(t.id)}" aria-label="업무명" title="눌러서 고치기 — Enter 저장 · Esc 되돌리기">
         <div class="sbm-meta">
           <span class="st">${statusPick(t)}</span>
-          <span class="meta" data-head-meta>마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 담당 ${esc(t.owner_name)}` : ''}</span>
+          <span class="meta" data-head-meta>마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 책임 ${esc(t.owner_name)}` : ''}</span>
           <a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>상세 열기 ›</a>
         </div>
       </div>
@@ -7594,9 +7778,10 @@ function subtaskModal({ task, onChange, focus = null }) {
         <div data-list>${list()}</div>
         <form class="sub-add" data-sub-add>
           <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
+          ${subAddArea(t.sub_areas?.slice(-1).map((a) => ({ area: a })) ?? [])}
           <button class="btn btn-ghost" type="submit">+ 추가</button>
         </form>
-        <p class="sub-note">담당은 상위 업무를 따릅니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.</p>
+        <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.</p>
       </div>
       <div class="sbm-sec sbm-att" data-att-row hidden>
         <div class="sbm-sec-head"><h4>링크·첨부</h4><a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>더하기는 상세에서 ›</a></div>
@@ -7645,6 +7830,7 @@ function subtaskModal({ task, onChange, focus = null }) {
       }).catch(() => {});
 
       root.addEventListener('change', async (e) => {
+        if (await subAssignChange(e, { editable, after: () => { changed = true; return load(); } })) return undefined;
         const sst = e.target.closest('[data-sub-status]');
         if (sst) {
           if (!editable()) return load();
@@ -7736,7 +7922,7 @@ function subtaskModal({ task, onChange, focus = null }) {
         const title = input.value.trim();
         if (!title) return;
         try {
-          await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+          await api.post(`/api/tasks/${t.id}/subtasks`, { title, area: e.target.querySelector('[name=area]')?.value || null });
           changed = true;
           input.value = '';
           await load();
@@ -8552,12 +8738,17 @@ const foldedAreas = new Set();
 const dirFirst = (list) => [...list].sort(
   (a, b) => Boolean(b.director_comment_count) - Boolean(a.director_comment_count));
 
-/** 영역 › 분류 묶음. 분류를 아직 안 정한 것은 맨 아래로 모은다. */
+// 업무가 걸친 영역 — 하위 업무의 영역 + 외주 표시 (server/domain.js taskAreas 와 같다)
+const gAreasOf = (t) => [...(t.area === 'OUT' ? ['OUT'] : []), ...(t.sub_areas ?? [])];
+/**
+ * 영역 › 분류 묶음. 영역은 하위 업무에 있어 여러 영역에 걸친 업무는 각 영역에 나온다.
+ * 하위 영역이 하나도 없는 업무는 맨 아래 「영역 없음」에, 분류를 안 정한 것은 묶음 맨 아래로 모은다.
+ */
 const byAreaAndCategory = (rows) => {
   const catOrder = [...(state.meta?.categories ?? []).map((c) => c.code), null];
-  return (state.meta?.areas ?? [])
+  return [...(state.meta?.areas ?? []), { code: 'NONE', label: '영역 없음', full: '영역 없음', none: true }]
     .map((a) => {
-      const mine = rows.filter((t) => t.area === a.code);
+      const mine = rows.filter((t) => (a.none ? !gAreasOf(t).length : gAreasOf(t).includes(a.code)));
       const groups = catOrder
         .map((code) => ({
           code,
@@ -8583,7 +8774,7 @@ const ganttTaskLine = (t, w) => `
               >${t.subtask_total ? `하위 ${t.subtask_done}/${t.subtask_total}` : '하위 +'}</button>
       ${cmBadge(t)}
       <span class="st">${statusPick(t)}</span>
-      <span class="tlg-own" title="담당 — 영역 리드">${esc(t.owner_name ?? '')}</span>
+      <span class="tlg-own" title="책임자">${esc(t.owner_name ?? '')}</span>
       <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동" title="상세 편집">✎</button>
       <button class="tld-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
     </div>
@@ -8603,10 +8794,10 @@ function ganttTable({ w, sections }) {
           <button class="tlg-fold" data-fold-area="${esc(g.area.code)}"
                   aria-expanded="${!foldedAreas.has(g.area.code)}" aria-label="영역 접기/펼치기">${
             foldedAreas.has(g.area.code) ? '▸' : '▾'}</button>
-          <a class="lab" href="#/project/tasks?area=${encodeURIComponent(g.area.code)}&month=all&done=1"
-             title="${esc(g.area.full)} 업무 전체 보기">${esc(g.area.full)}</a>
+          ${g.area.none ? `<span class="lab">${esc(g.area.full)}</span>` : `<a class="lab" href="#/project/tasks?area=${encodeURIComponent(g.area.code)}&month=all&done=1"
+             title="${esc(g.area.full)} 업무 전체 보기">${esc(g.area.full)}</a>`}
           <span class="n">${g.rows.length}건</span>
-          <span class="lead">리드 ${esc(leadNames(g.area.code))}</span>
+          ${g.area.none ? '' : `<span class="lead">리드 ${esc(leadNames(g.area.code))}</span>`}
         </div>
         <div class="tlg-t">${w.gridLines()}</div>
       </div>
@@ -9163,25 +9354,27 @@ async function renderTasks(root, query) {
   const groups = [];
   // 프로젝트를 아직 안 정한 업무 — 맨 앞에 둔다. 자리를 못 잡은 일이라 먼저 보여야 한다.
   const loose = rows.filter((t) => !t.project_id);
-  if (loose.length) {
-    const areas = [];
-    for (const a of state.meta.areas) {
-      const inArea = loose.filter((t) => t.area === a.code);
-      if (inArea.length) areas.push({ area: a, rows: rank.size ? inArea.sort(byRank) : inArea });
+  // 묶음은 프로젝트 › 페이즈 — 업무 영역은 하위 업무에 붙어 있어 줄마다 칩으로 보인다
+  const byPhase = (list) => {
+    const out = [];
+    const keys = [...new Set(list.map((t) => t.phase_id ?? ''))]
+      .sort((a, b) => (a === '') - (b === ''));
+    for (const k of keys) {
+      const inPh = list.filter((t) => (t.phase_id ?? '') === k);
+      out.push({ area: { code: k, full: k ? (inPh[0].phase_name ?? '페이즈') : '페이즈 없음', phase: true },
+        rows: rank.size ? inPh.sort(byRank) : inPh });
     }
-    groups.push({ project: NO_PROJECT, count: loose.length, areas, loose: true });
+    return out;
+  };
+  if (loose.length) {
+    groups.push({ project: NO_PROJECT, count: loose.length, areas: byPhase(loose), loose: true });
   }
   for (const pr of ordered) {
     const mine = rows.filter((t) => t.project_id === pr.id);
     // 업무가 아직 하나도 없는 프로젝트도 보여 준다. 안 보이면 방금 만든 프로젝트가
     // 사라진 것처럼 보인다. 조건에 안 걸린 것뿐인 프로젝트는 접어 둔다.
     if (!mine.length && pr.task_count) continue;
-    const areas = [];
-    for (const a of state.meta.areas) {
-      const inArea = mine.filter((t) => t.area === a.code);
-      if (inArea.length) areas.push({ area: a, rows: rank.size ? inArea.sort(byRank) : inArea });
-    }
-    groups.push({ project: pr, count: mine.length, areas });
+    groups.push({ project: pr, count: mine.length, areas: byPhase(mine) });
   }
   const manual = rows.some((t) => rank.has(t.id));
   // 타임라인 보기의 날짜 창 — 걸러진 업무의 시작·마감이 다 들어가게
@@ -9201,6 +9394,7 @@ async function renderTasks(root, query) {
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
         ${ticketTag(t)}${titleCell(t)}
+        ${(t.area === 'OUT' ? ['OUT'] : []).concat(t.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="업무 영역(하위 업무)">${esc(state.meta.areas.find((x) => x.code === a)?.label ?? a)}</span>`).join('')}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}${
           t.comment_count ? `<i class="tk-cm" title="디렉터 코멘트 ${t.comment_count}건">💬 ${t.comment_count}</i>` : ''}</span>
@@ -9257,7 +9451,7 @@ async function renderTasks(root, query) {
     <div class="filter-row" style="margin-bottom:18px">
       <select data-f="project"><option value="">프로젝트 전체</option>${projectOptions}</select>
       <select data-f="area"><option value="">영역 전체</option>${areaOptions}</select>
-      <select data-f="owner"><option value="">리드 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
+      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label class="chk"><input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함</label>
       <button class="btn btn-ghost" data-reset>필터 초기화</button>
@@ -9293,10 +9487,8 @@ async function renderTasks(root, query) {
         ${g.areas.map((a) => `
           <div class="tk-area">
             <div class="tk-area-head">
-              <a class="lab" href="#/project/tasks?area=${encodeURIComponent(a.area.code)}&month=all&done=1"
-                 title="${esc(a.area.full)} 업무 전체 보기">${esc(a.area.full)}</a>
+              <span class="lab">${esc(a.area.full)}</span>
               <span class="n">${a.rows.length}건</span>
-              <span class="lead">${esc(leadNames(a.area.code))}</span>
             </div>
             <div class="tk-rows">${a.rows.map(taskRow).join('')}</div>
           </div>`).join('')}
@@ -9714,6 +9906,7 @@ const subList = (rows = []) => (rows.length
         ${subStatusPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${subAreaPick(r)}${subOwnerPick(r)}
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
         ${subDue(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
@@ -9740,12 +9933,8 @@ async function renderTaskDetail(root, id, query = '') {
         <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}${t.key ? ` · <span class="tkey">${esc(t.key)}</span>` : ''}</div>
         <h1>${titleCell(t, 'h1')}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          <span class="area-pick" title="업무 영역 변경">
-            <select data-area aria-label="업무 영역 변경">
-              ${state.meta.areas.map((a) => `<option value="${esc(a.code)}"${
-                a.code === t.area ? ' selected' : ''}>${esc(a.full)}</option>`).join('')}
-            </select>
-          </span>
+          ${t.area === 'OUT' ? '<span class="chip out" title="외주 업무 — 업무 수정에서 끌 수 있습니다">외주</span>' : ''}
+          ${(t.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="하위 업무의 영역">${esc(areaMeta(a).label)}</span>`).join('')}
           <span class="area-pick" title="분류 변경">
             <select data-category aria-label="분류 변경">
               <option value=""${t.category ? '' : ' selected'}>분류 없음</option>
@@ -9774,16 +9963,14 @@ async function renderTaskDetail(root, id, query = '') {
         <div class="panel">
           <h3>업무 정보</h3>
           <dl class="kv">
-            <dt>담당</dt><dd class="owner-cell">
-              <select data-owner aria-label="담당 변경">
+            <dt>책임자</dt><dd class="owner-cell">
+              <select data-owner aria-label="책임자 변경">
                 ${state.members.filter((m) => m.is_active).map((m) => `<option value="${esc(m.slack_user_id)}"${
                   m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
               </select>
-              ${t.owner_slack_user_id === leadOf(t.area)?.slack_user_id
-                ? `<span class="area-lead-tag">${esc(areaMeta(t.area).full)} 리드</span>` : ''}
             </dd>
-            ${coLeadsOf(t.area).length ? `<dt>공동</dt><dd>${
-              coLeadsOf(t.area).map((l) => person(l.slack_user_id, l.display_name)).join(' ')}</dd>` : ''}
+            ${(t.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${
+              t.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}
             <dt>협업자</dt><dd>${t.collaborators.length
               ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
               : '<span style="color:var(--muted)">-</span>'}</dd>
@@ -9811,9 +9998,10 @@ async function renderTaskDetail(root, id, query = '') {
           <form class="sub-add" data-sub-add>
             <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)"
                    aria-label="하위 업무명">
+            ${subAddArea(t.subtasks)}
             <button class="btn btn-ghost" type="submit">추가</button>
           </form>
-          <p class="sub-note">담당은 위 업무를 따릅니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
+          <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
         </div>
 
         <div class="panel att-panel" data-att-panel>
@@ -9911,20 +10099,6 @@ async function renderTaskDetail(root, id, query = '') {
   root.addEventListener('change', async (e) => {
     const own = e.target.closest('[data-owner]');
     if (own) { stage('owner_slack_user_id', own.value); return undefined; }
-    const areaSel = e.target.closest('[data-area]');
-    if (areaSel) {
-      const next = areaSel.value;
-      // 영역이 곧 담당이다 — 바뀌면 그 영역의 리드가 맡는다
-      const lead = leadOf(next);
-      if (next !== t.area && !lead) {
-        toast(`'${areaMeta(next).full}' 영역의 리드가 지정되지 않았습니다.`, true);
-        areaSel.value = t.area;
-        return undefined;
-      }
-      stage('area', next);
-      if (next !== t.area) toast(`저장하면 담당이 ${lead.display_name}(${areaMeta(next).full} 리드)으로 바뀝니다.`);
-      return undefined;
-    }
     const cat = e.target.closest('[data-category]');
     if (cat) { stage('category', cat.value || null); return undefined; }
     const ttl = e.target.closest('[data-title]');
@@ -9968,6 +10142,7 @@ async function renderTaskDetail(root, id, query = '') {
     // 업무 내용 — 다른 칸처럼 모아 두었다가 「저장」으로 올린다
     const desc = e.target.closest('[data-desc]');
     if (desc) { stage('description', desc.value.trim() || null); return undefined; }
+    if (await subAssignChange(e, { editable: () => true, after: () => reload() })) return undefined;
     const sub = e.target.closest('[data-sub-status]');
     if (sub) {
       try {
@@ -10089,7 +10264,7 @@ async function renderTaskDetail(root, id, query = '') {
     const title = input.value.trim();
     if (!title) return;
     try {
-      await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+      await api.post(`/api/tasks/${t.id}/subtasks`, { title, area: form.querySelector('[name=area]')?.value || null });
       input.value = '';
       await reloadSubs();
       input.focus();   // 여러 개를 잇달아 넣는 일이 많다
@@ -11784,6 +11959,7 @@ async function renderTimeline(root) {
         id: r.id,
         html: `${subStatusPick(r)}${ticketTag({ ...r, project_id: t.project_id })}
           <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}">${esc(r.title)}</span>
+          ${subAreaChip(r)}${r.owner_name ? `<span class="tl-sown" title="담당 ${esc(r.owner_name)}">${esc(r.owner_name)}</span>` : ''}
           <span class="tl-sdue${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}">${due ? esc(shortDate(due)) : ''}</span>`,
       }, dot);
     }).join('');
@@ -13222,7 +13398,7 @@ const EDIT_TARGETS = [
   '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
   '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
   '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
-  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
 ].join(',');
 
 const blockWhenLocked = (e) => {

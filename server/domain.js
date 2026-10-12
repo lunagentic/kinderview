@@ -16,6 +16,11 @@ export const AREAS = [
   { code: 'ETC',     label: '기타',       full: '기타' },
 ];
 
+// 하위 업무가 고를 수 있는 영역 — 외주는 상위 업무의 표시라 빠진다
+export const SUB_AREAS = AREAS.filter((a) => a.code !== 'OUT');
+/** 업무가 걸친 영역들 — 하위 업무의 영역에 외주 표시를 더한 것. 영역별 집계·필터가 같은 규칙을 쓴다 */
+export const taskAreas = (t) => [...(t.area === 'OUT' ? ['OUT'] : []), ...(t.sub_areas ?? [])];
+
 // 일반 업무 4단계
 export const NORMAL_STATUSES = [
   { code: 'TODO',        label: '대기',   tone: 'wait' },

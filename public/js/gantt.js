@@ -303,12 +303,17 @@ const foldedAreas = new Set();
 const dirFirst = (list) => [...list].sort(
   (a, b) => Boolean(b.director_comment_count) - Boolean(a.director_comment_count));
 
-/** 영역 › 분류 묶음. 분류를 아직 안 정한 것은 맨 아래로 모은다. */
+// 업무가 걸친 영역 — 하위 업무의 영역 + 외주 표시 (server/domain.js taskAreas 와 같다)
+const gAreasOf = (t) => [...(t.area === 'OUT' ? ['OUT'] : []), ...(t.sub_areas ?? [])];
+/**
+ * 영역 › 분류 묶음. 영역은 하위 업무에 있어 여러 영역에 걸친 업무는 각 영역에 나온다.
+ * 하위 영역이 하나도 없는 업무는 맨 아래 「영역 없음」에, 분류를 안 정한 것은 묶음 맨 아래로 모은다.
+ */
 const byAreaAndCategory = (rows) => {
   const catOrder = [...(state.meta?.categories ?? []).map((c) => c.code), null];
-  return (state.meta?.areas ?? [])
+  return [...(state.meta?.areas ?? []), { code: 'NONE', label: '영역 없음', full: '영역 없음', none: true }]
     .map((a) => {
-      const mine = rows.filter((t) => t.area === a.code);
+      const mine = rows.filter((t) => (a.none ? !gAreasOf(t).length : gAreasOf(t).includes(a.code)));
       const groups = catOrder
         .map((code) => ({
           code,
@@ -334,7 +339,7 @@ const ganttTaskLine = (t, w) => `
               >${t.subtask_total ? `하위 ${t.subtask_done}/${t.subtask_total}` : '하위 +'}</button>
       ${cmBadge(t)}
       <span class="st">${statusPick(t)}</span>
-      <span class="tlg-own" title="담당 — 영역 리드">${esc(t.owner_name ?? '')}</span>
+      <span class="tlg-own" title="책임자">${esc(t.owner_name ?? '')}</span>
       <button class="tld-edit" data-task="${esc(t.id)}" aria-label="상세 편집으로 이동" title="상세 편집">✎</button>
       <button class="tld-del" data-del-task="${esc(t.id)}" aria-label="업무 삭제" title="삭제">×</button>
     </div>
@@ -354,10 +359,10 @@ export function ganttTable({ w, sections }) {
           <button class="tlg-fold" data-fold-area="${esc(g.area.code)}"
                   aria-expanded="${!foldedAreas.has(g.area.code)}" aria-label="영역 접기/펼치기">${
             foldedAreas.has(g.area.code) ? '▸' : '▾'}</button>
-          <a class="lab" href="#/project/tasks?area=${encodeURIComponent(g.area.code)}&month=all&done=1"
-             title="${esc(g.area.full)} 업무 전체 보기">${esc(g.area.full)}</a>
+          ${g.area.none ? `<span class="lab">${esc(g.area.full)}</span>` : `<a class="lab" href="#/project/tasks?area=${encodeURIComponent(g.area.code)}&month=all&done=1"
+             title="${esc(g.area.full)} 업무 전체 보기">${esc(g.area.full)}</a>`}
           <span class="n">${g.rows.length}건</span>
-          <span class="lead">리드 ${esc(leadNames(g.area.code))}</span>
+          ${g.area.none ? '' : `<span class="lead">리드 ${esc(leadNames(g.area.code))}</span>`}
         </div>
         <div class="tlg-t">${w.gridLines()}</div>
       </div>

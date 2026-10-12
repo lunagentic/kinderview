@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
-import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag, firstUrl, subStatusOf, subProgress, subStatusPick, nudgeNote,} from './ui.js';
+import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag, firstUrl, subStatusOf, subProgress, subStatusPick, nudgeNote,
+  subAreaPick, subOwnerPick,} from './ui.js';
 import { bindComments } from './comments.js';
 import { canEdit, canAdmin } from './gate.js';
 import { gatePanel } from './views/gatePanel.js';
@@ -101,7 +102,11 @@ const opts = (list, selected, { value = 'code', label = 'label' } = {}) =>
 export function taskForm({ task = null, defaults = {}, onSaved }) {
   if (!openable()) return;
   const editing = Boolean(task);
-  const area0 = task?.area ?? defaults.area ?? 'PLAN';
+  // 업무 영역은 하위 업무에 붙는다 — 상위 업무에서 고르는 것은 외주 여부와(등록 때) 첫 하위 업무의 영역뿐이다
+  const out0 = (task?.area ?? defaults.area) === 'OUT';
+  const area0 = out0 ? 'OUT' : null;
+  const subArea0 = editing ? '' : (defaults.first_sub_area ?? (defaults.area && defaults.area !== 'OUT' ? defaults.area : ''));
+  const subAreas = (state.meta.areas ?? []).filter((a) => a.code !== 'OUT');
 
   const body = `
     ${editing ? '' : `
@@ -129,10 +134,16 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           </select>
         </label>
 
-        <label class="field">
-          <span class="lab">업무 영역<span class="req">*</span></span>
-          <select name="area" required>${opts(state.meta.areas, area0)}</select>
-        </label>
+        <div class="field">
+          ${editing ? `
+          <span class="lab">외주</span>` : `
+          <span class="lab">첫 하위 업무 영역 <span class="hint" style="font-weight:400">고르면 같은 이름의 하위 업무가 그 영역 리드에게 갑니다</span></span>
+          <select name="first_sub_area" data-sub-area0>
+            <option value="">나중에 정함</option>
+            ${opts(subAreas, subArea0)}
+          </select>`}
+          <label class="out-check"><input type="checkbox" name="outsourcing" data-out-check${out0 ? ' checked' : ''}> 외주 업무 <span class="hint">업체·납품일과 외주 상태를 씁니다</span></label>
+        </div>
 
         <label class="field">
           <span class="lab">분류 <span class="hint" style="font-weight:400">나중에 정해도 됩니다</span></span>
@@ -150,10 +161,10 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         </label>
 
         <label class="field">
-          <span class="lab">담당 <span class="hint" style="font-weight:400">기본은 영역 리드입니다</span></span>
+          <span class="lab">책임자 <span class="hint" style="font-weight:400">업무 전체를 챙기는 사람 · 실무 담당은 하위 업무마다</span></span>
           <select name="owner_slack_user_id" data-owner>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
-              m.slack_user_id === task?.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              m.slack_user_id === (task?.owner_slack_user_id ?? defaults.owner ?? state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
           </select>
           <span class="lead-box" data-lead-box></span>
         </label>
@@ -260,7 +271,8 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         });
         obs.observe(document.getElementById('modal-root'), { childList: true });
       }
-      const areaSel = form.querySelector('[name=area]');
+      const outCheck = form.querySelector('[data-out-check]');
+      const subAreaSel = form.querySelector('[data-sub-area0]');
       const statusSel = form.querySelector('[name=status]');
       const outBox = form.querySelector('[data-out]');
       const dueInput = form.querySelector('[name=due_date]');
@@ -273,35 +285,29 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         value: (task?.collaborators ?? []).map((c) => c.slack_user_id),
       });
 
-      // 담당을 직접 골랐는지 기억한다. 손대지 않았으면 영역을 바꿀 때 리드를 따라간다.
+      // 책임자는 사람이 고른다. 첫 하위 업무 영역을 고르면 그 하위의 담당(영역 리드)을 알려 준다.
       const ownerSel = form.querySelector('[data-owner]');
-      let ownerPicked = Boolean(task?.owner_slack_user_id
-        && task.owner_slack_user_id !== leadOf(task.area)?.slack_user_id);
-      ownerSel.addEventListener('change', () => { ownerPicked = true; syncLead(); });
+      ownerSel.addEventListener('change', () => syncLead());
 
       const syncLead = () => {
-        const lead = leadOf(areaSel.value);
-        const co = coLeadsOf(areaSel.value);
-        if (!ownerPicked && lead) ownerSel.value = lead.slack_user_id;
-        const owner = memberOf(ownerSel.value);
-        const isLead = owner && owner.slack_user_id === lead?.slack_user_id;
-        leadBox.innerHTML = lead
-          ? (isLead ? `<span class="lead-co">${esc(areaMeta(areaSel.value).full)} 리드</span>` : '')
-            + (co.length ? `<span class="lead-co">· 공동 ${esc(co.map((l) => l.display_name).join(' · '))}</span>` : '')
-          : '<span class="lead-none">이 영역의 리드가 없습니다 · 담당을 직접 골라 주세요</span>';
-        // 담당인 사람은 협업자로 또 고를 수 없다
-        collabPicker.setExclude([ownerSel.value, ...co.map((l) => l.slack_user_id)].filter(Boolean));
+        const sub = subAreaSel?.value;
+        const lead = sub ? leadOf(sub) : null;
+        leadBox.innerHTML = !sub ? ''
+          : lead ? `<span class="lead-co">첫 하위 업무 담당 · ${esc(areaMeta(sub).full)} 리드 ${esc(lead.display_name)}</span>`
+            : '<span class="lead-none">이 영역의 리드가 없습니다 · 하위 업무 담당은 나중에 고릅니다</span>';
+        // 책임자는 협업자로 또 고를 수 없다
+        collabPicker.setExclude([ownerSel.value].filter(Boolean));
       };
 
       const syncArea = () => {
-        const area = areaSel.value;
-        const isOut = area === 'OUT';
+        const isOut = outCheck.checked;
         outBox.hidden = !isOut;
-        const list = statusesFor(area);
+        const list = statusesFor(isOut ? 'OUT' : null);
         const keep = list.some((s) => s.code === statusSel.value) ? statusSel.value : list[0].code;
         statusSel.innerHTML = opts(list, keep);
       };
-      areaSel.addEventListener('change', () => { syncArea(); syncLead(); });
+      outCheck.addEventListener('change', syncArea);
+      subAreaSel?.addEventListener('change', syncLead);
       syncArea();
       syncLead();
 
@@ -498,7 +504,8 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           const f = r.fields;
           if (f.title) form.querySelector('[name=title]').value = f.title;
           if (f.project_id) form.querySelector('[name=project_id]').value = f.project_id;
-          if (f.area) { areaSel.value = f.area; syncArea(); syncLead(); }
+          if (f.area === 'OUT') { outCheck.checked = true; syncArea(); }
+          else if (f.area && subAreaSel) { subAreaSel.value = f.area; syncLead(); }
           if (f.due_date) dueInput.value = f.due_date;
           if (f.priority) form.querySelector('[name=priority]').value = f.priority;
           captureRes.hidden = false;
@@ -521,10 +528,13 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
         const fd = new FormData(form);
         const payload = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v === '' ? null : v]));
         payload.collaborators = collabPicker.value;
+        // area 는 외주 여부만 — 영역은 하위 업무에
+        payload.area = outCheck.checked ? 'OUT' : null;
+        delete payload.outsourcing;
 
         if (!payload.title?.trim()) return toast('업무명을 입력해 주세요.', true);
         // 프로젝트는 비워 둬도 된다 — '프로젝트 미정'으로 들어간다
-        if (!payload.owner_slack_user_id) return toast('담당을 골라 주세요.', true);
+        if (!payload.owner_slack_user_id) return toast('책임자를 골라 주세요.', true);
         // 마감일을 비우면 백로그로 들어간다 — 막지 않는다.
         // 외주만은 납품 예정일이 곧 마감이라 하나는 있어야 한다.
         if (payload.area === 'OUT' && !payload.due_date && !payload.delivery_due_date) {
@@ -547,7 +557,8 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           if (!editing && keepOpen) {
             close();
             taskForm({
-              defaults: { project_id: payload.project_id, area: payload.area, owner: payload.owner_slack_user_id },
+              defaults: { project_id: payload.project_id, area: payload.area, first_sub_area: payload.first_sub_area,
+                owner: payload.owner_slack_user_id },
               onSaved,
             });
           } else {
@@ -1120,6 +1131,32 @@ export function expenseForm({ defaults = {}, onSaved }) {
  * 하위 업무 목록 한 벌 — 목록 · 상태 · 제목 · 마감 · 삭제 · 추가. 업무 수정 창이 쓴다.
  * 바뀌는 즉시 저장된다(하위 업무 창과 같다). onChange 는 뭔가 바뀔 때마다 부른다.
  */
+/** 하위 업무 추가 칸의 영역 고르기 — 기본은 바로 앞 하위 업무의 영역(이어서 넣는 일이 많다) */
+export const subAddArea = (rows = []) => {
+  const last = [...rows].reverse().find((r) => r.area)?.area ?? '';
+  const list = (state.meta?.areas ?? []).filter((a) => a.code !== 'OUT');
+  return `<select name="area" class="sub-area" aria-label="새 하위 업무 영역" title="영역 — 고르면 그 영역 리드가 담당">
+    <option value="">영역 없음</option>
+    ${list.map((a) => `<option value="${esc(a.code)}"${a.code === last ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}
+  </select>`;
+};
+
+/** 하위 업무 줄의 영역·담당 셀렉트가 바뀌면 저장한다. 다룬 변경이면 true */
+export async function subAssignChange(e, { editable, after }) {
+  const ar = e.target.closest('[data-sub-area]');
+  const ow = e.target.closest('[data-sub-owner]');
+  if (!ar && !ow) return false;
+  if (!editable()) { await after(); return true; }
+  try {
+    const r = ar
+      ? await api.patch(`/api/subtasks/${ar.dataset.subArea}`, { area: ar.value || null })
+      : await api.patch(`/api/subtasks/${ow.dataset.subOwner}`, { owner_slack_user_id: ow.value || null });
+    toast(ar ? `영역을 바꿨습니다${r.owner_name ? ` · 담당 ${r.owner_name}` : ''}` : `담당을 ${r.owner_name ?? '비움'}(으)로 바꿨습니다.`);
+  } catch (err) { toast(err.message, true); }
+  await after();
+  return true;
+}
+
 export function mountSubtasks(box, task, { onChange } = {}) {
   const t = task;
   let rows = [];
@@ -1130,6 +1167,7 @@ export function mountSubtasks(box, task, { onChange } = {}) {
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${subAreaPick(r)}${subOwnerPick(r)}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감" title="비우면 상위 업무 마감을 따릅니다.">
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
@@ -1141,6 +1179,7 @@ export function mountSubtasks(box, task, { onChange } = {}) {
       <div data-list>${list()}</div>
       <form class="sub-add" data-sub-add>
         <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
+        ${subAddArea(rows)}
         <button class="btn btn-ghost" type="submit">+ 추가</button>
       </form>`;
   };
@@ -1155,6 +1194,7 @@ export function mountSubtasks(box, task, { onChange } = {}) {
   const touched = () => onChange?.();
 
   box.addEventListener('change', async (e) => {
+    if (await subAssignChange(e, { editable, after: () => { touched(); return load(); } })) return undefined;
     const sst = e.target.closest('[data-sub-status]');
     if (sst) {
       if (!editable()) return load();
@@ -1212,7 +1252,7 @@ export function mountSubtasks(box, task, { onChange } = {}) {
     const title = input.value.trim();
     if (!title) return;
     try {
-      await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+      await api.post(`/api/tasks/${t.id}/subtasks`, { title, area: add.querySelector('[name=area]')?.value || null });
       touched();
       input.value = '';
       await load();
@@ -1252,6 +1292,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         ${ticketTag({ ...r, project_id: t.project_id })}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        ${subAreaPick(r)}${subOwnerPick(r)}
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
@@ -1270,7 +1311,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
                data-task-title="${esc(t.id)}" aria-label="업무명" title="눌러서 고치기 — Enter 저장 · Esc 되돌리기">
         <div class="sbm-meta">
           <span class="st">${statusPick(t)}</span>
-          <span class="meta" data-head-meta>마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 담당 ${esc(t.owner_name)}` : ''}</span>
+          <span class="meta" data-head-meta>마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 책임 ${esc(t.owner_name)}` : ''}</span>
           <a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>상세 열기 ›</a>
         </div>
       </div>
@@ -1280,9 +1321,10 @@ export function subtaskModal({ task, onChange, focus = null }) {
         <div data-list>${list()}</div>
         <form class="sub-add" data-sub-add>
           <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
+          ${subAddArea(t.sub_areas?.slice(-1).map((a) => ({ area: a })) ?? [])}
           <button class="btn btn-ghost" type="submit">+ 추가</button>
         </form>
-        <p class="sub-note">담당은 상위 업무를 따릅니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.</p>
+        <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.</p>
       </div>
       <div class="sbm-sec sbm-att" data-att-row hidden>
         <div class="sbm-sec-head"><h4>링크·첨부</h4><a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>더하기는 상세에서 ›</a></div>
@@ -1331,6 +1373,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
       }).catch(() => {});
 
       root.addEventListener('change', async (e) => {
+        if (await subAssignChange(e, { editable, after: () => { changed = true; return load(); } })) return undefined;
         const sst = e.target.closest('[data-sub-status]');
         if (sst) {
           if (!editable()) return load();
@@ -1422,7 +1465,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         const title = input.value.trim();
         if (!title) return;
         try {
-          await api.post(`/api/tasks/${t.id}/subtasks`, { title });
+          await api.post(`/api/tasks/${t.id}/subtasks`, { title, area: e.target.querySelector('[name=area]')?.value || null });
           changed = true;
           input.value = '';
           await load();
