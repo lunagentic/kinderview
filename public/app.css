@@ -2111,3 +2111,17 @@ body[data-gate="view"] .tl-grip{display:none}
 .ms-prog .tl-prog{width:96px}
 .ms-prog .tl-pct.late{color:var(--s-delay)}
 .ms-cnt{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* 간트 막대 위 기간 글자 — 막대 가운데에. 막대가 짧아도 읽히게 막대 칸 전체 폭에 쓴다 */
+.bd-tl{height:18px}
+.bd-tl-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;
+  font-size:.68rem;font-weight:600;color:var(--md-text);letter-spacing:-.01em;white-space:nowrap;pointer-events:none;
+  text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;font-variant-numeric:tabular-nums}
+/* 타임라인 머리 — 달 이름 · 주 눈금 · 오늘 */
+.bd-head .bd-bar{padding:2px 8px}
+.bd-scale{position:relative;display:block;flex:1;height:22px}
+.bd-scale .m{position:absolute;left:0;top:0;font-size:.66rem;font-weight:700;color:var(--md-text)}
+.bd-scale i{position:absolute;bottom:0;transform:translateX(-50%);font-style:normal;font-size:.62rem;color:var(--md-muted);font-variant-numeric:tabular-nums}
+.bd-scale i::before{content:"";position:absolute;left:50%;top:-4px;height:3px;border-left:1px solid var(--md-line)}
+.bd-scale .now{position:absolute;top:0;transform:translateX(-50%);font-size:.6rem;font-weight:700;color:#fff;background:var(--bd, var(--indigo));
+  border-radius:3px;padding:0 3px;line-height:1.4}

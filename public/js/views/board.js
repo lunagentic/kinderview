@@ -19,6 +19,9 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 // 먼데이식 날짜 「Oct 04」
 const mdDate = (iso) => (iso ? `${MON[Number(iso.slice(5, 7)) - 1]} ${iso.slice(8, 10)}` : '-');
 
+// 막대 위에 쓰는 기간 글자 — 「10/7 – 10/28」, 하루면 「10/23」 (먼데이식으로 막대 가운데에)
+const md = (iso) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+const spanText = (from, to) => (from && from !== to ? `${md(from)} – ${md(to)}` : md(to));
 /** 그 달 안에서의 기간 막대. 시작일이 없으면 마감일 하루. 창 밖은 잘린다. */
 const barOf = (t, ym) => {
   if (!t.due_date) return '<span class="bd-none">마감 없음</span>';
@@ -30,6 +33,7 @@ const barOf = (t, ym) => {
   return `<span class="bd-tl" title="${esc(tip)}">
     ${box ? `<i class="${tone}" style="left:${box.left}%;width:${Math.max(box.width, 2)}%"></i>` : ''}
     ${from < win.start ? '<b class="bd-cut l">‹</b>' : ''}
+    <em class="bd-tl-txt">${esc(spanText(from, t.due_date))}</em>
   </span>`;
 };
 
@@ -68,6 +72,7 @@ const phaseBar = (ph, ym) => {
   return `<span class="bd-tl ph" title="${esc(`${shortDate(ph.start_date)} ~ ${shortDate(ph.end_date)}`)}">
     ${box ? `<i class="${st.tone === 'delay' ? 'late' : st.tone === 'done' ? 'done' : ''}" style="left:${box.left}%;width:${Math.max(box.width, 2)}%"><b style="width:${ph.progress ?? 0}%"></b></i>` : ''}
     ${ph.start_date < win.start ? '<b class="bd-cut l">‹</b>' : ''}${ph.end_date > win.end ? '<b class="bd-cut r">›</b>' : ''}
+    <em class="bd-tl-txt">${esc(spanText(ph.start_date, ph.end_date))}</em>
   </span>`;
 };
 const owners = (tasks) => {
@@ -100,9 +105,20 @@ const phaseRow = (ph, ym, open) => {
     : '<div class="bd-row bd-task bd-empty"><div class="bd-c">이 페이즈에 업무가 없습니다.</div></div>') : ''}`;
 };
 
-const head = () => `
+// 타임라인 머리 — 그 달 이름(1일 자리)과 주(8·15·22·29일) 눈금, 오늘 표시. 막대와 같은 자로 잰다.
+const scaleHead = (ym) => {
+  const start = `${ym}-01`;
+  const end = tlAdd(tlMonthNext(start), -1);
+  const days = Number(end.slice(8, 10));
+  const at = (d) => ((d - 0.5) / days) * 100;
+  const ticks = [8, 15, 22, 29].filter((d) => d <= days)
+    .map((d) => `<i style="left:${at(d)}%">${d}</i>`).join('');
+  const today = state.today.slice(0, 7) === ym ? `<b class="now" style="left:${at(Number(state.today.slice(8, 10)))}%" title="오늘">오늘</b>` : '';
+  return `<span class="bd-scale"><span class="m">${Number(ym.slice(5, 7))}월</span>${ticks}${today}</span>`;
+};
+const head = (ym) => `
   <div class="bd-row bd-head" role="row">
-    <div class="bd-c bd-name">페이즈 · 업무</div><div class="bd-c bd-own">담당자</div><div class="bd-c bd-bar">타임라인</div>
+    <div class="bd-c bd-name">페이즈 · 업무</div><div class="bd-c bd-own">담당자</div><div class="bd-c bd-bar" title="타임라인">${scaleHead(ym)}</div>
     <div class="bd-c bd-st">진행 현황</div><div class="bd-c bd-due">마감 기한</div><div class="bd-c bd-prog">진척률</div><div class="bd-c bd-file">파일</div>
   </div>`;
 
@@ -117,7 +133,7 @@ const group = (g, folded, openSet) => `
       <button class="btn btn-ghost sm bd-add" data-new-task title="업무 등록">＋</button>
     </h2>
     <div class="bd-table" role="table"${folded ? ' hidden' : ''}>
-      ${head()}
+      ${head(g.ym)}
       ${g.rows.length ? g.rows.map((ph) => phaseRow(ph, g.ym, openSet.has(ph.key))).join('')
     : '<div class="bd-row bd-empty"><div class="bd-c">이 달에 걸린 페이즈나 마감 업무가 없습니다.</div></div>'}
     </div>
