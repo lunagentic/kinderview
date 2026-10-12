@@ -946,6 +946,35 @@ body[data-gate="admin"] .tl-task .tlg-bar{cursor:grab;touch-action:pan-y}
 .tl-task .tlg-dd{top:5px}
 .tl-task .tlg-none{top:5px}
 .tl-tname{flex:1 1 auto;min-width:0;font-size:.84rem;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 업무 이름은 업무 창을 여는 단추 — 줄의 나머지는 하위 업무 펼치기 */
+button.tl-tname{flex:0 1 auto;background:none;border:0;padding:0;font:inherit;font-size:.84rem;text-align:left;cursor:pointer;
+  text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--line);text-underline-offset:3px}
+button.tl-tname:hover{color:var(--indigo);text-decoration-style:solid;text-decoration-color:currentColor}
+button.tl-tname:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
+.tl-tgap{flex:1 1 auto;min-width:4px;align-self:stretch}
+.tl-tfold{flex:none;width:12px;margin-left:-19px;font-size:.7rem;color:var(--muted);text-align:center}
+.tl-task.is-open .tl-tfold{color:var(--indigo)}
+.tl-tsubs{flex:none;font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
+/* 하위 업무 줄 — 업무 줄보다 한 칸 더 들여 쓰고, 트랙에는 마감 점만 */
+.tl-sub{min-height:28px;cursor:pointer}
+.tl-sub .tl-label{flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;padding-left:58px;background:color-mix(in oklab, var(--ground) 60%, var(--surface))}
+.tl-sub .tl-track{height:28px}
+.tl-sub:hover .tl-label,.tl-sub:hover .tl-track{background:var(--surface-2)}
+.tl-sub .sub-st{font-size:.68rem;padding:2px 6px}
+.tl-sub .tkey{font-size:.64rem}
+.tl-sname{flex:1 1 auto;min-width:0;font-size:.8rem;color:var(--ink-2, var(--ink));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-sname.done{color:var(--muted);text-decoration:line-through}
+.tl-sdue{flex:none;font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-right:8px}
+.tl-sdue.inherit{opacity:.6}
+.tl-sdue.late{color:var(--s-delay);font-weight:600}
+.tl-sub-dot{position:absolute;top:50%;width:9px;height:9px;margin:-5px 0 0 -5px;transform:rotate(45deg);border-radius:2px;
+  background:var(--s-wait);box-shadow:0 0 0 2px var(--surface)}
+.tl-sub-dot[data-st="IN_PROGRESS"]{background:var(--s-prog)}
+.tl-sub-dot[data-st="DONE"]{background:var(--s-done)}
+.tl-sub-dot.late{background:var(--s-delay)}
+.tl-sub-dot.inherit{opacity:.45}
+.sbm-list li.flash{animation:sbm-flash 1.6s ease-out}
+@keyframes sbm-flash{0%,40%{background:color-mix(in oklab, var(--indigo) 14%, var(--surface))}100%{background:transparent}}
 .tl-tst{flex:none;font-size:.68rem;font-weight:600;padding:0 6px;border-radius:999px;border:1px solid currentColor;line-height:1.5;margin-right:8px}
 .tl-tst.wait{color:var(--s-wait)} .tl-tst.prog{color:var(--s-prog)} .tl-tst.review{color:var(--s-review)}
 .tl-tst.done{color:var(--s-done)} .tl-tst.late{color:var(--s-delay)}
@@ -1045,6 +1074,10 @@ body[data-gate="admin"] .tl-task .tlg-bar{cursor:grab;touch-action:pan-y}
   /* 펼친 업무 줄: 상태는 막대 색이 말해 준다 — 좁은 화면에선 글자를 뺀다 */
   .tl-task .tl-label{padding-left:22px;gap:5px}
   .tl-task .tl-tst{display:none}
+  .tl-sub .tl-label{padding-left:30px;gap:4px}
+  .tl-sub .tl-sdue,.tl-sub .tkey{display:none}
+  .tl-sub .sub-st{min-height:0;height:22px;padding:0 6px;font-size:.66rem}
+  .tl-tsubs{display:none}
   .tl-task .tkey{font-size:.64rem;padding:0 3px;margin-right:2px}
   .tl-group-actions{margin-left:0;width:100%}
 }

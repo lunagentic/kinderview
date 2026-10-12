@@ -3,6 +3,7 @@ import { state, statusMeta } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusPick, go, toast, bindDueEdit, confirmModal, titleCell, autoGrow, syncTitleCell, ticketTag, readPref, writePref,
+  subStatusPick, subStatusOf, nudgeNote,
 } from '../ui.js';
 import { phaseForm, milestoneForm, projectForm, subtaskModal, taskForm, phaseCommentsModal, directorDigestModal } from '../forms.js';
 import {
@@ -25,6 +26,8 @@ const tlMilestoneState = (m) => {
 // 펼쳐 둔 페이즈를 기억한다. 화면을 다시 그릴 때마다 접히면
 // 페이즈를 고치거나 업무 하나를 손볼 때마다 펼친 것이 사라진다.
 const openPhases = new Set();
+// 펼쳐 둔 업무(하위 업무 줄)도 같은 이유로 기억한다
+const openTasks = new Set();
 
 // 줄 안에서 제 일을 하는 것 — 여기를 누른 것은 '하위 업무 창을 열자'가 아니다
 const CHART_LINE_CONTROLS = 'button, a, select, input, .due-view, .due-edit';
@@ -37,6 +40,8 @@ export async function renderTimeline(root) {
   // 페이즈에 넣어 둔 이상 그 페이즈의 일이다.
   const fetchPhaseTasks = (id) => api.get(`/api/tasks?phase=${encodeURIComponent(id)}&done=1&all_backlog=1`);
   const phaseTasks = new Map();
+  const fetchSubs = (id) => api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`);
+  const taskSubs = new Map();
   let live;
   let dirTotal = 0;   // 디렉터 코멘트 모아보기 수
   try {
@@ -44,10 +49,15 @@ export async function renderTimeline(root) {
       api.get('/api/timeline'),
       api.get('/api/director-comments').then((d) => ({ __digest: d.total ?? 0 })).catch(() => ({ __digest: 0 })),
       ...[...openPhases].map((id) => fetchPhaseTasks(id).then((t) => [id, t]).catch(() => [id, null])),
+      ...[...openTasks].map((id) => fetchSubs(id).then((r) => ['sub', id, r]).catch(() => ['sub', id, null])),
     ]);
     live = rows;
     dirTotal = loaded.shift()?.__digest ?? 0;
-    for (const [id, t] of loaded) if (t) phaseTasks.set(id, t);
+    for (const item of loaded) {
+      if (item[0] === 'sub') { if (item[2]) taskSubs.set(item[1], item[2]); continue; }
+      const [id, t] = item;
+      if (t) phaseTasks.set(id, t);
+    }
   } catch (err) {
     root.innerHTML = errorBox(err.message);
     return;
@@ -91,14 +101,21 @@ export async function renderTimeline(root) {
        title="${dir ? `디렉터 코멘트 ${dir}건 — 눌러서 읽기` : all ? `코멘트 ${all}건 — 눌러서 읽기` : '이 페이즈에 디렉터 코멘트 남기기'}"
        >${dir ? `${directorIcon()}${dir}` : `${sendIcon()}${all ? ` ${all}` : ''}`}</button>`;
   };
+  // 하위 업무가 있으면 줄을 눌러 아래로 펼친다(보기). 이름(밑줄)을 누르면 업무 창(고치기).
   const taskRow = (t, phaseId) => {
     const st = statusMeta(t.status);
+    const subs = t.subtask_total ?? 0;
+    const open = subs && openTasks.has(t.id);
     return `
-      <div class="tl-row tl-task" data-line="${esc(t.id)}" data-of-phase="${esc(phaseId)}"
-           role="button" tabindex="0" title="눌러서 하위 업무 보기">
+      <div class="tl-row tl-task${subs ? ' has-subs' : ''}${open ? ' is-open' : ''}" data-line="${esc(t.id)}" data-of-phase="${esc(phaseId)}"
+           role="button" tabindex="0" ${subs ? `aria-expanded="${open ? 'true' : 'false'}"` : ''}
+           title="${subs ? `눌러서 하위 업무 ${subs}건 ${open ? '접기' : '펼치기'}` : '눌러서 업무 창 열기'}">
         <div class="tl-label">
+          <span class="tl-tfold" aria-hidden="true">${subs ? (open ? '▾' : '▸') : ''}</span>
           ${ticketTag(t)}
-          <span class="tl-tname">${esc(t.title)}</span>
+          <button class="tl-tname" data-task-edit="${esc(t.id)}" title="업무 창 열기 — 이름·상태·하위 업무 고치기">${esc(t.title)}</button>
+          ${subs ? `<span class="tl-tsubs" title="하위 업무 완료 ${t.subtask_done ?? 0} / ${subs}">${t.subtask_done ?? 0}/${subs}</span>` : ''}
+          <span class="tl-tgap"></span>
           ${cmBadge(t)}
           <span class="tl-tst ${esc(st.tone)}${t.is_delayed ? ' late' : ''}" title="${esc(st.label)}">${
             t.is_delayed ? '지연' : esc(st.label)}</span>
@@ -112,13 +129,39 @@ export async function renderTimeline(root) {
       <div class="tl-label"><button class="tl-add-btn" data-add-task="${esc(phaseId)}">+ 업무 등록</button></div>
       <div class="tl-track">${gridLines()}</div>
     </div>`;
+  // 펼친 업무 아래의 하위 업무 줄 — 상태 칩 · 번호 · 이름 · 마감, 트랙에는 마감 점
+  const subRows = (t, phaseId) => {
+    const rows = taskSubs.get(t.id);
+    const wrap = (label, track = '') => `
+      <div class="tl-row tl-sub" data-of-phase="${esc(phaseId)}" data-of-task="${esc(t.id)}"${label.id ? ` data-sub-line="${esc(label.id)}"` : ''}>
+        <div class="tl-label">${label.html}</div>
+        <div class="tl-track">${gridLines()}${track}</div>
+      </div>`;
+    if (!rows) return wrap({ html: '<span class="tl-meta">불러오는 중…</span>' });
+    if (!rows.length) return wrap({ html: '<span class="tl-meta">하위 업무가 없습니다.</span>' });
+    return rows.map((r) => {
+      const due = r.due_date || t.due_date || null;
+      const stc = subStatusOf(r);
+      const late = stc !== 'DONE' && due && due < state.today;
+      const at = due ? tlPoint(win, due) : null;
+      const dot = at === null ? '' : `<span class="tl-sub-dot${r.due_date ? '' : ' inherit'}${late ? ' late' : ''}" data-st="${stc}"
+          style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'}"></span>`;
+      return wrap({
+        id: r.id,
+        html: `${subStatusPick(r)}${ticketTag({ ...r, project_id: t.project_id })}
+          <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}">${esc(r.title)}</span>
+          <span class="tl-sdue${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}">${due ? esc(shortDate(due)) : ''}</span>`,
+      }, dot);
+    }).join('');
+  };
   const taskRows = (phaseId) => {
     const rows = phaseTasks.get(phaseId);
     if (!rows) return `<div class="tl-row tl-task tl-task-note" data-of-phase="${esc(phaseId)}">
       <div class="tl-label"><span class="tl-meta">불러오는 중…</span></div><div class="tl-track">${gridLines()}</div></div>`;
     // 마감일 순, 기한 없는 것은 뒤로
     const sorted = [...rows].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title));
-    return sorted.map((t) => taskRow(t, phaseId)).join('') + addRow(phaseId);
+    return sorted.map((t) => taskRow(t, phaseId)
+      + ((t.subtask_total && openTasks.has(t.id)) ? subRows(t, phaseId) : '')).join('') + addRow(phaseId);
   };
 
   const phaseRow = (r, ph) => {
@@ -310,6 +353,33 @@ export async function renderTimeline(root) {
     }
     if (openPhases.has(id)) paintRows(id);
   }
+  // ── 업무 펼치기 — 하위 업무 줄 ───────────────────────
+  const phaseOfTask = (id) => {
+    for (const [pid, rows] of phaseTasks) if (rows?.some((x) => x.id === id)) return pid;
+    return null;
+  };
+  const paintSubs = (id) => {
+    root.querySelectorAll(`[data-of-task="${CSS.escape(id)}"]`).forEach((el) => el.remove());
+    const line = root.querySelector(`.tl-task[data-line="${CSS.escape(id)}"]`);
+    const t = findTask(id);
+    if (!line || !t) return;
+    const open = openTasks.has(id);
+    line.classList.toggle('is-open', open);
+    line.setAttribute('aria-expanded', String(open));
+    const fold = line.querySelector('.tl-tfold');
+    if (fold) fold.textContent = open ? '▾' : '▸';
+    if (open) line.insertAdjacentHTML('afterend', subRows(t, phaseOfTask(id)));
+  };
+  async function toggleTask(id) {
+    if (openTasks.has(id)) { openTasks.delete(id); paintSubs(id); return; }
+    openTasks.add(id);
+    paintSubs(id);   // 「불러오는 중…」
+    if (!taskSubs.has(id)) {
+      try { taskSubs.set(id, await fetchSubs(id)); }
+      catch (err) { toast(err.message, true); openTasks.delete(id); }
+    }
+    paintSubs(id);
+  }
   const findTask = (id) => {
     for (const rows of phaseTasks.values()) {
       const t = rows?.find((x) => x.id === id);
@@ -321,11 +391,25 @@ export async function renderTimeline(root) {
     const t = findTask(id);
     if (t) subtaskModal({ task: t, onChange: reload, focus });
   };
+  // 업무 줄 — 하위 업무가 있으면 펼치고 접는다. 없으면 펼칠 게 없으니 업무 창을 연다.
+  const lineClick = (line) => {
+    const t = findTask(line.dataset.line);
+    if (t?.subtask_total) toggleTask(t.id);
+    else openSubs(line.dataset.line);
+  };
   bindBarDrag(root, win, () => findTask, reload);
   bindLabelResize(root);
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
   root.addEventListener('change', async (e) => {
+    const sst = e.target.closest('.tl-sub [data-sub-status]');
+    if (sst) {
+      try {
+        const r = await api.patch(`/api/subtasks/${sst.dataset.subStatus}`, { status: sst.value });
+        toast(nudgeNote(r?.nudged) ?? '하위 업무 상태를 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();   // 업무 진행률·페이즈 % 가 함께 달라진다 — 펼친 줄은 openTasks 가 지킨다
+    }
     const st = e.target.closest('[data-status]');
     if (st) {
       try {
@@ -373,7 +457,7 @@ export async function renderTimeline(root) {
     const fold = e.target.closest('.tl-bar[data-fold-phase]');
     if (fold) { e.preventDefault(); togglePhase(fold.dataset.foldPhase); return; }
     const line = e.target.closest('.tl-task[data-line]');
-    if (line && !e.target.closest(CHART_LINE_CONTROLS)) { e.preventDefault(); openSubs(line.dataset.line); return; }
+    if (line && !e.target.closest(CHART_LINE_CONTROLS)) { e.preventDefault(); lineClick(line); return; }
     const bl = e.target.closest('.tld-task[data-line]');
     if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { e.preventDefault(); go(`#/project/tasks/${bl.dataset.line}`); }
   });
@@ -459,9 +543,14 @@ export async function renderTimeline(root) {
       if (found) phaseCommentsModal({ phase: found, projectName: proj?.name ?? '', onChange: () => reload() });
       return undefined;
     }
+    const tedit = e.target.closest('[data-task-edit]');
+    if (tedit) { e.preventDefault(); openSubs(tedit.dataset.taskEdit); return undefined; }
     const line = e.target.closest('.tl-task[data-line]');
     if (line && line.dataset.dragged) { delete line.dataset.dragged; return undefined; }   // 끌다 놓은 것은 클릭이 아니다
-    if (line && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(line.dataset.line); return undefined; }
+    if (line && !e.target.closest(CHART_LINE_CONTROLS)) { lineClick(line); return undefined; }
+    // 하위 업무 줄 — 상태 칩이 아닌 곳을 누르면 그 업무 창이 그 하위 업무를 짚은 채 열린다
+    const sline = e.target.closest('.tl-sub[data-sub-line]');
+    if (sline && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(sline.dataset.ofTask, { focus: sline.dataset.subLine }); return undefined; }
     const bl = e.target.closest('.tld-task[data-line]');
     if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) return go(`#/project/tasks/${bl.dataset.line}`);
 

@@ -1310,7 +1310,15 @@ export function subtaskModal({ task, onChange, focus = null }) {
         try { rows = await api.get(`/api/tasks/${t.id}/subtasks`); repaint(); }
         catch (err) { toast(err.message, true); }
       };
-      load();
+      // 타임라인의 하위 업무 줄로 들어왔으면 그 줄을 짚어 준다
+      load().then(() => {
+        if (!focus || focus === 'comments') return;
+        const li = root.querySelector(`[data-row="${CSS.escape(focus)}"]`);
+        if (!li) return;
+        li.classList.add('flash');
+        li.scrollIntoView({ block: 'nearest' });
+        setTimeout(() => li.classList.remove('flash'), 1600);
+      });
 
       const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
 
