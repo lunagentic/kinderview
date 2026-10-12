@@ -1275,6 +1275,9 @@ export function subtaskModal({ task, onChange, focus = null }) {
   const t = task;
   let rows = [];
   let changed = false;
+  // 창이 열린 뒤 채워진다 — 저장 안 한 변경을 칸에 되살리기 · 닫기 전에 묻기
+  let applyPending = () => {};
+  let unsavedGuard = () => true;
 
   // 진척 = 완료 수 / 전체 수 — 상위 업무와 페이즈가 같은 숫자를 쓴다. 진행중은 상태 표시일 뿐 진척에 안 센다
   const bar = () => {
@@ -1324,7 +1327,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
           ${subAddArea(t.sub_areas?.slice(-1).map((a) => ({ area: a })) ?? [])}
           <button class="btn btn-ghost" type="submit">+ 추가</button>
         </form>
-        <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.</p>
+        <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다. 고친 뒤 <b>저장</b>(또는 Enter)을 누르세요.</p>
       </div>
       <div class="sbm-sec sbm-att" data-att-row hidden>
         <div class="sbm-sec-head"><h4>링크·첨부</h4><a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>더하기는 상세에서 ›</a></div>
@@ -1339,11 +1342,14 @@ export function subtaskModal({ task, onChange, focus = null }) {
   modal({
     title: t.key ? `업무 ${t.key}` : '업무',
     body,
-    footer: `<div class="right"><button class="btn" data-close>닫기</button></div>`,
+    footer: `<div class="right"><button class="btn" data-close>닫기</button>
+      <button class="btn" data-save-all disabled title="고친 것을 저장합니다 (Enter)">저장</button></div>`,
+    beforeClose: () => unsavedGuard(),
     onMount({ root, close }) {
       const repaint = () => {
         root.querySelector('[data-prog]').innerHTML = bar();
         root.querySelector('[data-list]').innerHTML = list();
+        applyPending();
       };
       const load = async () => {
         try { rows = await api.get(`/api/tasks/${t.id}/subtasks`); repaint(); }
@@ -1372,91 +1378,165 @@ export function subtaskModal({ task, onChange, focus = null }) {
           <a class="att-chip" href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(a.name)}">${a.kind === 'image' ? '🖼' : '🔗'} ${esc(a.name)}</a>`).join('');
       }).catch(() => {});
 
-      root.addEventListener('change', async (e) => {
-        if (await subAssignChange(e, { editable, after: () => { changed = true; return load(); } })) return undefined;
-        const sst = e.target.closest('[data-sub-status]');
-        if (sst) {
-          if (!editable()) return load();
+      // ── 고친 것은 모아 두었다가 「저장」(또는 Enter)으로 한 번에 올린다 ──
+      // 칸을 벗어날 때마다 저장하면 저장됐는지 알 수 없다. 상세 화면과 같은 방식이다.
+      const pending = { task: {}, subs: new Map() };
+      const pendingCount = () => Object.keys(pending.task).length
+        + [...pending.subs.values()].reduce((n, o) => n + Object.keys(o).length, 0);
+      const saveBtn = root.querySelector('[data-save-all]');
+      const paintSave = () => {
+        const n = pendingCount();
+        saveBtn.disabled = !n;
+        saveBtn.classList.toggle('btn-primary', n > 0);
+        saveBtn.textContent = n ? `저장 (${n})` : '저장';
+      };
+      const SUB_FIELDS = {
+        status: { sel: '[data-sub-status]', key: 'subStatus', orig: (r) => subStatusOf(r) },
+        title: { sel: '[data-sub-title]', key: 'subTitle', orig: (r) => r.title },
+        area: { sel: '[data-sub-area]', key: 'subArea', orig: (r) => r.area ?? '' },
+        owner_slack_user_id: { sel: '[data-sub-owner]', key: 'subOwner', orig: (r) => r.owner_slack_user_id ?? '' },
+        due_date: { sel: '[data-sub-due]', key: 'subDue', orig: (r) => r.due_date ?? '' },
+      };
+      const fieldOf = (el) => Object.entries(SUB_FIELDS).find(([, f]) => el.matches(f.sel));
+      const stageSub = (el) => {
+        const hit = fieldOf(el);
+        if (!hit) return false;
+        const [name, f] = hit;
+        const id = el.dataset[f.key];
+        const cur = rows.find((r) => r.id === id);
+        if (!cur) return true;
+        const value = name === 'title' ? el.value.trim() : el.value;
+        const o = pending.subs.get(id) ?? {};
+        if (value === f.orig(cur)) delete o[name]; else o[name] = value;
+        if (Object.keys(o).length) pending.subs.set(id, o); else pending.subs.delete(id);
+        el.classList.toggle('dirty', name in o);
+        if (name === 'status') el.dataset.st = value;
+        paintSave();
+        return true;
+      };
+      const stageTask = (el) => {
+        let name;
+        let value;
+        let orig;
+        if (el.matches('[data-task-title]')) { name = 'title'; value = el.value.replace(/\s+/g, ' ').trim(); orig = t.title; }
+        else if (el.matches('[data-status]')) { name = 'status'; value = el.value; orig = t.status; }
+        else return false;
+        if (value === orig) delete pending.task[name]; else pending.task[name] = value;
+        el.classList.toggle('dirty', name in pending.task);
+        paintSave();
+        return true;
+      };
+      // 목록을 다시 그려도(추가·삭제·옮기기) 아직 안 올린 값은 칸에 남긴다
+      applyPending = () => {
+        for (const [id, o] of pending.subs) {
+          for (const [name, value] of Object.entries(o)) {
+            const el = root.querySelector(`${SUB_FIELDS[name].sel.slice(0, -1)}="${CSS.escape(id)}"]`);
+            if (!el) continue;
+            el.value = value;
+            el.classList.add('dirty');
+            if (name === 'status') el.dataset.st = value;
+          }
+        }
+      };
+
+      const saveAll = async () => {
+        if (!pendingCount()) return true;
+        if (!editable()) return false;
+        if (pending.task.title === '' || [...pending.subs.values()].some((o) => o.title === '')) {
+          toast('업무명은 비울 수 없습니다.', true);
+          return false;
+        }
+        saveBtn.disabled = true;
+        const notes = [];
+        let fail = 0;
+        // 하위를 먼저 — 하위 상태가 상위를 미는 규칙이 먼저 돌고, 사람이 고른 상위 상태가 마지막에 이긴다
+        for (const [id, o] of [...pending.subs]) {
+          const body = { ...o };
+          for (const k of ['area', 'owner_slack_user_id', 'due_date']) if (k in body) body[k] = body[k] || null;
           try {
-            const r = await api.patch(`/api/subtasks/${sst.dataset.subStatus}`, { status: sst.value });
-            changed = true;
-            const note = nudgeNote(r?.nudged);
-            if (note) toast(note);
-          } catch (err) { toast(err.message, true); }
-          return load();
+            const r = await api.patch(`/api/subtasks/${id}`, body);
+            pending.subs.delete(id);
+            const nn = nudgeNote(r?.nudged);
+            if (nn) notes.push(nn);
+            const rl = r?.rolled ?? {};
+            if (rl.task_due) { t.due_date = rl.task_due; notes.push(`상위 업무 마감이 ${shortDate(rl.task_due)}로 밀렸습니다`); }
+            if (rl.phase_end) notes.push(`페이즈 종료일도 ${shortDate(rl.phase_end)}로 늘어났습니다`);
+          } catch (err) { fail += 1; notes.push(err.message); }
         }
-        const sdue = e.target.closest('[data-sub-due]');
-        if (sdue) {
-          const cur = rows.find((r) => r.id === sdue.dataset.subDue);
-          if (!editable()) { sdue.value = cur?.due_date ?? ''; return undefined; }
+        if (Object.keys(pending.task).length) {
           try {
-            const res = await api.patch(`/api/subtasks/${sdue.dataset.subDue}`, { due_date: sdue.value || null });
-            changed = true;
-            const r = res.rolled ?? {};
-            if (r.task_due || r.phase_end) {
-              const parts = [];
-              if (r.task_due) parts.push(`상위 업무 마감이 ${t.due_date ? `${shortDate(t.due_date)} → ` : ''}${shortDate(r.task_due)}로 밀렸습니다`);
-              if (r.phase_end) parts.push(`페이즈 종료일도 ${shortDate(r.phase_end)}로 늘어났습니다`);
-              toast(parts.join(' · '));
-              if (r.task_due) {
-                t.due_date = r.task_due;
-                const meta = root.querySelector('[data-head-meta]');
-                if (meta) meta.textContent = `마감 ${shortDate(t.due_date)}${t.owner_name ? ` · 담당 ${t.owner_name}` : ''}`;
-              }
-            } else toast(sdue.value ? '하위 업무 마감을 정했습니다.' : '마감을 비웠습니다. 상위 업무를 따릅니다.');
-          } catch (err) { toast(err.message, true); }
-          return load();
+            await api.patch(`/api/tasks/${t.id}`, pending.task);
+            if (pending.task.title) t.title = pending.task.title;
+            if (pending.task.status) t.status = pending.task.status;
+            pending.task = {};
+            root.querySelectorAll('[data-task-title], .sbm-head [data-status]').forEach((el) => el.classList.remove('dirty'));
+          } catch (err) { fail += 1; notes.push(err.message); }
         }
-        const ttl = e.target.closest('[data-sub-title]');
-        if (ttl) {
-          const next = ttl.value.trim();
-          const cur = rows.find((r) => r.id === ttl.dataset.subTitle);
-          if (!next) { toast('하위 업무명을 비울 수는 없습니다.', true); ttl.value = cur?.title ?? ''; return undefined; }
-          if (next === cur?.title) return undefined;
-          if (!editable()) { ttl.value = cur?.title ?? ''; return undefined; }
-          try { await api.patch(`/api/subtasks/${ttl.dataset.subTitle}`, { title: next }); changed = true; toast('하위 업무명을 바꿨습니다.'); }
-          catch (err) { toast(err.message, true); }
-          return load();
-        }
-        const tt = e.target.closest('[data-task-title]');
-        if (tt) {
-          const next = tt.value.replace(/\s+/g, ' ').trim();
-          if (!next) { toast('업무명을 비울 수는 없습니다.', true); tt.value = t.title; return undefined; }
-          if (next === t.title) { tt.value = t.title; return undefined; }
-          if (!editable()) { tt.value = t.title; return undefined; }
-          try {
-            await api.patch(`/api/tasks/${t.id}`, { title: next });
-            t.title = next; tt.value = next; changed = true;
-            toast('업무명을 바꿨습니다.');
-          } catch (err) { toast(err.message, true); tt.value = t.title; }
-          return undefined;
-        }
-        const st = e.target.closest('[data-status]');
-        if (st) {
-          if (!editable()) return undefined;
-          try { await api.patch(`/api/tasks/${t.id}`, { status: st.value }); changed = true; toast('상태를 바꿨습니다.'); }
-          catch (err) { toast(err.message, true); }
-        }
-        return undefined;
+        changed = true;
+        toast(`${fail ? `저장하지 못한 것이 ${fail}건 있습니다` : '저장했습니다'}${notes.length ? ` · ${notes.join(' · ')}` : ''}`, fail > 0);
+        const meta = root.querySelector('[data-head-meta]');
+        if (meta) meta.textContent = `마감 ${t.due_date ? shortDate(t.due_date) : '미정'}${t.owner_name ? ` · 책임 ${t.owner_name}` : ''}`;
+        await load();
+        paintSave();
+        return !fail;
+      };
+      saveBtn.addEventListener('click', () => { saveAll(); });
+
+      root.addEventListener('input', (e) => {
+        if (e.target.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
+        if (!stageSub(e.target)) stageTask(e.target);
+      });
+      root.addEventListener('change', (e) => {
+        if (e.target.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
+        if (!stageSub(e.target)) stageTask(e.target);
       });
 
       root.addEventListener('keydown', (e) => {
-        const tt = e.target.closest('[data-task-title]');
-        if (tt) {
-          if (e.key === 'Enter') { e.preventDefault(); tt.blur(); }
-          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); tt.value = t.title; tt.blur(); }
+        const el = e.target;
+        if (el.closest('[data-sub-add], .sbm-move, [data-comments]') || el.tagName === 'TEXTAREA') return;
+        if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (!stageSub(el)) stageTask(el);
+          saveAll();
           return;
         }
-        const ttl = e.target.closest('[data-sub-title]');
-        if (!ttl) return;
-        if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && el.tagName === 'INPUT' && (el.matches('[data-sub-title], [data-task-title], [data-sub-due]'))) {
           e.preventDefault();
-          e.stopPropagation();   // 창까지 닫히면 안 된다 — 글자만 되돌린다
-          ttl.value = rows.find((r) => r.id === ttl.dataset.subTitle)?.title ?? '';
-          ttl.blur();
+          e.stopPropagation();   // 창까지 닫히면 안 된다 — 그 칸만 되돌린다
+          const hit = fieldOf(el);
+          if (hit) {
+            const cur = rows.find((r) => r.id === el.dataset[hit[1].key]);
+            el.value = cur ? hit[1].orig(cur) : el.value;
+            stageSub(el);
+          } else { el.value = t.title; stageTask(el); }
         }
       });
+
+      // 저장 안 한 채 닫으려 하면 묻는다 — 저장 / 버리고 닫기 / 계속 고치기
+      let asking = false;
+      unsavedGuard = () => {
+        if (!pendingCount()) return true;
+        if (asking) return false;
+        asking = true;
+        modal({
+          title: '저장하지 않은 변경',
+          body: `<p>저장하지 않은 변경 ${pendingCount()}건이 있습니다. 저장할까요?</p>`,
+          footer: `<div class="right">
+            <button class="btn" data-close>계속 고치기</button>
+            <button class="btn btn-danger" data-discard>버리고 닫기</button>
+            <button class="btn btn-primary" data-ok>저장하고 닫기</button></div>`,
+          beforeClose: () => { asking = false; return true; },
+          onMount({ root: box, close: closeAsk }) {
+            box.querySelector('[data-ok]').addEventListener('click', async () => {
+              closeAsk(true);
+              if (await saveAll()) close(true);
+            });
+            box.querySelector('[data-discard]').addEventListener('click', () => { closeAsk(true); close(true); });
+          },
+        });
+        return false;
+      };
 
       root.querySelector('[data-sub-add]').addEventListener('submit', async (e) => {
         e.preventDefault();

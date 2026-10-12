@@ -258,7 +258,10 @@ export function toast(message, bad = false) {
 // ── 모달 ────────────────────────────────────────────────
 let openModals = 0;
 
-export function modal({ title, body, footer, wide = false, onMount }) {
+/**
+ * 창. beforeClose 가 false 를 돌려주면 닫지 않는다(저장 안 한 변경 확인 등) — close(true) 는 그것을 건너뛴다.
+ */
+export function modal({ title, body, footer, wide = false, onMount, beforeClose }) {
   const root = document.getElementById('modal-root');
   const backdrop = document.createElement('div');
   backdrop.className = 'backdrop';
@@ -274,7 +277,9 @@ export function modal({ title, body, footer, wide = false, onMount }) {
   root.appendChild(backdrop);
   openModals += 1;
 
-  const close = () => {
+  const close = (force = false) => {
+    if (!backdrop.isConnected) return;
+    if (force !== true && beforeClose && beforeClose() === false) return;
     backdrop.remove();
     openModals -= 1;
     document.removeEventListener('keydown', onKey);

@@ -11,7 +11,7 @@
 export const MEMBERS = [
   { id: 'U01KIM',  name: '혁',   handle: 'hyuk', active: 1 },   // 서비스기획 리드
   { id: 'U02PARK', name: '정',   handle: 'jeong', active: 1 },  // 개발 리드
-  { id: 'U03LEE',  name: '이OO', handle: 'lee',  active: 1 },
+  { id: 'U03LEE',  name: '희제', handle: 'lee',  active: 1 },
   { id: 'U04CHOI', name: '최OO', handle: 'choi', active: 1 },
   { id: 'U05JUNG', name: '황OO', handle: 'hwang', active: 1 },  // 상위 기획 및 리소스 · 디자인·콘텐츠 리드
   { id: 'U06KEON', name: '건',   handle: 'keon', active: 1 },

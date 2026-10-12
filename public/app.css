@@ -2147,3 +2147,5 @@ body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-event
   .sub-area,.sub-owner{min-height:0;height:28px;padding:0 9px}
   .sub-add .sub-area{height:36px}
 }
+/* 업무 팝업 — 고쳤지만 아직 저장 안 한 칸 */
+.modal .dirty{box-shadow:0 0 0 2px color-mix(in oklab, var(--amber) 70%, transparent) !important;border-color:var(--amber) !important}
