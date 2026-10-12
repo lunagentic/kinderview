@@ -2093,3 +2093,15 @@ body.bulk-on .toast-root{bottom:96px}
   .subnav{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
   .tl-legend,.months{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
 }
+
+/* 페이즈 순서 손잡이 — 편집 등급에서 줄에 올리면 보인다. 끌면 같은 프로젝트 안에서 자리를 바꾼다 */
+.tl-grip{flex:none;width:12px;margin-left:-14px;margin-right:2px;font-size:.72rem;line-height:1;letter-spacing:-2px;
+  color:var(--muted);cursor:grab;opacity:0;user-select:none;touch-action:none;text-align:center;border-radius:3px}
+.tl-phase:hover .tl-grip,.tl-grip:focus-visible{opacity:.8}
+.tl-grip:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+body[data-gate="view"] .tl-grip{display:none}
+.tl-group.ph-reordering,.tl-group.ph-reordering *{cursor:grabbing}
+.ph-dragging .tl-label,.ph-dragging .tl-track{opacity:.45;background:var(--surface-2)}
+.drop-before{box-shadow:inset 0 2px 0 var(--indigo)}
+.drop-after{box-shadow:inset 0 -2px 0 var(--indigo)}
+@media (hover:none){.tl-grip{opacity:.5}}

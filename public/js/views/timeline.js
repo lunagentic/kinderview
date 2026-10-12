@@ -177,6 +177,8 @@ export async function renderTimeline(root) {
     return `
       <div class="tl-row tl-phase${open ? ' is-open' : ''}" data-phase-row="${esc(ph.id)}">
         <div class="tl-label">
+          <span class="tl-grip" data-ph-grip="${esc(ph.id)}" role="button" tabindex="0"
+                aria-label="${esc(ph.name)} 순서 바꾸기 — 끌거나 Alt+↑/↓" title="끌어서 순서 바꾸기 (Alt+↑/↓)">⋮⋮</span>
           <button class="tlg-fold" data-fold-phase="${esc(ph.id)}" aria-expanded="${open}"
                   aria-label="업무 펼치기/접기" title="${open ? '업무 접기' : '업무 펼치기'}">${open ? '▾' : '▸'}</button>
           <div class="tl-label-text tl-ph-line">
@@ -253,7 +255,7 @@ export async function renderTimeline(root) {
         </div>
 
         ${live.map((r) => `
-          <section class="tl-group" style="${projectStyle(r.id)}">
+          <section class="tl-group" data-tl-project="${esc(r.id)}" style="${projectStyle(r.id)}">
             <div class="tl-group-head">
               <h2>${projectName(r.id, r.name)}</h2>
               <button class="pr-edit" data-edit-project="${esc(r.id)}"
@@ -398,6 +400,7 @@ export async function renderTimeline(root) {
     else openSubs(line.dataset.line);
   };
   bindBarDrag(root, win, () => findTask, reload);
+  bindPhaseOrder(root, live, reload);
   bindLabelResize(root);
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
@@ -451,6 +454,7 @@ export async function renderTimeline(root) {
       if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
       return;
     }
+    if (e.target.closest('[data-ph-grip]')) return;   // 손잡이는 bindPhaseOrder 가 맡는다
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const mh = e.target.closest('.tl-axis [data-month]');
     if (mh) { e.preventDefault(); go(`#/project/monthly?month=${mh.dataset.month}`); return; }
@@ -476,7 +480,7 @@ export async function renderTimeline(root) {
     }
     // 페이즈 줄의 제목 칸 — 이름(수정)·코멘트 뱃지가 아닌 곳을 누르면 업무가 펼쳐진다
     const phLbl = e.target.closest('.tl-phase[data-phase-row] .tl-label');
-    if (phLbl && !e.target.closest('.tl-name, [data-phase-cm], a, button')) {
+    if (phLbl && !e.target.closest('.tl-name, [data-phase-cm], [data-ph-grip], a, button')) {
       e.preventDefault();
       return togglePhase(phLbl.closest('[data-phase-row]').dataset.phaseRow);
     }
@@ -673,6 +677,122 @@ function bindBarDrag(root, win, getFind, reload) {
   };
   root.addEventListener('pointerup', end);
   root.addEventListener('pointercancel', end);
+}
+
+// ── 페이즈 순서 ─────────────────────────────────────────
+// 페이즈 줄 앞의 ⋮⋮ 손잡이를 끌어 같은 프로젝트 안에서 순서를 바꾼다(마우스·터치 같다).
+// 펼친 업무·하위 줄은 페이즈를 따라 함께 움직인다. 손잡이에서 Alt+↑/↓ 로 한 칸씩도 옮긴다.
+// 저장은 그 프로젝트 페이즈를 1..n 으로 다시 매겨, 값이 바뀐 것만 PATCH 한다.
+let refocusGrip = null;   // 키보드로 옮긴 뒤 다시 그려도 손잡이에 머문다
+function bindPhaseOrder(root, live, reload) {
+  const phasesIn = (projectId) => live.find((r) => r.id === projectId)?.phases ?? [];
+  const save = async (projectId, ids) => {
+    const before = phasesIn(projectId);
+    const jobs = ids.map((id, i) => ({ id, o: i + 1, cur: before.find((p) => p.id === id)?.sort_order }))
+      .filter((j) => j.cur !== j.o);
+    if (!jobs.length) return reload();
+    try {
+      for (const j of jobs) await api.patch(`/api/phases/${j.id}`, { sort_order: j.o });   // 차례로 — 동시에 쓰지 않는다
+      toast('페이즈 순서를 바꿨습니다.');
+    } catch (err) { toast(err.message, true); }
+    return reload();
+  };
+  if (refocusGrip) {
+    root.querySelector(`[data-ph-grip="${CSS.escape(refocusGrip)}"]`)?.focus();
+    refocusGrip = null;
+  }
+
+  let drag = null;
+  const rowsOf = (group) => [...group.querySelectorAll('.tl-phase[data-phase-row]')];
+  const blockOf = (row) => {
+    const id = row.dataset.phaseRow;
+    return [row, ...row.parentElement.querySelectorAll(`[data-of-phase="${CSS.escape(id)}"]`)];
+  };
+  const clearMarks = (group) => group.querySelectorAll('.drop-before, .drop-after')
+    .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+  const stop = (cancel) => {
+    if (!drag) return null;
+    const d = drag;
+    drag = null;
+    cancelAnimationFrame(d.raf);
+    d.block.forEach((el) => el.classList.remove('ph-dragging'));
+    d.group.classList.remove('ph-reordering');
+    clearMarks(d.group);
+    document.removeEventListener('keydown', d.onKey, true);
+    return cancel ? null : d;
+  };
+
+  root.addEventListener('pointerdown', (e) => {
+    const grip = e.target.closest('[data-ph-grip]');
+    if (!grip || e.button !== 0 || !canEdit()) return;
+    const row = grip.closest('[data-phase-row]');
+    const group = row.closest('.tl-group');
+    e.preventDefault();
+    grip.setPointerCapture?.(e.pointerId);
+    drag = { grip, row, group, y0: e.clientY, y: e.clientY, on: false, idx: null, raf: 0,
+      block: blockOf(row), onKey: (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); stop(true); } } };
+    document.addEventListener('keydown', drag.onKey, true);
+  });
+  const place = () => {
+    const d = drag;
+    if (!d) return;
+    const others = rowsOf(d.group).filter((r) => r !== d.row);
+    // 놓일 자리 = 마우스보다 가운데가 위에 있는 다른 페이즈 수
+    const idx = others.filter((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 < d.y; }).length;
+    d.idx = idx;
+    clearMarks(d.group);
+    if (others[idx]) others[idx].classList.add('drop-before');
+    else if (others.length) blockOf(others[others.length - 1]).at(-1).classList.add('drop-after');
+  };
+  const autoScroll = () => {
+    if (!drag) return;
+    const edge = 64;
+    const v = drag.y < edge ? -(edge - drag.y) / 4 : drag.y > innerHeight - edge ? (drag.y - (innerHeight - edge)) / 4 : 0;
+    if (v) { window.scrollBy(0, v); place(); }
+    drag.raf = requestAnimationFrame(autoScroll);
+  };
+  root.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    drag.y = e.clientY;
+    if (!drag.on) {
+      if (Math.abs(e.clientY - drag.y0) < 4) return;
+      drag.on = true;
+      drag.block.forEach((el) => el.classList.add('ph-dragging'));
+      drag.group.classList.add('ph-reordering');
+      drag.raf = requestAnimationFrame(autoScroll);
+    }
+    e.preventDefault();
+    place();
+  });
+  const end = (e) => {
+    const d = stop(false);
+    if (!d) return;
+    d.grip.releasePointerCapture?.(e.pointerId);
+    if (!d.on || d.idx === null) return;
+    const ids = rowsOf(d.group).map((r) => r.dataset.phaseRow).filter((id) => id !== d.row.dataset.phaseRow);
+    ids.splice(d.idx, 0, d.row.dataset.phaseRow);
+    const now = rowsOf(d.group).map((r) => r.dataset.phaseRow);
+    if (ids.join() === now.join()) return;
+    save(d.group.dataset.tlProject, ids);
+  };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', () => stop(true));
+
+  // 키보드 — 손잡이에서 Alt+↑/↓
+  root.addEventListener('keydown', (e) => {
+    const grip = e.target.closest('[data-ph-grip]');
+    if (!grip || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    if (!canEdit()) return;
+    const group = grip.closest('.tl-group');
+    const ids = rowsOf(group).map((r) => r.dataset.phaseRow);
+    const i = ids.indexOf(grip.dataset.phGrip);
+    const j = i + (e.key === 'ArrowUp' ? -1 : 1);
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    refocusGrip = grip.dataset.phGrip;
+    save(group.dataset.tlProject, ids);
+  });
 }
 
 // ── 제목 칸 너비 ───────────────────────────────────────
