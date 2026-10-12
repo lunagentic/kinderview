@@ -140,11 +140,13 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
             <option value="">분류 없음</option>
             ${opts(state.meta.categories ?? [], task?.category ?? defaults.category ?? '')}
             <option value="__new__">+ 새 분류 만들기…</option>
+            <option value="__edit__">분류 편집…</option>
           </select>
           <span class="cat-new" data-cat-new hidden>
             <input type="text" maxlength="20" placeholder="예: 오류 수정" aria-label="새 분류 이름">
             <button type="button" class="btn btn-ghost" data-cat-add>더하기</button>
           </span>
+          <div class="cat-edit" data-cat-edit hidden></div>
         </label>
 
         <label class="field">
@@ -307,8 +309,70 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       // 여기서 바로 더한다. 더하면 곧바로 골라진 상태가 된다.
       const catSel = form.querySelector('[data-cat-select]');
       const catNew = form.querySelector('[data-cat-new]');
+      const catEdit = form.querySelector('[data-cat-edit]');
       const catInput = catNew.querySelector('input');
       let lastCat = catSel.value;
+      const catOptions = (keep) => {
+        catSel.innerHTML = `<option value="">분류 없음</option>${opts(state.meta.categories ?? [], keep)
+        }<option value="__new__">+ 새 분류 만들기…</option><option value="__edit__">분류 편집…</option>`;
+        catSel.value = (state.meta.categories ?? []).some((c) => c.code === keep) ? keep : '';
+        lastCat = catSel.value;
+      };
+
+      // 분류 편집 — 이름을 바꾸면 그 분류를 단 업무가 모두 새 이름으로 보이고,
+      // 지우면 그 업무들은 '분류 없음'이 된다
+      const drawCatEdit = () => {
+        const cats = state.meta.categories ?? [];
+        catEdit.innerHTML = `
+          ${cats.length ? cats.map((c) => `
+            <div class="cat-edit-row">
+              <input type="text" maxlength="20" value="${esc(c.label)}" data-cat-label="${esc(c.code)}"
+                     data-orig="${esc(c.label)}" aria-label="분류 이름">
+              <span class="hint">${c.count ?? 0}건</span>
+              <button type="button" class="btn btn-ghost" data-cat-del="${esc(c.code)}">삭제</button>
+            </div>`).join('') : '<p class="hint">아직 만든 분류가 없습니다.</p>'}
+          <div class="cat-edit-foot"><button type="button" class="btn btn-ghost" data-cat-edit-close>닫기</button></div>`;
+      };
+      const catRename = async (input) => {
+        const label = input.value.trim();
+        if (label === input.dataset.orig) return;
+        if (!label) { input.value = input.dataset.orig; return; }
+        try {
+          await api.patch(`/api/categories/${input.dataset.catLabel}`, { label });
+          await reloadMeta();
+          catOptions(lastCat);
+          drawCatEdit();
+          toast('분류 이름을 바꿨습니다.');
+        } catch (err) { toast(err.message, true); input.value = input.dataset.orig; }
+      };
+      catEdit.addEventListener('keydown', (e) => {
+        const input = e.target.closest('[data-cat-label]');
+        if (!input) return;
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); input.value = input.dataset.orig; input.blur(); }
+      });
+      catEdit.addEventListener('focusout', (e) => {
+        const input = e.target.closest('[data-cat-label]');
+        if (input) catRename(input);
+      });
+      catEdit.addEventListener('click', async (e) => {
+        if (e.target.closest('[data-cat-edit-close]')) { catEdit.hidden = true; catSel.focus(); return; }
+        const del = e.target.closest('[data-cat-del]');
+        if (!del) return;
+        const c = (state.meta.categories ?? []).find((x) => x.code === del.dataset.catDel);
+        if (!c) return;
+        const ok = await confirmModal(c.count
+          ? `「${c.label}」 분류를 지울까요? 이 분류의 업무 ${c.count}건은 '분류 없음'이 됩니다.`
+          : `「${c.label}」 분류를 지울까요?`, { confirmLabel: '삭제', danger: true });
+        if (!ok) return;
+        try {
+          await api.del(`/api/categories/${c.code}`);
+          await reloadMeta();
+          catOptions(lastCat === c.code ? '' : lastCat);
+          drawCatEdit();
+          toast(`「${c.label}」 분류를 지웠습니다.`);
+        } catch (err) { toast(err.message, true); }
+      });
 
       const addCategory = async () => {
         const label = catInput.value.trim();
@@ -319,11 +383,8 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           const made = await api.post('/api/categories', { label });
           await reloadMeta();
           // 목록을 다시 그리고 방금 만든 것을 고른 채로 둔다
-          const keep = made.code;
-          catSel.innerHTML = `<option value="">분류 없음</option>${
-            opts(state.meta.categories ?? [], keep)}<option value="__new__">+ 새 분류 만들기…</option>`;
-          catSel.value = keep;
-          lastCat = keep;
+          catOptions(made.code);
+          if (!catEdit.hidden) drawCatEdit();
           catInput.value = '';
           catNew.hidden = true;
           toast(`「${made.label}」 분류를 더했습니다.`);
@@ -332,10 +393,18 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       };
 
       catSel.addEventListener('change', () => {
+        if (catSel.value === '__edit__') {
+          catSel.value = lastCat;
+          catNew.hidden = true;
+          drawCatEdit();
+          catEdit.hidden = false;
+          return;
+        }
         if (catSel.value !== '__new__') { lastCat = catSel.value; catNew.hidden = true; return; }
         // '만들기'는 고른 값이 아니다 — 쓰던 값으로 돌려 두고 입력칸만 연다
         catSel.value = lastCat;
         catNew.hidden = false;
+        catEdit.hidden = true;
         catInput.focus();
       });
       catNew.querySelector('[data-cat-add]').addEventListener('click', addCategory);

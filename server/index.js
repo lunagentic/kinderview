@@ -154,9 +154,11 @@ route('DELETE', '/api/attachments/:id', (ctx) => attachments.remove(ctx.params.i
 // ── 하위 업무 ───────────────────────────────────────────
 // 코멘트 — 읽기는 누구나, 쓰기는 화면·저장소 쪽 문이 막는다.
 // 서버판은 내 컴퓨터에서 도는 것이라 여기서 따로 등급을 묻지 않는다.
-// 분류 — 목록은 누구나, 더하는 것은 화면·저장소 쪽 문이 막는다
+// 분류 — 목록은 누구나, 더하기·이름 바꾸기·지우기는 화면·저장소 쪽 문이 막는다
 route('GET', '/api/categories', () => categories.list());
 route('POST', '/api/categories', (ctx) => categories.create(ctx.body));
+route('PATCH', '/api/categories/:id', (ctx) => categories.update(ctx.params.id, ctx.body));
+route('DELETE', '/api/categories/:id', (ctx) => categories.remove(ctx.params.id));
 
 route('GET', '/api/tasks/:id/comments', (ctx) => comments.list(ctx.params.id));
 route('POST', '/api/tasks/:id/comments', (ctx) => comments.create(ctx.params.id, ctx.body, ctx.me));

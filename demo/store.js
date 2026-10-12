@@ -1510,12 +1510,40 @@ function takeCategory(v) {
 const categoryRows = () => (DB.categories ?? [])
   .slice()
   .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at))
-  .map((c) => ({ code: c.id, label: c.label, sort_order: c.sort_order }));
+  .map((c) => ({ code: c.id, label: c.label, sort_order: c.sort_order,
+    count: (DB.tasks ?? []).filter((t) => t.category === c.id && !t.deleted_at).length }));
 
-function createCategory(input) {
-  const label = String(input.label ?? '').trim().replace(/\s+/g, ' ');
+const cleanCategoryLabel = (v) => {
+  const label = String(v ?? '').trim().replace(/\s+/g, ' ');
   if (!label) throw new DemoError('분류 이름을 입력해 주세요.');
   if (label.length > 20) throw new DemoError('분류 이름은 20자까지 쓸 수 있습니다.');
+  return label;
+};
+
+// 이름만 바꾼다 — 업무는 코드(id)로 분류를 가리키니 달고 있던 업무가 모두 새 이름으로 보인다
+function renameCategory(id, input) {
+  const row = (DB.categories ?? []).find((c) => c.id === id);
+  if (!row) throw new DemoError('없는 분류입니다.');
+  const label = cleanCategoryLabel(input.label);
+  if ((DB.categories ?? []).some((c) => c.id !== id && c.label === label)) throw new DemoError('이미 있는 분류 이름입니다.');
+  row.label = label;
+  save();
+  return { code: row.id, label, sort_order: row.sort_order };
+}
+
+// 지우면 그 분류를 달던 업무는 '분류 없음'이 된다
+function removeCategory(id) {
+  if (!(DB.categories ?? []).some((c) => c.id === id)) throw new DemoError('없는 분류입니다.');
+  const at = nowISO();
+  let cleared = 0;
+  for (const t of DB.tasks ?? []) if (t.category === id) { t.category = null; t.updated_at = at; cleared += 1; }
+  DB.categories = DB.categories.filter((c) => c.id !== id);
+  save();
+  return { ok: true, cleared };
+}
+
+function createCategory(input) {
+  const label = cleanCategoryLabel(input.label);
   // 같은 이름을 또 만들면 목록만 지저분해진다 — 있던 것을 돌려준다
   const dup = (DB.categories ?? []).find((c) => c.label === label);
   if (dup) return { code: dup.id, label: dup.label, sort_order: dup.sort_order };
@@ -2500,6 +2528,10 @@ function handle(method, path, body) {
   if (p === '/api/categories') {
     if (method === 'GET') return categoryRows();
     if (method === 'POST') return createCategory(body);
+  }
+  if (seg[1] === 'categories' && seg[2]) {
+    if (method === 'PATCH') return renameCategory(seg[2], body);
+    if (method === 'DELETE') return removeCategory(seg[2]);
   }
 
   if (seg[1] === 'tasks' && seg[2] && seg[3] === 'comments') {

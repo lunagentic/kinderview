@@ -415,19 +415,27 @@ function takeCategory(v) {
   return id;
 }
 
+const cleanCategoryLabel = (v) => {
+  const label = String(v ?? '').trim().replace(/\s+/g, ' ');
+  if (!label) throw new HttpError(400, '분류 이름을 입력해 주세요.');
+  if (label.length > 20) throw new HttpError(400, '분류 이름은 20자까지 쓸 수 있습니다.');
+  return label;
+};
+
 /**
- * 업무 분류 — 쓰다 보면 늘어난다. 지우거나 이름을 바꾸는 길은 아직 없다.
- * 이미 그 분류를 달고 있는 업무들이 함께 흔들리는 일이라, 필요해지면 그때 따로 만든다.
+ * 업무 분류 — 쓰다 보면 늘어난다. 이름을 바꾸거나 지울 수 있다.
+ * 업무는 코드(id)로 분류를 가리키니 이름을 바꾸면 달고 있던 업무가 모두 새 이름으로 보이고,
+ * 지우면 그 업무들은 '분류 없음'이 된다.
  */
 export const categories = {
   list() {
-    return all('SELECT id AS code, label, sort_order FROM category ORDER BY sort_order, created_at');
+    return all(`SELECT c.id AS code, c.label, c.sort_order,
+        (SELECT COUNT(*) FROM task t WHERE t.category = c.id AND t.deleted_at IS NULL) AS count
+      FROM category c ORDER BY c.sort_order, c.created_at`);
   },
 
   create(input) {
-    const label = String(input.label ?? '').trim().replace(/\s+/g, ' ');
-    if (!label) throw new HttpError(400, '분류 이름을 입력해 주세요.');
-    if (label.length > 20) throw new HttpError(400, '분류 이름은 20자까지 쓸 수 있습니다.');
+    const label = cleanCategoryLabel(input.label);
     // 같은 이름을 또 만들면 목록만 지저분해진다 — 있던 것을 돌려준다
     const dup = one('SELECT id AS code, label, sort_order FROM category WHERE label = :label', { label });
     if (dup) return dup;
@@ -436,6 +444,25 @@ export const categories = {
     run('INSERT INTO category (id, label, sort_order, created_at) VALUES (:id, :label, :n, :at)',
       { id, label, n: next, at: nowISO() });
     return { code: id, label, sort_order: next };
+  },
+
+  update(id, input) {
+    const row = one('SELECT id, sort_order FROM category WHERE id = :id', { id });
+    if (!row) throw new HttpError(404, '없는 분류입니다.');
+    const label = cleanCategoryLabel(input.label);
+    if (one('SELECT 1 AS x FROM category WHERE label = :label AND id <> :id', { label, id })) {
+      throw new HttpError(400, '이미 있는 분류 이름입니다.');
+    }
+    run('UPDATE category SET label = :label WHERE id = :id', { label, id });
+    return { code: id, label, sort_order: row.sort_order };
+  },
+
+  remove(id) {
+    if (!one('SELECT id FROM category WHERE id = :id', { id })) throw new HttpError(404, '없는 분류입니다.');
+    const cleared = one('SELECT COUNT(*) AS n FROM task WHERE category = :id', { id }).n;
+    run('UPDATE task SET category = NULL, updated_at = :at WHERE category = :id', { id, at: nowISO() });
+    run('DELETE FROM category WHERE id = :id', { id });
+    return { ok: true, cleared };
   },
 };
 
