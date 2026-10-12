@@ -2091,6 +2091,13 @@ body.bulk-on .toast-root{bottom:96px}
   .mr-proj{padding:8px 8px 10px}
 }
 
+/* 좁은 폭(≤420px)에서는 본문 여백이 12px 이다 — 가장자리까지 늘리는 줄도 12px 만큼만 빼야 가로로 넘치지 않는다.
+   위쪽 규칙들(-14px)보다 뒤에 와야 이긴다. */
+@media (max-width:420px){
+  .subnav{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
+  .tl-legend,.months{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
+}
+
 </style>
 
   <header class="topbar">
