@@ -2156,3 +2156,9 @@ body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-event
   .subs li .sub-due,.sbm-list li .sub-due{width:124px;flex:none}
   .sbm-list li .when:empty{display:none}
 }
+/* 영역 표시는 진회색 — 상태색(진행중 파랑 등)과 겹치지 않게 */
+.sub-area{color:var(--ink-2);border-color:var(--line);background:var(--surface-2)}
+.sub-area-chip{color:var(--ink-2);background:var(--surface-2);border-color:var(--line)}
+.sub-area.none{color:var(--muted);background:var(--surface)}
+/* 타임라인 하위 줄 — 담당·마감은 팝업에서. 업무명이 넓게 */
+.tl-sub .tl-sname{flex:1 1 auto;min-width:0}
