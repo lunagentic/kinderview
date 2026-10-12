@@ -1270,7 +1270,8 @@ export function subtaskModal({ task, onChange, focus = null }) {
     <div class="sbm">
       <div class="sbm-head">
         <span class="sbm-proj">${ticketTag(t)}${esc(t.project_name ?? '')}${t.phase_name ? ` · ${esc(t.phase_name)}` : ''}</span>
-        <h3 class="sbm-ttl">${esc(t.title)}</h3>
+        <input class="sbm-ttl sbm-ttl-edit" type="text" value="${esc(t.title)}" maxlength="120"
+               data-task-title="${esc(t.id)}" aria-label="업무명" title="눌러서 고치기 — Enter 저장 · Esc 되돌리기">
         <div class="sbm-meta">
           <span class="st">${statusPick(t)}</span>
           <span class="meta" data-head-meta>마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 담당 ${esc(t.owner_name)}` : ''}</span>
@@ -1378,6 +1379,19 @@ export function subtaskModal({ task, onChange, focus = null }) {
           catch (err) { toast(err.message, true); }
           return load();
         }
+        const tt = e.target.closest('[data-task-title]');
+        if (tt) {
+          const next = tt.value.replace(/\s+/g, ' ').trim();
+          if (!next) { toast('업무명을 비울 수는 없습니다.', true); tt.value = t.title; return undefined; }
+          if (next === t.title) { tt.value = t.title; return undefined; }
+          if (!editable()) { tt.value = t.title; return undefined; }
+          try {
+            await api.patch(`/api/tasks/${t.id}`, { title: next });
+            t.title = next; tt.value = next; changed = true;
+            toast('업무명을 바꿨습니다.');
+          } catch (err) { toast(err.message, true); tt.value = t.title; }
+          return undefined;
+        }
         const st = e.target.closest('[data-status]');
         if (st) {
           if (!editable()) return undefined;
@@ -1388,6 +1402,12 @@ export function subtaskModal({ task, onChange, focus = null }) {
       });
 
       root.addEventListener('keydown', (e) => {
+        const tt = e.target.closest('[data-task-title]');
+        if (tt) {
+          if (e.key === 'Enter') { e.preventDefault(); tt.blur(); }
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); tt.value = t.title; tt.blur(); }
+          return;
+        }
         const ttl = e.target.closest('[data-sub-title]');
         if (!ttl) return;
         if (e.key === 'Enter') { e.preventDefault(); ttl.blur(); }

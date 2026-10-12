@@ -1538,6 +1538,11 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .sbm-head{padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:14px}
 .sbm-proj{font-size:.76rem;color:var(--muted)}
 .sbm-ttl{margin:2px 0 8px;font-size:1.1rem;font-weight:800;letter-spacing:-.01em;overflow-wrap:anywhere}
+.sbm-ttl-edit{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:1.1rem;font-weight:800;color:var(--ink);
+  background:none;border:1px solid transparent;border-radius:var(--radius-sm);padding:3px 6px;margin-left:-7px;margin-right:-7px;width:calc(100% + 14px);cursor:text}
+.sbm-ttl-edit:hover{border-color:var(--line)}
+.sbm-ttl-edit:focus{outline:none;border-color:var(--indigo);background:var(--surface)}
+body[data-gate="view"] .sbm-ttl-edit{pointer-events:none}
 .sbm-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
 .sbm-meta .lnk{margin-left:auto;color:var(--indigo);text-decoration:none;font-size:.78rem}
 .sbm-meta .lnk:hover{text-decoration:underline}
