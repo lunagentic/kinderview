@@ -157,10 +157,11 @@ export async function renderTimeline(root) {
           style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'}"></span>`;
       return wrap({
         id: r.id,
-        html: `${subStatusPick(r)}${ticketTag({ ...r, project_id: t.project_id })}
+        html: `${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}
           <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}">${esc(r.title)}</span>
-          ${subAreaChip(r)}${r.owner_name ? `<span class="tl-sown" title="담당 ${esc(r.owner_name)}">${esc(r.owner_name)}</span>` : ''}
-          <span class="tl-sdue${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}">${due ? esc(shortDate(due)) : ''}</span>`,
+          ${r.owner_name ? `<span class="tl-sown" title="담당 ${esc(r.owner_name)}">${esc(r.owner_name)}</span>` : ''}
+          <span class="tl-sdue${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}">${due ? esc(shortDate(due)) : ''}</span>
+          ${subStatusPick(r)}`,
       }, dot);
     }).join('');
   };

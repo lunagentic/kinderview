@@ -1163,13 +1163,14 @@ export function mountSubtasks(box, task, { onChange } = {}) {
   const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
-        ${subStatusPick(r)}
         ${ticketTag({ ...r, project_id: t.project_id })}
+        ${subAreaPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
-        ${subAreaPick(r)}${subOwnerPick(r)}
+        ${subOwnerPick(r)}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감" title="비우면 상위 업무 마감을 따릅니다.">
+        ${subStatusPick(r)}
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
         <button class="x" type="button" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
@@ -1178,8 +1179,8 @@ export function mountSubtasks(box, task, { onChange } = {}) {
     box.innerHTML = `
       <div data-list>${list()}</div>
       <form class="sub-add" data-sub-add>
-        <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
         ${subAddArea(rows)}
+        <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
         <button class="btn btn-ghost" type="submit">+ 추가</button>
       </form>`;
   };
@@ -1291,15 +1292,16 @@ export function subtaskModal({ task, onChange, focus = null }) {
   };
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
-        ${subStatusPick(r)}
         ${ticketTag({ ...r, project_id: t.project_id })}
+        ${subAreaPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
-        ${subAreaPick(r)}${subOwnerPick(r)}
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
+        ${subOwnerPick(r)}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
                title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
+        ${subStatusPick(r)}
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
         <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
@@ -1323,8 +1325,8 @@ export function subtaskModal({ task, onChange, focus = null }) {
         <div data-prog>${bar()}</div>
         <div data-list>${list()}</div>
         <form class="sub-add" data-sub-add>
-          <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
           ${subAddArea(t.sub_areas?.slice(-1).map((a) => ({ area: a })) ?? [])}
+          <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
           <button class="btn btn-ghost" type="submit">+ 추가</button>
         </form>
         <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다. 고친 뒤 <b>저장</b>(또는 Enter)을 누르세요.</p>

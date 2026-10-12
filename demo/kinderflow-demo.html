@@ -968,7 +968,8 @@ button.tl-tname:focus-visible{outline:2px solid var(--focus);outline-offset:1px;
 .tl-sub .tkey{font-size:.64rem}
 .tl-sname{flex:1 1 auto;min-width:0;font-size:.8rem;color:var(--ink-2, var(--ink));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tl-sname.done{color:var(--muted);text-decoration:line-through}
-.tl-sdue{flex:none;font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-right:8px}
+.tl-sdue{flex:none;font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.tl-sub .sub-st{margin-right:8px}
 .tl-sdue.inherit{opacity:.6}
 .tl-sdue.late{color:var(--s-delay);font-weight:600}
 .tl-sub-dot{position:absolute;top:50%;width:9px;height:9px;margin:-5px 0 0 -5px;transform:rotate(45deg);border-radius:2px;
@@ -2153,6 +2154,12 @@ body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-event
 }
 /* 업무 팝업 — 고쳤지만 아직 저장 안 한 칸 */
 .modal .dirty{box-shadow:0 0 0 2px color-mix(in oklab, var(--amber) 70%, transparent) !important;border-color:var(--amber) !important}
+/* 하위 업무 줄 — 번호 · 영역 · 업무명 · 담당 · 마감 · 상태. 업무명이 가장 넓게 */
+@media (min-width:721px){
+  .subs li .sbm-title,.sbm-list li .sbm-title{flex:1 1 200px;min-width:160px}
+  .subs li .sub-due,.sbm-list li .sub-due{width:124px;flex:none}
+  .sbm-list li .when:empty{display:none}
+}
 
 </style>
 
@@ -7650,13 +7657,14 @@ function mountSubtasks(box, task, { onChange } = {}) {
   const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
-        ${subStatusPick(r)}
         ${ticketTag({ ...r, project_id: t.project_id })}
+        ${subAreaPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
-        ${subAreaPick(r)}${subOwnerPick(r)}
+        ${subOwnerPick(r)}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감" title="비우면 상위 업무 마감을 따릅니다.">
+        ${subStatusPick(r)}
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
         <button class="x" type="button" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
@@ -7665,8 +7673,8 @@ function mountSubtasks(box, task, { onChange } = {}) {
     box.innerHTML = `
       <div data-list>${list()}</div>
       <form class="sub-add" data-sub-add>
-        <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
         ${subAddArea(rows)}
+        <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
         <button class="btn btn-ghost" type="submit">+ 추가</button>
       </form>`;
   };
@@ -7778,15 +7786,16 @@ function subtaskModal({ task, onChange, focus = null }) {
   };
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
-        ${subStatusPick(r)}
         ${ticketTag({ ...r, project_id: t.project_id })}
+        ${subAreaPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
-        ${subAreaPick(r)}${subOwnerPick(r)}
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
+        ${subOwnerPick(r)}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
                title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
+        ${subStatusPick(r)}
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
         <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
@@ -7810,8 +7819,8 @@ function subtaskModal({ task, onChange, focus = null }) {
         <div data-prog>${bar()}</div>
         <div data-list>${list()}</div>
         <form class="sub-add" data-sub-add>
-          <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
           ${subAddArea(t.sub_areas?.slice(-1).map((a) => ({ area: a })) ?? [])}
+          <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
           <button class="btn btn-ghost" type="submit">+ 추가</button>
         </form>
         <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다. 고친 뒤 <b>저장</b>(또는 Enter)을 누르세요.</p>
@@ -10019,12 +10028,14 @@ const attList = (rows = []) => {
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
-        ${subStatusPick(r)}
+        ${r.key ? `<span class="tkey" title="티켓 번호">${esc(r.key)}</span>` : ''}
+        ${subAreaPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
-        ${subAreaPick(r)}${subOwnerPick(r)}
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
+        ${subOwnerPick(r)}
         ${subDue(r)}
+        ${subStatusPick(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
   : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
@@ -10112,9 +10123,9 @@ async function renderTaskDetail(root, id, query = '') {
           <h3>하위 업무 ${subCount(t.subtasks)}</h3>
           ${subList(t.subtasks)}
           <form class="sub-add" data-sub-add>
+            ${subAddArea(t.subtasks)}
             <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)"
                    aria-label="하위 업무명">
-            ${subAddArea(t.subtasks)}
             <button class="btn btn-ghost" type="submit">추가</button>
           </form>
           <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
@@ -12073,10 +12084,11 @@ async function renderTimeline(root) {
           style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'}"></span>`;
       return wrap({
         id: r.id,
-        html: `${subStatusPick(r)}${ticketTag({ ...r, project_id: t.project_id })}
+        html: `${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}
           <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}">${esc(r.title)}</span>
-          ${subAreaChip(r)}${r.owner_name ? `<span class="tl-sown" title="담당 ${esc(r.owner_name)}">${esc(r.owner_name)}</span>` : ''}
-          <span class="tl-sdue${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}">${due ? esc(shortDate(due)) : ''}</span>`,
+          ${r.owner_name ? `<span class="tl-sown" title="담당 ${esc(r.owner_name)}">${esc(r.owner_name)}</span>` : ''}
+          <span class="tl-sdue${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}">${due ? esc(shortDate(due)) : ''}</span>
+          ${subStatusPick(r)}`,
       }, dot);
     }).join('');
   };

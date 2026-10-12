@@ -78,12 +78,14 @@ const attList = (rows = []) => {
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
-        ${subStatusPick(r)}
+        ${r.key ? `<span class="tkey" title="티켓 번호">${esc(r.key)}</span>` : ''}
+        ${subAreaPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
-        ${subAreaPick(r)}${subOwnerPick(r)}
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
+        ${subOwnerPick(r)}
         ${subDue(r)}
+        ${subStatusPick(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>`
   : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
@@ -171,9 +173,9 @@ export async function renderTaskDetail(root, id, query = '') {
           <h3>하위 업무 ${subCount(t.subtasks)}</h3>
           ${subList(t.subtasks)}
           <form class="sub-add" data-sub-add>
+            ${subAddArea(t.subtasks)}
             <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)"
                    aria-label="하위 업무명">
-            ${subAddArea(t.subtasks)}
             <button class="btn btn-ghost" type="submit">추가</button>
           </form>
           <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
