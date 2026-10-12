@@ -2110,6 +2110,12 @@ body[data-gate="view"] .tl-grip{display:none}
 .drop-after{box-shadow:inset 0 -2px 0 var(--indigo)}
 @media (hover:none){.tl-grip{opacity:.5}}
 
+/* 마일스톤 진척률 — 페이즈 줄과 같은 막대 */
+.ms-prog{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.ms-prog .tl-prog{width:96px}
+.ms-prog .tl-pct.late{color:var(--s-delay)}
+.ms-cnt{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
+
 </style>
 
   <header class="topbar">
@@ -5419,7 +5425,14 @@ function timelineRows() {
         id: p.id, name: p.name, code: p.code, status: p.status,
         start_date: ds[0] ?? null, end_date: ds[ds.length - 1] ?? null,
         phases: ps,
-        milestones: allMilestones.filter((m) => m.project_id === p.id),
+        milestones: allMilestones.filter((m) => m.project_id === p.id).map((m) => {
+          // 마일스톤 진척률 — 페이즈가 붙어 있으면 그 페이즈 업무, 없으면 프로젝트 전체 (server/repo.js withMilestoneProgress)
+          const pool = m.phase_id ? rowTasks.filter((t) => t.phase_id === m.phase_id) : rowTasks;
+          const weight = (t) => (t.status === 'DONE' ? 1 : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0));
+          return { ...m,
+            progress: pool.length ? Math.round(pool.reduce((n, t) => n + weight(t), 0) / pool.length * 100) : null,
+            task_count: pool.length, done_count: pool.filter((t) => t.status === 'DONE').length };
+        }),
         unphased: rowTasks.filter((t) => !t.phase_id).length,
       };
     });
@@ -7260,11 +7273,8 @@ function milestoneForm({ milestone = null, projectId, phases = [], onSaved }) {
             ${mine.map((p) => `<option value="${esc(p.id)}"${p.id === milestone?.phase_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
           </select>
         </label>
-        ${editing ? `
-        <label class="field span2 check">
-          <input type="checkbox" name="done"${milestone.done_at ? ' checked' : ''}>
-          <span>달성함</span>
-        </label>` : ''}
+        <p class="hint span2">진척률은 연결한 페이즈(없으면 프로젝트 전체)의 업무 진행으로 자동 계산됩니다${
+          editing && milestone.progress !== null && milestone.progress !== undefined ? ` — 지금 <b>${milestone.progress}%</b>` : ''}.</p>
       </div>
     </form>`;
 
@@ -7297,7 +7307,6 @@ function milestoneForm({ milestone = null, projectId, phases = [], onSaved }) {
           phase_id: fd.get('phase_id') || null,
           project_id: pid,
         };
-        if (editing) payload.done = form.querySelector('[name=done]').checked;
         if (!payload.name?.trim()) return toast('마일스톤 이름을 입력해 주세요.', true);
         if (!payload.due_date) return toast('날짜를 입력해 주세요.', true);
         saving = true;
@@ -11603,10 +11612,19 @@ async function renderNotifications(root) {
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 업무 막대는 상태색으로 나눈다.
 // 막대에는 늘 이름이 붙는다 — 색만으로 구분되는 곳은 없다.
 
+// 마일스톤 상태는 진척률에서 나온다 — 100% 면 달성, 날짜가 지났는데 못 채웠으면 지연
 const tlMilestoneState = (m) => {
-  if (m.done_at) return { key: 'done', label: '달성', mark: '✓' };
+  if (m.progress === 100) return { key: 'done', label: '달성', mark: '✓' };
   if (m.due_date < state.today) return { key: 'late', label: '지연', mark: '!' };
   return { key: 'plan', label: '예정', mark: '' };
+};
+const msProgressCell = (m) => {
+  if (m.progress === null || m.progress === undefined) return '<span class="tl-cnt">업무 없음</span>';
+  const late = m.progress < 100 && m.due_date < state.today;
+  return `<span class="ms-prog" title="${m.phase_name ? '페이즈' : '프로젝트'} 업무 ${m.task_count}건 · 완료 ${m.done_count}건">
+    <span class="tl-prog"><i class="${m.progress >= 100 ? 'full' : ''}" style="width:${m.progress}%"></i></span>
+    <b class="tl-pct${m.progress >= 100 ? ' full' : ''}${late ? ' late' : ''}">${m.progress}%</b>
+    <span class="ms-cnt">완료 ${m.done_count}/${m.task_count}</span></span>`;
 };
 
 // 펼쳐 둔 페이즈를 기억한다. 화면을 다시 그릴 때마다 접히면
@@ -11806,6 +11824,7 @@ async function renderTimeline(root) {
             if (at === null || at > 100) return '';
             const st = tlMilestoneState(m);
             const tip = `<b>${esc(m.name)}</b><br>${esc(shortDate(m.due_date))} · ${esc(st.label)}${
+              m.progress === null || m.progress === undefined ? '' : ` · 진척 ${m.progress}%`}${
               m.phase_name ? `<br>페이즈 ${esc(m.phase_name)}` : ''}`;
             return `<button class="tl-ms is-${st.key}" style="left:${at}%"
                       data-milestone="${esc(m.id)}" data-tip="${esc(tip)}"
@@ -11883,20 +11902,19 @@ async function renderTimeline(root) {
       ${live.flatMap((r) => r.milestones.map((m) => ({ ...m, project: r }))).length ? `
         <div class="table-wrap">
           <table class="list">
-            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>상태</th></tr></thead>
+            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>진척률</th></tr></thead>
             <tbody>
               ${live.flatMap((r) => r.milestones.map((m) => ({ m, r })))
                 .sort((a, b) => a.m.due_date.localeCompare(b.m.due_date))
                 .map(({ m, r }) => {
-                  const st = tlMilestoneState(m);
                   return `
                     <tr class="row-click" data-milestone-row="${esc(m.id)}">
                       <td data-label="마일스톤"><b>${esc(m.name)}</b></td>
                       <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
                       <td data-label="페이즈">${m.phase_name ? esc(m.phase_name) : '-'}</td>
                       <td data-label="날짜">${shortDate(m.due_date)}
-                        <span class="dday">${m.done_at ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
-                      <td data-label="상태"><span class="chip ms-${st.key}">${st.mark ? `${st.mark} ` : ''}${st.label}</span></td>
+                        <span class="dday">${m.progress === 100 ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
+                      <td data-label="진척률">${msProgressCell(m)}</td>
                     </tr>`;
                 }).join('')}
             </tbody>

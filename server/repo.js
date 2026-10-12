@@ -270,6 +270,17 @@ export const milestones = {
   },
 };
 
+/**
+ * 마일스톤 진척률 — 사람이 체크하지 않는다. 페이즈가 붙어 있으면 그 페이즈 업무,
+ * 없으면 프로젝트 전체 업무의 진척(progress_weight 평균)이다. 업무가 없으면 null.
+ */
+export function withMilestoneProgress(m, projectTasks) {
+  const pool = m.phase_id ? projectTasks.filter((t) => t.phase_id === m.phase_id) : projectTasks;
+  const progress = pool.length
+    ? Math.round(pool.reduce((n, t) => n + (t.progress_weight ?? 0), 0) / pool.length * 100) : null;
+  return { ...m, progress, task_count: pool.length, done_count: pool.filter((t) => t.status === 'DONE').length };
+}
+
 /** 간트용 — 프로젝트 · 페이즈 · 마일스톤을 기간과 함께 한 번에 */
 export function timeline() {
   const projectRows = projects.list();
@@ -305,7 +316,7 @@ export function timeline() {
       id: p.id, name: p.name, code: p.code, status: p.status,
       start_date: dates[0] ?? null, end_date: dates[dates.length - 1] ?? null,
       phases: ps,
-      milestones: milestoneRows.filter((m) => m.project_id === p.id),
+      milestones: milestoneRows.filter((m) => m.project_id === p.id).map((m) => withMilestoneProgress(m, rowTasks)),
       unphased: rowTasks.filter((t) => !t.phase_id).length,
     };
   });

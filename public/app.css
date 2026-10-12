@@ -2105,3 +2105,9 @@ body[data-gate="view"] .tl-grip{display:none}
 .drop-before{box-shadow:inset 0 2px 0 var(--indigo)}
 .drop-after{box-shadow:inset 0 -2px 0 var(--indigo)}
 @media (hover:none){.tl-grip{opacity:.5}}
+
+/* 마일스톤 진척률 — 페이즈 줄과 같은 막대 */
+.ms-prog{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.ms-prog .tl-prog{width:96px}
+.ms-prog .tl-pct.late{color:var(--s-delay)}
+.ms-cnt{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}

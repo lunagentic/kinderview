@@ -973,11 +973,8 @@ export function milestoneForm({ milestone = null, projectId, phases = [], onSave
             ${mine.map((p) => `<option value="${esc(p.id)}"${p.id === milestone?.phase_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
           </select>
         </label>
-        ${editing ? `
-        <label class="field span2 check">
-          <input type="checkbox" name="done"${milestone.done_at ? ' checked' : ''}>
-          <span>달성함</span>
-        </label>` : ''}
+        <p class="hint span2">진척률은 연결한 페이즈(없으면 프로젝트 전체)의 업무 진행으로 자동 계산됩니다${
+          editing && milestone.progress !== null && milestone.progress !== undefined ? ` — 지금 <b>${milestone.progress}%</b>` : ''}.</p>
       </div>
     </form>`;
 
@@ -1010,7 +1007,6 @@ export function milestoneForm({ milestone = null, projectId, phases = [], onSave
           phase_id: fd.get('phase_id') || null,
           project_id: pid,
         };
-        if (editing) payload.done = form.querySelector('[name=done]').checked;
         if (!payload.name?.trim()) return toast('마일스톤 이름을 입력해 주세요.', true);
         if (!payload.due_date) return toast('날짜를 입력해 주세요.', true);
         saving = true;

@@ -2369,7 +2369,14 @@ function timelineRows() {
         id: p.id, name: p.name, code: p.code, status: p.status,
         start_date: ds[0] ?? null, end_date: ds[ds.length - 1] ?? null,
         phases: ps,
-        milestones: allMilestones.filter((m) => m.project_id === p.id),
+        milestones: allMilestones.filter((m) => m.project_id === p.id).map((m) => {
+          // 마일스톤 진척률 — 페이즈가 붙어 있으면 그 페이즈 업무, 없으면 프로젝트 전체 (server/repo.js withMilestoneProgress)
+          const pool = m.phase_id ? rowTasks.filter((t) => t.phase_id === m.phase_id) : rowTasks;
+          const weight = (t) => (t.status === 'DONE' ? 1 : Math.max(PROGRESS_WEIGHT[t.status] ?? 0, subProgressOf(t.id) ?? 0));
+          return { ...m,
+            progress: pool.length ? Math.round(pool.reduce((n, t) => n + weight(t), 0) / pool.length * 100) : null,
+            task_count: pool.length, done_count: pool.filter((t) => t.status === 'DONE').length };
+        }),
         unphased: rowTasks.filter((t) => !t.phase_id).length,
       };
     });

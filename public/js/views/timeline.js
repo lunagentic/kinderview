@@ -17,10 +17,19 @@ import { directorIcon, sendIcon } from '../comments.js';
 // 색은 프로젝트 정체성만 나타내고, 진행률은 같은 색의 채움 길이로, 업무 막대는 상태색으로 나눈다.
 // 막대에는 늘 이름이 붙는다 — 색만으로 구분되는 곳은 없다.
 
+// 마일스톤 상태는 진척률에서 나온다 — 100% 면 달성, 날짜가 지났는데 못 채웠으면 지연
 const tlMilestoneState = (m) => {
-  if (m.done_at) return { key: 'done', label: '달성', mark: '✓' };
+  if (m.progress === 100) return { key: 'done', label: '달성', mark: '✓' };
   if (m.due_date < state.today) return { key: 'late', label: '지연', mark: '!' };
   return { key: 'plan', label: '예정', mark: '' };
+};
+const msProgressCell = (m) => {
+  if (m.progress === null || m.progress === undefined) return '<span class="tl-cnt">업무 없음</span>';
+  const late = m.progress < 100 && m.due_date < state.today;
+  return `<span class="ms-prog" title="${m.phase_name ? '페이즈' : '프로젝트'} 업무 ${m.task_count}건 · 완료 ${m.done_count}건">
+    <span class="tl-prog"><i class="${m.progress >= 100 ? 'full' : ''}" style="width:${m.progress}%"></i></span>
+    <b class="tl-pct${m.progress >= 100 ? ' full' : ''}${late ? ' late' : ''}">${m.progress}%</b>
+    <span class="ms-cnt">완료 ${m.done_count}/${m.task_count}</span></span>`;
 };
 
 // 펼쳐 둔 페이즈를 기억한다. 화면을 다시 그릴 때마다 접히면
@@ -220,6 +229,7 @@ export async function renderTimeline(root) {
             if (at === null || at > 100) return '';
             const st = tlMilestoneState(m);
             const tip = `<b>${esc(m.name)}</b><br>${esc(shortDate(m.due_date))} · ${esc(st.label)}${
+              m.progress === null || m.progress === undefined ? '' : ` · 진척 ${m.progress}%`}${
               m.phase_name ? `<br>페이즈 ${esc(m.phase_name)}` : ''}`;
             return `<button class="tl-ms is-${st.key}" style="left:${at}%"
                       data-milestone="${esc(m.id)}" data-tip="${esc(tip)}"
@@ -297,20 +307,19 @@ export async function renderTimeline(root) {
       ${live.flatMap((r) => r.milestones.map((m) => ({ ...m, project: r }))).length ? `
         <div class="table-wrap">
           <table class="list">
-            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>상태</th></tr></thead>
+            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>진척률</th></tr></thead>
             <tbody>
               ${live.flatMap((r) => r.milestones.map((m) => ({ m, r })))
                 .sort((a, b) => a.m.due_date.localeCompare(b.m.due_date))
                 .map(({ m, r }) => {
-                  const st = tlMilestoneState(m);
                   return `
                     <tr class="row-click" data-milestone-row="${esc(m.id)}">
                       <td data-label="마일스톤"><b>${esc(m.name)}</b></td>
                       <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
                       <td data-label="페이즈">${m.phase_name ? esc(m.phase_name) : '-'}</td>
                       <td data-label="날짜">${shortDate(m.due_date)}
-                        <span class="dday">${m.done_at ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
-                      <td data-label="상태"><span class="chip ms-${st.key}">${st.mark ? `${st.mark} ` : ''}${st.label}</span></td>
+                        <span class="dday">${m.progress === 100 ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
+                      <td data-label="진척률">${msProgressCell(m)}</td>
                     </tr>`;
                 }).join('')}
             </tbody>
