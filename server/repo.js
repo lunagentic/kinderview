@@ -897,6 +897,7 @@ export const subtasks = {
       });
       cur.task_id = to.id;
       if (cur.due_date) rolled = rollUpDue(to.id, cur.due_date, actor);   // 새 상위 기준으로 다시 민다
+      tx(() => { rollUpStatus(to.id, actor); });   // 움직이던 하위가 들어오면 「대기」 상위는 「진행중」으로
     }
     const due = cleanDue(patch.due_date);
     if (due !== undefined) {

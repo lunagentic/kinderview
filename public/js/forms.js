@@ -1458,6 +1458,12 @@ export function subtaskModal({ task, onChange, focus = null }) {
             pending.subs.delete(id);
             const nn = nudgeNote(r?.nudged);
             if (nn) notes.push(nn);
+            if (r?.nudged && !('status' in pending.task)) {
+              // 하위가 상위를 밀었다 — 창 머리의 상태도 같이 바꿔 둔다
+              t.status = r.nudged;
+              const headSt = root.querySelector('.sbm-head [data-status]');
+              if (headSt) { headSt.value = r.nudged; headSt.dataset.st = r.nudged; }
+            }
             const rl = r?.rolled ?? {};
             if (rl.task_due) { t.due_date = rl.task_due; notes.push(`상위 업무 마감이 ${shortDate(rl.task_due)}로 밀렸습니다`); }
             if (rl.phase_end) notes.push(`페이즈 종료일도 ${shortDate(rl.phase_end)}로 늘어났습니다`);

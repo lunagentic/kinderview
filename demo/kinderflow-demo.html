@@ -3310,6 +3310,27 @@ function numberTickets(db) {
  * 하위가 있으면 영역이 빈 하위마다 상위 영역·담당을, 없으면 같은 제목의 하위 하나(sub-<업무 id>)를 만들어 넣는다.
  * 그 뒤 상위 area 는 외주(OUT)가 아니면 비운다. 여러 브라우저가 돌려도 같은 결과가 나오게 id 를 고정한다.
  */
+/**
+ * 하위 업무가 하나라도 움직였는데(진행중·완료) 상위가 아직 「대기」인 것을 「진행중」으로 맞춘다.
+ * 하위 상태를 바꿀 때마다 같은 규칙(rollUpStatus)이 돌지만, 그 규칙이 생기기 전·옮기기 등으로 어긋난 것을 한 번 바로잡는다.
+ */
+function wakeWaitingParents(db) {
+  let n = 0;
+  const at = nowISO();
+  for (const t of db.tasks ?? []) {
+    if (t.deleted_at || t.status !== 'TODO') continue;
+    const moved = (db.subtasks ?? []).some((x) => x.task_id === t.id
+      && (x.status ?? (x.is_done ? 'DONE' : 'TODO')) !== 'TODO');
+    if (!moved) continue;
+    t.status = 'IN_PROGRESS';
+    t.updated_at = at;
+    (db.events ??= []).push({ id: uid(), task_id: t.id, event_type: 'STATUS_CHANGED', from_value: 'TODO',
+      to_value: 'IN_PROGRESS', actor_slack_user_id: t.owner_slack_user_id, occurred_at: at });
+    n += 1;
+  }
+  return n;
+}
+
 function liftAreasToSubtasks(db) {
   let n = 0;
   db.subtasks ??= [];
@@ -3450,6 +3471,7 @@ function reconcile(db) {
   }
 
   if (liftAreasToSubtasks(db)) changed = true;
+  if (wakeWaitingParents(db)) changed = true;
   return changed;
 }
 
@@ -4113,6 +4135,7 @@ function updateSubtask(id, body, actor = null) {
     if (from?.project_id !== to.project_id) row.seq = nextSeq(to.project_id);
     row.task_id = to.id;
     if (row.due_date) rolled = rollUpDue(to.id, row.due_date);   // 새 상위 기준으로 다시 민다
+    rollUpStatus(to.id);   // 움직이던 하위가 들어오면 「대기」 상위는 「진행중」으로
   }
   const due = cleanSubDue(body.due_date);
   if (due !== undefined) {
@@ -7922,6 +7945,12 @@ function subtaskModal({ task, onChange, focus = null }) {
             pending.subs.delete(id);
             const nn = nudgeNote(r?.nudged);
             if (nn) notes.push(nn);
+            if (r?.nudged && !('status' in pending.task)) {
+              // 하위가 상위를 밀었다 — 창 머리의 상태도 같이 바꿔 둔다
+              t.status = r.nudged;
+              const headSt = root.querySelector('.sbm-head [data-status]');
+              if (headSt) { headSt.value = r.nudged; headSt.dataset.st = r.nudged; }
+            }
             const rl = r?.rolled ?? {};
             if (rl.task_due) { t.due_date = rl.task_due; notes.push(`상위 업무 마감이 ${shortDate(rl.task_due)}로 밀렸습니다`); }
             if (rl.phase_end) notes.push(`페이즈 종료일도 ${shortDate(rl.phase_end)}로 늘어났습니다`);

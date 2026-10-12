@@ -489,6 +489,27 @@ function syncMemberNames() {
   return n ? `구성원 이름 ${n}명 시드에 맞춤` : null;
 }
 
+/** 하위 업무가 움직였는데(진행중·완료) 상위가 「대기」인 것을 「진행중」으로 맞춘다 (데모 wakeWaitingParents 와 같다) */
+function wakeWaitingParents() {
+  if (!/\bstatus\b/.test(tableSql('subtask'))) return null;
+  const rows = db.prepare(`SELECT t.id, t.owner_slack_user_id FROM task t
+    WHERE t.deleted_at IS NULL AND t.status = 'TODO'
+      AND EXISTS (SELECT 1 FROM subtask s WHERE s.task_id = t.id AND s.status <> 'TODO')`).all();
+  if (!rows.length) return null;
+  const at = new Date().toISOString();
+  db.exec('BEGIN');
+  try {
+    for (const r of rows) {
+      db.prepare("UPDATE task SET status = 'IN_PROGRESS', updated_at = :at WHERE id = :id").run({ id: r.id, at });
+      db.prepare(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
+        VALUES (:eid, :id, 'STATUS_CHANGED', 'TODO', 'IN_PROGRESS', :actor, :at)`)
+        .run({ eid: crypto.randomUUID(), id: r.id, actor: r.owner_slack_user_id, at });
+    }
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  return `하위 업무가 움직인 「대기」 업무 ${rows.length}건을 「진행중」으로`;
+}
+
 /** 업무 첨부(링크·이미지) 표 — 스키마에 있으니 없을 때만 만든다. */
 function addAttachments() {
   if (tableSql('attachment')) return null;
@@ -525,7 +546,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();
