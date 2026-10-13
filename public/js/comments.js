@@ -77,6 +77,7 @@ const one = (c, { reply = true } = {}) => {
           ${reply && canEdit() ? `<button class="lnk" data-cm-reply="${esc(c.id)}">${cmIcon('reply')}답글</button>` : ''}
           ${canFix(c) ? `<button class="lnk" data-cm-edit="${esc(c.id)}">${cmIcon('edit')}수정</button>` : ''}
           ${canFix(c) ? `<button class="lnk bad" data-cm-del="${esc(c.id)}">${cmIcon('del')}삭제</button>` : ''}
+          ${isDir(c) && !canFix(c) && canEdit() ? '<span class="cm-hint">디렉터 코멘트는 디렉터 코드로 고칠 수 있습니다</span>' : ''}
         </div>`}
     </div>
   </li>`;
@@ -225,6 +226,7 @@ export function bindComments(box, taskId, { onChange, base = null, highlight = n
 
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();   // 팝업 안이면 창까지 닫히면 안 된다
       if (form.matches('[data-cm-add]')) { ta.value = ''; ta.blur(); } else closeSubs();
       return;
     }

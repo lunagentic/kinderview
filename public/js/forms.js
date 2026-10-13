@@ -1346,8 +1346,8 @@ export function subtaskModal({ task, onChange, focus = null }) {
   modal({
     title: t.key ? `업무 ${t.key}` : '업무',
     body,
-    footer: `<div class="right"><button class="btn" data-close>닫기</button>
-      <button class="btn" data-save-all disabled title="고친 것을 저장합니다 (Enter)">저장</button></div>`,
+    // 닫기는 머리의 ✕ 하나로 — 꼬리에는 「저장(하고 닫기)」 하나만 둔다
+    footer: `<div class="right"><button class="btn btn-primary" data-save-all title="고친 것을 저장하고 창을 닫습니다 (Enter)">저장</button></div>`,
     beforeClose: () => unsavedGuard(),
     onMount({ root, close }) {
       const repaint = () => {
@@ -1390,8 +1390,6 @@ export function subtaskModal({ task, onChange, focus = null }) {
       const saveBtn = root.querySelector('[data-save-all]');
       const paintSave = () => {
         const n = pendingCount();
-        saveBtn.disabled = !n;
-        saveBtn.classList.toggle('btn-primary', n > 0);
         saveBtn.textContent = n ? `저장 (${n})` : '저장';
       };
       const SUB_FIELDS = {
@@ -1487,11 +1485,20 @@ export function subtaskModal({ task, onChange, focus = null }) {
         toast(`${fail ? `저장하지 못한 것이 ${fail}건 있습니다` : '저장했습니다'}${notes.length ? ` · ${notes.join(' · ')}` : ''}`, fail > 0);
         const meta = root.querySelector('[data-head-meta]');
         if (meta) meta.textContent = `마감 ${t.due_date ? shortDate(t.due_date) : '미정'}${t.owner_name ? ` · 책임 ${t.owner_name}` : ''}`;
-        await load();
+        saveBtn.disabled = false;
+        if (fail) await load();   // 실패한 것만 칸에 남겨 다시 고칠 수 있게
         paintSave();
         return !fail;
       };
-      saveBtn.addEventListener('click', () => { saveAll(); });
+      // 저장 = 저장하고 닫기. 고친 게 없으면 그냥 닫는다. 실패하면 창을 열어 둔다.
+      let saving = false;
+      const saveAndClose = async () => {
+        if (saving) return;
+        saving = true;
+        try { if (await saveAll()) close(true); }
+        finally { saving = false; }
+      };
+      saveBtn.addEventListener('click', saveAndClose);
 
       root.addEventListener('input', (e) => {
         if (e.target.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
@@ -1508,8 +1515,16 @@ export function subtaskModal({ task, onChange, focus = null }) {
         if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
         if (e.key === 'Enter') {
           e.preventDefault();
-          if (!stageSub(el)) stageTask(el);
-          saveAll();
+          const go = () => { if (!stageSub(el)) stageTask(el); saveAndClose(); };
+          // 한글 조합 중의 엔터 — 글자가 확정된 뒤에 저장한다
+          if (e.isComposing || e.keyCode === 229) {
+            let done = false;
+            const once = () => { if (!done) { done = true; go(); } };
+            el.addEventListener('compositionend', () => setTimeout(once, 0), { once: true });
+            setTimeout(once, 300);
+            return;
+          }
+          go();
           return;
         }
         if (e.key === 'Escape' && el.tagName === 'INPUT' && (el.matches('[data-sub-title], [data-task-title], [data-sub-due], [data-sub-note]'))) {
@@ -1647,7 +1662,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
       });
       obs.observe(document.getElementById('modal-root'), { childList: true });
       // 첫 포커스는 추가 칸이 아니라 목록이어야 한다 — 보러 온 사람이 더 많다
-      root.querySelector('[data-close]')?.focus();
+      saveBtn.focus();
       // 코멘트 뱃지로 들어왔으면 코멘트 칸으로 내려가 쓰기 칸에 바로 커서를 둔다
       if (focus === 'comments') {
         setTimeout(() => {
