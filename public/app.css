@@ -2188,3 +2188,4 @@ body[data-gate="view"] .sub-note-edit{pointer-events:none}
 .sh-prog{font-size:.8rem;color:var(--muted);margin-right:8px;font-variant-numeric:tabular-nums}
 .sh-fails{font-size:.82rem;color:var(--s-delay)}
 label.radio{display:flex;align-items:center;gap:8px;margin:6px 0}
+.sbm input.bad{border-color:var(--s-delay);box-shadow:0 0 0 2px color-mix(in srgb,var(--s-delay) 25%,transparent)}

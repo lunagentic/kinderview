@@ -36,6 +36,20 @@ npx vercel --prod
 지금 정책은 **주소를 아는 사람은 보고 고치기**다. 자물쇠가 아니라 공유 문서에 가깝다.
 진짜로 막아야 하면 로그인을 붙여야 한다.
 
+줄 지우기(DELETE)는 등급마다 범위가 다르다. 앱의 `gate.js ADMIN_ONLY` 규칙과 맞춘다 —
+편집·디렉터 코드는 하위 업무·첨부·협업자·분류 같은 것만 지우고, 프로젝트·구성원·페이즈 같은
+것은 관리자만 지운다. 지우기가 막히면 앱은 편집을 잠그지 않고 그 줄을 되살린다.
+
+```sql
+drop policy if exists kf_rows_delete on public.kf_rows;
+create policy kf_rows_delete on public.kf_rows for delete to anon, authenticated using (
+  kf_req_role() = 'ADMIN'
+  or (kf_req_role() in ('EDIT','DIRECTOR') and collection in (
+    'subtasks','attachments','collaborators','categories','outsourcing','reads',
+    'comments','events','notifications','time_entries','weekly_reports'))
+);
+```
+
 ## 바로 써보기 (설치 없이)
 
 서버 없이 브라우저에서 그대로 도는 데모 빌드가 있다. `demo/kinderflow-demo.html` 파일 하나를

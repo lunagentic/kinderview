@@ -488,6 +488,15 @@ function writeDenied() {
   return refreshFromRemote();
 }
 
+function deleteDenied() {
+  try {
+    window.dispatchEvent(new CustomEvent('kf:denied', {
+      detail: { message: '이 항목은 관리자만 지울 수 있어 되돌렸습니다.', keep: true },
+    }));
+  } catch { /* 창이 없으면 넘어간다 */ }
+  return refreshFromRemote();
+}
+
 /** 공유본을 다시 읽어 화면을 새로 그린다 */
 async function refreshFromRemote() {
   // 올리려고 대기 중이던 것은 버린다 — 지금 읽어 올 것이 정답이다
@@ -667,7 +676,9 @@ async function flush() {
         `${SB_TABLE}?collection=eq.${encodeURIComponent(collection)}&id=eq.${encodeURIComponent(id)}`,
         { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
       );
-      if (res.status === 401 || res.status === 403) return writeDenied();
+      // 지우기는 등급마다 허용 범위가 다르다(관리자만 지우는 것이 있다). 지우기가 막힌 것은
+      // 코드가 무효라는 뜻이 아니므로 편집을 잠그지 않는다 — 알리고 공유본에서 되살린다.
+      if (res.status === 401 || res.status === 403) return deleteDenied();
       if (!res.ok) throw new Error(`삭제 실패 ${res.status}`);
       shadow.delete(key);
     }

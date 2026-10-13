@@ -1431,6 +1431,10 @@ export function subtaskModal({ task, onChange, focus = null }) {
       };
       // 목록을 다시 그려도(추가·삭제·옮기기) 아직 안 올린 값은 칸에 남긴다
       applyPending = () => {
+        // 지우거나 옮겨서 목록에 없는 줄의 「고친 것」은 버린다 — 남겨 두면 보이지 않는 칸 때문에 저장이 막힌다
+        let pruned = false;
+        for (const id of [...pending.subs.keys()]) if (!rows.some((r) => r.id === id)) { pending.subs.delete(id); pruned = true; }
+        if (pruned) paintSave();
         for (const [id, o] of pending.subs) {
           for (const [name, value] of Object.entries(o)) {
             const el = root.querySelector(`${SUB_FIELDS[name].sel.slice(0, -1)}="${CSS.escape(id)}"]`);
@@ -1445,8 +1449,18 @@ export function subtaskModal({ task, onChange, focus = null }) {
       const saveAll = async () => {
         if (!pendingCount()) return true;
         if (!editable()) return false;
-        if (pending.task.title === '' || [...pending.subs.values()].some((o) => o.title === '')) {
-          toast('업무명은 비울 수 없습니다.', true);
+        if (pending.task.title === '') {
+          const el = root.querySelector('[data-task-title]');
+          el?.classList.add('bad'); el?.focus();
+          toast('상위 업무명이 비어 있습니다.', true);
+          return false;
+        }
+        const blank = [...pending.subs].find(([id, o]) => o.title === '' && rows.some((r) => r.id === id));
+        if (blank) {
+          const el = root.querySelector(`[data-sub-title="${CSS.escape(blank[0])}"]`);
+          el?.classList.add('bad'); el?.focus();
+          const r = rows.find((x) => x.id === blank[0]);
+          toast(`${r?.key ?? (r?.seq ? `#${r.seq}` : '')} 하위 업무명이 비어 있습니다. 이름을 넣거나 Esc 로 되돌려 주세요.`.trim(), true);
           return false;
         }
         saveBtn.disabled = true;
@@ -1501,6 +1515,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
       saveBtn.addEventListener('click', saveAndClose);
 
       root.addEventListener('input', (e) => {
+        e.target.classList?.remove('bad');
         if (e.target.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
         if (!stageSub(e.target)) stageTask(e.target);
       });
@@ -1621,6 +1636,8 @@ export function subtaskModal({ task, onChange, focus = null }) {
         const del = e.target.closest('[data-sub-del]');
         if (del) {
           if (!editable()) return;
+          pending.subs.delete(del.dataset.subDel);
+          paintSave();
           try { await api.del(`/api/subtasks/${del.dataset.subDel}`); changed = true; }
           catch (err) { toast(err.message, true); }
           load();
