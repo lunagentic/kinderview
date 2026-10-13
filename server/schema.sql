@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS subtask (
   owner_slack_user_id TEXT REFERENCES member(slack_user_id),
   assigned_at TEXT,               -- 담당이 정해진 때 · 정한 사람 — 알림함의 「배정」에 쓴다
   assigned_by TEXT,
+  note        TEXT,               -- 한 줄 메모(엑셀 「메모」 열과 같다)
   created_at  TEXT NOT NULL,
   done_at     TEXT,
   CHECK ((is_done = 1 AND done_at IS NOT NULL) OR (is_done = 0 AND done_at IS NULL))

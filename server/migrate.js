@@ -420,6 +420,14 @@ function migrateTaskAreaNullable() {
   return '상위 업무 영역을 외주 여부로 좁힘 (영역은 하위 업무로)';
 }
 
+/** 하위 업무 메모 */
+function addSubtaskNote() {
+  const sql = tableSql('subtask');
+  if (!sql || /\bnote\b/.test(sql)) return null;
+  db.exec('ALTER TABLE subtask ADD COLUMN note TEXT');
+  return '하위 업무 메모(note) 추가';
+}
+
 /** 하위 업무에 영역 · 담당 · 배정 시각 */
 function addSubtaskAreaOwner() {
   const sql = tableSql('subtask');
@@ -546,7 +554,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

@@ -2162,3 +2162,28 @@ body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-event
 .sub-area.none{color:var(--muted);background:var(--surface)}
 /* 타임라인 하위 줄 — 담당·마감은 팝업에서. 업무명이 넓게 */
 .tl-sub .tl-sname{flex:1 1 auto;min-width:0}
+
+/* 하위 업무 메모 — 줄 아래 한 줄. 비어 있으면 「메모 추가」 자리표시만 */
+.subs li .sub-note-edit{flex:1 1 100%;order:99;margin:-2px 0 0 calc(var(--sub-note-indent, 0px));font:inherit;font-size:.78rem;color:var(--muted);
+  background:none;border:1px solid transparent;border-radius:var(--radius-sm);padding:2px 8px}
+.subs li .sub-note-edit:hover{border-color:var(--line)}
+.subs li .sub-note-edit:focus{outline:none;border-color:var(--focus);background:var(--surface);color:var(--ink)}
+.subs li .sub-note-edit:placeholder-shown:not(:focus){opacity:.55}
+.subs li{flex-wrap:wrap}
+body[data-gate="view"] .sub-note-edit{pointer-events:none}
+
+/* 엑셀 올리기 미리보기 */
+.sh-sum{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.sh-sum .chip.muted{color:var(--muted)} .sh-sum .chip.warn{color:var(--s-issue);border-color:currentColor} .sh-sum .chip.bad{color:var(--s-delay);border-color:currentColor}
+.sh-names{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;background:var(--ground)}
+.sh-names h4{margin:0 0 8px;font-size:.88rem}
+.sh-name{display:flex;align-items:center;gap:10px;margin:4px 0}
+.sh-name span{min-width:90px;font-weight:600}
+.sh-table{max-height:52vh;overflow:auto}
+.sh-table td:first-child{white-space:nowrap;color:var(--muted);font-size:.78rem}
+.sh-table tr.new td:last-child{color:var(--s-done)}
+.sh-table tr.upd td:last-child{color:var(--indigo)}
+.sh-table tr.err td{color:var(--s-delay)}
+.sh-prog{font-size:.8rem;color:var(--muted);margin-right:8px;font-variant-numeric:tabular-nums}
+.sh-fails{font-size:.82rem;color:var(--s-delay)}
+label.radio{display:flex;align-items:center;gap:8px;margin:6px 0}

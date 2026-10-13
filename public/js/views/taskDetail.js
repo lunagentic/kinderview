@@ -87,6 +87,8 @@ const subList = (rows = []) => (rows.length
         ${subDue(r)}
         ${subStatusPick(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
+        <input class="sub-note-edit" type="text" maxlength="300" value="${esc(r.note ?? '')}" data-sub-note="${esc(r.id)}"
+               placeholder="메모 추가" aria-label="하위 업무 메모">
       </li>`).join('')}</ul>`
   : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
 
@@ -320,6 +322,12 @@ export async function renderTaskDetail(root, id, query = '') {
     const desc = e.target.closest('[data-desc]');
     if (desc) { stage('description', desc.value.trim() || null); return undefined; }
     if (await subAssignChange(e, { editable: () => true, after: () => reload() })) return undefined;
+    const sn = e.target.closest('[data-sub-note]');
+    if (sn) {
+      try { await api.patch(`/api/subtasks/${sn.dataset.subNote}`, { note: sn.value }); toast('메모를 저장했습니다.'); }
+      catch (err) { toast(err.message, true); }
+      return undefined;
+    }
     const sub = e.target.closest('[data-sub-status]');
     if (sub) {
       try {

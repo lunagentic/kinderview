@@ -4,6 +4,7 @@ import {
   dueCell, bindDueEdit, statusPick, avatar, confirmModal,
 } from '../ui.js';
 import { state, activeMembers, memberOf } from '../state.js';
+import { sheetExportDialog, sheetImportPick } from './sheetSync.js';
 
 // 월간 업무 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
 // 사람이 따로 적는 칸은 없다. 마감을 그 달로 잡는 것이 곧 목표 선언이고, 숫자는 업무·이슈·이력에서 나온다.
@@ -80,6 +81,8 @@ export async function renderMonthly(root, query) {
         <span class="tl-range-now">${esc(monthTitle(r.month))}</span>
         <a class="btn" href="#/project/tasks?month=${esc(r.month)}&done=1">업무 목록·필터</a>
         <button class="btn" data-copy>텍스트 복사</button>
+        <button class="btn" data-sheet-out title="업무 목록을 엑셀(.xlsx)로 — 고쳐서 다시 올릴 수 있습니다">⬇ 엑셀 내려받기</button>
+        <button class="btn" data-sheet-in title="엑셀(.xlsx·.csv)로 업무를 등록·업데이트합니다">⬆ 엑셀 올리기</button>
       </div>
     </div>
 
@@ -168,6 +171,12 @@ export async function renderMonthly(root, query) {
     root.classList.toggle('has-bulk', picked.size > 0);
     document.body.classList.toggle('bulk-on', picked.size > 0);
   };
+  // 엑셀로 주고받기 — 올리기는 편집 등급만(app.js EDIT_TARGETS)
+  root.querySelector('[data-sheet-out]')?.addEventListener('click', () => sheetExportDialog({ month: r.month }));
+  root.querySelector('[data-sheet-in]')?.addEventListener('click', () => sheetImportPick({
+    onDone: () => window.dispatchEvent(new Event('kf:reload')),
+  }));
+
   root.addEventListener('click', (e) => {
     const cb = e.target.closest('[data-pick]');
     if (cb) {

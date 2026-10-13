@@ -2167,6 +2167,31 @@ body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-event
 /* 타임라인 하위 줄 — 담당·마감은 팝업에서. 업무명이 넓게 */
 .tl-sub .tl-sname{flex:1 1 auto;min-width:0}
 
+/* 하위 업무 메모 — 줄 아래 한 줄. 비어 있으면 「메모 추가」 자리표시만 */
+.subs li .sub-note-edit{flex:1 1 100%;order:99;margin:-2px 0 0 calc(var(--sub-note-indent, 0px));font:inherit;font-size:.78rem;color:var(--muted);
+  background:none;border:1px solid transparent;border-radius:var(--radius-sm);padding:2px 8px}
+.subs li .sub-note-edit:hover{border-color:var(--line)}
+.subs li .sub-note-edit:focus{outline:none;border-color:var(--focus);background:var(--surface);color:var(--ink)}
+.subs li .sub-note-edit:placeholder-shown:not(:focus){opacity:.55}
+.subs li{flex-wrap:wrap}
+body[data-gate="view"] .sub-note-edit{pointer-events:none}
+
+/* 엑셀 올리기 미리보기 */
+.sh-sum{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.sh-sum .chip.muted{color:var(--muted)} .sh-sum .chip.warn{color:var(--s-issue);border-color:currentColor} .sh-sum .chip.bad{color:var(--s-delay);border-color:currentColor}
+.sh-names{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;background:var(--ground)}
+.sh-names h4{margin:0 0 8px;font-size:.88rem}
+.sh-name{display:flex;align-items:center;gap:10px;margin:4px 0}
+.sh-name span{min-width:90px;font-weight:600}
+.sh-table{max-height:52vh;overflow:auto}
+.sh-table td:first-child{white-space:nowrap;color:var(--muted);font-size:.78rem}
+.sh-table tr.new td:last-child{color:var(--s-done)}
+.sh-table tr.upd td:last-child{color:var(--indigo)}
+.sh-table tr.err td{color:var(--s-delay)}
+.sh-prog{font-size:.8rem;color:var(--muted);margin-right:8px;font-variant-numeric:tabular-nums}
+.sh-fails{font-size:.82rem;color:var(--s-delay)}
+label.radio{display:flex;align-items:center;gap:8px;margin:6px 0}
+
 </style>
 
   <header class="topbar">
@@ -4128,6 +4153,7 @@ function createSubtask(taskId, body, actor = null) {
   const owner = body.owner_slack_user_id ? ensureMember(body.owner_slack_user_id) : (area ? areaLeadOf(area) : null);
   const row = { id: uid(), task_id: taskId, title, is_done: false, status: 'TODO', sort_order: next,
     seq: nextSeq(t.project_id), due_date: due, area, owner_slack_user_id: owner,
+    note: String(body.note ?? '').trim() || null,
     assigned_at: owner ? nowISO() : null, assigned_by: owner ? actor : null, created_at: nowISO(), done_at: null };
   (DB.subtasks ??= []).push(row);
   const rolled = rollUpDue(taskId, due);
@@ -4160,6 +4186,7 @@ function updateSubtask(id, body, actor = null) {
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
     row.title = title;
   }
+  if (body.note !== undefined) row.note = String(body.note ?? '').trim() || null;
   // 영역 — 바꾸면 담당이 리드를 따르고 있었을 때(또는 비어 있을 때)만 새 영역 리드로 간다
   let owner = row.owner_slack_user_id ?? null;
   if (body.area !== undefined) {
@@ -7805,6 +7832,8 @@ function subtaskModal({ task, onChange, focus = null }) {
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
         <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
+        <input class="sub-note-edit" type="text" maxlength="300" value="${esc(r.note ?? '')}" data-sub-note="${esc(r.id)}"
+               placeholder="메모 추가" aria-label="하위 업무 메모">
       </li>`).join('')}</ul>`
     : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
 
@@ -7898,6 +7927,7 @@ function subtaskModal({ task, onChange, focus = null }) {
         area: { sel: '[data-sub-area]', key: 'subArea', orig: (r) => r.area ?? '' },
         owner_slack_user_id: { sel: '[data-sub-owner]', key: 'subOwner', orig: (r) => r.owner_slack_user_id ?? '' },
         due_date: { sel: '[data-sub-due]', key: 'subDue', orig: (r) => r.due_date ?? '' },
+        note: { sel: '[data-sub-note]', key: 'subNote', orig: (r) => r.note ?? '' },
       };
       const fieldOf = (el) => Object.entries(SUB_FIELDS).find(([, f]) => el.matches(f.sel));
       const stageSub = (el) => {
@@ -7907,7 +7937,7 @@ function subtaskModal({ task, onChange, focus = null }) {
         const id = el.dataset[f.key];
         const cur = rows.find((r) => r.id === id);
         if (!cur) return true;
-        const value = name === 'title' ? el.value.trim() : el.value;
+        const value = name === 'title' || name === 'note' ? el.value.trim() : el.value;
         const o = pending.subs.get(id) ?? {};
         if (value === f.orig(cur)) delete o[name]; else o[name] = value;
         if (Object.keys(o).length) pending.subs.set(id, o); else pending.subs.delete(id);
@@ -8009,7 +8039,7 @@ function subtaskModal({ task, onChange, focus = null }) {
           saveAll();
           return;
         }
-        if (e.key === 'Escape' && el.tagName === 'INPUT' && (el.matches('[data-sub-title], [data-task-title], [data-sub-due]'))) {
+        if (e.key === 'Escape' && el.tagName === 'INPUT' && (el.matches('[data-sub-title], [data-task-title], [data-sub-due], [data-sub-note]'))) {
           e.preventDefault();
           e.stopPropagation();   // 창까지 닫히면 안 된다 — 그 칸만 되돌린다
           const hit = fieldOf(el);
@@ -10043,6 +10073,8 @@ const subList = (rows = []) => (rows.length
         ${subDue(r)}
         ${subStatusPick(r)}
         <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
+        <input class="sub-note-edit" type="text" maxlength="300" value="${esc(r.note ?? '')}" data-sub-note="${esc(r.id)}"
+               placeholder="메모 추가" aria-label="하위 업무 메모">
       </li>`).join('')}</ul>`
   : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
 
@@ -10276,6 +10308,12 @@ async function renderTaskDetail(root, id, query = '') {
     const desc = e.target.closest('[data-desc]');
     if (desc) { stage('description', desc.value.trim() || null); return undefined; }
     if (await subAssignChange(e, { editable: () => true, after: () => reload() })) return undefined;
+    const sn = e.target.closest('[data-sub-note]');
+    if (sn) {
+      try { await api.patch(`/api/subtasks/${sn.dataset.subNote}`, { note: sn.value }); toast('메모를 저장했습니다.'); }
+      catch (err) { toast(err.message, true); }
+      return undefined;
+    }
     const sub = e.target.closest('[data-sub-status]');
     if (sub) {
       try {
@@ -10958,6 +10996,822 @@ function toMarkdown(report, brief = false) {
 }
 
 
+// 엑셀(.xlsx)·CSV 읽고 쓰기 — 외부 라이브러리 없이.
+// xlsx 는 zip 안의 XML 이다. 읽을 때는 브라우저의 DecompressionStream('deflate-raw') 로 풀고,
+// 쓸 때는 압축하지 않은(stored) zip 으로 묶는다 — 엑셀·구글 시트·넘버스 모두 연다.
+// 이름은 xl 로 시작한다 — 데모 빌드가 모든 모듈을 한 스코프로 합치기 때문이다.
+
+const xlEnc = new TextEncoder();
+const xlDec = new TextDecoder('utf-8');
+
+// ── zip ─────────────────────────────────────────────────
+const xlU16 = (b, o) => b[o] | (b[o + 1] << 8);
+const xlU32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
+
+async function xlInflate(bytes) {
+  const ds = new DecompressionStream('deflate-raw');
+  const out = new Response(new Blob([bytes]).stream().pipeThrough(ds));
+  return new Uint8Array(await out.arrayBuffer());
+}
+
+/** zip 의 파일들을 {이름: Uint8Array} 로 — 중앙 디렉터리를 따라간다 */
+async function xlUnzip(buf) {
+  const b = new Uint8Array(buf);
+  let eocd = -1;
+  for (let i = b.length - 22; i >= Math.max(0, b.length - 65557); i -= 1) {
+    if (xlU32(b, i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('엑셀 파일을 읽지 못했습니다 (zip 형식이 아닙니다).');
+  const count = xlU16(b, eocd + 10);
+  let p = xlU32(b, eocd + 16);
+  const files = {};
+  for (let n = 0; n < count; n += 1) {
+    if (xlU32(b, p) !== 0x02014b50) break;
+    const method = xlU16(b, p + 10);
+    const csize = xlU32(b, p + 20);
+    const nameLen = xlU16(b, p + 28);
+    const extraLen = xlU16(b, p + 30);
+    const commentLen = xlU16(b, p + 32);
+    const local = xlU32(b, p + 42);
+    const name = xlDec.decode(b.subarray(p + 46, p + 46 + nameLen));
+    const lNameLen = xlU16(b, local + 26);
+    const lExtraLen = xlU16(b, local + 28);
+    const start = local + 30 + lNameLen + lExtraLen;
+    const data = b.subarray(start, start + csize);
+    if (method === 0) files[name] = data;
+    else if (method === 8) files[name] = await xlInflate(data);
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return files;
+}
+
+const XL_CRC = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+const xlCrc32 = (b) => {
+  let c = 0xffffffff;
+  for (let i = 0; i < b.length; i += 1) c = XL_CRC[(c ^ b[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+
+/** {이름: 문자열} → 압축하지 않은 zip Blob */
+function xlZip(entries) {
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  for (const [name, text] of Object.entries(entries)) {
+    const nameB = xlEnc.encode(name);
+    const data = xlEnc.encode(text);
+    const crc = xlCrc32(data);
+    const head = new DataView(new ArrayBuffer(30));
+    head.setUint32(0, 0x04034b50, true); head.setUint16(4, 20, true); head.setUint16(6, 0x0800, true);
+    head.setUint16(8, 0, true); head.setUint32(14, crc, true); head.setUint32(18, data.length, true);
+    head.setUint32(22, data.length, true); head.setUint16(26, nameB.length, true);
+    parts.push(new Uint8Array(head.buffer), nameB, data);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x0800, true);
+    cd.setUint32(16, crc, true); cd.setUint32(20, data.length, true); cd.setUint32(24, data.length, true);
+    cd.setUint16(28, nameB.length, true); cd.setUint32(42, offset, true);
+    central.push(new Uint8Array(cd.buffer), nameB);
+    offset += 30 + nameB.length + data.length;
+  }
+  const cdSize = central.reduce((n, c) => n + c.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, Object.keys(entries).length, true); end.setUint16(10, Object.keys(entries).length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)],
+    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+// ── 읽기 ────────────────────────────────────────────────
+const xlXml = (bytes) => new DOMParser().parseFromString(xlDec.decode(bytes), 'application/xml');
+const xlCol = (ref) => {
+  let n = 0;
+  for (const ch of ref.replace(/\d+$/, '')) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+};
+/** 엑셀 날짜 숫자(1900 기준) → YYYY-MM-DD */
+const xlSerialDate = (num) => {
+  const ms = Math.round((Number(num) - 25569) * 86400000);
+  return new Date(ms).toISOString().slice(0, 10);
+};
+
+/** .xlsx → { 시트이름: [[셀, …], …] }. 날짜 서식 칸은 YYYY-MM-DD 로 */
+async function xlReadXlsx(buf) {
+  const files = await xlUnzip(buf);
+  const pick = (name) => files[name] ?? files[`/${name}`];
+  const shared = [];
+  if (pick('xl/sharedStrings.xml')) {
+    for (const si of xlXml(pick('xl/sharedStrings.xml')).getElementsByTagName('si')) {
+      shared.push([...si.getElementsByTagName('t')].map((t) => t.textContent).join(''));
+    }
+  }
+  // 날짜 서식인 스타일 번호 — 숫자로 저장된 날짜를 알아본다
+  const dateStyles = new Set();
+  if (pick('xl/styles.xml')) {
+    const st = xlXml(pick('xl/styles.xml'));
+    const custom = {};
+    for (const nf of st.getElementsByTagName('numFmt')) custom[nf.getAttribute('numFmtId')] = nf.getAttribute('formatCode') ?? '';
+    const xfs = st.getElementsByTagName('cellXfs')[0]?.getElementsByTagName('xf') ?? [];
+    [...xfs].forEach((xf, i) => {
+      const id = Number(xf.getAttribute('numFmtId'));
+      const code = custom[id] ?? '';
+      if ((id >= 14 && id <= 22) || (id >= 45 && id <= 47) || /[yd]/i.test(code.replace(/\[[^\]]*\]|"[^"]*"/g, ''))) dateStyles.add(i);
+    });
+  }
+  const wb = xlXml(pick('xl/workbook.xml'));
+  const rels = xlXml(pick('xl/_rels/workbook.xml.rels'));
+  const relTarget = {};
+  for (const r of rels.getElementsByTagName('Relationship')) relTarget[r.getAttribute('Id')] = r.getAttribute('Target');
+  const out = {};
+  for (const sh of wb.getElementsByTagName('sheet')) {
+    const rid = sh.getAttribute('r:id') ?? sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+    let target = relTarget[rid] ?? '';
+    target = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
+    const data = pick(target);
+    if (!data) continue;
+    const rows = [];
+    for (const row of xlXml(data).getElementsByTagName('row')) {
+      const r = Number(row.getAttribute('r')) - 1;
+      const cells = [];
+      let auto = 0;
+      for (const c of row.getElementsByTagName('c')) {
+        const ref = c.getAttribute('r');
+        const ci = ref ? xlCol(ref) : auto;
+        auto = ci + 1;
+        const type = c.getAttribute('t');
+        const v = c.getElementsByTagName('v')[0]?.textContent ?? '';
+        let val;
+        if (type === 's') val = shared[Number(v)] ?? '';
+        else if (type === 'inlineStr') val = [...c.getElementsByTagName('t')].map((t) => t.textContent).join('');
+        else if (type === 'b') val = v === '1' ? 'TRUE' : 'FALSE';
+        else if (v !== '' && dateStyles.has(Number(c.getAttribute('s') ?? -1))) val = xlSerialDate(v);
+        else val = v;
+        cells[ci] = val;
+      }
+      rows[Number.isFinite(r) && r >= 0 ? r : rows.length] = Array.from(cells, (x) => x ?? '');
+    }
+    out[sh.getAttribute('name')] = Array.from(rows, (x) => x ?? []);
+  }
+  return out;
+}
+
+/** CSV(쉼표·탭) → [[셀, …], …]. 따옴표 안의 쉼표·줄바꿈을 지킨다 */
+function xlParseCsv(text) {
+  const src = text.replace(/^﻿/, '');
+  const sep = (src.split('\n')[0].match(/\t/g)?.length ?? 0) > (src.split('\n')[0].match(/,/g)?.length ?? 0) ? '\t' : ',';
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let q = false;
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    if (q) {
+      if (ch === '"' && src[i + 1] === '"') { cell += '"'; i += 1; }
+      else if (ch === '"') q = false;
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === sep) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i += 1;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+/** 파일 하나를 읽는다 — .xlsx 면 시트별로, .csv 면 「업무」 한 시트로 */
+async function xlReadFile(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv') || name.endsWith('.tsv') || name.endsWith('.txt')) {
+    return { 업무: xlParseCsv(await file.text()) };
+  }
+  if (name.endsWith('.xls')) throw new Error('예전 엑셀 형식(.xls)은 못 읽습니다. .xlsx 나 .csv 로 저장해 올려 주세요.');
+  return xlReadXlsx(await file.arrayBuffer());
+}
+
+// ── 쓰기 ────────────────────────────────────────────────
+const xlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  // XML 에 못 쓰는 제어문자는 뺀다
+  // eslint-disable-next-line no-control-regex
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+const xlRef = (ci, ri) => {
+  let s = '';
+  let n = ci + 1;
+  while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return `${s}${ri + 1}`;
+};
+
+/**
+ * [{ name, rows: [[셀…]…], widths: [글자 수…] }] → .xlsx Blob.
+ * 첫 줄은 머리(굵게·고정). 값은 모두 글자로 넣는다 — 날짜도 YYYY-MM-DD 글자라 다시 읽을 때 흔들리지 않는다.
+ */
+function xlWriteWorkbook(sheets) {
+  const files = {};
+  files['[Content_Types].xml'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n')}
+</Types>`;
+  files['_rels/.rels'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+  files['xl/workbook.xml'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets>${sheets.map((s, i) => `<sheet name="${xlEsc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>
+</workbook>`;
+  files['xl/_rels/workbook.xml.rels'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('\n')}
+<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+  files['xl/styles.xml'] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFEEEFF4"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+  sheets.forEach((sh, i) => {
+    const cols = (sh.widths ?? []).map((w, ci) => `<col min="${ci + 1}" max="${ci + 1}" width="${w}" customWidth="1"/>`).join('');
+    const rows = sh.rows.map((r, ri) => `<row r="${ri + 1}">${r.map((v, ci) => (v === null || v === undefined || v === ''
+      ? '' : `<c r="${xlRef(ci, ri)}" t="inlineStr"${ri === 0 ? ' s="1"' : ''}><is><t xml:space="preserve">${xlEsc(v)}</t></is></c>`)).join('')}</row>`).join('');
+    files[`xl/worksheets/sheet${i + 1}.xml`] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+${cols ? `<cols>${cols}</cols>` : ''}<sheetData>${rows}</sheetData>
+</worksheet>`;
+  });
+  return xlZip(files);
+}
+
+/** Blob 을 파일로 내려받게 한다 */
+function xlDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+
+
+
+
+
+
+
+
+// 엑셀로 업무 주고받기 — 내려받아 고치고 다시 올린다. docs/04-task-spec.md 「엑셀로 주고받기」
+// 한 줄 = 하위 업무 하나. 상위 업무 정보(우선순위·프로젝트·페이즈·공동 담당)는 줄마다 되풀이해 적는다.
+// 올릴 때는 먼저 무엇이 생기고 바뀌는지 보여 주고, 확인을 받은 뒤 기존 API 로 하나씩 반영한다.
+// 빈 칸은 「그대로」이고, 시트에 없는 업무를 지우지는 않는다.
+
+const SH_COLS = ['번호', '우선순위', '상위 업무', '하위 업무', '담당', '공동 담당', '마감', '프로젝트', '페이즈', '영역', '상태', '메모'];
+const SH_WIDTHS = [9, 8, 24, 34, 10, 22, 12, 14, 18, 10, 8, 40];
+const SH_ISSUE_COLS = ['심각도', '이슈', '내용', '연결 업무', '담당', '상태'];
+const SH_NAMES_KEY = 'kf.sheet.names';   // 한 번 맞춘 이름(시트 이름 → 구성원)을 기억한다
+
+// 머리 글자 → 열 이름. 띄어쓰기·대소문자는 가리지 않는다
+const SH_ALIAS = {
+  번호: ['번호', '티켓', '티켓번호', 'key', 'no'], 우선순위: ['우선순위', '중요도', 'priority'],
+  '상위 업무': ['상위업무', '업무', '상위'], '하위 업무': ['하위업무', '하위'], 담당: ['담당', '담당자', 'owner'],
+  '공동 담당': ['공동담당', '협업자', '공동'], 마감: ['마감', '마감일', 'due'], 프로젝트: ['프로젝트', 'project'],
+  페이즈: ['페이즈', 'phase'], 영역: ['영역', '업무영역', 'area'], 상태: ['상태', '진행상태', 'status'], 메모: ['메모', '비고', 'note'],
+  심각도: ['심각도', 'severity'], 이슈: ['이슈', '이슈명', 'issue'], 내용: ['내용', 'content'], '연결 업무': ['연결업무', '관련업무'],
+};
+const shNorm = (s) => String(s ?? '').replace(/\s+/g, '').toLowerCase();
+const shHeader = (row) => {
+  const idx = {};
+  (row ?? []).forEach((h, i) => {
+    const n = shNorm(h);
+    for (const [col, names] of Object.entries(SH_ALIAS)) if (!(col in idx) && names.some((a) => shNorm(a) === n)) idx[col] = i;
+  });
+  return idx;
+};
+const shTitle = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+const shKey = (s) => shTitle(s).toLowerCase();
+
+/** 날짜 칸 — 2026-11-13 · 2026.11.13 · 11/13 · 엑셀 날짜 숫자 */
+function shDate(v, year) {
+  const s = String(v ?? '').trim();
+  if (!s) return { value: '' };
+  if (/^\d{5}(\.\d+)?$/.test(s)) return { value: xlSerialDate(s) };
+  let m = s.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+  if (m) return { value: `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` };
+  m = s.match(/^(\d{1,2})[-./](\d{1,2})$/);
+  if (m) return { value: `${year}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` };
+  return { error: `날짜를 못 읽었습니다: ${s}` };
+}
+const shPriority = (v) => {
+  const n = shNorm(v);
+  if (!n) return { value: '' };
+  const hit = (state.meta.priorities ?? []).find((p) => shNorm(p.label) === n || p.code.toLowerCase() === n);
+  return hit ? { value: hit.code } : { error: `우선순위를 모릅니다: ${v}` };
+};
+const shArea = (v) => {
+  const n = shNorm(v);
+  if (!n) return { value: '' };
+  const hit = (state.meta.areas ?? []).filter((a) => a.code !== 'OUT')
+    .find((a) => [a.label, a.full, a.code].some((x) => shNorm(x) === n));
+  return hit ? { value: hit.code } : { error: `영역을 모릅니다: ${v}` };
+};
+const shSubStatus = (v) => {
+  const n = shNorm(v);
+  if (!n) return { value: '' };
+  const hit = SUB_STATUS.find((s) => shNorm(s.label) === n || s.code.toLowerCase() === n);
+  if (hit) return { value: hit.code };
+  if (['검토', 'review'].includes(n)) return { value: 'IN_PROGRESS' };
+  return { error: `상태를 모릅니다: ${v} (대기·진행중·완료)` };
+};
+const shIssueStatus = (v) => {
+  const n = shNorm(v);
+  if (!n) return { value: '' };
+  const hit = (state.meta.issue_statuses ?? []).find((s) => shNorm(s.label) === n || s.code.toLowerCase() === n);
+  return hit ? { value: hit.code } : { error: `이슈 상태를 모릅니다: ${v}` };
+};
+const shSplitNames = (v) => String(v ?? '').split(/[·,/、]|\s{2,}/).map((x) => x.trim()).filter(Boolean);
+
+// ── 이름 맞추기 ─────────────────────────────────────────
+const shRemembered = () => { try { return JSON.parse(localStorage.getItem(SH_NAMES_KEY) || '{}'); } catch { return {}; } };
+const shRemember = (map) => { try { localStorage.setItem(SH_NAMES_KEY, JSON.stringify({ ...shRemembered(), ...map })); } catch { /* 못 남기면 그만 */ } };
+/**
+ * 시트의 사람 이름 → 구성원. ① 표시 이름·실명이 같다 ② 표시 이름이 시트 이름 안에 들어 있다(이희제 → 희제)
+ * ③ 성이 같고 표시 이름이 「OO」로 가려져 있다(정슬기 → 정OO). 둘 이상 걸리거나 못 찾으면 null.
+ */
+function shMatchMember(name, picks) {
+  const n = shTitle(name);
+  if (!n) return '';
+  if (picks[n] !== undefined) return picks[n];
+  const people = state.members ?? [];
+  const exact = people.filter((m) => m.display_name === n || m.real_name === n || m.slack_user_id === n);
+  if (exact.length === 1) return exact[0].slack_user_id;
+  const inside = people.filter((m) => m.display_name && !/O{2}|○/.test(m.display_name) && m.display_name.length >= 2 && n.includes(m.display_name));
+  if (inside.length === 1) return inside[0].slack_user_id;
+  const masked = people.filter((m) => /O{2}$/.test(m.display_name ?? '') && m.display_name[0] === n[0]);
+  if (masked.length === 1) return masked[0].slack_user_id;
+  return null;
+}
+
+// ── 지금 데이터 모으기 ─────────────────────────────────
+async function shLoad() {
+  const [tasks, phases, issues] = await Promise.all([
+    api.get('/api/tasks?done=1&all_backlog=1'),
+    api.get('/api/phases'),
+    api.get('/api/issues?resolved=1').catch(() => []),
+  ]);
+  const subs = await Promise.all(tasks.map((t) => api.get(`/api/tasks/${t.id}/subtasks`).catch(() => [])));
+  tasks.forEach((t, i) => { t.subs = subs[i]; });
+  return { tasks, phases, issues, projects: (state.projects ?? []).filter((p) => !p.is_archived) };
+}
+
+// ── 내려받기 ───────────────────────────────────────────
+const shMemberName = (id) => (state.members ?? []).find((m) => m.slack_user_id === id)?.display_name ?? '';
+const shLabel = (list, code) => (list ?? []).find((x) => x.code === code)?.label ?? '';
+
+async function sheetExport({ month = null } = {}) {
+  const d = await shLoad();
+  const projectName = (id) => d.projects.find((p) => p.id === id)?.name ?? '';
+  const phaseName = (id) => d.phases.find((p) => p.id === id)?.name ?? '';
+  const inMonth = (iso) => !month || (iso ?? '').slice(0, 7) === month;
+  const rows = [SH_COLS];
+  const tasks = [...d.tasks].sort((a, b) => projectName(a.project_id).localeCompare(projectName(b.project_id))
+    || phaseName(a.phase_id).localeCompare(phaseName(b.phase_id)) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9'));
+  for (const t of tasks) {
+    const subs = t.subs ?? [];
+    const keep = subs.filter((s) => inMonth(s.due_date || t.due_date));
+    if (month && !keep.length && !inMonth(t.due_date)) continue;
+    const base = (s) => [
+      s ? s.key ?? '' : t.key ?? '',
+      shLabel(state.meta.priorities, t.priority), t.title, s ? s.title : '',
+      s ? shMemberName(s.owner_slack_user_id) : shMemberName(t.owner_slack_user_id),
+      (t.collaborators ?? []).map((c) => c.display_name).join('·'),
+      s ? (s.due_date ?? t.due_date ?? '') : (t.due_date ?? ''),
+      projectName(t.project_id), phaseName(t.phase_id),
+      s ? shLabel(state.meta.areas, s.area) : '',
+      s ? shLabel(SUB_STATUS, s.status ?? (s.is_done ? 'DONE' : 'TODO')) : '',
+      s ? (s.note ?? '') : (t.description ?? ''),
+    ];
+    if (!subs.length) rows.push(base(null));
+    for (const s of (month ? keep : subs)) rows.push(base(s));
+  }
+  const taskTitle = (id) => d.tasks.find((t) => t.id === id)?.title ?? '';
+  const issueRows = [SH_ISSUE_COLS, ...d.issues.map((i) => [
+    shLabel(state.meta.priorities, i.severity), i.title, i.content ?? '', taskTitle(i.task_id),
+    shMemberName(i.owner_slack_user_id), shLabel(state.meta.issue_statuses, i.status),
+  ])];
+  const blob = xlWriteWorkbook([
+    { name: '업무', rows, widths: SH_WIDTHS },
+    { name: '이슈', rows: issueRows, widths: [8, 30, 50, 20, 10, 8] },
+  ]);
+  xlDownload(blob, `KinderFlow_업무_${month ?? '전체'}_${state.today ?? ''}.xlsx`);
+  return rows.length - 1;
+}
+
+/** 내려받기 범위 고르기 — 이 달 / 전체 */
+function sheetExportDialog({ month }) {
+  modal({
+    title: '엑셀 내려받기',
+    body: `
+      <p class="hint">한 줄이 하위 업무 하나입니다. 고친 뒤 「엑셀 올리기」로 다시 올리면 바뀐 것만 반영됩니다.
+        「번호」 열은 지우지 마세요 — 같은 업무를 찾는 열쇠입니다.</p>
+      <label class="radio"><input type="radio" name="scope" value="month" checked> ${esc(month)} 마감 업무만</label>
+      <label class="radio"><input type="radio" name="scope" value="all"> 전체 (마감 미정 포함)</label>`,
+    footer: '<div class="right"><button class="btn" data-close>취소</button><button class="btn btn-primary" data-go>내려받기</button></div>',
+    onMount({ root, close }) {
+      root.querySelector('[data-go]').addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        const scope = root.querySelector('[name=scope]:checked').value;
+        try {
+          const n = await sheetExport({ month: scope === 'month' ? month : null });
+          toast(`업무 ${n}줄을 내려받았습니다.`);
+          close();
+        } catch (err) { toast(err.message, true); e.target.disabled = false; }
+      });
+    },
+  });
+}
+
+// ── 올리기: 시트 → 계획 ─────────────────────────────────
+/**
+ * 시트 줄들을 지금 데이터와 견줘 할 일 목록을 만든다. 순수 계산 — 아무것도 바꾸지 않는다.
+ * picks: { 시트 이름: 구성원 id | '' } — 화면에서 맞춘 이름
+ */
+function shPlan(book, d, picks) {
+  const year = (state.today ?? new Date().toISOString()).slice(0, 4);
+  const sheetName = Object.keys(book).find((n) => shNorm(n) === '업무') ?? Object.keys(book)[0];
+  const raw = book[sheetName] ?? [];
+  const hdr = shHeader(raw[0]);
+  const get = (row, col) => (hdr[col] === undefined ? '' : String(row[hdr[col]] ?? '').trim());
+  const missingCols = ['상위 업무', '프로젝트'].filter((c) => hdr[c] === undefined);
+  const plan = { parents: new Map(), subs: [], phasesNew: new Map(), issues: [], errors: [], unknownNames: new Set(), missingCols };
+  if (missingCols.length) return plan;
+
+  const projectOf = (v) => {
+    const n = shNorm(v);
+    return d.projects.find((p) => shNorm(p.name) === n || (p.code && shNorm(p.code) === n));
+  };
+  const allSubs = d.tasks.flatMap((t) => (t.subs ?? []).map((s) => ({ ...s, parent: t })));
+  const person = (name, line, what) => {
+    const id = shMatchMember(name, picks);
+    if (id === null) { plan.unknownNames.add(shTitle(name)); return undefined; }
+    return id;   // '' 은 「무시」
+  };
+
+  raw.slice(1).forEach((row, i) => {
+    const line = i + 2;
+    if (!row || row.every((c) => !String(c ?? '').trim())) return;
+    const errs = [];
+    const take = (r) => { if (r.error) errs.push(r.error); return r.value ?? ''; };
+    const parentTitle = shTitle(get(row, '상위 업무'));
+    const subTitle = shTitle(get(row, '하위 업무'));
+    const key = get(row, '번호').toUpperCase();
+    const project = projectOf(get(row, '프로젝트'));
+    if (!parentTitle && !key) errs.push('상위 업무가 비었습니다');
+    if (!project && !key) errs.push(get(row, '프로젝트') ? `프로젝트를 모릅니다: ${get(row, '프로젝트')}` : '프로젝트가 비었습니다');
+    const priority = take(shPriority(get(row, '우선순위')));
+    const due = take(shDate(get(row, '마감'), year));
+    const area = take(shArea(get(row, '영역')));
+    const status = take(shSubStatus(get(row, '상태')));
+    const note = get(row, '메모');
+    const ownerName = get(row, '담당');
+    const owner = ownerName ? person(ownerName, line, '담당') : '';
+    const collabs = shSplitNames(get(row, '공동 담당')).map((n) => person(n, line, '공동 담당')).filter((x) => x);
+    const phaseName = shTitle(get(row, '페이즈'));
+    if (errs.length) { plan.errors.push({ line, title: `${parentTitle} › ${subTitle}`, errs }); return; }
+
+    // 하위 업무 찾기 — 번호가 먼저, 없으면 프로젝트+상위+하위 제목
+    let existingSub = key ? allSubs.find((s) => (s.key ?? '').toUpperCase() === key) : null;
+    let existingParent = existingSub?.parent ?? null;
+    if (key && !existingSub) {
+      existingParent = d.tasks.find((t) => (t.key ?? '').toUpperCase() === key) ?? null;
+      if (!existingParent) { plan.errors.push({ line, title: `${parentTitle} › ${subTitle}`, errs: [`번호를 찾지 못했습니다: ${key}`] }); return; }
+    }
+    const proj = project ?? d.projects.find((p) => p.id === existingParent?.project_id);
+    if (!existingParent) {
+      existingParent = d.tasks.find((t) => t.project_id === proj?.id && shKey(t.title) === shKey(parentTitle)) ?? null;
+    }
+    if (!existingSub && existingParent && subTitle) {
+      existingSub = (existingParent.subs ?? []).find((s) => shKey(s.title) === shKey(subTitle)) ?? null;
+      if (existingSub) existingSub = { ...existingSub, parent: existingParent };
+    }
+
+    // 페이즈 — 그 프로젝트에 없으면 새로
+    let phaseId;
+    if (phaseName && proj) {
+      const ph = d.phases.find((p) => p.project_id === proj.id && shKey(p.name) === shKey(phaseName));
+      if (ph) phaseId = ph.id;
+      else {
+        const k = `${proj.id}/${shKey(phaseName)}`;
+        if (!plan.phasesNew.has(k)) plan.phasesNew.set(k, { project_id: proj.id, project_name: proj.name, name: phaseName });
+        phaseId = `new:${k}`;
+      }
+    }
+
+    // 상위 업무 — 같은 상위로 묶는다
+    const pKey = existingParent ? existingParent.id : `new:${proj?.id}/${shKey(parentTitle)}`;
+    if (!plan.parents.has(pKey)) {
+      plan.parents.set(pKey, { key: pKey, existing: existingParent, title: existingParent?.title ?? parentTitle,
+        project: proj, priority: '', phaseId: undefined, collabs: new Set(), owner: '', due: '', lines: [] });
+    }
+    const P = plan.parents.get(pKey);
+    P.lines.push(line);
+    const rank = { HIGH: 0, NORMAL: 1, LOW: 2 };
+    if (priority && (!P.priority || rank[priority] < rank[P.priority])) P.priority = priority;
+    if (phaseId) P.phaseId ??= phaseId;
+    collabs.forEach((c) => P.collabs.add(c));
+    if (owner && !P.owner) P.owner = owner;
+    if (due && due > P.due) P.due = due;
+
+    if (!subTitle && !existingSub) return;   // 상위 업무만 다루는 줄
+    const changes = {};
+    if (existingSub) {
+      const cur = existingSub;
+      if (subTitle && subTitle !== cur.title && key) changes.title = subTitle;
+      if (owner && owner !== (cur.owner_slack_user_id ?? '')) changes.owner_slack_user_id = owner;
+      if (due && due !== (cur.due_date ?? '')) changes.due_date = due;
+      if (area && area !== (cur.area ?? '')) changes.area = area;
+      const curSt = cur.status ?? (cur.is_done ? 'DONE' : 'TODO');
+      if (status && status !== curSt) changes.status = status;
+      if (note && note !== (cur.note ?? '')) changes.note = note;
+      plan.subs.push({ line, kind: Object.keys(changes).length ? 'update' : 'same', id: cur.id, key: cur.key,
+        title: cur.title, parentKey: pKey, cur, changes });
+    } else {
+      plan.subs.push({ line, kind: 'new', parentKey: pKey, title: subTitle,
+        body: { title: subTitle, area: area || null, owner_slack_user_id: owner || null, due_date: due || null, note: note || null },
+        status: status && status !== 'TODO' ? status : null });
+    }
+  });
+
+  // 상위 업무의 바뀜 — 기존이면 우선순위·페이즈·공동 담당(더하기만)
+  for (const P of plan.parents.values()) {
+    P.changes = {};
+    if (P.existing) {
+      const t = P.existing;
+      if (P.priority && P.priority !== t.priority) P.changes.priority = P.priority;
+      if (P.phaseId && P.phaseId !== t.phase_id) P.changes.phase_id = P.phaseId;
+      const have = new Set((t.collaborators ?? []).map((c) => c.slack_user_id));
+      const add = [...P.collabs].filter((c) => !have.has(c) && c !== t.owner_slack_user_id);
+      if (add.length) P.changes.collaborators = [...have, ...add];
+    }
+  }
+
+  // 이슈 시트
+  const issueSheet = Object.keys(book).find((n) => shNorm(n) === '이슈');
+  if (issueSheet) {
+    const rawI = book[issueSheet];
+    const h = shHeader(rawI[0]);
+    const g = (row, col) => (h[col] === undefined ? '' : String(row[h[col]] ?? '').trim());
+    rawI.slice(1).forEach((row, i) => {
+      const line = i + 2;
+      const title = shTitle(g(row, '이슈'));
+      if (!title) return;
+      const errs = [];
+      const sev = shPriority(g(row, '심각도'));
+      const st = shIssueStatus(g(row, '상태'));
+      if (sev.error) errs.push(sev.error.replace('우선순위', '심각도'));
+      if (st.error) errs.push(st.error);
+      const ownerName = g(row, '담당');
+      const owner = ownerName ? person(ownerName, line, '이슈 담당') : '';
+      const linkName = shSplitNames(g(row, '연결 업무'))[0] ?? '';
+      const linked = linkName && shNorm(linkName) !== '전체'
+        ? d.tasks.find((t) => shKey(t.title) === shKey(linkName)) ?? [...plan.parents.values()].find((p) => shKey(p.title) === shKey(linkName))
+        : null;
+      if (errs.length) { plan.errors.push({ line, title: `이슈 · ${title}`, errs, sheet: '이슈' }); return; }
+      const cur = d.issues.find((x) => shKey(x.title) === shKey(title));
+      const content = g(row, '내용');
+      const body = {};
+      if (sev.value) body.severity = sev.value;
+      if (st.value) body.status = st.value;
+      if (content) body.content = content;
+      if (owner) body.owner_slack_user_id = owner;
+      const taskRef = linked ? (linked.existing === undefined ? linked.id : (linked.existing?.id ?? `parent:${linked.key}`)) : null;
+      if (cur) {
+        const ch = {};
+        for (const [k, v] of Object.entries(body)) if (v !== (cur[k] ?? '')) ch[k] = v;
+        if (taskRef && !taskRef.startsWith('parent:') && taskRef !== cur.task_id) ch.task_id = taskRef;
+        plan.issues.push({ line, kind: Object.keys(ch).length ? 'update' : 'same', id: cur.id, title, changes: ch });
+      } else {
+        const projectId = (linked && (linked.project_id ?? linked.project?.id)) || [...plan.parents.values()][0]?.project?.id || d.projects[0]?.id;
+        plan.issues.push({ line, kind: 'new', title, taskRef, body: { title, content: content || title, project_id: projectId,
+          severity: sev.value || 'NORMAL', status: st.value || 'OPEN', owner_slack_user_id: owner || state.me } });
+      }
+    });
+  }
+  return plan;
+}
+
+// ── 올리기: 미리보기 · 반영 ────────────────────────────
+const SH_FIELD_LABEL = { title: '이름', owner_slack_user_id: '담당', due_date: '마감', area: '영역', status: '상태', note: '메모',
+  priority: '우선순위', phase_id: '페이즈', collaborators: '공동 담당', severity: '심각도', content: '내용', task_id: '연결 업무' };
+const shShow = (k, v, d) => {
+  if (v === null || v === undefined || v === '') return '—';
+  if (k === 'owner_slack_user_id') return shMemberName(v) || v;
+  if (k === 'area') return shLabel(state.meta.areas, v);
+  if (k === 'status') return shLabel(SUB_STATUS, v) || shLabel(state.meta.issue_statuses, v) || v;
+  if (k === 'priority' || k === 'severity') return shLabel(state.meta.priorities, v);
+  if (k === 'due_date') return shortDate(v);
+  if (k === 'phase_id') return String(v).startsWith('new:') ? `새 페이즈 「${v.split('/').slice(1).join('/')}」` : (d.phases.find((p) => p.id === v)?.name ?? v);
+  if (k === 'collaborators') return v.map(shMemberName).join('·');
+  if (k === 'note' || k === 'content') return String(v).length > 24 ? `${String(v).slice(0, 24)}…` : v;
+  return v;
+};
+
+async function sheetImport(file, { onDone } = {}) {
+  if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+  let book;
+  let d;
+  try {
+    [book, d] = await Promise.all([xlReadFile(file), shLoad()]);
+  } catch (err) { toast(err.message, true); return; }
+  const picks = { ...shRemembered() };
+  let plan = shPlan(book, d, picks);
+
+  const summary = () => {
+    const newParents = [...plan.parents.values()].filter((p) => !p.existing).length;
+    const updParents = [...plan.parents.values()].filter((p) => p.existing && Object.keys(p.changes).length).length;
+    const c = (k) => plan.subs.filter((s) => s.kind === k).length;
+    const ci = (k) => plan.issues.filter((s) => s.kind === k).length;
+    return { newParents, updParents, newSubs: c('new'), updSubs: c('update'), same: c('same') + ci('same'),
+      newIssues: ci('new'), updIssues: ci('update'), phases: plan.phasesNew.size };
+  };
+  const work = () => { const s = summary(); return s.newParents + s.updParents + s.newSubs + s.updSubs + s.newIssues + s.updIssues + s.phases; };
+
+  const body = () => {
+    if (plan.missingCols.length) {
+      return `<p class="lead-none">시트 첫 줄에서 「${plan.missingCols.join('」「')}」 열을 찾지 못했습니다. 열 이름: ${SH_COLS.map(esc).join(' · ')}</p>`;
+    }
+    const s = summary();
+    const names = [...plan.unknownNames];
+    const people = (state.members ?? []).filter((m) => m.is_active);
+    const parentTitle = (k) => plan.parents.get(k)?.title ?? '';
+    const rows = [
+      ...[...plan.phasesNew.values()].map((p) => `<tr class="new"><td>-</td><td>${esc(p.project_name)} › 페이즈 「${esc(p.name)}」</td><td>새로 만듦</td></tr>`),
+      ...[...plan.parents.values()].filter((p) => !p.existing).map((p) => `<tr class="new"><td>${p.lines[0]}</td><td><b>${esc(p.title)}</b> <small>${esc(p.project?.name ?? '')}</small></td><td>새 상위 업무</td></tr>`),
+      ...[...plan.parents.values()].filter((p) => p.existing && Object.keys(p.changes).length).map((p) => `<tr class="upd"><td>${p.lines[0]}</td><td><b>${esc(p.title)}</b></td><td>${
+        Object.entries(p.changes).map(([k, v]) => `${SH_FIELD_LABEL[k]} → ${esc(shShow(k, v, d))}`).join(' · ')}</td></tr>`),
+      ...plan.subs.filter((x) => x.kind === 'new').map((x) => `<tr class="new"><td>${x.line}</td><td>${esc(parentTitle(x.parentKey))} › ${esc(x.title)}</td><td>새 하위 업무${x.body.owner_slack_user_id ? ` · ${esc(shMemberName(x.body.owner_slack_user_id))}` : ''}${x.body.due_date ? ` · ${esc(shortDate(x.body.due_date))}` : ''}</td></tr>`),
+      ...plan.subs.filter((x) => x.kind === 'update').map((x) => `<tr class="upd"><td>${x.line}</td><td>${x.key ? `<span class="tkey">${esc(x.key)}</span> ` : ''}${esc(parentTitle(x.parentKey))} › ${esc(x.title)}</td><td>${
+        Object.entries(x.changes).map(([k, v]) => `${SH_FIELD_LABEL[k]} ${esc(shShow(k, x.cur[k] ?? (k === 'status' ? (x.cur.is_done ? 'DONE' : 'TODO') : ''), d))} → <b>${esc(shShow(k, v, d))}</b>`).join(' · ')}</td></tr>`),
+      ...plan.issues.filter((x) => x.kind !== 'same').map((x) => `<tr class="${x.kind === 'new' ? 'new' : 'upd'}"><td>이슈 ${x.line}</td><td>${esc(x.title)}</td><td>${x.kind === 'new' ? '새 이슈'
+        : Object.entries(x.changes).map(([k, v]) => `${SH_FIELD_LABEL[k] ?? k} → ${esc(shShow(k, v, d))}`).join(' · ')}</td></tr>`),
+      ...plan.errors.map((e) => `<tr class="err"><td>${e.sheet ? '이슈 ' : ''}${e.line}</td><td>${esc(e.title)}</td><td>${e.errs.map(esc).join(' · ')}</td></tr>`),
+    ];
+    return `
+      <div class="sh-sum">
+        ${s.phases ? `<span class="chip">새 페이즈 ${s.phases}</span>` : ''}
+        <span class="chip">새 상위 업무 ${s.newParents}</span>
+        <span class="chip">새 하위 업무 ${s.newSubs}</span>
+        <span class="chip">바뀜 ${s.updParents + s.updSubs}</span>
+        ${s.newIssues + s.updIssues ? `<span class="chip">이슈 새로 ${s.newIssues} · 바뀜 ${s.updIssues}</span>` : ''}
+        <span class="chip muted">그대로 ${s.same}</span>
+        ${names.length ? `<span class="chip warn">이름 확인 ${names.length}</span>` : ''}
+        ${plan.errors.length ? `<span class="chip bad">오류 ${plan.errors.length} — 반영에서 뺍니다</span>` : ''}
+      </div>
+      ${names.length ? `
+        <div class="sh-names">
+          <h4>이름 맞추기 <span class="hint">시트의 이름이 누구인지 골라 주세요. 다음 올리기 때도 기억합니다.</span></h4>
+          ${names.map((n) => `<label class="sh-name"><span>${esc(n)}</span>
+            <select data-name="${esc(n)}"><option value="">고르기…</option><option value="-">무시(비워 둠)</option>
+              ${people.map((m) => `<option value="${esc(m.slack_user_id)}">${esc(m.display_name)}</option>`).join('')}</select></label>`).join('')}
+        </div>` : ''}
+      ${rows.length ? `<div class="table-wrap sh-table"><table class="list"><thead><tr><th>줄</th><th>업무</th><th>무엇을</th></tr></thead>
+        <tbody>${rows.slice(0, 300).join('')}</tbody></table>${rows.length > 300 ? `<p class="hint">… 외 ${rows.length - 300}줄</p>` : ''}</div>`
+    : '<p class="hint">바뀐 것이 없습니다. 시트와 앱이 같습니다.</p>'}
+      <p class="hint">빈 칸은 그대로 둡니다. 시트에 없는 업무는 지우지 않습니다. 반영하면 이력과 배정 알림이 평소처럼 남습니다.</p>`;
+  };
+
+  modal({
+    title: `엑셀 올리기 — ${file.name}`,
+    wide: true,
+    body: `<div data-sh-body>${body()}</div>`,
+    footer: `<div class="right"><span class="sh-prog" data-sh-prog></span>
+      <button class="btn" data-close>취소</button>
+      <button class="btn btn-primary" data-sh-apply>반영</button></div>`,
+    onMount({ root, close }) {
+      const applyBtn = root.querySelector('[data-sh-apply]');
+      const paint = () => {
+        root.querySelector('[data-sh-body]').innerHTML = body();
+        const n = work();
+        const pending = plan.unknownNames.size;
+        applyBtn.disabled = !n || pending > 0 || plan.missingCols.length > 0;
+        applyBtn.textContent = pending ? `이름 ${pending}개를 먼저 맞춰 주세요` : n ? `${n}건 반영` : '반영할 것 없음';
+      };
+      paint();
+      root.addEventListener('change', (e) => {
+        const sel = e.target.closest('[data-name]');
+        if (!sel || !sel.value) return;
+        picks[sel.dataset.name] = sel.value === '-' ? '' : sel.value;
+        shRemember({ [sel.dataset.name]: picks[sel.dataset.name] });
+        plan = shPlan(book, d, picks);
+        paint();
+      });
+
+      applyBtn.addEventListener('click', async () => {
+        applyBtn.disabled = true;
+        const prog = root.querySelector('[data-sh-prog]');
+        const total = work();
+        let done = 0;
+        const fails = [];
+        const step = async (label, fn) => {
+          try { return await fn(); } catch (err) { fails.push(`${label}: ${err.message}`); return null; }
+          finally { done += 1; prog.textContent = `${done}/${total}`; }
+        };
+        // ① 새 페이즈
+        const phaseIds = {};
+        for (const [k, p] of plan.phasesNew) {
+          const made = await step(`페이즈 ${p.name}`, () => api.post('/api/phases', { project_id: p.project_id, name: p.name }));
+          if (made) phaseIds[`new:${k}`] = made.id;
+        }
+        const realPhase = (id) => (id && String(id).startsWith('new:') ? phaseIds[id] ?? null : id);
+        // ② 상위 업무 — 새로 만들고, 있던 것은 고친다
+        const parentIds = {};
+        for (const P of plan.parents.values()) {
+          if (P.existing) {
+            parentIds[P.key] = P.existing.id;
+            if (!Object.keys(P.changes).length) continue;
+            const ch = { ...P.changes };
+            if (ch.phase_id) ch.phase_id = realPhase(ch.phase_id);
+            await step(P.title, () => api.patch(`/api/tasks/${P.existing.id}`, ch));
+          } else {
+            const made = await step(P.title, () => api.post('/api/tasks', {
+              title: P.title, project_id: P.project?.id ?? null, phase_id: realPhase(P.phaseId) ?? null,
+              priority: P.priority || 'NORMAL', due_date: P.due || null,
+              owner_slack_user_id: P.owner || state.me, collaborators: [...P.collabs].filter((c) => c !== (P.owner || state.me)),
+            }));
+            if (made) parentIds[P.key] = made.id;
+          }
+        }
+        // ③ 하위 업무
+        for (const x of plan.subs) {
+          if (x.kind === 'new') {
+            const pid = parentIds[x.parentKey];
+            if (!pid) { done += 1; fails.push(`${x.title}: 상위 업무를 만들지 못했습니다`); continue; }
+            await step(x.title, async () => {
+              const made = await api.post(`/api/tasks/${pid}/subtasks`, x.body);
+              if (x.status) await api.patch(`/api/subtasks/${made.id}`, { status: x.status });
+            });
+          } else if (x.kind === 'update') {
+            await step(x.title, () => api.patch(`/api/subtasks/${x.id}`, x.changes));
+          }
+        }
+        // ④ 이슈
+        for (const x of plan.issues) {
+          if (x.kind === 'new') {
+            const b = { ...x.body };
+            if (x.taskRef) b.task_id = x.taskRef.startsWith('parent:') ? parentIds[x.taskRef.slice(7)] ?? null : x.taskRef;
+            await step(`이슈 ${x.title}`, () => api.post('/api/issues', b));
+          } else if (x.kind === 'update') {
+            await step(`이슈 ${x.title}`, () => api.patch(`/api/issues/${x.id}`, x.changes));
+          }
+        }
+        if (fails.length) {
+          root.querySelector('[data-sh-body]').innerHTML = `<p class="lead-none">${total - fails.length}건 반영, ${fails.length}건은 못 했습니다.</p>
+            <ul class="sh-fails">${fails.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>`;
+          applyBtn.textContent = '닫기';
+          applyBtn.disabled = false;
+          applyBtn.onclick = () => close();
+        } else {
+          toast(`엑셀에서 ${total}건을 반영했습니다.`);
+          close();
+        }
+        onDone?.();
+      });
+    },
+  });
+}
+
+/** 파일 고르기 창을 띄우고 올리기를 시작한다 */
+function sheetImportPick({ onDone } = {}) {
+  if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx,.csv,.tsv';
+  input.addEventListener('change', () => { if (input.files?.[0]) sheetImport(input.files[0], { onDone }); });
+  input.click();
+}
+
+
+
 
 
 
@@ -11037,6 +11891,8 @@ async function renderMonthly(root, query) {
         <span class="tl-range-now">${esc(monthTitle(r.month))}</span>
         <a class="btn" href="#/project/tasks?month=${esc(r.month)}&done=1">업무 목록·필터</a>
         <button class="btn" data-copy>텍스트 복사</button>
+        <button class="btn" data-sheet-out title="업무 목록을 엑셀(.xlsx)로 — 고쳐서 다시 올릴 수 있습니다">⬇ 엑셀 내려받기</button>
+        <button class="btn" data-sheet-in title="엑셀(.xlsx·.csv)로 업무를 등록·업데이트합니다">⬆ 엑셀 올리기</button>
       </div>
     </div>
 
@@ -11125,6 +11981,12 @@ async function renderMonthly(root, query) {
     root.classList.toggle('has-bulk', picked.size > 0);
     document.body.classList.toggle('bulk-on', picked.size > 0);
   };
+  // 엑셀로 주고받기 — 올리기는 편집 등급만(app.js EDIT_TARGETS)
+  root.querySelector('[data-sheet-out]')?.addEventListener('click', () => sheetExportDialog({ month: r.month }));
+  root.querySelector('[data-sheet-in]')?.addEventListener('click', () => sheetImportPick({
+    onDone: () => window.dispatchEvent(new Event('kf:reload')),
+  }));
+
   root.addEventListener('click', (e) => {
     const cb = e.target.closest('[data-pick]');
     if (cb) {
@@ -12091,7 +12953,7 @@ async function renderTimeline(root) {
       return wrap({
         id: r.id,
         html: `${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}
-          <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}${r.owner_name ? ` · 담당 ${esc(r.owner_name)}` : ''}${due ? ` · 마감 ${esc(shortDate(due))}` : ''} — 눌러서 팝업으로">${esc(r.title)}</span>
+          <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}${r.owner_name ? ` · 담당 ${esc(r.owner_name)}` : ''}${due ? ` · 마감 ${esc(shortDate(due))}` : ''}${r.note ? ` · ${esc(r.note)}` : ''} — 눌러서 팝업으로">${esc(r.title)}</span>
           ${subStatusPick(r)}`,
       }, dot);
     }).join('');
@@ -13530,7 +14392,7 @@ const EDIT_TARGETS = [
   '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
   '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
   '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
-  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sub-note]', '[data-sheet-in]', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
 ].join(',');
 
 const blockWhenLocked = (e) => {

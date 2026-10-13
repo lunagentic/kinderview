@@ -871,9 +871,10 @@ export const subtasks = {
       const at = nowISO();
       run(
         `INSERT INTO subtask (id, task_id, title, is_done, status, sort_order, seq, due_date, area, owner_slack_user_id,
-                              assigned_at, assigned_by, created_at)
-         VALUES (:id, :t, :title, 0, 'TODO', :n, :seq, :due, :area, :owner, :asg, :by, :at)`,
+                              assigned_at, assigned_by, note, created_at)
+         VALUES (:id, :t, :title, 0, 'TODO', :n, :seq, :due, :area, :owner, :asg, :by, :note, :at)`,
         { id, t: taskId, title, n: next, seq: nextSeq(task.project_id), due, area, owner,
+          note: String(input.note ?? '').trim() || null,
           asg: owner ? at : null, by: owner ? actor ?? null : null, at },
       );
       rolled = rollUpDue(taskId, due, actor);
@@ -910,6 +911,9 @@ export const subtasks = {
       const title = String(patch.title).trim();
       if (!title) throw new HttpError(400, '하위 업무명을 입력해 주세요.');
       run('UPDATE subtask SET title = :title WHERE id = :id', { id, title });
+    }
+    if (patch.note !== undefined) {
+      run('UPDATE subtask SET note = :note WHERE id = :id', { id, note: String(patch.note ?? '').trim() || null });
     }
     // 영역 — 바꾸면 담당이 리드를 따르고 있었을 때(또는 비어 있을 때)만 새 영역 리드로 간다
     let owner = cur.owner_slack_user_id ?? null;

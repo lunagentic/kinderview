@@ -1011,6 +1011,7 @@ function createSubtask(taskId, body, actor = null) {
   const owner = body.owner_slack_user_id ? ensureMember(body.owner_slack_user_id) : (area ? areaLeadOf(area) : null);
   const row = { id: uid(), task_id: taskId, title, is_done: false, status: 'TODO', sort_order: next,
     seq: nextSeq(t.project_id), due_date: due, area, owner_slack_user_id: owner,
+    note: String(body.note ?? '').trim() || null,
     assigned_at: owner ? nowISO() : null, assigned_by: owner ? actor : null, created_at: nowISO(), done_at: null };
   (DB.subtasks ??= []).push(row);
   const rolled = rollUpDue(taskId, due);
@@ -1043,6 +1044,7 @@ function updateSubtask(id, body, actor = null) {
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
     row.title = title;
   }
+  if (body.note !== undefined) row.note = String(body.note ?? '').trim() || null;
   // 영역 — 바꾸면 담당이 리드를 따르고 있었을 때(또는 비어 있을 때)만 새 영역 리드로 간다
   let owner = row.owner_slack_user_id ?? null;
   if (body.area !== undefined) {

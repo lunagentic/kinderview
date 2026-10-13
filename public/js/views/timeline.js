@@ -158,7 +158,7 @@ export async function renderTimeline(root) {
       return wrap({
         id: r.id,
         html: `${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}
-          <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}${r.owner_name ? ` · 담당 ${esc(r.owner_name)}` : ''}${due ? ` · 마감 ${esc(shortDate(due))}` : ''} — 눌러서 팝업으로">${esc(r.title)}</span>
+          <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}${r.owner_name ? ` · 담당 ${esc(r.owner_name)}` : ''}${due ? ` · 마감 ${esc(shortDate(due))}` : ''}${r.note ? ` · ${esc(r.note)}` : ''} — 눌러서 팝업으로">${esc(r.title)}</span>
           ${subStatusPick(r)}`,
       }, dot);
     }).join('');
