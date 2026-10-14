@@ -13,11 +13,16 @@ export const MEMBERS = [
   { id: 'U02PARK', name: '정',   handle: 'jeong', active: 1 },  // 개발 리드
   { id: 'U03LEE',  name: '희제', handle: 'lee',  active: 1 },
   { id: 'U04CHOI', name: '최OO', handle: 'choi', active: 1 },
-  { id: 'U05JUNG', name: '황OO', handle: 'hwang', active: 1 },  // 상위 기획 및 리소스 · 디자인·콘텐츠 리드
+  { id: 'U05JUNG', name: '황',   handle: 'hwang', active: 1 },  // 상위 기획 및 리소스 · 디자인·콘텐츠 리드
   { id: 'U06KEON', name: '건',   handle: 'keon', active: 1 },
   { id: 'U07SON',  name: '손',   handle: 'son',  active: 1 },
   { id: 'U08YUN',  name: '윤',   handle: 'yun',  active: 1 },
   { id: 'U09MYUNG', name: '명학', handle: 'myung', active: 1 },
+];
+
+// 같은 사람이 두 번 들어간 구성원 — 앞의 id 를 뒤의 id 로 합치고 앞의 id 는 비활성으로 둔다
+export const MERGED_MEMBERS = [
+  ['U08YOON', 'U08YUN'],   // 윤 — 업무가 있는 쪽(U08YUN)을 남긴다
 ];
 
 // 영역 리드 — 업무의 담당자는 여기서 정해진다

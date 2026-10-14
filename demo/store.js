@@ -287,6 +287,7 @@ function reconcile(db) {
     }
   }
   db.subtasks ??= [];
+  if (mergeMembers(db)) changed = true;
 
   if (numberTickets(db)) changed = true;
 
@@ -1113,6 +1114,31 @@ function rollUpStatus(taskId) {
   Object.assign(t, { status: next, updated_at: nowISO() });
   logEvent(t.id, 'STATUS_CHANGED', before, next, currentMe());
   return next;
+}
+
+/** 같은 사람이 두 번 들어간 구성원을 하나로 — 담당·협업·리드를 남길 쪽으로 옮기고 다른 쪽은 비활성 */
+function mergeMembers(db) {
+  let changed = false;
+  for (const [from, to] of SEED.MERGED_MEMBERS ?? []) {
+    const gone = (db.members ?? []).find((m) => m.slack_user_id === from);
+    if (!gone || !(db.members ?? []).some((m) => m.slack_user_id === to)) continue;
+    for (const c of ['tasks', 'subtasks', 'issues']) {
+      for (const r of db[c] ?? []) {
+        if (r.owner_slack_user_id === from) { r.owner_slack_user_id = to; changed = true; }
+      }
+    }
+    for (const c of ['collaborators', 'area_leads']) {
+      const rows = db[c] ?? [];
+      for (const r of rows.filter((x) => x.slack_user_id === from)) {
+        const dup = rows.some((x) => x !== r && x.slack_user_id === to
+          && (c === 'collaborators' ? x.task_id === r.task_id : x.area === r.area));
+        if (dup) db[c] = db[c].filter((x) => x !== r); else r.slack_user_id = to;
+        changed = true;
+      }
+    }
+    if (gone.is_active) { gone.is_active = 0; changed = true; }
+  }
+  return changed;
 }
 
 function removeSubtask(id) {

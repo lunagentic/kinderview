@@ -2204,3 +2204,6 @@ label.radio{display:flex;align-items:center;gap:8px;margin:6px 0}
 .sbm-list li .sub-note-edit{flex:1 1 160px;order:50;margin:0}
 .sbm-list li .when{order:55}
 .sbm-list li .x{order:60}
+/* 보기 전용 — 누구인지 모르므로 현재 사용자·알림함(사람별)을 숨긴다. 편집 코드를 넣으면 나타난다 */
+body[data-gate="view"] .me-picker,
+body[data-gate="view"] .inbox-link{display:none !important}

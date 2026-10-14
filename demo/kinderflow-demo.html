@@ -2208,6 +2208,9 @@ label.radio{display:flex;align-items:center;gap:8px;margin:6px 0}
 .sbm-list li .sub-note-edit{flex:1 1 160px;order:50;margin:0}
 .sbm-list li .when{order:55}
 .sbm-list li .x{order:60}
+/* 보기 전용 — 누구인지 모르므로 현재 사용자·알림함(사람별)을 숨긴다. 편집 코드를 넣으면 나타난다 */
+body[data-gate="view"] .me-picker,
+body[data-gate="view"] .inbox-link{display:none !important}
 
 </style>
 
@@ -2360,11 +2363,16 @@ const MEMBERS = [
   { id: 'U02PARK', name: '정',   handle: 'jeong', active: 1 },  // 개발 리드
   { id: 'U03LEE',  name: '희제', handle: 'lee',  active: 1 },
   { id: 'U04CHOI', name: '최OO', handle: 'choi', active: 1 },
-  { id: 'U05JUNG', name: '황OO', handle: 'hwang', active: 1 },  // 상위 기획 및 리소스 · 디자인·콘텐츠 리드
+  { id: 'U05JUNG', name: '황',   handle: 'hwang', active: 1 },  // 상위 기획 및 리소스 · 디자인·콘텐츠 리드
   { id: 'U06KEON', name: '건',   handle: 'keon', active: 1 },
   { id: 'U07SON',  name: '손',   handle: 'son',  active: 1 },
   { id: 'U08YUN',  name: '윤',   handle: 'yun',  active: 1 },
   { id: 'U09MYUNG', name: '명학', handle: 'myung', active: 1 },
+];
+
+
+const MERGED_MEMBERS = [
+  ['U08YOON', 'U08YUN'],   // 윤 — 업무가 있는 쪽(U08YUN)을 남긴다
 ];
 
 
@@ -2552,7 +2560,7 @@ const TIME_ENTRIES = [];
 const EXPENSES = [];
 
 
-const SEED = { MEMBERS, AREA_LEADS, CO_LEADS, CO_LEAD_ROWS, PROJECTS, PHASES, TASKS, SUBTASKS, MILESTONES, ISSUES, EXTRA_EVENTS, TIME_ENTRIES, EXPENSES };
+const SEED = { MEMBERS, MERGED_MEMBERS, AREA_LEADS, CO_LEADS, CO_LEAD_ROWS, PROJECTS, PHASES, TASKS, SUBTASKS, MILESTONES, ISSUES, EXTRA_EVENTS, TIME_ENTRIES, EXPENSES };
 
 /* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */
 
@@ -3446,6 +3454,7 @@ function reconcile(db) {
     }
   }
   db.subtasks ??= [];
+  if (mergeMembers(db)) changed = true;
 
   if (numberTickets(db)) changed = true;
 
@@ -4272,6 +4281,31 @@ function rollUpStatus(taskId) {
   Object.assign(t, { status: next, updated_at: nowISO() });
   logEvent(t.id, 'STATUS_CHANGED', before, next, currentMe());
   return next;
+}
+
+/** 같은 사람이 두 번 들어간 구성원을 하나로 — 담당·협업·리드를 남길 쪽으로 옮기고 다른 쪽은 비활성 */
+function mergeMembers(db) {
+  let changed = false;
+  for (const [from, to] of SEED.MERGED_MEMBERS ?? []) {
+    const gone = (db.members ?? []).find((m) => m.slack_user_id === from);
+    if (!gone || !(db.members ?? []).some((m) => m.slack_user_id === to)) continue;
+    for (const c of ['tasks', 'subtasks', 'issues']) {
+      for (const r of db[c] ?? []) {
+        if (r.owner_slack_user_id === from) { r.owner_slack_user_id = to; changed = true; }
+      }
+    }
+    for (const c of ['collaborators', 'area_leads']) {
+      const rows = db[c] ?? [];
+      for (const r of rows.filter((x) => x.slack_user_id === from)) {
+        const dup = rows.some((x) => x !== r && x.slack_user_id === to
+          && (c === 'collaborators' ? x.task_id === r.task_id : x.area === r.area));
+        if (dup) db[c] = db[c].filter((x) => x !== r); else r.slack_user_id = to;
+        changed = true;
+      }
+    }
+    if (gone.is_active) { gone.is_active = 0; changed = true; }
+  }
+  return changed;
 }
 
 function removeSubtask(id) {
@@ -14444,7 +14478,7 @@ window.addEventListener('kf:gate', () => {
 // 상단 「알림함」 옆 숫자 — 지금 내게 해당하는 알림 중 안 읽은 것. 부팅·새로 그리기·코드 변경 때 다시 센다.
 async function refreshInbox() {
   const badge = document.getElementById('inbox-badge');
-  if (!badge || !state.me) return;
+  if (!badge || !state.me || !canEdit()) return;   // 보기 전용은 알림함이 없다
   try {
     const { unread } = await api.get(`/api/inbox?me=${encodeURIComponent(state.me)}`);
     badge.textContent = unread > 99 ? '99+' : String(unread);

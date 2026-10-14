@@ -64,7 +64,7 @@ window.addEventListener('kf:gate', () => {
 // 상단 「알림함」 옆 숫자 — 지금 내게 해당하는 알림 중 안 읽은 것. 부팅·새로 그리기·코드 변경 때 다시 센다.
 async function refreshInbox() {
   const badge = document.getElementById('inbox-badge');
-  if (!badge || !state.me) return;
+  if (!badge || !state.me || !canEdit()) return;   // 보기 전용은 알림함이 없다
   try {
     const { unread } = await api.get(`/api/inbox?me=${encodeURIComponent(state.me)}`);
     badge.textContent = unread > 99 ? '99+' : String(unread);
