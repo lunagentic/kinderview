@@ -1294,9 +1294,10 @@ export function subtaskModal({ task, onChange, focus = null }) {
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
         ${ticketTag({ ...r, project_id: t.project_id })}
         ${subAreaPick(r)}
-        <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
-               data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
+        <textarea class="sbm-title sbm-title-ta" rows="1" maxlength="120"
+               data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기 — Enter 저장">${esc(r.title)}</textarea>
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
+        <span class="sbm-br" aria-hidden="true"></span>
         ${subOwnerPick(r)}
         <input type="date" class="due-edit sub-due${r.due_date ? '' : ' unset'}" value="${esc(r.due_date ?? '')}"
                data-sub-due="${esc(r.id)}" aria-label="하위 업무 마감"
@@ -1354,7 +1355,10 @@ export function subtaskModal({ task, onChange, focus = null }) {
         root.querySelector('[data-prog]').innerHTML = bar();
         root.querySelector('[data-list]').innerHTML = list();
         applyPending();
+        root.querySelectorAll('.sbm-title-ta').forEach(grow);
       };
+      // 하위 업무명은 줄을 넘기면 아래로 늘어난다 — 긴 이름도 다 보이게
+      const grow = (el) => { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; };
       const load = async () => {
         try { rows = await api.get(`/api/tasks/${t.id}/subtasks`); repaint(); }
         catch (err) { toast(err.message, true); }
@@ -1408,7 +1412,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         const id = el.dataset[f.key];
         const cur = rows.find((r) => r.id === id);
         if (!cur) return true;
-        const value = name === 'title' || name === 'note' ? el.value.trim() : el.value;
+        const value = name === 'title' ? el.value.replace(/\s+/g, ' ').trim() : name === 'note' ? el.value.trim() : el.value;
         const o = pending.subs.get(id) ?? {};
         if (value === f.orig(cur)) delete o[name]; else o[name] = value;
         if (Object.keys(o).length) pending.subs.set(id, o); else pending.subs.delete(id);
@@ -1516,6 +1520,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
 
       root.addEventListener('input', (e) => {
         e.target.classList?.remove('bad');
+        if (e.target.matches?.('.sbm-title-ta')) grow(e.target);
         if (e.target.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
         if (!stageSub(e.target)) stageTask(e.target);
       });
@@ -1526,8 +1531,9 @@ export function subtaskModal({ task, onChange, focus = null }) {
 
       root.addEventListener('keydown', (e) => {
         const el = e.target;
-        if (el.closest('[data-sub-add], .sbm-move, [data-comments]') || el.tagName === 'TEXTAREA') return;
-        if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
+        if (el.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
+        if (el.tagName === 'TEXTAREA' && !el.matches('[data-sub-title]')) return;
+        if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return;
         if (e.key === 'Enter') {
           e.preventDefault();
           const go = () => { if (!stageSub(el)) stageTask(el); saveAndClose(); };
@@ -1542,7 +1548,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
           go();
           return;
         }
-        if (e.key === 'Escape' && el.tagName === 'INPUT' && (el.matches('[data-sub-title], [data-task-title], [data-sub-due], [data-sub-note]'))) {
+        if (e.key === 'Escape' && el.tagName !== 'SELECT' && (el.matches('[data-sub-title], [data-task-title], [data-sub-due], [data-sub-note]'))) {
           e.preventDefault();
           e.stopPropagation();   // 창까지 닫히면 안 된다 — 그 칸만 되돌린다
           const hit = fieldOf(el);
@@ -1550,6 +1556,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
             const cur = rows.find((r) => r.id === el.dataset[hit[1].key]);
             el.value = cur ? hit[1].orig(cur) : el.value;
             stageSub(el);
+            if (el.matches('.sbm-title-ta')) grow(el);
           } else { el.value = t.title; stageTask(el); }
         }
       });

@@ -2188,4 +2188,19 @@ body[data-gate="view"] .sub-note-edit{pointer-events:none}
 .sh-prog{font-size:.8rem;color:var(--muted);margin-right:8px;font-variant-numeric:tabular-nums}
 .sh-fails{font-size:.82rem;color:var(--s-delay)}
 label.radio{display:flex;align-items:center;gap:8px;margin:6px 0}
-.sbm input.bad{border-color:var(--s-delay);box-shadow:0 0 0 2px color-mix(in srgb,var(--s-delay) 25%,transparent)}
+.sbm input.bad,.sbm textarea.bad{border-color:var(--s-delay);box-shadow:0 0 0 2px color-mix(in srgb,var(--s-delay) 25%,transparent)}
+/* 업무 팝업 하위 줄 — 1줄: 번호 · 영역 · 업무명(다 보이게 줄바꿈) / 2줄: 담당 · 마감 · 상태 · 이동·삭제 / 3줄: 메모 */
+.sbm-list li{flex-wrap:wrap;row-gap:6px;align-items:flex-start}
+.sbm-list li > *{align-self:center}
+.sbm-list li .sbm-title-ta{flex:1 1 0 !important;min-width:0 !important;min-height:0 !important;height:auto;resize:none;overflow:hidden;
+  line-height:1.4;padding:3px 6px;margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:500;display:block;box-shadow:none}
+.sbm-list li{padding-top:9px;padding-bottom:9px}
+.sbm-list .sbm-br{flex-basis:100%;height:0}
+.sbm-list li .sub-owner{margin-left:var(--sbm-indent,0)}
+.sbm-list li .sub-due{margin-left:0}
+.sbm-list li .when{margin-left:auto}
+.sbm-list li .when:empty{display:block;width:0}
+/* 메모는 2줄 남는 자리에 — 줄 수를 줄인다(좁으면 알아서 아래로) */
+.sbm-list li .sub-note-edit{flex:1 1 160px;order:50;margin:0}
+.sbm-list li .when{order:55}
+.sbm-list li .x{order:60}
