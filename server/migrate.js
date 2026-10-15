@@ -486,6 +486,14 @@ function moveAreaToSubtasks() {
   return `업무 영역·담당을 하위 업무로 옮김 (하위 ${filled}건 채움, ${made}건 새로 만듦)`;
 }
 
+/** 안건 → 하위 업무 연결 칸 (플로우) */
+function addAgendaSubtask() {
+  const sql = tableSql('agenda_item');
+  if (!sql || /\bsubtask_id\b/.test(sql)) return null;
+  db.exec('ALTER TABLE agenda_item ADD COLUMN subtask_id TEXT');
+  return '안건에 하위 업무 연결 칸 추가';
+}
+
 /** 구성원 표시 이름을 시드에 맞춘다 — 화면에서 고치지 않는 값이라 시드가 기준이다 (데모 reconcile 과 같다) */
 function syncMemberNames() {
   if (!tableSql('member')) return null;
@@ -554,7 +562,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

@@ -2272,3 +2272,20 @@ body[data-gate="view"] .fl-edit{pointer-events:none}
 .fl-item:hover .fl-del{opacity:1} .fl-main .fl-del:hover{color:var(--s-delay);background:var(--surface-2)}
 .fl-main button.lnk{border:none;background:none;padding:0;cursor:pointer;font:inherit;font-size:.8rem;color:var(--indigo)}
 .fl-main button.lnk.bad{color:var(--s-delay)}
+/* 플로우 — 하위 업무 연결 */
+.fl-sub-link{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:340px;border:1px solid color-mix(in oklab, var(--indigo) 30%, var(--line));
+  background:color-mix(in oklab, var(--indigo) 6%, var(--surface));color:var(--ink);border-radius:999px;padding:2px 10px;font:inherit;font-size:.78rem;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fl-sub-link:hover{border-color:var(--indigo)}
+.fl-sub-tag{font-size:.68rem;color:var(--indigo);font-weight:700}
+.fl-sub-link .tk{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.fl-sub-parent{color:var(--muted)}
+.fl-add select[name=owner]{max-width:120px}
+.fl-sd{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fl-sd .span2{grid-column:1 / -1}
+.fl-sd select,.fl-sd input{width:100%}
+.fl-sd-from{margin:0 0 12px;padding:8px 10px;border-radius:8px;background:var(--surface-2);font-size:.86rem}
+.fl-sd-kind{font-size:.72rem;font-weight:700;color:var(--s-issue);margin-right:4px}
+@media (max-width:720px){.fl-sd{grid-template-columns:1fr}}
+.fl-main .fl-to-sub{color:var(--indigo);border:1px solid color-mix(in oklab, var(--indigo) 35%, var(--line));font-weight:600}
+.fl-main .fl-to-sub:hover{background:color-mix(in oklab, var(--indigo) 8%, var(--surface))}

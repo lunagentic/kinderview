@@ -1843,7 +1843,8 @@ const meetingText = (v, max, what) => {
 const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? ''));
 const MEETING_COLS = `m.*, p.name AS project_name,
   (SELECT COUNT(*) FROM agenda_item a WHERE a.meeting_id = m.id) AS item_count,
-  (SELECT COUNT(*) FROM agenda_item a WHERE a.meeting_id = m.id AND a.status = 'OPEN' AND a.kind IN ('DECISION','TOPIC')) AS open_count`;
+  (SELECT COUNT(*) FROM agenda_item a LEFT JOIN subtask s ON s.id = a.subtask_id
+    WHERE a.meeting_id = m.id AND a.status = 'OPEN' AND COALESCE(s.status, '') <> 'DONE' AND a.kind IN ('DECISION','TOPIC')) AS open_count`;
 
 export const meetings = {
   list(projectId = null) {
@@ -1854,13 +1855,19 @@ export const meetings = {
     const m = one(`SELECT ${MEETING_COLS} FROM meeting m LEFT JOIN project p ON p.id = m.project_id WHERE m.id = :id`, { id });
     if (!m) throw new HttpError(404, '없는 회의입니다.');
     const items = all(`SELECT a.*, mem.display_name AS owner_name,
-        t.title AS t_title, t.status AS t_status, t.seq AS t_seq, tp.code AS t_code, t.deleted_at AS t_deleted
+        t.title AS t_title, t.status AS t_status, t.seq AS t_seq, tp.code AS t_code, t.deleted_at AS t_deleted,
+        s.title AS s_title, s.status AS s_status, s.seq AS s_seq, s.task_id AS s_task
       FROM agenda_item a
+      LEFT JOIN subtask s ON s.id = a.subtask_id
       LEFT JOIN member mem ON mem.slack_user_id = a.owner_slack_user_id
       LEFT JOIN task t ON t.id = a.task_id
       LEFT JOIN project tp ON tp.id = t.project_id
       WHERE a.meeting_id = :id ORDER BY a.sort_order`, { id })
-      .map(({ t_title, t_status, t_seq, t_code, t_deleted, ...a }) => ({ ...a,
+      .map(({ t_title, t_status, t_seq, t_code, t_deleted, s_title, s_status, s_seq, s_task, ...a }) => ({ ...a,
+        // 연결된 하위 업무가 끝났으면 안건도 「반영 완료」로 보인다 (저장값은 그대로)
+        status: s_status === 'DONE' ? 'DONE' : a.status,
+        sub: a.subtask_id && s_title ? { id: a.subtask_id, task_id: s_task, title: s_title, status: s_status,
+          key: ticketKey(t_code, s_seq), task_title: t_title } : null,
         task: a.task_id && t_title && !t_deleted ? { id: a.task_id, title: t_title, status: t_status, key: ticketKey(t_code, t_seq) } : null }));
     return { ...m, items };
   },
@@ -1917,13 +1924,14 @@ export const meetings = {
     if ('due_date' in input) next.due_date = isDay(input.due_date) ? input.due_date : null;
     if ('owner_slack_user_id' in input) next.owner_slack_user_id = input.owner_slack_user_id || null;
     if ('task_id' in input) next.task_id = input.task_id || null;
+    if ('subtask_id' in input) next.subtask_id = input.subtask_id || null;
     for (const k of ['body', 'decision']) if (k in input) next[k] = String(input[k] ?? '').trim() || null;
     if ('decision' in input && next.decision && next.status === 'OPEN') next.status = 'DECIDED';
     run(`UPDATE agenda_item SET title = :title, kind = :kind, status = :status, due_date = :due_date,
-      owner_slack_user_id = :owner_slack_user_id, task_id = :task_id, body = :body, decision = :decision, updated_at = :at
+      owner_slack_user_id = :owner_slack_user_id, task_id = :task_id, subtask_id = :subtask_id, body = :body, decision = :decision, updated_at = :at
       WHERE id = :id`, {
       id, title: next.title, kind: next.kind, status: next.status, due_date: next.due_date,
-      owner_slack_user_id: next.owner_slack_user_id, task_id: next.task_id, body: next.body, decision: next.decision, at: nowISO() });
+      owner_slack_user_id: next.owner_slack_user_id, task_id: next.task_id, subtask_id: next.subtask_id, body: next.body, decision: next.decision, at: nowISO() });
     return one('SELECT * FROM agenda_item WHERE id = :id', { id });
   },
   removeItem(id) {

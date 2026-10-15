@@ -1173,8 +1173,12 @@ const cleanText = (v, max, what) => {
   return t.slice(0, max);
 };
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? ''));
+// 연결된 하위 업무가 끝났으면 안건도 「반영 완료」로 보인다 (저장값은 그대로)
+const subStatus = (x) => x.status ?? (x.is_done ? 'DONE' : 'TODO');
+const agendaSub = (a) => (a.subtask_id ? (DB.subtasks ?? []).find((x) => x.id === a.subtask_id) ?? null : null);
+const agendaStatus = (a) => (agendaSub(a) && subStatus(agendaSub(a)) === 'DONE' ? 'DONE' : a.status);
 function meetingRow(m) {
-  const items = (DB.agenda_items ?? []).filter((a) => a.meeting_id === m.id);
+  const items = (DB.agenda_items ?? []).filter((a) => a.meeting_id === m.id).map((a) => ({ ...a, status: agendaStatus(a) }));
   const proj = (DB.projects ?? []).find((p) => p.id === m.project_id);
   return { ...m, project_name: proj?.name ?? null, item_count: items.length,
     open_count: items.filter((a) => a.status === 'OPEN' && (a.kind === 'DECISION' || a.kind === 'TOPIC')).length };
@@ -1190,7 +1194,11 @@ function getMeeting(id) {
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((a) => {
       const t = a.task_id ? (DB.tasks ?? []).find((x) => x.id === a.task_id && !x.deleted_at) : null;
-      return { ...a, owner_name: member(a.owner_slack_user_id)?.display_name ?? null,
+      const sb = agendaSub(a);
+      const parent = sb ? (DB.tasks ?? []).find((x) => x.id === sb.task_id) : null;
+      const pcode = parent ? (DB.projects ?? []).find((p) => p.id === parent.project_id)?.code : null;
+      return { ...a, status: agendaStatus(a), owner_name: member(a.owner_slack_user_id)?.display_name ?? null,
+        sub: sb ? { id: sb.id, task_id: sb.task_id, title: sb.title, status: subStatus(sb), key: ticketKey(pcode, sb.seq), task_title: parent?.title ?? null } : null,
         task: t ? { id: t.id, title: t.title, status: t.status, key: ticketKey((DB.projects ?? []).find((p) => p.id === t.project_id)?.code, t.seq) } : null };
     });
   return { ...meetingRow(m), items };
@@ -1229,7 +1237,7 @@ function createAgenda(meetingId, body) {
   const next = (DB.agenda_items ?? []).filter((a) => a.meeting_id === meetingId).reduce((n, a) => Math.max(n, a.sort_order), 0) + 1;
   const row = { id: uid(), meeting_id: meetingId, kind, title: cleanText(body.title, 200, '안건'), body: body.body?.trim() || null,
     owner_slack_user_id: body.owner_slack_user_id || null, due_date: isDate(body.due_date) ? body.due_date : null,
-    status: 'OPEN', decision: null, task_id: null, sort_order: next, created_at: at, updated_at: at };
+    status: 'OPEN', decision: null, task_id: null, subtask_id: null, sort_order: next, created_at: at, updated_at: at };
   (DB.agenda_items ??= []).push(row);
   save();
   return row;
@@ -1243,6 +1251,7 @@ function updateAgenda(id, body) {
   if ('due_date' in body) a.due_date = isDate(body.due_date) ? body.due_date : null;
   if ('owner_slack_user_id' in body) a.owner_slack_user_id = body.owner_slack_user_id || null;
   if ('task_id' in body) a.task_id = body.task_id || null;
+  if ('subtask_id' in body) a.subtask_id = body.subtask_id || null;
   for (const k of ['body', 'decision']) if (k in body) a[k] = String(body[k] ?? '').trim() || null;
   // 결정을 적으면 「결정됨」으로 — 열려 있는 결정 안건이 몇 개 남았는지가 이 화면의 핵심 숫자다
   if ('decision' in body && a.decision && a.status === 'OPEN') a.status = 'DECIDED';
