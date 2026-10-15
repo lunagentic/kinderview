@@ -122,7 +122,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
       <div class="form-grid">
         <label class="field span2">
           <span class="lab">업무명<span class="req">*</span></span>
-          <input type="text" name="title" required maxlength="120" value="${esc(task?.title ?? '')}"
+          <input type="text" name="title" required maxlength="120" value="${esc(task?.title ?? defaults.title ?? '')}"
                  placeholder="예: 관찰·평가 UX 개선">
         </label>
 

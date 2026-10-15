@@ -288,6 +288,7 @@ function reconcile(db) {
   }
   db.subtasks ??= [];
   if (mergeMembers(db)) changed = true;
+  if (seedMeetings(db)) changed = true;
 
   if (numberTickets(db)) changed = true;
 
@@ -404,6 +405,8 @@ const ROW_KEY = {
   area_leads: (r) => `${r.area}/${r.slack_user_id}`,
   attachments: (r) => r.id,
   reads: (r) => `${r.who}/${r.key}`,
+  meetings: (r) => r.id,
+  agenda_items: (r) => r.id,
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
@@ -554,7 +557,7 @@ function flatten(db) {
   out.push({ collection: 'meta', id: 'anchor', data: { value: db.anchor } });
   // 한 번만 해야 하는 정리는 여기에 표시를 남긴다. 날짜로 판단하면 날이 바뀔 때마다
   // 진짜 이력까지 지워 버린다.
-  out.push({ collection: 'meta', id: 'flags', data: { history_trimmed: Boolean(db.history_trimmed) } });
+  out.push({ collection: 'meta', id: 'flags', data: { history_trimmed: Boolean(db.history_trimmed), meetings_seeded: Boolean(db.meetings_seeded) } });
   return out;
 }
 
@@ -567,7 +570,7 @@ function unflatten(rows) {
   for (const r of rows) {
     if (r.collection === 'meta') {
       if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value;
-      if (r.id === 'flags') db.history_trimmed = Boolean(r.data?.history_trimmed);
+      if (r.id === 'flags') { db.history_trimmed = Boolean(r.data?.history_trimmed); db.meetings_seeded = Boolean(r.data?.meetings_seeded); }
       continue;
     }
     (db[r.collection] ??= []).push(r.data);
@@ -1139,6 +1142,119 @@ function mergeMembers(db) {
     if (gone.is_active) { gone.is_active = 0; changed = true; }
   }
   return changed;
+}
+
+/** 플로우 탭의 첫 회의(시드) — 한 번만 넣는다. 지운 뒤 다시 생기지 않게 표시를 남긴다 */
+function seedMeetings(db) {
+  if (db.meetings_seeded) return false;
+  db.meetings ??= [];
+  db.agenda_items ??= [];
+  for (const m of SEED.MEETINGS ?? []) {
+    if (db.meetings.some((x) => x.id === m.id)) continue;
+    const proj = (db.projects ?? []).find((p) => p.name === m.project);
+    const at = nowISO();
+    db.meetings.push({ id: m.id, project_id: proj?.id ?? null, date: m.date, title: m.title,
+      source_url: m.source_url ?? null, summary: m.summary ?? null, created_by: null, created_at: at, updated_at: at });
+    m.items.forEach(([kind, title, body, due], i) => db.agenda_items.push({
+      id: `${m.id}-${i + 1}`, meeting_id: m.id, kind, title, body: body || null, owner_slack_user_id: null,
+      due_date: due ?? null, status: 'OPEN', decision: null, task_id: null, sort_order: i + 1, created_at: at, updated_at: at,
+    }));
+  }
+  db.meetings_seeded = true;
+  return true;
+}
+
+// ── 회의·아젠다 (플로우 탭) — 서버 repo.js meetings 와 같은 규칙 ──
+const AGENDA_KINDS = ['DECISION', 'TOPIC', 'SCHEDULE', 'INFO'];
+const AGENDA_STATUSES = ['OPEN', 'DECIDED', 'DONE'];
+const cleanText = (v, max, what) => {
+  const t = String(v ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) throw new DemoError(`${what}을(를) 적어 주세요.`);
+  return t.slice(0, max);
+};
+const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? ''));
+function meetingRow(m) {
+  const items = (DB.agenda_items ?? []).filter((a) => a.meeting_id === m.id);
+  const proj = (DB.projects ?? []).find((p) => p.id === m.project_id);
+  return { ...m, project_name: proj?.name ?? null, item_count: items.length,
+    open_count: items.filter((a) => a.status === 'OPEN' && (a.kind === 'DECISION' || a.kind === 'TOPIC')).length };
+}
+function listMeetings(projectId) {
+  return (DB.meetings ?? []).filter((m) => !projectId || m.project_id === projectId)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at)).map(meetingRow);
+}
+function getMeeting(id) {
+  const m = (DB.meetings ?? []).find((x) => x.id === id);
+  if (!m) throw new DemoError('없는 회의입니다.');
+  const items = (DB.agenda_items ?? []).filter((a) => a.meeting_id === id)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((a) => {
+      const t = a.task_id ? (DB.tasks ?? []).find((x) => x.id === a.task_id && !x.deleted_at) : null;
+      return { ...a, owner_name: member(a.owner_slack_user_id)?.display_name ?? null,
+        task: t ? { id: t.id, title: t.title, status: t.status, key: ticketKey((DB.projects ?? []).find((p) => p.id === t.project_id)?.code, t.seq) } : null };
+    });
+  return { ...meetingRow(m), items };
+}
+function createMeeting(body, me) {
+  const at = nowISO();
+  const row = { id: uid(), project_id: body.project_id || null, date: isDate(body.date) ? body.date : today(),
+    title: cleanText(body.title, 120, '회의 제목'), source_url: body.source_url?.trim() || null,
+    summary: body.summary?.trim() || null, created_by: me ?? null, created_at: at, updated_at: at };
+  (DB.meetings ??= []).push(row);
+  save();
+  return meetingRow(row);
+}
+function updateMeeting(id, body) {
+  const m = (DB.meetings ?? []).find((x) => x.id === id);
+  if (!m) throw new DemoError('없는 회의입니다.');
+  if ('title' in body) m.title = cleanText(body.title, 120, '회의 제목');
+  if ('date' in body && isDate(body.date)) m.date = body.date;
+  if ('project_id' in body) m.project_id = body.project_id || null;
+  for (const k of ['source_url', 'summary']) if (k in body) m[k] = String(body[k] ?? '').trim() || null;
+  m.updated_at = nowISO();
+  save();
+  return meetingRow(m);
+}
+function removeMeeting(id) {
+  if (!(DB.meetings ?? []).some((x) => x.id === id)) throw new DemoError('없는 회의입니다.');
+  DB.meetings = DB.meetings.filter((x) => x.id !== id);
+  DB.agenda_items = (DB.agenda_items ?? []).filter((a) => a.meeting_id !== id);
+  save();
+  return { ok: true };
+}
+function createAgenda(meetingId, body) {
+  if (!(DB.meetings ?? []).some((x) => x.id === meetingId)) throw new DemoError('없는 회의입니다.');
+  const kind = AGENDA_KINDS.includes(body.kind) ? body.kind : 'TOPIC';
+  const at = nowISO();
+  const next = (DB.agenda_items ?? []).filter((a) => a.meeting_id === meetingId).reduce((n, a) => Math.max(n, a.sort_order), 0) + 1;
+  const row = { id: uid(), meeting_id: meetingId, kind, title: cleanText(body.title, 200, '안건'), body: body.body?.trim() || null,
+    owner_slack_user_id: body.owner_slack_user_id || null, due_date: isDate(body.due_date) ? body.due_date : null,
+    status: 'OPEN', decision: null, task_id: null, sort_order: next, created_at: at, updated_at: at };
+  (DB.agenda_items ??= []).push(row);
+  save();
+  return row;
+}
+function updateAgenda(id, body) {
+  const a = (DB.agenda_items ?? []).find((x) => x.id === id);
+  if (!a) throw new DemoError('없는 안건입니다.');
+  if ('title' in body) a.title = cleanText(body.title, 200, '안건');
+  if ('kind' in body && AGENDA_KINDS.includes(body.kind)) a.kind = body.kind;
+  if ('status' in body && AGENDA_STATUSES.includes(body.status)) a.status = body.status;
+  if ('due_date' in body) a.due_date = isDate(body.due_date) ? body.due_date : null;
+  if ('owner_slack_user_id' in body) a.owner_slack_user_id = body.owner_slack_user_id || null;
+  if ('task_id' in body) a.task_id = body.task_id || null;
+  for (const k of ['body', 'decision']) if (k in body) a[k] = String(body[k] ?? '').trim() || null;
+  // 결정을 적으면 「결정됨」으로 — 열려 있는 결정 안건이 몇 개 남았는지가 이 화면의 핵심 숫자다
+  if ('decision' in body && a.decision && a.status === 'OPEN') a.status = 'DECIDED';
+  a.updated_at = nowISO();
+  save();
+  return a;
+}
+function removeAgenda(id) {
+  if (!(DB.agenda_items ?? []).some((x) => x.id === id)) throw new DemoError('없는 안건입니다.');
+  DB.agenda_items = DB.agenda_items.filter((x) => x.id !== id);
+  save();
+  return { ok: true };
 }
 
 function removeSubtask(id) {
@@ -2681,6 +2797,21 @@ function handle(method, path, body) {
     });
   }
   if (p === '/api/tasks' && method === 'POST') return createTask(body, me);
+
+  if (p === '/api/meetings') {
+    if (method === 'GET') return listMeetings(url.searchParams.get('project_id') || null);
+    if (method === 'POST') return createMeeting(body, me);
+  }
+  if (seg[1] === 'meetings' && seg[2] && !seg[3]) {
+    if (method === 'GET') return getMeeting(seg[2]);
+    if (method === 'PATCH') return updateMeeting(seg[2], body);
+    if (method === 'DELETE') return removeMeeting(seg[2]);
+  }
+  if (seg[1] === 'meetings' && seg[2] && seg[3] === 'items' && method === 'POST') return createAgenda(seg[2], body);
+  if (seg[1] === 'agenda' && seg[2]) {
+    if (method === 'PATCH') return updateAgenda(seg[2], body);
+    if (method === 'DELETE') return removeAgenda(seg[2]);
+  }
 
   if (p === '/api/categories') {
     if (method === 'GET') return categoryRows();

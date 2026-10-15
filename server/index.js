@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dbFile, today, applySchema, weekStart, addDays, uploadsDir } from './db.js';
 import { runMigrations } from './migrate.js';
 import {
-  members, projects, vendors, tasks, subtasks, comments, categories, issues, overview, areaLeads, attachments,
+  members, projects, vendors, tasks, subtasks, comments, categories, meetings, issues, overview, areaLeads, attachments,
   timeEntries, payments, phases, milestones, timeline, expenses, inbox, directorComments,
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
@@ -155,6 +155,14 @@ route('DELETE', '/api/attachments/:id', (ctx) => attachments.remove(ctx.params.i
 // 코멘트 — 읽기는 누구나, 쓰기는 화면·저장소 쪽 문이 막는다.
 // 서버판은 내 컴퓨터에서 도는 것이라 여기서 따로 등급을 묻지 않는다.
 // 분류 — 목록은 누구나, 더하기·이름 바꾸기·지우기는 화면·저장소 쪽 문이 막는다
+route('GET', '/api/meetings', (ctx) => meetings.list(ctx.url.searchParams.get('project_id') || null));
+route('POST', '/api/meetings', (ctx) => meetings.create(ctx.body, ctx.me));
+route('GET', '/api/meetings/:id', (ctx) => meetings.get(ctx.params.id));
+route('PATCH', '/api/meetings/:id', (ctx) => meetings.update(ctx.params.id, ctx.body));
+route('DELETE', '/api/meetings/:id', (ctx) => meetings.remove(ctx.params.id));
+route('POST', '/api/meetings/:id/items', (ctx) => meetings.addItem(ctx.params.id, ctx.body));
+route('PATCH', '/api/agenda/:id', (ctx) => meetings.updateItem(ctx.params.id, ctx.body));
+route('DELETE', '/api/agenda/:id', (ctx) => meetings.removeItem(ctx.params.id));
 route('GET', '/api/categories', () => categories.list());
 route('POST', '/api/categories', (ctx) => categories.create(ctx.body));
 route('PATCH', '/api/categories/:id', (ctx) => categories.update(ctx.params.id, ctx.body));

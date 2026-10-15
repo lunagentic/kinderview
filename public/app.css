@@ -2207,3 +2207,68 @@ label.radio{display:flex;align-items:center;gap:8px;margin:6px 0}
 /* 보기 전용 — 누구인지 모르므로 현재 사용자·알림함(사람별)을 숨긴다. 편집 코드를 넣으면 나타난다 */
 body[data-gate="view"] .me-picker,
 body[data-gate="view"] .inbox-link{display:none !important}
+
+/* ── 플로우 — 회의·아젠다 ───────────────────────────── */
+.fl-wrap{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+.fl-list{display:flex;flex-direction:column;gap:8px;position:sticky;top:12px}
+.fl-card{display:flex;flex-direction:column;gap:3px;text-align:left;padding:10px 12px;border:1px solid var(--line);
+  border-left:4px solid var(--pc, var(--line));border-radius:10px;background:var(--surface);cursor:pointer;font:inherit;color:var(--ink)}
+.fl-card:hover{background:var(--surface-2)}
+.fl-card.on{border-color:var(--indigo);box-shadow:0 0 0 2px color-mix(in oklab, var(--indigo) 20%, transparent)}
+.fl-date{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+.fl-ttl{font-weight:600;font-size:.9rem;line-height:1.35}
+.fl-meta{font-size:.75rem;color:var(--muted)} .fl-meta b{color:var(--s-issue)}
+.fl-main{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0}
+.fl-head{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.fl-head-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fl-head-row .lnk{margin-left:auto}
+.fl-mtitle{font:inherit;font-size:1.15rem;font-weight:700;border:1px solid transparent;border-radius:6px;padding:4px 6px;background:none;color:var(--ink)}
+.fl-main input,.fl-main select,.fl-main textarea{font:inherit;color:var(--ink)}
+.fl-main textarea{resize:none;overflow:hidden;line-height:1.45;min-height:0}
+.fl-mtitle:hover,.fl-title:hover,.fl-body:hover,.fl-decision:hover,.fl-summary:hover{border-color:var(--line)}
+.fl-src{display:flex;gap:8px;align-items:center}
+.fl-src input{flex:1;min-width:0;font-size:.82rem;padding:5px 8px}
+.fl-summary{font-size:.85rem;color:var(--ink-2);border:1px solid transparent;border-radius:6px;padding:4px 6px;background:none}
+.fl-sec{margin-top:14px}
+.fl-sec h3{font-size:.85rem;margin:0 0 6px;display:flex;gap:8px;align-items:baseline}
+.fl-sec h3 .n{font-weight:500;color:var(--muted);font-size:.78rem}
+.fl-sec.k-decision h3{color:var(--s-issue)}
+.fl-items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.fl-item{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;background:var(--surface)}
+.fl-item.k-decision{border-left:3px solid var(--s-issue)}
+.fl-item.s-done,.fl-item.s-decided{opacity:.8}
+.fl-item.s-done .fl-title{text-decoration:line-through;color:var(--muted)}
+.fl-row1{display:flex;gap:8px;align-items:flex-start}
+.fl-kind{flex:none;font-size:.75rem;padding:3px 6px;border-radius:999px}
+.fl-title{flex:1;min-width:0;font-weight:600;font-size:.9rem;border:1px solid transparent;border-radius:6px;padding:3px 6px;background:none}
+.fl-body,.fl-decision{font-size:.82rem;border:1px solid transparent;border-radius:6px;padding:3px 6px;background:none;color:var(--ink-2)}
+.fl-body:placeholder-shown:not(:focus),.fl-decision:placeholder-shown:not(:focus){opacity:.55}
+.fl-decision{background:color-mix(in oklab, var(--s-issue) 6%, transparent)}
+.fl-row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.8rem}
+.fl-row2 select,.fl-row2 input{font-size:.8rem;padding:3px 6px}
+.fl-status.st-decided{color:var(--indigo)} .fl-status.st-done{color:var(--s-done)}
+.fl-task{margin-left:auto;display:flex;gap:6px;align-items:center;min-width:0}
+.fl-task-link{color:var(--indigo);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+.fl-task-link .tk{font-family:var(--mono);font-size:.72rem;margin-right:4px;color:var(--muted)}
+.fl-del{flex:none}
+.fl-add{display:flex;gap:8px;margin-top:14px}
+.fl-add input{flex:1;min-width:0}
+body[data-gate="view"] .fl-only-edit{display:none !important}
+body[data-gate="view"] .fl-edit{pointer-events:none}
+@media (max-width:720px){
+  .fl-wrap{grid-template-columns:minmax(0,1fr)}
+  .fl-list{position:static;flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .fl-card{min-width:200px}
+  .fl-main{padding:12px}
+  .fl-task{margin-left:0;width:100%}
+  .fl-add{flex-wrap:wrap}
+}
+.fl-main input.fl-mtitle{font-size:1.15rem;font-weight:700;border-color:transparent;background:none;box-shadow:none;padding:4px 6px}
+.fl-main input.fl-mtitle:hover{border-color:var(--line)}
+.fl-main textarea.fl-title,.fl-main textarea.fl-body,.fl-main textarea.fl-decision,.fl-main textarea.fl-summary{border-color:transparent;box-shadow:none;min-height:0}
+.fl-main textarea.fl-title{font-weight:600;font-size:.92rem}
+.fl-main textarea:focus,.fl-main input.fl-mtitle:focus{border-color:var(--focus);background:var(--surface);outline:none}
+.fl-main .fl-del{border:none;background:none;color:var(--muted);font-size:1.1rem;line-height:1;padding:2px 6px;border-radius:6px;cursor:pointer;opacity:.5}
+.fl-item:hover .fl-del{opacity:1} .fl-main .fl-del:hover{color:var(--s-delay);background:var(--surface-2)}
+.fl-main button.lnk{border:none;background:none;padding:0;cursor:pointer;font:inherit;font-size:.8rem;color:var(--indigo)}
+.fl-main button.lnk.bad{color:var(--s-delay)}

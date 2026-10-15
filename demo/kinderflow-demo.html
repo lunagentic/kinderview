@@ -2212,6 +2212,71 @@ label.radio{display:flex;align-items:center;gap:8px;margin:6px 0}
 body[data-gate="view"] .me-picker,
 body[data-gate="view"] .inbox-link{display:none !important}
 
+/* ── 플로우 — 회의·아젠다 ───────────────────────────── */
+.fl-wrap{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+.fl-list{display:flex;flex-direction:column;gap:8px;position:sticky;top:12px}
+.fl-card{display:flex;flex-direction:column;gap:3px;text-align:left;padding:10px 12px;border:1px solid var(--line);
+  border-left:4px solid var(--pc, var(--line));border-radius:10px;background:var(--surface);cursor:pointer;font:inherit;color:var(--ink)}
+.fl-card:hover{background:var(--surface-2)}
+.fl-card.on{border-color:var(--indigo);box-shadow:0 0 0 2px color-mix(in oklab, var(--indigo) 20%, transparent)}
+.fl-date{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+.fl-ttl{font-weight:600;font-size:.9rem;line-height:1.35}
+.fl-meta{font-size:.75rem;color:var(--muted)} .fl-meta b{color:var(--s-issue)}
+.fl-main{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0}
+.fl-head{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.fl-head-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fl-head-row .lnk{margin-left:auto}
+.fl-mtitle{font:inherit;font-size:1.15rem;font-weight:700;border:1px solid transparent;border-radius:6px;padding:4px 6px;background:none;color:var(--ink)}
+.fl-main input,.fl-main select,.fl-main textarea{font:inherit;color:var(--ink)}
+.fl-main textarea{resize:none;overflow:hidden;line-height:1.45;min-height:0}
+.fl-mtitle:hover,.fl-title:hover,.fl-body:hover,.fl-decision:hover,.fl-summary:hover{border-color:var(--line)}
+.fl-src{display:flex;gap:8px;align-items:center}
+.fl-src input{flex:1;min-width:0;font-size:.82rem;padding:5px 8px}
+.fl-summary{font-size:.85rem;color:var(--ink-2);border:1px solid transparent;border-radius:6px;padding:4px 6px;background:none}
+.fl-sec{margin-top:14px}
+.fl-sec h3{font-size:.85rem;margin:0 0 6px;display:flex;gap:8px;align-items:baseline}
+.fl-sec h3 .n{font-weight:500;color:var(--muted);font-size:.78rem}
+.fl-sec.k-decision h3{color:var(--s-issue)}
+.fl-items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.fl-item{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;background:var(--surface)}
+.fl-item.k-decision{border-left:3px solid var(--s-issue)}
+.fl-item.s-done,.fl-item.s-decided{opacity:.8}
+.fl-item.s-done .fl-title{text-decoration:line-through;color:var(--muted)}
+.fl-row1{display:flex;gap:8px;align-items:flex-start}
+.fl-kind{flex:none;font-size:.75rem;padding:3px 6px;border-radius:999px}
+.fl-title{flex:1;min-width:0;font-weight:600;font-size:.9rem;border:1px solid transparent;border-radius:6px;padding:3px 6px;background:none}
+.fl-body,.fl-decision{font-size:.82rem;border:1px solid transparent;border-radius:6px;padding:3px 6px;background:none;color:var(--ink-2)}
+.fl-body:placeholder-shown:not(:focus),.fl-decision:placeholder-shown:not(:focus){opacity:.55}
+.fl-decision{background:color-mix(in oklab, var(--s-issue) 6%, transparent)}
+.fl-row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.8rem}
+.fl-row2 select,.fl-row2 input{font-size:.8rem;padding:3px 6px}
+.fl-status.st-decided{color:var(--indigo)} .fl-status.st-done{color:var(--s-done)}
+.fl-task{margin-left:auto;display:flex;gap:6px;align-items:center;min-width:0}
+.fl-task-link{color:var(--indigo);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+.fl-task-link .tk{font-family:var(--mono);font-size:.72rem;margin-right:4px;color:var(--muted)}
+.fl-del{flex:none}
+.fl-add{display:flex;gap:8px;margin-top:14px}
+.fl-add input{flex:1;min-width:0}
+body[data-gate="view"] .fl-only-edit{display:none !important}
+body[data-gate="view"] .fl-edit{pointer-events:none}
+@media (max-width:720px){
+  .fl-wrap{grid-template-columns:minmax(0,1fr)}
+  .fl-list{position:static;flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .fl-card{min-width:200px}
+  .fl-main{padding:12px}
+  .fl-task{margin-left:0;width:100%}
+  .fl-add{flex-wrap:wrap}
+}
+.fl-main input.fl-mtitle{font-size:1.15rem;font-weight:700;border-color:transparent;background:none;box-shadow:none;padding:4px 6px}
+.fl-main input.fl-mtitle:hover{border-color:var(--line)}
+.fl-main textarea.fl-title,.fl-main textarea.fl-body,.fl-main textarea.fl-decision,.fl-main textarea.fl-summary{border-color:transparent;box-shadow:none;min-height:0}
+.fl-main textarea.fl-title{font-weight:600;font-size:.92rem}
+.fl-main textarea:focus,.fl-main input.fl-mtitle:focus{border-color:var(--focus);background:var(--surface);outline:none}
+.fl-main .fl-del{border:none;background:none;color:var(--muted);font-size:1.1rem;line-height:1;padding:2px 6px;border-radius:6px;cursor:pointer;opacity:.5}
+.fl-item:hover .fl-del{opacity:1} .fl-main .fl-del:hover{color:var(--s-delay);background:var(--surface-2)}
+.fl-main button.lnk{border:none;background:none;padding:0;cursor:pointer;font:inherit;font-size:.8rem;color:var(--indigo)}
+.fl-main button.lnk.bad{color:var(--s-delay)}
+
 </style>
 
   <header class="topbar">
@@ -2560,7 +2625,36 @@ const TIME_ENTRIES = [];
 const EXPENSES = [];
 
 
-const SEED = { MEMBERS, MERGED_MEMBERS, AREA_LEADS, CO_LEADS, CO_LEAD_ROWS, PROJECTS, PHASES, TASKS, SUBTASKS, MILESTONES, ISSUES, EXTRA_EVENTS, TIME_ENTRIES, EXPENSES };
+
+const MEETINGS = [
+  {
+    id: 'mtg-20261014-kv', project: 'Kinderverse', date: '2026-10-14',
+    title: '[킨더버스] 개발 방향 및 일정 브리핑',
+    source_url: 'https://docs.google.com/document/d/1osl2XEQC6iIs995rTyPTW327JCwMw-ugRjwiVN18ys8/edit',
+    summary: '11월 중순 클로즈드베타 목표. 콘텐츠 개별 제작 → 「템플릿·DB 조립 + 에이전트」 시스템으로 전환. 킨더보드는 CS/QA 중심, 개발 리소스는 킨더버스에 집중.',
+    items: [
+      ['DECISION', '조건부 7개 항목 포함 여부', '활동지·도안·환경구성 10종 / 알림장·가정통신문 발송 시연 / 슬라이드 자동 생성 / 놀이키트(게임) 샘플 / 스토리라인(11/20 시연용) / 미등록 아이 사진 분류(교사 확인 UI까지)', '2026-10-22'],
+      ['DECISION', '템플릿 90종 중 베타 투입 수량', '', '2026-10-22'],
+      ['DECISION', '폐루프에서 「좋은 결과」로 볼 교사 행동 기준', '킨더브레인: 의도 점수 → 추천 → 교사 선택 학습. 수집 항목·화면/기능 ID 규칙 확정 단계', '2026-10-22'],
+      ['INFO', '베타 포함 확정 범위', '회원가입·로그인·인증(통합회원), 설정·크레딧·결제, 정책, 어드민 / 우리반: 일괄등록·앨범·기록보기 / 문서 제작: 놀이계획(일·주·월안)·놀이기록·관찰일지·발달평가·보육일지 / 마이보드 / 패키지 3종(신학기: 행사계획안·가정통신문·활동지) / 갤러리 DM / 킨더챗 / 모바일 최적화', null],
+      ['INFO', '베타 제외 (1월 내 후속 릴리즈)', '아이스크림몰 연동(검색 API 노출), 알림톡, 놀이키트(게임) 25종, 스튜디오 게임, 스토리라인 전체, 연간계획·안전교육계획', null],
+      ['INFO', '프리즈 이후 변경 규칙', '범위 추가는 승인 후 킨더플로우에 등록하고, 넣는 만큼 다른 항목을 뺀다. 버그·안정성 수정은 언제든 허용.', null],
+      ['TOPIC', '개발 시스템 현황', '문서 제작 시스템(템플릿 제작→저장·적용→유저 에디터, 디자인 가이드 초안, 마스터 템플릿 10/20 1차 입고) / 리소스 생성 파이프라인·애셋 뱅크(외부 제작자 계정 발급, 시스템 통합 중) / 킨더브레인 검증 결과 / 요청 분석 속도 개선', null],
+      ['TOPIC', '속도 기준 측정 체계', '패키지 10초, 조립 0.5초 — 측정 체계가 없어 기준선 정의 필요. 문제 검토·측정체계 정의 → 벡터화 검토 → 이슈별 대응', null],
+      ['TOPIC', '2027 로드맵', '예약형 에이전트, 학부모 양방향 소통, 글로벌 패키지 공유·현지화', null],
+      ['SCHEDULE', 'v0 데모 (폐루프 토이 프로젝트)', '', '2026-10-15'],
+      ['SCHEDULE', '베타 기능 범위·일정 1차 보고', '', '2026-10-15'],
+      ['SCHEDULE', '범위 확정 (프리즈)', '', '2026-10-22'],
+      ['SCHEDULE', 'v0 데모 (베타 기능 + 폐루프 v0)', '10월 말', '2026-10-31'],
+      ['SCHEDULE', 'Edutech Asia(싱가포르) / 오만 글로벌 시연', '11/4~5', '2026-11-04'],
+      ['SCHEDULE', '코드 프리즈', '', '2026-11-06'],
+      ['SCHEDULE', '클로즈드 베타', '', '2026-11-21'],
+    ],
+  },
+];
+
+
+const SEED = { MEMBERS, MERGED_MEMBERS, AREA_LEADS, CO_LEADS, CO_LEAD_ROWS, PROJECTS, PHASES, TASKS, SUBTASKS, MILESTONES, ISSUES, EXTRA_EVENTS, TIME_ENTRIES, EXPENSES, MEETINGS };
 
 /* ── 규칙 엔진 (server/ai/rules.js) ─────────────────── */
 
@@ -3455,6 +3549,7 @@ function reconcile(db) {
   }
   db.subtasks ??= [];
   if (mergeMembers(db)) changed = true;
+  if (seedMeetings(db)) changed = true;
 
   if (numberTickets(db)) changed = true;
 
@@ -3571,6 +3666,8 @@ const ROW_KEY = {
   area_leads: (r) => `${r.area}/${r.slack_user_id}`,
   attachments: (r) => r.id,
   reads: (r) => `${r.who}/${r.key}`,
+  meetings: (r) => r.id,
+  agenda_items: (r) => r.id,
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
@@ -3721,7 +3818,7 @@ function flatten(db) {
   out.push({ collection: 'meta', id: 'anchor', data: { value: db.anchor } });
   // 한 번만 해야 하는 정리는 여기에 표시를 남긴다. 날짜로 판단하면 날이 바뀔 때마다
   // 진짜 이력까지 지워 버린다.
-  out.push({ collection: 'meta', id: 'flags', data: { history_trimmed: Boolean(db.history_trimmed) } });
+  out.push({ collection: 'meta', id: 'flags', data: { history_trimmed: Boolean(db.history_trimmed), meetings_seeded: Boolean(db.meetings_seeded) } });
   return out;
 }
 
@@ -3734,7 +3831,7 @@ function unflatten(rows) {
   for (const r of rows) {
     if (r.collection === 'meta') {
       if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value;
-      if (r.id === 'flags') db.history_trimmed = Boolean(r.data?.history_trimmed);
+      if (r.id === 'flags') { db.history_trimmed = Boolean(r.data?.history_trimmed); db.meetings_seeded = Boolean(r.data?.meetings_seeded); }
       continue;
     }
     (db[r.collection] ??= []).push(r.data);
@@ -4306,6 +4403,119 @@ function mergeMembers(db) {
     if (gone.is_active) { gone.is_active = 0; changed = true; }
   }
   return changed;
+}
+
+/** 플로우 탭의 첫 회의(시드) — 한 번만 넣는다. 지운 뒤 다시 생기지 않게 표시를 남긴다 */
+function seedMeetings(db) {
+  if (db.meetings_seeded) return false;
+  db.meetings ??= [];
+  db.agenda_items ??= [];
+  for (const m of SEED.MEETINGS ?? []) {
+    if (db.meetings.some((x) => x.id === m.id)) continue;
+    const proj = (db.projects ?? []).find((p) => p.name === m.project);
+    const at = nowISO();
+    db.meetings.push({ id: m.id, project_id: proj?.id ?? null, date: m.date, title: m.title,
+      source_url: m.source_url ?? null, summary: m.summary ?? null, created_by: null, created_at: at, updated_at: at });
+    m.items.forEach(([kind, title, body, due], i) => db.agenda_items.push({
+      id: `${m.id}-${i + 1}`, meeting_id: m.id, kind, title, body: body || null, owner_slack_user_id: null,
+      due_date: due ?? null, status: 'OPEN', decision: null, task_id: null, sort_order: i + 1, created_at: at, updated_at: at,
+    }));
+  }
+  db.meetings_seeded = true;
+  return true;
+}
+
+// ── 회의·아젠다 (플로우 탭) — 서버 repo.js meetings 와 같은 규칙 ──
+const AGENDA_KINDS = ['DECISION', 'TOPIC', 'SCHEDULE', 'INFO'];
+const AGENDA_STATUSES = ['OPEN', 'DECIDED', 'DONE'];
+const cleanText = (v, max, what) => {
+  const t = String(v ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) throw new DemoError(`${what}을(를) 적어 주세요.`);
+  return t.slice(0, max);
+};
+const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? ''));
+function meetingRow(m) {
+  const items = (DB.agenda_items ?? []).filter((a) => a.meeting_id === m.id);
+  const proj = (DB.projects ?? []).find((p) => p.id === m.project_id);
+  return { ...m, project_name: proj?.name ?? null, item_count: items.length,
+    open_count: items.filter((a) => a.status === 'OPEN' && (a.kind === 'DECISION' || a.kind === 'TOPIC')).length };
+}
+function listMeetings(projectId) {
+  return (DB.meetings ?? []).filter((m) => !projectId || m.project_id === projectId)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at)).map(meetingRow);
+}
+function getMeeting(id) {
+  const m = (DB.meetings ?? []).find((x) => x.id === id);
+  if (!m) throw new DemoError('없는 회의입니다.');
+  const items = (DB.agenda_items ?? []).filter((a) => a.meeting_id === id)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((a) => {
+      const t = a.task_id ? (DB.tasks ?? []).find((x) => x.id === a.task_id && !x.deleted_at) : null;
+      return { ...a, owner_name: member(a.owner_slack_user_id)?.display_name ?? null,
+        task: t ? { id: t.id, title: t.title, status: t.status, key: ticketKey((DB.projects ?? []).find((p) => p.id === t.project_id)?.code, t.seq) } : null };
+    });
+  return { ...meetingRow(m), items };
+}
+function createMeeting(body, me) {
+  const at = nowISO();
+  const row = { id: uid(), project_id: body.project_id || null, date: isDate(body.date) ? body.date : today(),
+    title: cleanText(body.title, 120, '회의 제목'), source_url: body.source_url?.trim() || null,
+    summary: body.summary?.trim() || null, created_by: me ?? null, created_at: at, updated_at: at };
+  (DB.meetings ??= []).push(row);
+  save();
+  return meetingRow(row);
+}
+function updateMeeting(id, body) {
+  const m = (DB.meetings ?? []).find((x) => x.id === id);
+  if (!m) throw new DemoError('없는 회의입니다.');
+  if ('title' in body) m.title = cleanText(body.title, 120, '회의 제목');
+  if ('date' in body && isDate(body.date)) m.date = body.date;
+  if ('project_id' in body) m.project_id = body.project_id || null;
+  for (const k of ['source_url', 'summary']) if (k in body) m[k] = String(body[k] ?? '').trim() || null;
+  m.updated_at = nowISO();
+  save();
+  return meetingRow(m);
+}
+function removeMeeting(id) {
+  if (!(DB.meetings ?? []).some((x) => x.id === id)) throw new DemoError('없는 회의입니다.');
+  DB.meetings = DB.meetings.filter((x) => x.id !== id);
+  DB.agenda_items = (DB.agenda_items ?? []).filter((a) => a.meeting_id !== id);
+  save();
+  return { ok: true };
+}
+function createAgenda(meetingId, body) {
+  if (!(DB.meetings ?? []).some((x) => x.id === meetingId)) throw new DemoError('없는 회의입니다.');
+  const kind = AGENDA_KINDS.includes(body.kind) ? body.kind : 'TOPIC';
+  const at = nowISO();
+  const next = (DB.agenda_items ?? []).filter((a) => a.meeting_id === meetingId).reduce((n, a) => Math.max(n, a.sort_order), 0) + 1;
+  const row = { id: uid(), meeting_id: meetingId, kind, title: cleanText(body.title, 200, '안건'), body: body.body?.trim() || null,
+    owner_slack_user_id: body.owner_slack_user_id || null, due_date: isDate(body.due_date) ? body.due_date : null,
+    status: 'OPEN', decision: null, task_id: null, sort_order: next, created_at: at, updated_at: at };
+  (DB.agenda_items ??= []).push(row);
+  save();
+  return row;
+}
+function updateAgenda(id, body) {
+  const a = (DB.agenda_items ?? []).find((x) => x.id === id);
+  if (!a) throw new DemoError('없는 안건입니다.');
+  if ('title' in body) a.title = cleanText(body.title, 200, '안건');
+  if ('kind' in body && AGENDA_KINDS.includes(body.kind)) a.kind = body.kind;
+  if ('status' in body && AGENDA_STATUSES.includes(body.status)) a.status = body.status;
+  if ('due_date' in body) a.due_date = isDate(body.due_date) ? body.due_date : null;
+  if ('owner_slack_user_id' in body) a.owner_slack_user_id = body.owner_slack_user_id || null;
+  if ('task_id' in body) a.task_id = body.task_id || null;
+  for (const k of ['body', 'decision']) if (k in body) a[k] = String(body[k] ?? '').trim() || null;
+  // 결정을 적으면 「결정됨」으로 — 열려 있는 결정 안건이 몇 개 남았는지가 이 화면의 핵심 숫자다
+  if ('decision' in body && a.decision && a.status === 'OPEN') a.status = 'DECIDED';
+  a.updated_at = nowISO();
+  save();
+  return a;
+}
+function removeAgenda(id) {
+  if (!(DB.agenda_items ?? []).some((x) => x.id === id)) throw new DemoError('없는 안건입니다.');
+  DB.agenda_items = DB.agenda_items.filter((x) => x.id !== id);
+  save();
+  return { ok: true };
 }
 
 function removeSubtask(id) {
@@ -5849,6 +6059,21 @@ function handle(method, path, body) {
   }
   if (p === '/api/tasks' && method === 'POST') return createTask(body, me);
 
+  if (p === '/api/meetings') {
+    if (method === 'GET') return listMeetings(url.searchParams.get('project_id') || null);
+    if (method === 'POST') return createMeeting(body, me);
+  }
+  if (seg[1] === 'meetings' && seg[2] && !seg[3]) {
+    if (method === 'GET') return getMeeting(seg[2]);
+    if (method === 'PATCH') return updateMeeting(seg[2], body);
+    if (method === 'DELETE') return removeMeeting(seg[2]);
+  }
+  if (seg[1] === 'meetings' && seg[2] && seg[3] === 'items' && method === 'POST') return createAgenda(seg[2], body);
+  if (seg[1] === 'agenda' && seg[2]) {
+    if (method === 'PATCH') return updateAgenda(seg[2], body);
+    if (method === 'DELETE') return removeAgenda(seg[2]);
+  }
+
   if (p === '/api/categories') {
     if (method === 'GET') return categoryRows();
     if (method === 'POST') return createCategory(body);
@@ -6711,7 +6936,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
       <div class="form-grid">
         <label class="field span2">
           <span class="lab">업무명<span class="req">*</span></span>
-          <input type="text" name="title" required maxlength="120" value="${esc(task?.title ?? '')}"
+          <input type="text" name="title" required maxlength="120" value="${esc(task?.title ?? defaults.title ?? '')}"
                  placeholder="예: 관찰·평가 UX 개선">
         </label>
 
@@ -12268,6 +12493,265 @@ async function renderMonthly(root, query) {
 
 
 
+
+// 플로우 — 회의 안건을 모으고, 결정이 나면 업무로 넘긴다.
+// 회의 한 번 = 카드 하나. 안건은 결정 필요 · 논의 · 일정 · 공유 네 갈래로 묶어 본다.
+// 결정 안건이 몇 개 열려 있는지가 이 화면의 핵심 숫자다 — 목록 카드에 그 수를 단다.
+
+const FL_KINDS = [
+  { code: 'DECISION', label: '결정 필요', short: '결정' },
+  { code: 'TOPIC', label: '논의', short: '논의' },
+  { code: 'SCHEDULE', label: '일정', short: '일정' },
+  { code: 'INFO', label: '공유', short: '공유' },
+];
+const FL_STATUSES = [
+  { code: 'OPEN', label: '열림' },
+  { code: 'DECIDED', label: '결정됨' },
+  { code: 'DONE', label: '반영 완료' },
+];
+const FL_SEL_KEY = 'kf.flow.meeting';
+const flReadSel = () => { try { return localStorage.getItem(FL_SEL_KEY); } catch { return null; } };
+const flWriteSel = (id) => { try { localStorage.setItem(FL_SEL_KEY, id); } catch { /* 이번만 */ } };
+
+const flOpts = (rows, cur, blank) => `${blank !== undefined ? `<option value="">${esc(blank)}</option>` : ''}${rows
+  .map((r) => `<option value="${esc(r.value)}"${r.value === (cur ?? '') ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}`;
+const flMemberOpts = (cur) => flOpts(activeMembers().map((m) => ({ value: m.slack_user_id, label: m.display_name })), cur, '담당 없음');
+const flProjectOpts = (cur) => flOpts((state.projects ?? []).filter((p) => !p.is_archived).map((p) => ({ value: p.id, label: p.name })), cur, '프로젝트 없음');
+
+const flMeetingCard = (m, sel) => `
+  <button type="button" class="fl-card${m.id === sel ? ' on' : ''}" data-pick-meeting="${esc(m.id)}" style="${m.project_id ? projectStyle(m.project_id) : ''}">
+    <span class="fl-date">${esc(shortDate(m.date))}</span>
+    <span class="fl-ttl">${esc(m.title)}</span>
+    <span class="fl-meta">${esc(m.project_name ?? '프로젝트 없음')} · 안건 ${m.item_count}${m.open_count ? ` · <b>열림 ${m.open_count}</b>` : ''}</span>
+  </button>`;
+
+const flItemRow = (a) => `
+  <li class="fl-item k-${a.kind.toLowerCase()} s-${a.status.toLowerCase()}" data-item="${esc(a.id)}">
+    <div class="fl-row1">
+      <select class="fl-kind fl-edit" data-ai="kind" aria-label="안건 종류">${flOpts(FL_KINDS.map((k) => ({ value: k.code, label: k.short })), a.kind)}</select>
+      <textarea class="fl-title fl-edit" data-ai="title" rows="1" maxlength="200" aria-label="안건">${esc(a.title)}</textarea>
+      <button type="button" class="x fl-del fl-only-edit" data-item-del="${esc(a.id)}" aria-label="안건 삭제" title="안건 삭제">×</button>
+    </div>
+    <textarea class="fl-body fl-edit" data-ai="body" rows="1" placeholder="내용·메모" aria-label="내용">${esc(a.body ?? '')}</textarea>
+    ${a.kind === 'DECISION' ? `<textarea class="fl-decision fl-edit" data-ai="decision" rows="1" placeholder="결정 내용 — 적으면 「결정됨」으로 바뀝니다" aria-label="결정 내용">${esc(a.decision ?? '')}</textarea>` : ''}
+    <div class="fl-row2">
+      <select class="fl-owner fl-edit" data-ai="owner_slack_user_id" aria-label="담당">${flMemberOpts(a.owner_slack_user_id)}</select>
+      <input type="date" class="fl-due fl-edit" data-ai="due_date" value="${esc(a.due_date ?? '')}" aria-label="기한">
+      <select class="fl-status fl-edit st-${a.status.toLowerCase()}" data-ai="status" aria-label="상태">${flOpts(FL_STATUSES.map((s) => ({ value: s.code, label: s.label })), a.status)}</select>
+      <span class="fl-task">${a.task
+        ? `<a class="fl-task-link" href="#/project/tasks/${esc(a.task.id)}">${a.task.key ? `<span class="tk">${esc(a.task.key)}</span>` : ''}${esc(a.task.title)}</a> ${statusChip(a.task.status)}
+           <button type="button" class="lnk fl-only-edit" data-unlink="${esc(a.id)}" title="업무 연결 풀기">연결 풀기</button>`
+        : a.kind === 'INFO' ? '' : `<button type="button" class="btn btn-ghost sm fl-only-edit" data-to-task="${esc(a.id)}">→ 업무로 등록</button>`}</span>
+    </div>
+  </li>`;
+
+const flSection = (kind, items) => {
+  const rows = items.filter((a) => a.kind === kind.code);
+  if (!rows.length) return '';
+  const open = rows.filter((a) => a.status === 'OPEN').length;
+  return `
+    <section class="fl-sec k-${kind.code.toLowerCase()}">
+      <h3>${esc(kind.label)} <span class="n">${rows.length}${open && (kind.code === 'DECISION' || kind.code === 'TOPIC') ? ` · 열림 ${open}` : ''}</span></h3>
+      <ul class="fl-items">${rows.map(flItemRow).join('')}</ul>
+    </section>`;
+};
+
+const flMeetingBody = (m) => `
+  <div class="fl-head">
+    <div class="fl-head-row">
+      <input type="date" class="fl-mdate fl-edit" data-mf="date" value="${esc(m.date)}" aria-label="회의 날짜">
+      <select class="fl-mproj fl-edit" data-mf="project_id" aria-label="프로젝트">${flProjectOpts(m.project_id)}</select>
+      <button type="button" class="lnk bad fl-only-edit" data-del-meeting="${esc(m.id)}">회의 삭제</button>
+    </div>
+    <input type="text" class="fl-mtitle fl-edit" data-mf="title" value="${esc(m.title)}" maxlength="120" aria-label="회의 제목">
+    <div class="fl-src">
+      <input type="url" class="fl-edit" data-mf="source_url" value="${esc(m.source_url ?? '')}" placeholder="회의록·문서 링크 (선택)" aria-label="회의록 링크">
+      ${m.source_url ? `<a class="lnk" href="${esc(m.source_url)}" target="_blank" rel="noopener">원문 열기 ↗</a>` : ''}
+    </div>
+    <textarea class="fl-summary fl-edit" data-mf="summary" rows="2" placeholder="요약 (선택)" aria-label="요약">${esc(m.summary ?? '')}</textarea>
+  </div>
+  ${m.items.length ? FL_KINDS.map((k) => flSection(k, m.items)).join('') : '<p class="empty-line">아직 안건이 없습니다. 아래에서 더해 주세요.</p>'}
+  <form class="fl-add fl-only-edit" data-add-item>
+    <select name="kind" aria-label="안건 종류">${flOpts(FL_KINDS.map((k) => ({ value: k.code, label: k.label })), 'DECISION')}</select>
+    <input type="text" name="title" maxlength="200" placeholder="안건 더하기 (예: 템플릿 90종 중 베타 투입 수량)" aria-label="안건">
+    <button class="btn btn-primary" type="submit">+ 안건</button>
+  </form>`;
+
+async function renderFlow(host) {
+  host.innerHTML = loading();
+  let projectId = '';
+  let list = [];
+  let current = null;
+
+  const grow = (el) => { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; };
+  const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
+
+  const paint = () => {
+    const sel = current?.id;
+    host.innerHTML = `
+      <div class="page-head">
+        <div><h1>플로우</h1><div class="sub">회의 안건을 모으고, 결정이 나면 업무로 넘깁니다</div></div>
+        <div class="actions">
+          <select data-flow-proj aria-label="프로젝트로 거르기">${flOpts((state.projects ?? []).filter((p) => !p.is_archived).map((p) => ({ value: p.id, label: p.name })), projectId, '모든 프로젝트')}</select>
+          <button class="btn btn-primary fl-only-edit" data-new-meeting>+ 회의</button>
+        </div>
+      </div>
+      <div class="fl-wrap">
+        <aside class="fl-list">${list.length ? list.map((m) => flMeetingCard(m, sel)).join('') : '<p class="empty-line">회의가 없습니다.</p>'}</aside>
+        <div class="fl-main">${current ? flMeetingBody(current) : '<p class="empty-line">왼쪽에서 회의를 고르세요.</p>'}</div>
+      </div>`;
+    host.querySelectorAll('.fl-main textarea').forEach(grow);
+  };
+
+  const loadList = async () => {
+    list = await api.get(`/api/meetings${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`);
+  };
+  const open = async (id) => {
+    current = id ? await api.get(`/api/meetings/${encodeURIComponent(id)}`).catch(() => null) : null;
+    if (current) flWriteSel(current.id);
+  };
+  const refresh = async (id = current?.id) => {
+    await loadList();
+    await open(id && list.some((m) => m.id === id) ? id : list[0]?.id);
+    paint();
+  };
+
+  try {
+    await loadList();
+    const saved = flReadSel();
+    await open(list.some((m) => m.id === saved) ? saved : list[0]?.id);
+    paint();
+  } catch (err) {
+    host.innerHTML = errorBox(err.message);
+    return;
+  }
+
+  host.addEventListener('input', (e) => { if (e.target.matches('.fl-main textarea')) grow(e.target); });
+
+  // 칸을 벗어날 때(change) 바로 저장한다 — 회의 중에 적어 내려가는 화면이라 저장 단추를 따로 두지 않는다
+  host.addEventListener('change', async (e) => {
+    const el = e.target;
+    if (el.matches('[data-flow-proj]')) { projectId = el.value; await refresh(null); return; }
+    const mf = el.dataset.mf;
+    const ai = el.dataset.ai;
+    if (!mf && !ai) return;
+    if (!editable()) { paint(); return; }
+    try {
+      if (mf) {
+        await api.patch(`/api/meetings/${encodeURIComponent(current.id)}`, { [mf]: el.value });
+        await refresh();
+      } else {
+        const id = el.closest('[data-item]').dataset.item;
+        await api.patch(`/api/agenda/${encodeURIComponent(id)}`, { [ai]: el.value });
+        if (['kind', 'status', 'decision'].includes(ai)) await refresh();
+        else await loadList().then(() => {
+          const card = host.querySelector(`[data-pick-meeting="${CSS.escape(current.id)}"]`);
+          const m = list.find((x) => x.id === current.id);
+          if (card && m) card.outerHTML = flMeetingCard(m, current.id);
+        });
+      }
+    } catch (err) { toast(err.message, true); await refresh(); }
+  });
+
+  // Enter 는 칸 확정 — 줄바꿈은 Shift+Enter (내용·요약 칸)
+  host.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+    const el = e.target;
+    if (el.matches('.fl-title, .fl-mtitle') || (el.matches('.fl-main textarea') && !e.shiftKey)) {
+      e.preventDefault();
+      el.blur();
+    }
+  });
+
+  host.addEventListener('click', async (e) => {
+    const pick = e.target.closest('[data-pick-meeting]');
+    if (pick) { await open(pick.dataset.pickMeeting); paint(); return; }
+
+    if (e.target.closest('[data-new-meeting]')) {
+      if (!editable()) return;
+      const created = await api.post('/api/meetings', {
+        title: '새 회의', date: new Date().toISOString().slice(0, 10),
+        project_id: projectId || state.projects?.find((p) => !p.is_archived)?.id || null,
+      }).catch((err) => toast(err.message, true));
+      if (created) { await refresh(created.id); host.querySelector('.fl-mtitle')?.select(); }
+      return;
+    }
+
+    const delM = e.target.closest('[data-del-meeting]');
+    if (delM) {
+      if (!editable()) return;
+      const ok = await confirmModal(`「${current.title}」 회의와 안건 ${current.items.length}개를 지울까요? 등록한 업무는 그대로 남습니다.`, { confirmLabel: '삭제', danger: true });
+      if (!ok) return;
+      try { await api.del(`/api/meetings/${encodeURIComponent(current.id)}`); toast('회의를 지웠습니다.'); await refresh(null); }
+      catch (err) { toast(err.message, true); }
+      return;
+    }
+
+    const delI = e.target.closest('[data-item-del]');
+    if (delI) {
+      if (!editable()) return;
+      try { await api.del(`/api/agenda/${encodeURIComponent(delI.dataset.itemDel)}`); await refresh(); }
+      catch (err) { toast(err.message, true); }
+      return;
+    }
+
+    const unlink = e.target.closest('[data-unlink]');
+    if (unlink) {
+      if (!editable()) return;
+      try { await api.patch(`/api/agenda/${encodeURIComponent(unlink.dataset.unlink)}`, { task_id: null }); await refresh(); }
+      catch (err) { toast(err.message, true); }
+      return;
+    }
+
+    // 안건 → 업무: 등록 창을 안건 내용으로 채워 연다. 저장하면 안건에 업무를 잇고 「반영 완료」로 둔다.
+    const toTask = e.target.closest('[data-to-task]');
+    if (toTask) {
+      if (!editable()) return;
+      const a = current.items.find((x) => x.id === toTask.dataset.toTask);
+      if (!a) return;
+      taskForm({
+        defaults: {
+          title: a.kind === 'DECISION' && a.decision ? a.decision : a.title,
+          project_id: current.project_id ?? undefined, owner: a.owner_slack_user_id ?? undefined, due_date: a.due_date ?? undefined,
+        },
+        onSaved: async (saved) => {
+          const taskId = saved?.id ?? saved?.task?.id;
+          if (!taskId) return;
+          try {
+            await api.patch(`/api/agenda/${encodeURIComponent(a.id)}`, { task_id: taskId, status: 'DONE' });
+            toast('안건에 업무를 이었습니다.');
+          } catch (err) { toast(err.message, true); }
+          await refresh();
+        },
+      });
+    }
+  });
+
+  host.addEventListener('submit', async (e) => {
+    const form = e.target.closest('[data-add-item]');
+    if (!form) return;
+    e.preventDefault();
+    if (!editable()) return;
+    const title = form.title.value.trim();
+    if (!title) return;
+    const kind = form.kind.value;
+    try {
+      await api.post(`/api/meetings/${encodeURIComponent(current.id)}/items`, { kind, title });
+      await refresh();
+      const again = host.querySelector('[data-add-item]');
+      again.kind.value = kind;
+      again.title.focus();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+
+
+
+
+
+
+
 // 간트 — 먼데이닷컴식 표. 「이번 달」「지난 달」 묶음(마감 달 기준)에 업무가 한 줄씩 서고,
 // 담당 · 타임라인(그 달 안에서의 기간 막대) · 진행 현황 · 마감 · 진척률 · 파일 열이 붙는다.
 // 월간 업무가 "숫자"라면 여기는 "줄" — 한 달치 업무를 훑으며 상태를 바로 바꾸는 자리다.
@@ -14431,6 +14915,7 @@ function gatePanel() {
 
 
 
+
 const view = document.getElementById('view');
 
 // 프로젝트 매니징 아래의 화면들.
@@ -14495,7 +14980,7 @@ const EDIT_TARGETS = [
   '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
   '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
   '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
-  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sub-note]', '[data-sheet-in]', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sub-note]', '[data-sheet-in]', '.fl-edit', '.fl-only-edit', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
 ].join(',');
 
 const blockWhenLocked = (e) => {
@@ -14521,6 +15006,7 @@ const PROJECT_TABS = [
   { key: 'board',    label: '간트' },
   { key: 'report',   label: '리포트' },
   { key: 'monthly',  label: '월간 업무' },
+  { key: 'flow',     label: '플로우' },
 ];
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
 // 저장이 막힌 환경에서도 기본 순서로 그대로 동작해야 한다.
@@ -14665,6 +15151,7 @@ async function render() {
       else if (sub === 'monthly') await renderMonthly(host, query);
       else if (sub === 'board') await renderBoard(host, query);
       else if (sub === 'report') await renderReport(host, query);
+      else if (sub === 'flow') await renderFlow(host);
       else await renderWeekly(host, query);
       return;
     }

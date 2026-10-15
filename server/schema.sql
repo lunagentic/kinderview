@@ -358,3 +358,34 @@ CREATE TABLE IF NOT EXISTS notification (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notification_time ON notification(created_at DESC);
+
+-- 회의·아젠다 (플로우 탭): 회의 한 번에 안건 여러 개. 결정이 나면 업무로 등록해 task_id 로 잇는다.
+CREATE TABLE IF NOT EXISTS meeting (
+  id         TEXT PRIMARY KEY,
+  project_id TEXT REFERENCES project(id) ON DELETE SET NULL,
+  date       TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  source_url TEXT,
+  summary    TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_meeting_date ON meeting(date);
+
+CREATE TABLE IF NOT EXISTS agenda_item (
+  id                  TEXT PRIMARY KEY,
+  meeting_id          TEXT NOT NULL REFERENCES meeting(id) ON DELETE CASCADE,
+  kind                TEXT NOT NULL DEFAULT 'TOPIC' CHECK (kind IN ('DECISION','TOPIC','SCHEDULE','INFO')),
+  title               TEXT NOT NULL,
+  body                TEXT,
+  owner_slack_user_id TEXT,
+  due_date            TEXT,
+  status              TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','DECIDED','DONE')),
+  decision            TEXT,
+  task_id             TEXT,
+  sort_order          INTEGER NOT NULL DEFAULT 0,
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agenda_meeting ON agenda_item(meeting_id, sort_order);

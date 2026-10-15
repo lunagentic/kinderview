@@ -46,7 +46,7 @@ create policy kf_rows_delete on public.kf_rows for delete to anon, authenticated
   kf_req_role() = 'ADMIN'
   or (kf_req_role() in ('EDIT','DIRECTOR') and collection in (
     'subtasks','attachments','collaborators','categories','outsourcing','reads',
-    'comments','events','notifications','time_entries','weekly_reports'))
+    'comments','events','notifications','time_entries','weekly_reports','meetings','agenda_items'))
 );
 ```
 

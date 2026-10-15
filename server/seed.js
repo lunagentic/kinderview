@@ -6,7 +6,7 @@
 
 import { db, run, all, one, uid, nowISO, today, addDays, weekStart, tx } from './db.js';
 import {
-  MEMBERS, PROJECTS, TASKS, SUBTASKS, ISSUES, EXTRA_EVENTS, AREA_LEADS, CO_LEAD_ROWS, TIME_ENTRIES,
+  MEMBERS, PROJECTS, TASKS, SUBTASKS, ISSUES, MEETINGS, EXTRA_EVENTS, AREA_LEADS, CO_LEAD_ROWS, TIME_ENTRIES,
   PHASES, MILESTONES, EXPENSES,
 } from './seed-data.js';
 import { runMigrations, backfillTicketSeq } from './migrate.js';
@@ -18,7 +18,7 @@ const T = today();
 const ts = (isoDate, hh = '10', mm = '00') => `${isoDate}T${hh}:${mm}:00.000Z`;
 
 if (RESET) {
-  db.exec(`DELETE FROM notification; DELETE FROM weekly_report; DELETE FROM task_event;
+  db.exec(`DELETE FROM agenda_item; DELETE FROM meeting; DELETE FROM notification; DELETE FROM weekly_report; DELETE FROM task_event;
            DELETE FROM issue; DELETE FROM outsourcing; DELETE FROM task_collaborator;
            DELETE FROM time_entry; DELETE FROM expense; DELETE FROM milestone;
            DELETE FROM task; DELETE FROM phase; DELETE FROM vendor;
@@ -184,6 +184,19 @@ tx(() => {
         resolved: status === 'RESOLVED' ? ts(today(), '06') : null,
         by: 'U01KIM', at: created,
       });
+  }
+
+  // 회의·아젠다 — 플로우 탭의 첫 회의
+  for (const m of MEETINGS ?? []) {
+    const pid = Object.entries(projectId).find(([k]) => PROJECTS.find((p) => p.key === k)?.name === m.project)?.[1] ?? null;
+    const at = ts(m.date, '09');
+    run(`INSERT INTO meeting (id, project_id, date, title, source_url, summary, created_by, created_at, updated_at)
+      VALUES (:id, :pid, :date, :title, :src, :sum, NULL, :at, :at)`,
+    { id: m.id, pid, date: m.date, title: m.title, src: m.source_url ?? null, sum: m.summary ?? null, at });
+    m.items.forEach(([kind, title, body, due], i) => run(`INSERT INTO agenda_item
+      (id, meeting_id, kind, title, body, due_date, status, sort_order, created_at, updated_at)
+      VALUES (:id, :m, :kind, :title, :body, :due, 'OPEN', :n, :at, :at)`,
+    { id: `${m.id}-${i + 1}`, m: m.id, kind, title, body: body || null, due: due ?? null, n: i + 1, at }));
   }
 });
 

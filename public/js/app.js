@@ -10,6 +10,7 @@ import { renderWeekly } from './views/weekly.js';
 import { renderBoard } from './views/board.js';
 import { renderReport } from './views/report.js';
 import { renderMonthly } from './views/monthly.js';
+import { renderFlow } from './views/flow.js';
 import { renderNotifications } from './views/notifications.js';
 import { renderTimeline } from './views/timeline.js';
 import { renderTime } from './views/time.js';
@@ -81,7 +82,7 @@ const EDIT_TARGETS = [
   '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
   '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
   '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
-  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sub-note]', '[data-sheet-in]', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sub-note]', '[data-sheet-in]', '.fl-edit', '.fl-only-edit', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
 ].join(',');
 
 const blockWhenLocked = (e) => {
@@ -107,6 +108,7 @@ const PROJECT_TABS = [
   { key: 'board',    label: '간트' },
   { key: 'report',   label: '리포트' },
   { key: 'monthly',  label: '월간 업무' },
+  { key: 'flow',     label: '플로우' },
 ];
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
 // 저장이 막힌 환경에서도 기본 순서로 그대로 동작해야 한다.
@@ -251,6 +253,7 @@ async function render() {
       else if (sub === 'monthly') await renderMonthly(host, query);
       else if (sub === 'board') await renderBoard(host, query);
       else if (sub === 'report') await renderReport(host, query);
+      else if (sub === 'flow') await renderFlow(host);
       else await renderWeekly(host, query);
       return;
     }

@@ -1831,3 +1831,104 @@ export function overview(ref = today()) {
     progress: pct(rows.reduce((s, t) => s + (t.progress_weight ?? PROGRESS_WEIGHT[t.status] ?? 0), 0), rows.length),
   };
 }
+
+// ── 회의·아젠다 (플로우 탭) — 데모 store.js 의 meetings 와 같은 규칙 ─────────
+const AGENDA_KINDS = ['DECISION', 'TOPIC', 'SCHEDULE', 'INFO'];
+const AGENDA_STATUSES = ['OPEN', 'DECIDED', 'DONE'];
+const meetingText = (v, max, what) => {
+  const t = String(v ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) throw new HttpError(400, `${what}을(를) 적어 주세요.`);
+  return t.slice(0, max);
+};
+const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? ''));
+const MEETING_COLS = `m.*, p.name AS project_name,
+  (SELECT COUNT(*) FROM agenda_item a WHERE a.meeting_id = m.id) AS item_count,
+  (SELECT COUNT(*) FROM agenda_item a WHERE a.meeting_id = m.id AND a.status = 'OPEN' AND a.kind IN ('DECISION','TOPIC')) AS open_count`;
+
+export const meetings = {
+  list(projectId = null) {
+    return all(`SELECT ${MEETING_COLS} FROM meeting m LEFT JOIN project p ON p.id = m.project_id
+      WHERE (:pid IS NULL OR m.project_id = :pid) ORDER BY m.date DESC, m.created_at DESC`, { pid: projectId });
+  },
+  get(id) {
+    const m = one(`SELECT ${MEETING_COLS} FROM meeting m LEFT JOIN project p ON p.id = m.project_id WHERE m.id = :id`, { id });
+    if (!m) throw new HttpError(404, '없는 회의입니다.');
+    const items = all(`SELECT a.*, mem.display_name AS owner_name,
+        t.title AS t_title, t.status AS t_status, t.seq AS t_seq, tp.code AS t_code, t.deleted_at AS t_deleted
+      FROM agenda_item a
+      LEFT JOIN member mem ON mem.slack_user_id = a.owner_slack_user_id
+      LEFT JOIN task t ON t.id = a.task_id
+      LEFT JOIN project tp ON tp.id = t.project_id
+      WHERE a.meeting_id = :id ORDER BY a.sort_order`, { id })
+      .map(({ t_title, t_status, t_seq, t_code, t_deleted, ...a }) => ({ ...a,
+        task: a.task_id && t_title && !t_deleted ? { id: a.task_id, title: t_title, status: t_status, key: ticketKey(t_code, t_seq) } : null }));
+    return { ...m, items };
+  },
+  create(input, me) {
+    const id = uid();
+    const at = nowISO();
+    run(`INSERT INTO meeting (id, project_id, date, title, source_url, summary, created_by, created_at, updated_at)
+      VALUES (:id, :pid, :date, :title, :src, :sum, :me, :at, :at)`, {
+      id, pid: input.project_id || null, date: isDay(input.date) ? input.date : today(),
+      title: meetingText(input.title, 120, '회의 제목'), src: input.source_url?.trim() || null,
+      sum: input.summary?.trim() || null, me: me ?? null, at });
+    return this.get(id);
+  },
+  update(id, input) {
+    const m = one('SELECT * FROM meeting WHERE id = :id', { id });
+    if (!m) throw new HttpError(404, '없는 회의입니다.');
+    const next = { ...m };
+    if ('title' in input) next.title = meetingText(input.title, 120, '회의 제목');
+    if ('date' in input && isDay(input.date)) next.date = input.date;
+    if ('project_id' in input) next.project_id = input.project_id || null;
+    for (const k of ['source_url', 'summary']) if (k in input) next[k] = String(input[k] ?? '').trim() || null;
+    run(`UPDATE meeting SET title = :title, date = :date, project_id = :project_id, source_url = :source_url,
+      summary = :summary, updated_at = :at WHERE id = :id`, {
+      id, title: next.title, date: next.date, project_id: next.project_id, source_url: next.source_url, summary: next.summary, at: nowISO() });
+    return this.get(id);
+  },
+  remove(id) {
+    if (!one('SELECT id FROM meeting WHERE id = :id', { id })) throw new HttpError(404, '없는 회의입니다.');
+    tx(() => {
+      run('DELETE FROM agenda_item WHERE meeting_id = :id', { id });
+      run('DELETE FROM meeting WHERE id = :id', { id });
+    });
+    return { ok: true };
+  },
+  addItem(meetingId, input) {
+    if (!one('SELECT id FROM meeting WHERE id = :id', { id: meetingId })) throw new HttpError(404, '없는 회의입니다.');
+    const id = uid();
+    const at = nowISO();
+    const n = one('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM agenda_item WHERE meeting_id = :m', { m: meetingId }).n;
+    run(`INSERT INTO agenda_item (id, meeting_id, kind, title, body, owner_slack_user_id, due_date, status, sort_order, created_at, updated_at)
+      VALUES (:id, :m, :kind, :title, :body, :owner, :due, 'OPEN', :n, :at, :at)`, {
+      id, m: meetingId, kind: AGENDA_KINDS.includes(input.kind) ? input.kind : 'TOPIC',
+      title: meetingText(input.title, 200, '안건'), body: input.body?.trim() || null,
+      owner: input.owner_slack_user_id || null, due: isDay(input.due_date) ? input.due_date : null, n, at });
+    return one('SELECT * FROM agenda_item WHERE id = :id', { id });
+  },
+  updateItem(id, input) {
+    const a = one('SELECT * FROM agenda_item WHERE id = :id', { id });
+    if (!a) throw new HttpError(404, '없는 안건입니다.');
+    const next = { ...a };
+    if ('title' in input) next.title = meetingText(input.title, 200, '안건');
+    if ('kind' in input && AGENDA_KINDS.includes(input.kind)) next.kind = input.kind;
+    if ('status' in input && AGENDA_STATUSES.includes(input.status)) next.status = input.status;
+    if ('due_date' in input) next.due_date = isDay(input.due_date) ? input.due_date : null;
+    if ('owner_slack_user_id' in input) next.owner_slack_user_id = input.owner_slack_user_id || null;
+    if ('task_id' in input) next.task_id = input.task_id || null;
+    for (const k of ['body', 'decision']) if (k in input) next[k] = String(input[k] ?? '').trim() || null;
+    if ('decision' in input && next.decision && next.status === 'OPEN') next.status = 'DECIDED';
+    run(`UPDATE agenda_item SET title = :title, kind = :kind, status = :status, due_date = :due_date,
+      owner_slack_user_id = :owner_slack_user_id, task_id = :task_id, body = :body, decision = :decision, updated_at = :at
+      WHERE id = :id`, {
+      id, title: next.title, kind: next.kind, status: next.status, due_date: next.due_date,
+      owner_slack_user_id: next.owner_slack_user_id, task_id: next.task_id, body: next.body, decision: next.decision, at: nowISO() });
+    return one('SELECT * FROM agenda_item WHERE id = :id', { id });
+  },
+  removeItem(id) {
+    if (!one('SELECT id FROM agenda_item WHERE id = :id', { id })) throw new HttpError(404, '없는 안건입니다.');
+    run('DELETE FROM agenda_item WHERE id = :id', { id });
+    return { ok: true };
+  },
+};
