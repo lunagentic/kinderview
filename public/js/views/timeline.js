@@ -79,6 +79,8 @@ export async function renderTimeline(root) {
       title: '일정이 없습니다',
       hint: '프로젝트에 페이즈를 추가하면 여기에 기간이 그려집니다.',
     })}`;
+    root.querySelector('[data-new-project]')?.addEventListener('click',
+      () => projectForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) }));
     return;
   }
   // 없어진 페이즈는 기억에서도 지운다
@@ -200,6 +202,8 @@ export async function renderTimeline(root) {
               <span class="tl-cnt">${ph.done_count}/${ph.task_count}</span>`}
             </span>
             ${phaseCmBadge(ph)}
+            <button class="tl-ph-del" data-del-phase="${esc(ph.id)}"
+                    aria-label="${esc(`${ph.name} 페이즈 삭제`)}" title="페이즈 삭제">×</button>
           </div>
         </div>
         <div class="tl-track">
@@ -514,6 +518,27 @@ export async function renderTimeline(root) {
     const addM = e.target.closest('[data-add-milestone]');
     if (addM) return milestoneForm({ projectId: addM.dataset.addMilestone, phases: allPhases, onSaved: reload });
 
+    // 페이즈 줄 × — 업무는 남고 「페이즈 미지정」이 된다
+    const delPh = e.target.closest('[data-del-phase]');
+    if (delPh) {
+      const found = allPhases.find((p) => p.id === delPh.dataset.delPhase);
+      if (!found) return undefined;
+      const n = found.task_count ?? 0;
+      return confirmModal(`「${found.name}」 페이즈를 지울까요? ${
+        n ? `속한 업무 ${n}건은 지워지지 않고 「페이즈 미지정」으로 남습니다.` : '업무가 없는 빈 페이즈입니다.'}`,
+      { confirmLabel: '삭제', danger: true }).then(async (ok) => {
+        if (!ok) return;
+        try {
+          await api.del(`/api/phases/${encodeURIComponent(found.id)}`);
+          openPhases.delete(found.id);
+          toast('페이즈를 삭제했습니다.');
+        } catch (err) { toast(err.message, true); }
+        reload();
+      });
+    }
+
+    if (e.target.closest('[data-new-project]')) return projectForm({ onSaved: reload });
+
     const ph = e.target.closest('[data-phase]');
     if (ph) {
       const found = allPhases.find((p) => p.id === ph.dataset.phase);
@@ -625,6 +650,9 @@ function tlHead() {
       <div>
         <h1>타임라인</h1>
         <div class="sub">프로젝트의 업무별 페이즈(기간)와 마일스톤(마감일)을 확인합니다.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" data-new-project>+ 프로젝트 등록</button>
       </div>
     </div>`;
 }
