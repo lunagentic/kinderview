@@ -244,7 +244,8 @@ CREATE TABLE IF NOT EXISTS comment (
   created_at           TEXT NOT NULL,
   updated_at           TEXT NOT NULL,
   edited_at            TEXT,
-  deleted_at           TEXT
+  deleted_at           TEXT,
+  subtask_id           TEXT                -- 하위 업무 댓글이면 그 하위 업무 (task_id 는 상위 업무)
 );
 CREATE INDEX IF NOT EXISTS idx_comment_task ON comment(task_id, created_at);
 

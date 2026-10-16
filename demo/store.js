@@ -289,6 +289,7 @@ function reconcile(db) {
   db.subtasks ??= [];
   if (mergeMembers(db)) changed = true;
   if (seedMeetings(db)) changed = true;
+  if (moveNotesToComments(db)) changed = true;
 
   if (numberTickets(db)) changed = true;
 
@@ -557,7 +558,7 @@ function flatten(db) {
   out.push({ collection: 'meta', id: 'anchor', data: { value: db.anchor } });
   // 한 번만 해야 하는 정리는 여기에 표시를 남긴다. 날짜로 판단하면 날이 바뀔 때마다
   // 진짜 이력까지 지워 버린다.
-  out.push({ collection: 'meta', id: 'flags', data: { history_trimmed: Boolean(db.history_trimmed), meetings_seeded: Boolean(db.meetings_seeded) } });
+  out.push({ collection: 'meta', id: 'flags', data: { history_trimmed: Boolean(db.history_trimmed), meetings_seeded: Boolean(db.meetings_seeded), notes_moved: Boolean(db.notes_moved) } });
   return out;
 }
 
@@ -570,7 +571,7 @@ function unflatten(rows) {
   for (const r of rows) {
     if (r.collection === 'meta') {
       if (r.id === 'anchor' && r.data?.value) db.anchor = r.data.value;
-      if (r.id === 'flags') { db.history_trimmed = Boolean(r.data?.history_trimmed); db.meetings_seeded = Boolean(r.data?.meetings_seeded); }
+      if (r.id === 'flags') { db.history_trimmed = Boolean(r.data?.history_trimmed); db.meetings_seeded = Boolean(r.data?.meetings_seeded); db.notes_moved = Boolean(r.data?.notes_moved); }
       continue;
     }
     (db[r.collection] ??= []).push(r.data);
@@ -859,7 +860,7 @@ const openIssuesOf = (taskId) => liveIssues().filter((i) => i.task_id === taskId
 // 서버(server/repo.js 의 comments)와 같은 규칙이다.
 // 대댓글은 한 단계까지, 지운 글은 자리만 남긴다.
 const commentsOf = (taskId) => (DB.comments ?? [])
-  .filter((c) => c.task_id === taskId && !c.deleted_at)
+  .filter((c) => c.task_id === taskId && !c.subtask_id && !c.deleted_at)
   .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
 const dressComment = (c) => {
@@ -909,6 +910,36 @@ function createComment(taskId, input, actor) {
 // 내 말, 또는 디렉터 코드로 디렉터 자리의 말, 또는 관리자
 const canFixComment = (c, actor) => c.author_slack_user_id === actor
   || (c.author_role === 'DIRECTOR' && currentRole() === 'DIRECTOR') || canAdmin();
+
+// 하위 업무 댓글 — 같은 comments 묶음에 subtask_id 를 더해 둔다(task_id 는 상위 업무). 상위 댓글창에는 섞이지 않는다.
+const subCommentsOf = (subId) => (DB.comments ?? [])
+  .filter((c) => c.subtask_id === subId && !c.deleted_at)
+  .sort((a, b) => a.created_at.localeCompare(b.created_at));
+function listSubComments(subId) { return subCommentsOf(subId).map(dressComment); }
+function createSubComment(subId, input, actor) {
+  const sub = (DB.subtasks ?? []).find((x) => x.id === subId);
+  if (!sub) throw new DemoError('하위 업무를 찾을 수 없습니다.');
+  const row = createComment(sub.task_id, { ...input, parent_id: null }, actor);
+  const c = DB.comments.find((x) => x.id === row.id);
+  c.subtask_id = subId;
+  save();
+  return dressComment(c);
+}
+/** 예전 한 줄 메모를 하위 업무 댓글 1개로 옮긴다 — 한 번만 */
+function moveNotesToComments(db) {
+  if (db.notes_moved) return false;
+  db.comments ??= [];
+  for (const x of db.subtasks ?? []) {
+    if (!x.note) continue;
+    const at = x.note_at ?? x.created_at ?? nowISO();
+    db.comments.push({ id: uid(), task_id: x.task_id, subtask_id: x.id, parent_id: null, body: x.note,
+      author_slack_user_id: x.note_by ?? null, author_role: null, author_title: null,
+      created_at: at, updated_at: at, edited_at: null, deleted_at: null, migrated: true });
+    x.note = null;
+  }
+  db.notes_moved = true;
+  return true;
+}
 
 // 페이즈 코멘트 — 같은 comments 묶음에 phase_id 로 둔다(task_id 는 null)
 const phaseCommentsOf = (phaseId) => (DB.comments ?? [])
@@ -975,6 +1006,8 @@ const subtasksOf = (taskId) => {
     .filter((s) => s.task_id === taskId)
     .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at))
     .map((s) => ({ ...s, due_date: s.due_date ?? null, key: ticketKey(code, s.seq),
+      comment_count: subCommentsOf(s.id).length,
+      note: subCommentsOf(s.id).at(-1)?.body ?? null,   // 마지막 댓글 — 엑셀 「메모」 열
       area: s.area ?? null, owner_slack_user_id: s.owner_slack_user_id ?? null,
       owner_name: s.owner_slack_user_id ? (member(s.owner_slack_user_id)?.display_name ?? s.owner_slack_user_id) : null }));
 };
@@ -1026,9 +1059,9 @@ function createSubtask(taskId, body, actor = null) {
   const owner = body.owner_slack_user_id ? ensureMember(body.owner_slack_user_id) : (area ? areaLeadOf(area) : null);
   const row = { id: uid(), task_id: taskId, title, is_done: false, status: 'TODO', sort_order: next,
     seq: nextSeq(t.project_id), due_date: due, area, owner_slack_user_id: owner,
-    note: String(body.note ?? '').trim() || null,
     assigned_at: owner ? nowISO() : null, assigned_by: owner ? actor : null, created_at: nowISO(), done_at: null };
   (DB.subtasks ??= []).push(row);
+  if (String(body.note ?? '').trim()) createSubComment(row.id, { body: String(body.note).trim() }, actor);   // 「메모」는 첫 댓글로
   const rolled = rollUpDue(taskId, due);
   save();
   return { ...subtasksOf(taskId).find((s) => s.id === row.id), rolled };
@@ -1059,11 +1092,11 @@ function updateSubtask(id, body, actor = null) {
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
     row.title = title;
   }
+  // 「메모」(엑셀 열 등)는 하위 업무 댓글로 남긴다 — 마지막 댓글과 같으면 그대로
   if (body.note !== undefined) {
-    const note = String(body.note ?? '').trim() || null;
-    // 메모를 새로 적거나 고치면 누가·언제 적었는지 남긴다 — 담당자 알림함에 「메모」로 뜬다
-    if (note && note !== row.note) { row.note_by = actor ?? null; row.note_at = nowISO(); }
-    row.note = note;
+    const note = String(body.note ?? '').trim();
+    const last = subCommentsOf(row.id).at(-1);
+    if (note && note !== last?.body) createSubComment(row.id, { body: note }, actor);
   }
   // 영역 — 바꾸면 담당이 리드를 따르고 있었을 때(또는 비어 있을 때)만 새 영역 리드로 간다
   let owner = row.owner_slack_user_id ?? null;
@@ -1273,6 +1306,7 @@ function removeAgenda(id) {
 
 function removeSubtask(id) {
   DB.subtasks = (DB.subtasks ?? []).filter((s) => s.id !== id);
+  DB.comments = (DB.comments ?? []).filter((c) => c.subtask_id !== id);   // 하위 업무 댓글도 같이
   save();
   return { ok: true };
 }
@@ -1405,18 +1439,19 @@ function inboxOf(me, ref = today()) {
       actor_name: x.assigned_by ? (member(x.assigned_by)?.display_name ?? x.assigned_by) : null,
       at: x.assigned_at, sub_title: x.title, ...dress(t) });
   }
-  // 하위 업무 메모 — 내 하위 업무, 또는 내가 책임자인 업무의 하위에 남이 적은 메모
-  for (const x of DB.subtasks ?? []) {
-    if (!x.note || !x.note_at || x.note_at < since || x.note_by === me) continue;
-    const t = DB.tasks.find((y) => y.id === x.task_id && !y.deleted_at);
+  // 하위 업무 댓글 — 내 하위 업무, 또는 내가 책임자인 업무의 하위에 남이 단 댓글
+  for (const c of DB.comments ?? []) {
+    if (!c.subtask_id || c.migrated || c.deleted_at || c.created_at < since || c.author_slack_user_id === me) continue;   // 옮겨 온 옛 메모는 새 소식이 아니다
+    const x = (DB.subtasks ?? []).find((y) => y.id === c.subtask_id);
+    const t = x && DB.tasks.find((y) => y.id === x.task_id && !y.deleted_at);
     if (!t || (x.owner_slack_user_id !== me && t.owner_slack_user_id !== me)) continue;
-    items.push({ kind: 'NOTE', key: `NOTE:${x.id}:${x.note_at}`,
-      actor_name: x.note_by ? (member(x.note_by)?.display_name ?? x.note_by) : null,
-      at: x.note_at, sub_title: x.title, snippet: String(x.note).slice(0, 80), ...dress(t) });
+    items.push({ kind: 'NOTE', key: `SUBCOMMENT:${c.id}`,
+      actor_name: c.author_slack_user_id ? (member(c.author_slack_user_id)?.display_name ?? c.author_slack_user_id) : null,
+      at: c.created_at, sub_title: x.title, snippet: String(c.body).slice(0, 80), ...dress(t) });
   }
   // 코멘트 — 내 업무에 달린 것(디렉터 말은 따로 묶는다)과 내 글에 달린 답글. 내가 쓴 것은 뺀다.
   for (const c of DB.comments ?? []) {
-    if (c.deleted_at || !c.task_id || c.created_at < since || c.author_slack_user_id === me) continue;
+    if (c.deleted_at || !c.task_id || c.subtask_id || c.created_at < since || c.author_slack_user_id === me) continue;
     const onMine = byId.has(c.task_id);
     const parent = c.parent_id ? (DB.comments ?? []).find((x) => x.id === c.parent_id) : null;
     const replyToMe = parent?.author_slack_user_id === me;
@@ -2849,6 +2884,10 @@ function handle(method, path, body) {
     if (method === 'DELETE') return removeCategory(seg[2]);
   }
 
+  if (seg[1] === 'subtasks' && seg[2] && seg[3] === 'comments') {
+    if (method === 'GET') return listSubComments(seg[2]);
+    if (method === 'POST') return createSubComment(seg[2], body, me);
+  }
   if (seg[1] === 'tasks' && seg[2] && seg[3] === 'comments') {
     if (method === 'GET') return listComments(seg[2]);
     if (method === 'POST') return createComment(seg[2], body, me);

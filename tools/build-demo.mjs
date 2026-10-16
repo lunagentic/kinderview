@@ -50,6 +50,7 @@ const parts = [
   '/* ── 화면 (public/js/**) ────────────────────────────── */',
   flatten(read('public/js/state.js')),
   flatten(read('public/js/ui.js')),
+  flatten(read('public/js/subComments.js')),
   flatten(read('public/js/forms.js')),
   flatten(read('public/js/comments.js')),
   flatten(read('public/js/gantt.js')),
