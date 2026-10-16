@@ -8,6 +8,7 @@ import {
 import { subCommentButton, toggleSubComments } from '../subComments.js';
 import { taskForm, issueForm, subAddArea, subAssignChange } from '../forms.js';
 import { bindComments } from '../comments.js';
+import { attPanelInner, mountAttachments } from '../attachments.js';
 
 const EVENT_LABEL = {
   CREATED: '업무 등록',
@@ -52,28 +53,6 @@ const rollToast = (rolled, before) => {
   if (rolled.task_due) parts.push(`상위 업무 마감이 ${before ? `${shortDate(before)} → ` : ''}${shortDate(rolled.task_due)}로 밀렸습니다`);
   if (rolled.phase_end) parts.push(`페이즈 종료일도 ${shortDate(rolled.phase_end)}로 늘어났습니다`);
   return parts.join(' · ');
-};
-
-// 링크·이미지 첨부 목록. 링크는 이름 + 도메인, 이미지는 썸네일. 둘 다 새 창에서 연다.
-const attHost = (u) => { try { return new URL(u).host; } catch { return ''; } };
-const attList = (rows = []) => {
-  const links = rows.filter((a) => a.kind === 'link');
-  const images = rows.filter((a) => a.kind === 'image');
-  if (!rows.length) return '<p class="empty-line">아직 붙인 링크나 이미지가 없습니다.</p>';
-  return `
-    ${links.length ? `<ul class="att-links">${links.map((a) => `
-      <li>
-        <span class="att-ic">🔗</span>
-        <a href="${esc(a.url)}" target="_blank" rel="noopener" class="att-name" title="${esc(a.url)}">${esc(a.name)}</a>
-        <span class="att-host">${esc(attHost(a.url))}</span>
-        <button class="x" data-att-del="${esc(a.id)}" aria-label="삭제" title="삭제">×</button>
-      </li>`).join('')}</ul>` : ''}
-    ${images.length ? `<div class="att-grid">${images.map((a) => `
-      <figure class="att-img">
-        <a href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(a.name)}"><img src="${esc(a.url)}" alt="${esc(a.name)}" loading="lazy"></a>
-        <figcaption>${esc(a.name)}</figcaption>
-        <button class="x" data-att-del="${esc(a.id)}" aria-label="삭제" title="삭제">×</button>
-      </figure>`).join('')}</div>` : ''}`;
 };
 
 const subList = (rows = []) => (rows.length
@@ -183,17 +162,7 @@ export async function renderTaskDetail(root, id, query = '') {
           <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 위 업무 마감을 따르고, 더 늦게 잡으면 위 업무와 페이즈가 그 날까지 늘어납니다.</p>
         </div>
 
-        <div class="panel att-panel" data-att-panel>
-          <h3>링크·첨부 <span class="sub-n" data-att-n>${t.attachments?.length ? t.attachments.length : ''}</span></h3>
-          <div data-att-list>${attList(t.attachments ?? [])}</div>
-          <form class="att-add" data-link-add>
-            <input type="url" name="url" placeholder="링크 붙여넣기 (https://…)" aria-label="링크 주소">
-            <button class="btn btn-ghost" type="submit">+ 링크</button>
-            <label class="btn btn-ghost att-file">이미지 올리기<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden data-att-file></label>
-          </form>
-          <p class="sub-note">이미지를 이 칸에 끌어다 놓거나 붙여넣어도 됩니다 (png·jpg·gif·webp, 10MB 까지). 링크는 새 창에서 열립니다.</p>
-          <div class="att-drop-hint" aria-hidden="true">여기에 놓으면 첨부됩니다</div>
-        </div>
+        <div class="panel att-panel" data-att-panel>${attPanelInner(t.attachments ?? [])}</div>
 
 
 
@@ -359,73 +328,8 @@ export async function renderTaskDetail(root, id, query = '') {
     }
   });
 
-  // ── 링크·첨부 ──
-  const attPanel = root.querySelector('[data-att-panel]');
-  let atts = t.attachments ?? [];
-  const paintAtt = () => {
-    attPanel.querySelector('[data-att-list]').innerHTML = attList(atts);
-    attPanel.querySelector('[data-att-n]').textContent = atts.length ? atts.length : '';
-  };
-  const reloadAtt = async () => {
-    try { atts = await api.get(`/api/tasks/${t.id}/attachments`); paintAtt(); }
-    catch (err) { toast(err.message, true); }
-  };
-  const addLink = async (url) => {
-    try {
-      await api.post(`/api/tasks/${t.id}/attachments`, { kind: 'link', url });
-      toast('링크를 붙였습니다.');
-      await reloadAtt();
-    } catch (err) { toast(err.message, true); }
-  };
-  const addImages = async (files) => {
-    const list = [...files].filter((f) => f.type.startsWith('image/'));
-    if (!list.length) { toast('이미지 파일만 붙일 수 있습니다.', true); return; }
-    let n = 0;
-    attPanel.classList.add('is-busy');
-    for (const file of list) {
-      attPanel.querySelector('[data-att-n]').textContent = `올리는 중 ${n + 1}/${list.length}…`;
-      try { await api.post(`/api/tasks/${t.id}/attachments`, { kind: 'image', file }); n += 1; }
-      catch (err) { toast(err.message, true); break; }
-    }
-    attPanel.classList.remove('is-busy');
-    if (n) toast(`이미지 ${n}장을 붙였습니다.`);
-    await reloadAtt();
-  };
-  attPanel.querySelector('[data-link-add]').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const input = e.target.querySelector('[name=url]');
-    const url = input.value.trim();
-    if (!url) return;
-    await addLink(url);
-    input.value = '';
-  });
-  attPanel.addEventListener('change', (e) => {
-    const f = e.target.closest('[data-att-file]');
-    if (f?.files?.length) { addImages(f.files); f.value = ''; }
-  });
-  // 끌어다 놓기 — 패널 전체가 받는다. 파일이면 이미지로, 글자(주소)면 링크로.
-  let dragDepth = 0;
-  attPanel.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth += 1; attPanel.classList.add('is-over'); });
-  attPanel.addEventListener('dragover', (e) => { e.preventDefault(); });
-  attPanel.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) attPanel.classList.remove('is-over'); });
-  attPanel.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    dragDepth = 0;
-    attPanel.classList.remove('is-over');
-    if (document.body.dataset.gate === 'view') { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); return; }
-    const files = e.dataTransfer?.files;
-    if (files?.length) { await addImages(files); return; }
-    const text = (e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text') || '').trim().split(/\s+/)[0];
-    if (/^https?:\/\//i.test(text)) await addLink(text);
-  });
-  // 클립보드의 이미지도 받는다 — 캡처해서 바로 붙이는 일이 잦다
-  root.addEventListener('paste', (e) => {
-    if (e.target.closest('input, textarea')) return;
-    const items = [...(e.clipboardData?.items ?? [])].filter((i) => i.type.startsWith('image/'));
-    if (!items.length) return;
-    e.preventDefault();
-    addImages(items.map((i) => i.getAsFile()).filter(Boolean));
-  });
+  // ── 링크·첨부 ── 상세와 팝업이 같은 부품을 쓴다
+  mountAttachments(root.querySelector('[data-att-panel]'), t.id, { rows: t.attachments ?? [], pasteRoot: root });
 
   // Ctrl/Cmd+S 로도 저장된다 — 표에서 고치다 손이 가는 키다
   root.addEventListener('keydown', (e) => {
@@ -478,12 +382,6 @@ export async function renderTaskDetail(root, id, query = '') {
 
   root.addEventListener('click', async (e) => {
     if (e.target.closest('a.auto-link')) { e.stopPropagation(); return; }   // 글자 속 주소는 그냥 연다
-    const adel = e.target.closest('[data-att-del]');
-    if (adel) {
-      try { await api.del(`/api/attachments/${adel.dataset.attDel}`); toast('첨부를 지웠습니다.'); await reloadAtt(); }
-      catch (err) { toast(err.message, true); }
-      return;
-    }
     const cmBtn = e.target.closest('[data-sub-cm]');
     if (cmBtn) { await toggleSubComments(cmBtn); return; }
     const del = e.target.closest('[data-sub-del]');
