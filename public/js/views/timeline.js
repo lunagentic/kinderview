@@ -37,6 +37,8 @@ const msProgressCell = (m) => {
 const openPhases = new Set();
 // 펼쳐 둔 업무(하위 업무 줄)도 같은 이유로 기억한다
 const openTasks = new Set();
+// 방금 등록한 업무 — 다시 그린 뒤 반짝여 짚는다
+let flashTask = null;
 
 // 줄 안에서 제 일을 하는 것 — 여기를 누른 것은 '하위 업무 창을 열자'가 아니다
 const CHART_LINE_CONTROLS = 'button, a, select, input, .due-view, .due-edit';
@@ -75,7 +77,7 @@ export async function renderTimeline(root) {
   // 기간이 아직 없는 프로젝트도 자리를 지킨다. 방금 만든 프로젝트가 여기서도
   // 안 보이면 등록이 안 된 것처럼 보인다 — 페이즈를 더하라고 그 자리에서 권한다.
   if (!live.length) {
-    root.innerHTML = `${tlHead()}${empty({
+    root.innerHTML = `${tlHead(true)}${empty({
       title: '일정이 없습니다',
       hint: '프로젝트에 페이즈를 추가하면 여기에 기간이 그려집니다.',
     })}`;
@@ -139,7 +141,9 @@ export async function renderTimeline(root) {
   // 펼친 끝의 「+ 업무 등록」 — 그 페이즈에 바로 넣는다. 없는 페이즈도 이 줄은 있다.
   const addRow = (phaseId) => `
     <div class="tl-row tl-task tl-task-add" data-of-phase="${esc(phaseId)}">
-      <div class="tl-label"><button class="tl-add-btn" data-add-task="${esc(phaseId)}">+ 업무 등록</button></div>
+      <div class="tl-label"><form class="tl-inline-add tl-task-form" data-tl-task-add-phase="${esc(phaseId)}">
+        <input type="text" name="title" maxlength="120" placeholder="+ 업무 등록 — 업무명 적고 Enter" aria-label="이 페이즈에 업무 등록">
+      </form></div>
       <div class="tl-track">${gridLines()}</div>
     </div>`;
   // 펼친 업무 아래의 하위 업무 줄 — 상태 칩 · 번호 · 이름 · 마감, 트랙에는 마감 점
@@ -236,6 +240,11 @@ export async function renderTimeline(root) {
       ${open ? taskRows(ph.id) : ''}`;
   };
 
+  // 프로젝트 맨 아래 업무 등록 칸이 처음 고를 페이즈 — 마지막으로 펼친 것, 없으면 맨 끝 페이즈
+  const defaultPhaseOf = (r) => {
+    const opened = [...openPhases].filter((id) => r.phases.some((p) => p.id === id));
+    return opened.at(-1) ?? r.phases.at(-1)?.id ?? '';
+  };
   // 마일스톤 줄 — 있을 때만
   const milestoneLane = (r) => (!r.milestones.length ? '' : `
       <div class="tl-row tl-row-ms">
@@ -280,6 +289,10 @@ export async function renderTimeline(root) {
           <div class="tl-label"></div>
           <div class="tl-track">${w.axisTrack()}</div>
         </div>
+        <div class="tl-row tl-task-add tl-top-add">
+          <div class="tl-label"><button class="tl-add-btn" data-new-project>+ 프로젝트 등록</button></div>
+          <div class="tl-track">${gridLines()}</div>
+        </div>
 
         ${live.map((r) => `
           <section class="tl-group" data-tl-project="${esc(r.id)}" style="${projectStyle(r.id)}">
@@ -299,7 +312,14 @@ export async function renderTimeline(root) {
                  <span class="tl-nodate">페이즈를 추가하면 기간이 그려집니다</span></div></div>`}
             ${milestoneLane(r)}
             <div class="tl-row tl-task-add tl-proj-add">
-              <div class="tl-label"><button class="tl-add-btn" data-add-phase="${esc(r.id)}">+ 페이즈 추가</button></div>
+              <div class="tl-label">
+                ${r.phases.length ? `<form class="tl-inline-add tl-task-form" data-tl-task-add="${esc(r.id)}">
+                  <input type="text" name="title" maxlength="120" placeholder="+ 업무 등록 — 업무명 적고 Enter" aria-label="업무 등록">
+                  <select name="phase" aria-label="넣을 페이즈">${r.phases.map((ph) => `<option value="${esc(ph.id)}"${
+                    ph.id === defaultPhaseOf(r) ? ' selected' : ''}>${esc(ph.name)}</option>`).join('')}</select>
+                </form>` : ''}
+                <button class="tl-add-btn" data-add-phase="${esc(r.id)}">+ 페이즈 추가</button>
+              </div>
               <div class="tl-track">${gridLines()}</div>
             </div>
           </section>`).join('')}
@@ -437,6 +457,12 @@ export async function renderTimeline(root) {
     return undefined;
   };
   bindRowOrder(root, orderOf, reload);
+  // 방금 등록한 업무를 짚어 준다
+  if (flashTask) {
+    const line = root.querySelector(`.tl-task[data-line="${CSS.escape(flashTask)}"]`);
+    flashTask = null;
+    if (line) { line.classList.add('flash'); line.scrollIntoView({ block: 'nearest' }); setTimeout(() => line.classList.remove('flash'), 1800); }
+  }
   bindLabelResize(root);
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
@@ -500,6 +526,34 @@ export async function renderTimeline(root) {
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { e.preventDefault(); lineClick(line); return; }
     const bl = e.target.closest('.tld-task[data-line]');
     if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { e.preventDefault(); go(`#/project/tasks/${bl.dataset.line}`); }
+  });
+
+  // 업무 등록 — 업무명만 적어 먼저 만든다. 자세한 것은 이름을 눌러 여는 팝업에서
+  root.addEventListener('submit', async (e) => {
+    const form = e.target.closest('[data-tl-task-add], [data-tl-task-add-phase]');
+    if (!form) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); return; }
+    const input = form.querySelector('[name=title]');
+    const title = input.value.trim();
+    if (!title) return;
+    const phaseId = form.dataset.tlTaskAddPhase || form.querySelector('[name=phase]')?.value || '';
+    const ph = allPhases.find((x) => x.id === phaseId);
+    const projectId = ph?.project_id ?? form.dataset.tlTaskAdd;
+    const pr = live.find((x) => x.id === projectId);
+    const owner = state.me || pr?.lead_slack_user_id || state.members.find((m) => m.is_active)?.slack_user_id;
+    input.disabled = true;
+    try {
+      const t = await api.post('/api/tasks', {
+        project_id: projectId, phase_id: phaseId || null, title,
+        owner_slack_user_id: owner, due_date: ph?.end_date || null,
+      });
+      if (phaseId) openPhases.add(phaseId);
+      flashTask = t?.id ?? null;
+      toast(`업무 「${title}」을(를) 등록했습니다. 이름을 누르면 자세히 고칠 수 있습니다.`);
+      reload();
+    } catch (err) { toast(err.message, true); input.disabled = false; input.focus(); }
   });
 
   root.addEventListener('submit', async (e) => {
@@ -681,16 +735,16 @@ export async function renderTimeline(root) {
   }());
 }
 
-function tlHead() {
+function tlHead(withProjectBtn = false) {
   return `
     <div class="page-head">
       <div>
         <h1>타임라인</h1>
         <div class="sub">프로젝트의 업무별 페이즈(기간)와 마일스톤(마감일)을 확인합니다.</div>
       </div>
-      <div class="page-actions">
+      ${withProjectBtn ? `<div class="page-actions">
         <button class="btn" data-new-project>+ 프로젝트 등록</button>
-      </div>
+      </div>` : ''}
     </div>`;
 }
 
@@ -765,7 +819,7 @@ const GRIP_KINDS = {
     rows: (root) => [...root.querySelectorAll('.tl-group[data-tl-project]')],
     id: (row) => row.dataset.tlProject,
     block: (row) => [row],
-    url: (id) => `/api/projects/${encodeURIComponent(id)}`,
+    url: (id) => `/api/projects/${encodeURIComponent(id)}/order`,
     done: '프로젝트 순서를 바꿨습니다.',
   },
   phase: {

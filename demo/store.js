@@ -2984,6 +2984,14 @@ function handle(method, path, body) {
     save();
     return pr;
   }
+  // 프로젝트 차례만 바꾼다 — 타임라인에서 끌기. 편집자도 쓴다
+  if (seg[1] === 'projects' && seg[2] && seg[3] === 'order' && method === 'PATCH') {
+    const pr = project(seg[2]);
+    if (!pr) throw new DemoError('프로젝트를 찾을 수 없습니다.');
+    pr.sort_order = Number(body.sort_order);
+    save();
+    return pr;
+  }
   if (seg[1] === 'projects' && seg[2] && method === 'PATCH') {
     const pr = project(seg[2]);
     if (!pr) throw new DemoError('프로젝트를 찾을 수 없습니다.');

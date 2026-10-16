@@ -183,9 +183,11 @@ export function assertCan(method, path) {
 // 업무를 지우는 것은 되살릴 수 있지만(휴지통), 프로젝트·구성원·영역 리드는
 // 한 번 건드리면 모두의 화면이 같이 움직인다.
 const ADMIN_ONLY = [
-  // 업무는 휴지통으로 가 되살릴 수 있으니 편집자도 지운다. 나머지는 관리자다.
-  (m, p) => m === 'DELETE' && /^\/api\/(projects|issues|phases|milestones|members)\//.test(p),
-  (m, p) => m !== 'GET' && /^\/api\/(projects|members|area-leads|vendors)(\/|$)/.test(p),
+  // 업무는 휴지통으로 가 되살릴 수 있으니 편집자도 지운다. 페이즈·마일스톤도 편집자가 지운다
+  // (속한 업무는 남고 연결만 끊긴다). 프로젝트·이슈·구성원 지우기는 관리자다.
+  (m, p) => m === 'DELETE' && /^\/api\/(projects|issues|members)\//.test(p),
+  // 프로젝트 차례(타임라인에서 끌기)만은 편집자도 바꾼다 — 이름·기간·보관은 관리자
+  (m, p) => m !== 'GET' && /^\/api\/(projects|members|area-leads|vendors)(\/|$)/.test(p) && !/^\/api\/projects\/[^/]+\/order$/.test(p),
   // 저장점을 남기는 것은 누구든 좋다. 되돌리는 것만 관리자다.
   (m, p) => m !== 'GET' && /^\/api\/restore-points\/[^/]+\/restore$/.test(p),
   (m, p) => m !== 'GET' && /^\/api\/gate-codes/.test(p),
