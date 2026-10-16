@@ -149,7 +149,15 @@ export async function renderTimeline(root) {
         <div class="tl-track">${gridLines()}${track}</div>
       </div>`;
     if (!rows) return wrap({ html: '<span class="tl-meta">불러오는 중…</span>' });
-    if (!rows.length) return wrap({ html: '<span class="tl-meta">하위 업무가 없습니다.</span>' });
+    // 펼친 업무 맨 아래 — 하위 업무를 그 자리에서 바로 더한다
+    const addSub = `
+      <div class="tl-row tl-sub tl-sub-add" data-of-phase="${esc(phaseId)}" data-of-task="${esc(t.id)}">
+        <div class="tl-label"><form class="tl-sub-form" data-tl-sub-add="${esc(t.id)}">
+          <input type="text" name="title" maxlength="120" placeholder="+ 하위 업무 추가 — 이름 적고 Enter" aria-label="하위 업무 추가">
+        </form></div>
+        <div class="tl-track">${gridLines()}</div>
+      </div>`;
+    if (!rows.length) return wrap({ html: '<span class="tl-meta">하위 업무가 없습니다.</span>' }) + addSub;
     return rows.map((r) => {
       const due = r.due_date || t.due_date || null;
       const stc = subStatusOf(r);
@@ -165,7 +173,7 @@ export async function renderTimeline(root) {
           <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}${r.owner_name ? ` · 담당 ${esc(r.owner_name)}` : ''}${due ? ` · 마감 ${esc(shortDate(due))}` : ''}${r.comment_count ? ` · 댓글 ${r.comment_count}` : ''} — 눌러서 팝업으로">${esc(r.title)}</span>
           ${subStatusPick(r)}`,
       }, dot);
-    }).join('');
+    }).join('') + addSub;
   };
   const taskRows = (phaseId) => {
     const rows = phaseTasks.get(phaseId);
@@ -223,11 +231,11 @@ export async function renderTimeline(root) {
       ${open ? taskRows(ph.id) : ''}`;
   };
 
-  const milestoneLane = (r) => {
-    if (!r.milestones.length) return '';
-    return `
+  // 마일스톤 줄 — 없어도 자리를 둔다. 더하는 단추는 이 줄 끝에
+  const milestoneLane = (r) => `
       <div class="tl-row tl-row-ms">
-        <div class="tl-label"><span class="tl-meta">마일스톤 ${r.milestones.length}</span></div>
+        <div class="tl-label"><span class="tl-meta">마일스톤 ${r.milestones.length}</span>
+          <button class="tl-add-btn" data-add-milestone="${esc(r.id)}">+ 마일스톤</button></div>
         <div class="tl-track">
           ${gridLines()}
           ${r.milestones.map((m) => {
@@ -243,7 +251,6 @@ export async function renderTimeline(root) {
           }).join('')}
         </div>
       </div>`;
-  };
 
   root.innerHTML = `
     ${tlHead()}
@@ -278,10 +285,6 @@ export async function renderTimeline(root) {
                       aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>
               <span class="tl-meta">${r.start_date ? `${shortDate(r.start_date)} ~ ${shortDate(r.end_date)}` : '일정 없음'}${
                 ''}</span>
-              <span class="tl-group-actions">
-                <button class="btn btn-ghost sm" data-add-phase="${esc(r.id)}">+ 페이즈</button>
-                <button class="btn btn-ghost sm" data-add-milestone="${esc(r.id)}">+ 마일스톤</button>
-              </span>
             </div>
             ${r.phases.length
               ? r.phases.map((ph) => phaseRow(r, ph)).join('')
@@ -289,6 +292,10 @@ export async function renderTimeline(root) {
                  <div class="tl-track">${gridLines()}
                  <span class="tl-nodate">페이즈를 추가하면 기간이 그려집니다</span></div></div>`}
             ${milestoneLane(r)}
+            <div class="tl-row tl-task-add tl-proj-add">
+              <div class="tl-label"><button class="tl-add-btn" data-add-phase="${esc(r.id)}">+ 페이즈 추가</button></div>
+              <div class="tl-track">${gridLines()}</div>
+            </div>
           </section>`).join('')}
 
         ${w.todayAt === null ? '' : `<i class="tl-today" style="left:${onTrack(w.todayAt)}"></i>`}
@@ -479,6 +486,22 @@ export async function renderTimeline(root) {
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { e.preventDefault(); lineClick(line); return; }
     const bl = e.target.closest('.tld-task[data-line]');
     if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { e.preventDefault(); go(`#/project/tasks/${bl.dataset.line}`); }
+  });
+
+  root.addEventListener('submit', async (e) => {
+    const form = e.target.closest('[data-tl-sub-add]');
+    if (!form) return;
+    e.preventDefault();
+    if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); return; }
+    const input = form.querySelector('[name=title]');
+    const title = input.value.trim();
+    if (!title) return;
+    input.disabled = true;
+    try {
+      await api.post(`/api/tasks/${encodeURIComponent(form.dataset.tlSubAdd)}/subtasks`, { title });
+      toast(`하위 업무 「${title}」을(를) 더했습니다.`);
+      reload();   // 업무의 n/m · 진행률 · 페이즈 % 가 함께 바뀐다 — 펼친 줄은 openTasks 가 지킨다
+    } catch (err) { toast(err.message, true); input.disabled = false; }
   });
 
   root.addEventListener('click', (e) => {
