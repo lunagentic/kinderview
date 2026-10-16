@@ -168,6 +168,8 @@ route('POST', '/api/categories', (ctx) => categories.create(ctx.body));
 route('PATCH', '/api/categories/:id', (ctx) => categories.update(ctx.params.id, ctx.body));
 route('DELETE', '/api/categories/:id', (ctx) => categories.remove(ctx.params.id));
 
+route('GET', '/api/subtasks/:id/comments', (ctx) => comments.listSub(ctx.params.id));
+route('POST', '/api/subtasks/:id/comments', (ctx) => comments.createSub(ctx.params.id, ctx.body, ctx.me));
 route('GET', '/api/tasks/:id/comments', (ctx) => comments.list(ctx.params.id));
 route('POST', '/api/tasks/:id/comments', (ctx) => comments.create(ctx.params.id, ctx.body, ctx.me));
 route('GET', '/api/phases/:id/comments', (ctx) => comments.listPhase(ctx.params.id));

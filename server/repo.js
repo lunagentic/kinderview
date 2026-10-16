@@ -610,8 +610,8 @@ const TASK_SELECT = `
          (SELECT GROUP_CONCAT(DISTINCT s.owner_slack_user_id) FROM subtask s WHERE s.task_id = t.id AND s.owner_slack_user_id IS NOT NULL) AS sub_owners_csv,
          (SELECT COUNT(*) FROM attachment a WHERE a.task_id = t.id) AS attachment_count,
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id AND s.is_done = 1) AS subtask_done,
-         (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL) AS comment_count,
-         (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.deleted_at IS NULL
+         (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.subtask_id IS NULL AND c.deleted_at IS NULL) AS comment_count,
+         (SELECT COUNT(*) FROM comment c WHERE c.task_id = t.id AND c.subtask_id IS NULL AND c.deleted_at IS NULL
             AND c.author_role = 'DIRECTOR') AS director_comment_count,
          (SELECT AVG(${SUB_WEIGHT}) FROM subtask s WHERE s.task_id = t.id) AS subtask_progress,
          CASE WHEN t.status = 'DONE' THEN 1.0
@@ -677,10 +677,27 @@ export const comments = {
       `SELECT c.*, m.display_name AS author_name, m.avatar_url AS author_avatar
          FROM comment c
          LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
-        WHERE c.task_id = :t AND c.deleted_at IS NULL
+        WHERE c.task_id = :t AND c.subtask_id IS NULL AND c.deleted_at IS NULL
         ORDER BY c.created_at`,
       { t: taskId },
     ).map(strip);
+  },
+
+  // 하위 업무 댓글 — 같은 표에 subtask_id 를 더해 둔다(task_id 는 상위 업무). 상위 댓글창에는 섞이지 않는다.
+  listSub(subId) {
+    return all(
+      `SELECT c.*, m.display_name AS author_name, m.avatar_url AS author_avatar
+         FROM comment c LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
+        WHERE c.subtask_id = :s AND c.deleted_at IS NULL ORDER BY c.created_at`,
+      { s: subId },
+    ).map(strip);
+  },
+  createSub(subId, input, actor) {
+    const sub = one('SELECT id, task_id FROM subtask WHERE id = :id', { id: subId });
+    if (!sub) throw new HttpError(404, '하위 업무를 찾을 수 없습니다.');
+    const row = this.create(sub.task_id, { ...input, parent_id: null }, actor);
+    run('UPDATE comment SET subtask_id = :s WHERE id = :id', { s: subId, id: row.id });
+    return comments.get(row.id);
   },
 
   create(taskId, input, actor) {
@@ -840,12 +857,15 @@ function rollUpDue(taskId, due, actor) {
 export const subtasks = {
   list(taskId) {
     return all(
-      `SELECT s.*, p.code AS project_code, m.display_name AS owner_name FROM subtask s
+      `SELECT s.*, p.code AS project_code, m.display_name AS owner_name,
+              (SELECT COUNT(*) FROM comment c WHERE c.subtask_id = s.id AND c.deleted_at IS NULL) AS comment_count,
+              (SELECT c.body FROM comment c WHERE c.subtask_id = s.id AND c.deleted_at IS NULL ORDER BY c.created_at DESC LIMIT 1) AS last_comment
+         FROM subtask s
          JOIN task t ON t.id = s.task_id LEFT JOIN project p ON p.id = t.project_id
          LEFT JOIN member m ON m.slack_user_id = s.owner_slack_user_id
        WHERE s.task_id = :t ORDER BY s.sort_order, s.created_at`,
       { t: taskId },
-    ).map((r) => ({ ...r, is_done: !!r.is_done, key: ticketKey(r.project_code, r.seq) }));
+    ).map(({ last_comment, ...r }) => ({ ...r, note: last_comment ?? null, is_done: !!r.is_done, key: ticketKey(r.project_code, r.seq) }));
   },
 
   /** 하위 업무의 영역 — 외주는 없다. 비우면 null */
@@ -874,11 +894,13 @@ export const subtasks = {
                               assigned_at, assigned_by, note, created_at)
          VALUES (:id, :t, :title, 0, 'TODO', :n, :seq, :due, :area, :owner, :asg, :by, :note, :at)`,
         { id, t: taskId, title, n: next, seq: nextSeq(task.project_id), due, area, owner,
-          note: String(input.note ?? '').trim() || null,
+          note: null,
           asg: owner ? at : null, by: owner ? actor ?? null : null, at },
       );
       rolled = rollUpDue(taskId, due, actor);
     });
+    // 「메모」는 첫 댓글로
+    if (String(input.note ?? '').trim() && actor) comments.createSub(id, { body: String(input.note).trim() }, actor);
     return { ...this.list(taskId).find((r) => r.id === id), rolled };
   },
 
@@ -912,12 +934,11 @@ export const subtasks = {
       if (!title) throw new HttpError(400, '하위 업무명을 입력해 주세요.');
       run('UPDATE subtask SET title = :title WHERE id = :id', { id, title });
     }
+    // 「메모」(엑셀 열 등)는 하위 업무 댓글로 남긴다 — 마지막 댓글과 같으면 그대로
     if (patch.note !== undefined) {
-      const note = String(patch.note ?? '').trim() || null;
-      // 메모를 새로 적거나 고치면 누가·언제 적었는지 남긴다 — 담당자 알림함에 「메모」로 뜬다
-      if (note && note !== cur.note) {
-        run('UPDATE subtask SET note = :note, note_by = :by, note_at = :at WHERE id = :id', { id, note, by: actor ?? null, at: nowISO() });
-      } else run('UPDATE subtask SET note = :note WHERE id = :id', { id, note });
+      const note = String(patch.note ?? '').trim();
+      const last = one('SELECT body FROM comment WHERE subtask_id = :id AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1', { id });
+      if (note && note !== last?.body && actor) comments.createSub(id, { body: note }, actor);
     }
     // 영역 — 바꾸면 담당이 리드를 따르고 있었을 때(또는 비어 있을 때)만 새 영역 리드로 간다
     let owner = cur.owner_slack_user_id ?? null;
@@ -953,6 +974,7 @@ export const subtasks = {
   },
 
   remove(id) {
+    run('DELETE FROM comment WHERE subtask_id = :id', { id });   // 하위 업무 댓글도 같이
     run('DELETE FROM subtask WHERE id = :id', { id });
     return { ok: true };
   },
@@ -1102,19 +1124,19 @@ export const inbox = {
       items.push({ kind: 'ASSIGNED', key: `SUB_ASSIGNED:${sa.id}:${sa.assigned_at}`, actor_name: sa.actor_name,
         at: sa.assigned_at, sub_title: sa.sub_title, ...dress(t) });
     }
-    // 하위 업무 메모 — 내 하위 업무, 또는 내가 책임자인 업무의 하위에 남이 적은 메모
-    const notes = all(
-      `SELECT s.id, s.title AS sub_title, s.note, s.note_at, s.task_id, m.display_name AS actor_name
-         FROM subtask s JOIN task t ON t.id = s.task_id AND t.deleted_at IS NULL
-         LEFT JOIN member m ON m.slack_user_id = s.note_by
-        WHERE s.note IS NOT NULL AND s.note_at >= :since AND (s.note_by IS NULL OR s.note_by <> :me)
+    // 하위 업무 댓글 — 내 하위 업무, 또는 내가 책임자인 업무의 하위에 남이 단 댓글
+    const subCm = all(
+      `SELECT c.id, c.body, c.created_at, s.title AS sub_title, s.task_id, m.display_name AS actor_name,
+              t.title, t.seq, t.due_date, p.name AS project_name, p.code AS project_code
+         FROM comment c JOIN subtask s ON s.id = c.subtask_id
+         JOIN task t ON t.id = s.task_id AND t.deleted_at IS NULL
+         LEFT JOIN project p ON p.id = t.project_id
+         LEFT JOIN member m ON m.slack_user_id = c.author_slack_user_id
+        WHERE c.deleted_at IS NULL AND c.created_at >= :since AND c.author_slack_user_id <> :me
           AND (s.owner_slack_user_id = :me OR t.owner_slack_user_id = :me)`, { me, since });
-    for (const n of notes) {
-      const t = byId.get(n.task_id) ?? one(`SELECT t.id, t.title, t.seq, t.due_date, p.name AS project_name, p.code AS project_code
-        FROM task t LEFT JOIN project p ON p.id = t.project_id WHERE t.id = :id`, { id: n.task_id });
-      if (!t) continue;
-      items.push({ kind: 'NOTE', key: `NOTE:${n.id}:${n.note_at}`, actor_name: n.actor_name, at: n.note_at,
-        sub_title: n.sub_title, snippet: String(n.note).slice(0, 80), ...dress(t) });
+    for (const n of subCm) {
+      items.push({ kind: 'NOTE', key: `SUBCOMMENT:${n.id}`, actor_name: n.actor_name, at: n.created_at,
+        sub_title: n.sub_title, snippet: String(n.body).slice(0, 80), ...dress({ ...n, id: n.task_id }) });
     }
     // 코멘트 — 내 업무에 달린 것(디렉터 말은 따로 묶는다)과 내 글에 달린 답글. 내가 쓴 것은 뺀다.
     const cm = all(
@@ -1125,7 +1147,7 @@ export const inbox = {
          LEFT JOIN comment pc ON pc.id = c.parent_id
          JOIN task t ON t.id = c.task_id AND t.deleted_at IS NULL
          LEFT JOIN project p ON p.id = t.project_id
-        WHERE c.deleted_at IS NULL AND c.created_at >= :since AND c.author_slack_user_id <> :me`, { since, me });
+        WHERE c.deleted_at IS NULL AND c.subtask_id IS NULL AND c.created_at >= :since AND c.author_slack_user_id <> :me`, { since, me });
     for (const c of cm) {
       const onMine = byId.has(c.task_id);
       const replyToMe = c.parent_author === me;

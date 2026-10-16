@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag, firstUrl, subStatusOf, subProgress, subStatusPick, nudgeNote,
   subAreaPick, subOwnerPick,} from './ui.js';
+import { subCommentButton, toggleSubComments } from './subComments.js';
 import { bindComments } from './comments.js';
 import { canEdit, canAdmin } from './gate.js';
 import { gatePanel } from './views/gatePanel.js';
@@ -1306,8 +1307,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
         <button class="x mv sbm-act" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄ 이동</button>
         <button class="x sbm-act sbm-del" data-sub-del="${esc(r.id)}" aria-label="하위 업무 삭제" title="하위 업무 삭제">삭제</button>
-        <input class="sub-note-edit" type="text" maxlength="300" value="${esc(r.note ?? '')}" data-sub-note="${esc(r.id)}"
-               placeholder="메모 추가" aria-label="하위 업무 메모">
+        ${subCommentButton(r)}
       </li>`).join('')}</ul>`
     : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
 
@@ -1402,7 +1402,6 @@ export function subtaskModal({ task, onChange, focus = null }) {
         area: { sel: '[data-sub-area]', key: 'subArea', orig: (r) => r.area ?? '' },
         owner_slack_user_id: { sel: '[data-sub-owner]', key: 'subOwner', orig: (r) => r.owner_slack_user_id ?? '' },
         due_date: { sel: '[data-sub-due]', key: 'subDue', orig: (r) => r.due_date ?? '' },
-        note: { sel: '[data-sub-note]', key: 'subNote', orig: (r) => r.note ?? '' },
       };
       const fieldOf = (el) => Object.entries(SUB_FIELDS).find(([, f]) => el.matches(f.sel));
       const stageSub = (el) => {
@@ -1548,7 +1547,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
           go();
           return;
         }
-        if (e.key === 'Escape' && el.tagName !== 'SELECT' && (el.matches('[data-sub-title], [data-task-title], [data-sub-due], [data-sub-note]'))) {
+        if (e.key === 'Escape' && el.tagName !== 'SELECT' && (el.matches('[data-sub-title], [data-task-title], [data-sub-due]'))) {
           e.preventDefault();
           e.stopPropagation();   // 창까지 닫히면 안 된다 — 그 칸만 되돌린다
           const hit = fieldOf(el);
@@ -1572,7 +1571,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
           body: `<p>저장하지 않은 변경 ${pendingCount()}건이 있습니다. 저장할까요?</p>`,
           footer: `<div class="right">
             <button class="btn" data-close>계속 고치기</button>
-            <button class="btn btn-danger" data-discard>버리고 닫기</button>
+            <button class="btn btn-discard" data-discard>버리고 닫기</button>
             <button class="btn btn-primary" data-ok>저장하고 닫기</button></div>`,
           beforeClose: () => { asking = false; return true; },
           onMount({ root: box, close: closeAsk }) {
@@ -1640,6 +1639,14 @@ export function subtaskModal({ task, onChange, focus = null }) {
       });
 
       root.addEventListener('click', async (e) => {
+        const cmBtn = e.target.closest('[data-sub-cm]');
+        if (cmBtn) {
+          await toggleSubComments(cmBtn, { onCount: (n) => {
+            const r = rows.find((x) => x.id === cmBtn.dataset.subCm);
+            if (r && r.comment_count !== n) { r.comment_count = n; changed = true; }
+          } });
+          return;
+        }
         const del = e.target.closest('[data-sub-del]');
         if (del) {
           if (!editable()) return;

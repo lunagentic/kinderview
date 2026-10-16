@@ -2303,3 +2303,23 @@ body[data-gate="view"] .sbm .x.sbm-act{display:none}
 .tl-sub-date.late{color:var(--s-delay);font-weight:600}
 .tl-sub-date.done{opacity:.55}
 .tl-sub-date.inherit{opacity:.6}
+/* 저장 안 한 변경 — 「버리고 닫기」는 누구나(편집 코드의 btn-danger 숨김 규칙에 걸리지 않게) */
+.btn-discard{color:var(--s-delay)}
+/* 하위 업무 댓글 — 줄의 「💬 n」 단추와 줄 아래 패널 */
+.sc-btn{flex:none;font:inherit;font-size:.75rem;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 9px;cursor:pointer;white-space:nowrap}
+.sc-btn.has{color:var(--indigo);border-color:color-mix(in oklab, var(--indigo) 35%, var(--line));font-weight:600}
+.sc-btn:hover{border-color:var(--indigo)}
+.sc-btn[aria-expanded="true"]{background:color-mix(in oklab, var(--indigo) 8%, var(--surface))}
+.sbm-list li .sc-btn{order:50}
+li.sc-panel{display:block !important;list-style:none;margin:0 0 8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;background:var(--surface-2)}
+.sc-list{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-direction:column;gap:4px}
+.sc-row{display:grid;grid-template-columns:auto auto 1fr auto;gap:2px 8px;align-items:baseline;font-size:.82rem;padding:3px 0;border-bottom:1px solid var(--line)}
+.sc-row:last-child{border-bottom:0}
+.sc-who{font-weight:600;color:var(--ink)} .sc-when{font-family:var(--mono);font-size:.7rem;color:var(--muted)}
+.sc-body{color:var(--ink);overflow-wrap:anywhere}
+.sc-del{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0 4px;border-radius:4px}
+.sc-del:hover{color:var(--s-delay);background:var(--surface)}
+.sc-empty{margin:0 0 6px;font-size:.8rem;color:var(--muted)}
+.sc-add{display:flex;gap:6px;align-items:flex-start}
+.sc-add textarea{flex:1;min-width:0;resize:none;overflow:hidden;font:inherit;font-size:.82rem;padding:5px 8px;min-height:0;line-height:1.4}
+@media (max-width:720px){.sc-row{grid-template-columns:auto 1fr auto}.sc-when{grid-column:2}.sc-body{grid-column:1 / -1}}

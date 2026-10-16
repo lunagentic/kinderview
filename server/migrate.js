@@ -486,6 +486,30 @@ function moveAreaToSubtasks() {
   return `업무 영역·담당을 하위 업무로 옮김 (하위 ${filled}건 채움, ${made}건 새로 만듦)`;
 }
 
+/** 하위 업무 댓글 — comment.subtask_id 를 더하고, 예전 한 줄 메모를 댓글 1개로 옮긴다 */
+function addSubtaskComments() {
+  const sql = tableSql('comment');
+  if (!sql || /\bsubtask_id\b/.test(sql)) return null;
+  db.exec('ALTER TABLE comment ADD COLUMN subtask_id TEXT');
+  let moved = 0;
+  if (/\bnote\b/.test(tableSql('subtask'))) {
+    const rows = db.prepare(`SELECT s.id, s.task_id, s.note, s.created_at,
+        ${/\bnote_by\b/.test(tableSql('subtask')) ? 's.note_by, s.note_at' : 'NULL AS note_by, NULL AS note_at'},
+        s.owner_slack_user_id, t.owner_slack_user_id AS task_owner
+      FROM subtask s JOIN task t ON t.id = s.task_id WHERE s.note IS NOT NULL AND s.note <> ''`).all();
+    for (const r of rows) {
+      const author = r.note_by ?? r.owner_slack_user_id ?? r.task_owner;
+      if (!author) continue;
+      const at = r.note_at ?? r.created_at;
+      db.prepare(`INSERT INTO comment (id, task_id, subtask_id, parent_id, body, author_slack_user_id, created_at, updated_at)
+        VALUES (:id, :t, :s, NULL, :body, :a, :at, :at)`).run({ id: crypto.randomUUID(), t: r.task_id, s: r.id, body: r.note, a: author, at });
+      db.prepare('UPDATE subtask SET note = NULL WHERE id = :id').run({ id: r.id });
+      moved += 1;
+    }
+  }
+  return `하위 업무 댓글 칸 추가 (메모 ${moved}건 옮김)`;
+}
+
 /** 하위 업무 메모를 누가·언제 적었는지 — 담당자 알림함 「메모」 */
 function addSubtaskNoteMeta() {
   const sql = tableSql('subtask');
@@ -571,7 +595,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();
