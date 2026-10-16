@@ -12,6 +12,7 @@ const INBOX_SECTIONS = {
   DUE_SOON: { title: '내일 마감인 담당 업무', tone: 'prog', mark: '●' },
   ASSIGNED: { title: '새로 배정된 업무', tone: 'wait', mark: '＋' },
   DIRECTOR_COMMENT: { title: '내 업무에 달린 디렉터 코멘트', tone: 'review', mark: '✎' },
+  NOTE: { title: '내 하위 업무에 남긴 메모', tone: 'prog', mark: '✎' },
   COMMENT: { title: '내 업무·내 글에 달린 댓글', tone: 'wait', mark: '💬' },
   REVIEW: { title: '검토가 필요한 외주 업무', tone: 'review', mark: '◎' },
 };
@@ -22,6 +23,7 @@ const inboxLine = (it) => {
     case 'DUE_SOON': return `내일 마감 · ${shortDate(it.due_date)}`;
     case 'ASSIGNED': return `${it.actor_name ?? '누군가'} 님이 배정 · ${dateTime(it.at)}`;
     case 'DIRECTOR_COMMENT': return `${it.actor_name ?? '디렉터'} · ${dateTime(it.at)}${it.snippet ? ` — ${it.snippet}` : ''}`;
+    case 'NOTE': return `${it.actor_name ?? '누군가'} · ${it.sub_title ? `「${it.sub_title}」 ` : ''}메모 · ${dateTime(it.at)}${it.snippet ? ` — ${it.snippet}` : ''}`;
     case 'COMMENT': return `${it.actor_name ?? '누군가'} · ${it.reply ? '내 코멘트에 답글' : '댓글'} · ${dateTime(it.at)}${it.snippet ? ` — ${it.snippet}` : ''}`;
     case 'REVIEW': return it.review_status === 'REJECTED' ? '검수 반려 — 수정이 필요합니다' : '검수 대기 중';
     default: return '';

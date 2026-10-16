@@ -486,6 +486,15 @@ function moveAreaToSubtasks() {
   return `업무 영역·담당을 하위 업무로 옮김 (하위 ${filled}건 채움, ${made}건 새로 만듦)`;
 }
 
+/** 하위 업무 메모를 누가·언제 적었는지 — 담당자 알림함 「메모」 */
+function addSubtaskNoteMeta() {
+  const sql = tableSql('subtask');
+  if (!sql || /\bnote_at\b/.test(sql)) return null;
+  db.exec('ALTER TABLE subtask ADD COLUMN note_by TEXT');
+  db.exec('ALTER TABLE subtask ADD COLUMN note_at TEXT');
+  return '하위 업무 메모 작성자·시각 칸 추가';
+}
+
 /** 안건 → 하위 업무 연결 칸 (플로우) */
 function addAgendaSubtask() {
   const sql = tableSql('agenda_item');
@@ -562,7 +571,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();
