@@ -913,7 +913,11 @@ export const subtasks = {
       run('UPDATE subtask SET title = :title WHERE id = :id', { id, title });
     }
     if (patch.note !== undefined) {
-      run('UPDATE subtask SET note = :note WHERE id = :id', { id, note: String(patch.note ?? '').trim() || null });
+      const note = String(patch.note ?? '').trim() || null;
+      // 메모를 새로 적거나 고치면 누가·언제 적었는지 남긴다 — 담당자 알림함에 「메모」로 뜬다
+      if (note && note !== cur.note) {
+        run('UPDATE subtask SET note = :note, note_by = :by, note_at = :at WHERE id = :id', { id, note, by: actor ?? null, at: nowISO() });
+      } else run('UPDATE subtask SET note = :note WHERE id = :id', { id, note });
     }
     // 영역 — 바꾸면 담당이 리드를 따르고 있었을 때(또는 비어 있을 때)만 새 영역 리드로 간다
     let owner = cur.owner_slack_user_id ?? null;
@@ -1028,7 +1032,7 @@ export const attachments = {
 
 // ── 앱 안 알림 — 지금 내게 해당하는 일을 데이터에서 센다 (docs/09 의 규칙, 내 것만) ──
 // 저장하지 않는다. '보낸 알림'이 아니라 '지금 챙길 일'이라, 열 때마다 다시 센다. 읽음만 남긴다.
-const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'COMMENT', 'REVIEW'];
+const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'NOTE', 'COMMENT', 'REVIEW'];
 const RECENT_DAYS = 7;
 // ── 디렉터 코멘트 모아보기 — 누구나 본다. 업무·페이즈에 달린 디렉터 자리의 말을 최신순으로 ──
 export const directorComments = {
@@ -1097,6 +1101,20 @@ export const inbox = {
       if (!t) continue;
       items.push({ kind: 'ASSIGNED', key: `SUB_ASSIGNED:${sa.id}:${sa.assigned_at}`, actor_name: sa.actor_name,
         at: sa.assigned_at, sub_title: sa.sub_title, ...dress(t) });
+    }
+    // 하위 업무 메모 — 내 하위 업무, 또는 내가 책임자인 업무의 하위에 남이 적은 메모
+    const notes = all(
+      `SELECT s.id, s.title AS sub_title, s.note, s.note_at, s.task_id, m.display_name AS actor_name
+         FROM subtask s JOIN task t ON t.id = s.task_id AND t.deleted_at IS NULL
+         LEFT JOIN member m ON m.slack_user_id = s.note_by
+        WHERE s.note IS NOT NULL AND s.note_at >= :since AND (s.note_by IS NULL OR s.note_by <> :me)
+          AND (s.owner_slack_user_id = :me OR t.owner_slack_user_id = :me)`, { me, since });
+    for (const n of notes) {
+      const t = byId.get(n.task_id) ?? one(`SELECT t.id, t.title, t.seq, t.due_date, p.name AS project_name, p.code AS project_code
+        FROM task t LEFT JOIN project p ON p.id = t.project_id WHERE t.id = :id`, { id: n.task_id });
+      if (!t) continue;
+      items.push({ kind: 'NOTE', key: `NOTE:${n.id}:${n.note_at}`, actor_name: n.actor_name, at: n.note_at,
+        sub_title: n.sub_title, snippet: String(n.note).slice(0, 80), ...dress(t) });
     }
     // 코멘트 — 내 업무에 달린 것(디렉터 말은 따로 묶는다)과 내 글에 달린 답글. 내가 쓴 것은 뺀다.
     const cm = all(

@@ -1059,7 +1059,12 @@ function updateSubtask(id, body, actor = null) {
     if (!title) throw new DemoError('하위 업무명을 입력해 주세요.');
     row.title = title;
   }
-  if (body.note !== undefined) row.note = String(body.note ?? '').trim() || null;
+  if (body.note !== undefined) {
+    const note = String(body.note ?? '').trim() || null;
+    // 메모를 새로 적거나 고치면 누가·언제 적었는지 남긴다 — 담당자 알림함에 「메모」로 뜬다
+    if (note && note !== row.note) { row.note_by = actor ?? null; row.note_at = nowISO(); }
+    row.note = note;
+  }
   // 영역 — 바꾸면 담당이 리드를 따르고 있었을 때(또는 비어 있을 때)만 새 영역 리드로 간다
   let owner = row.owner_slack_user_id ?? null;
   if (body.area !== undefined) {
@@ -1339,7 +1344,7 @@ async function removeAttachment(id) {
 }
 
 // ── 앱 안 알림 — 서버 repo.js inbox 와 같은 규칙 ──
-const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'COMMENT', 'REVIEW'];
+const INBOX_ORDER = ['DELAY', 'DUE_TODAY', 'DUE_SOON', 'ASSIGNED', 'DIRECTOR_COMMENT', 'NOTE', 'COMMENT', 'REVIEW'];
 const INBOX_RECENT_DAYS = 7;
 // 디렉터 코멘트 모아보기 — 서버 repo.js directorComments 와 같은 규칙
 function directorCommentsOf() {
@@ -1399,6 +1404,15 @@ function inboxOf(me, ref = today()) {
     items.push({ kind: 'ASSIGNED', key: `SUB_ASSIGNED:${x.id}:${x.assigned_at}`,
       actor_name: x.assigned_by ? (member(x.assigned_by)?.display_name ?? x.assigned_by) : null,
       at: x.assigned_at, sub_title: x.title, ...dress(t) });
+  }
+  // 하위 업무 메모 — 내 하위 업무, 또는 내가 책임자인 업무의 하위에 남이 적은 메모
+  for (const x of DB.subtasks ?? []) {
+    if (!x.note || !x.note_at || x.note_at < since || x.note_by === me) continue;
+    const t = DB.tasks.find((y) => y.id === x.task_id && !y.deleted_at);
+    if (!t || (x.owner_slack_user_id !== me && t.owner_slack_user_id !== me)) continue;
+    items.push({ kind: 'NOTE', key: `NOTE:${x.id}:${x.note_at}`,
+      actor_name: x.note_by ? (member(x.note_by)?.display_name ?? x.note_by) : null,
+      at: x.note_at, sub_title: x.title, snippet: String(x.note).slice(0, 80), ...dress(t) });
   }
   // 코멘트 — 내 업무에 달린 것(디렉터 말은 따로 묶는다)과 내 글에 달린 답글. 내가 쓴 것은 뺀다.
   for (const c of DB.comments ?? []) {
