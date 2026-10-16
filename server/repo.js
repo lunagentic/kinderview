@@ -907,6 +907,11 @@ export const subtasks = {
   update(id, patch, actor = null) {
     const cur = one('SELECT * FROM subtask WHERE id = :id', { id });
     if (!cur) throw new HttpError(404, '하위 업무를 찾을 수 없습니다.');
+    // 순서만 바꿀 때(타임라인 끌기)
+    if (Object.keys(patch).length === 1 && patch.sort_order !== undefined) {
+      run('UPDATE subtask SET sort_order = :o WHERE id = :id', { id, o: Number(patch.sort_order) });
+      return { ...one('SELECT * FROM subtask WHERE id = :id', { id }), rolled: { task_due: null, phase_end: null } };
+    }
     let rolled = { task_due: null, phase_end: null };
     // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호도 그 프로젝트의 다음 번호를 새로 받는다 — 지라와 같다.
     if (patch.task_id !== undefined && patch.task_id !== cur.task_id) {
@@ -1331,6 +1336,11 @@ export const tasks = {
   update(id, input, actor) {
     const cur = tasks.get(id);
     if (!cur) throw new HttpError(404, '업무를 찾을 수 없습니다.');
+    // 순서만 바꿀 때(타임라인 끌기) — 이력·알림 없이 자리만 옮긴다
+    if (Object.keys(input).length === 1 && input.sort_order !== undefined) {
+      run('UPDATE task SET sort_order = :o WHERE id = :id', { id, o: input.sort_order == null ? null : Number(input.sort_order) });
+      return tasks.get(id);
+    }
 
     // area 는 외주 여부 — 'OUT' 이거나 비어 있다. 다른 영역 코드는 하위 업무 몫이라 여기서는 '외주 아님'으로 읽는다.
     const area = input.area === undefined ? (cur.area ?? null) : (input.area === 'OUT' ? 'OUT' : null);

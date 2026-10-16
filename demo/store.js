@@ -1070,6 +1070,12 @@ function createSubtask(taskId, body, actor = null) {
 function updateSubtask(id, body, actor = null) {
   const row = (DB.subtasks ?? []).find((s) => s.id === id);
   if (!row) throw new DemoError('하위 업무를 찾을 수 없습니다.');
+  // 순서만 바꿀 때(타임라인 끌기)
+  if (Object.keys(body).length === 1 && body.sort_order !== undefined) {
+    row.sort_order = Number(body.sort_order);
+    save();
+    return { ...row, rolled: { task_due: null, phase_end: null } };
+  }
   let rolled = { task_due: null, phase_end: null };
   // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호를 그 프로젝트에서 새로 받는다.
   if (body.task_id !== undefined && body.task_id !== row.task_id) {
@@ -1917,6 +1923,12 @@ function createTask(input, actor) {
 function updateTask(id, input, actor) {
   const t = DB.tasks.find((x) => x.id === id && !x.deleted_at);
   if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
+  // 순서만 바꿀 때(타임라인 끌기) — 이력·알림 없이 자리만 옮긴다
+  if (Object.keys(input).length === 1 && input.sort_order !== undefined) {
+    t.sort_order = input.sort_order == null ? null : Number(input.sort_order);
+    save();
+    return hydrate(t);
+  }
   const before = hydrate(t);
 
   // area 는 외주 여부 — 'OUT' 이거나 비어 있다. 다른 영역 코드는 하위 업무 몫이라 '외주 아님'으로 읽는다.
@@ -2981,6 +2993,7 @@ function handle(method, path, body) {
       lead_slack_user_id: body.lead_slack_user_id ?? pr.lead_slack_user_id,
       slack_channel_id: body.slack_channel_id ?? pr.slack_channel_id,
       is_archived: body.is_archived === undefined ? pr.is_archived : (body.is_archived ? 1 : 0),
+      sort_order: body.sort_order === undefined ? pr.sort_order : Number(body.sort_order),
       updated_at: nowISO(),
     });
     save();

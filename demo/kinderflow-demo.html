@@ -2371,6 +2371,14 @@ body[data-gate="view"] .modal [data-edit-full],body[data-gate="view"] .modal [da
 body[data-gate="view"] .tl-sub-add,body[data-gate="view"] .tl-proj-add{display:none}
 .tl-row-ms .tl-label,.tl-proj-add .tl-label{flex-direction:row;justify-content:flex-start;align-items:center}
 .tl-proj-add .tl-add-btn{align-self:center}
+/* 끌어서 순서 — 프로젝트 · 업무 · 하위 줄에도 같은 ⋮⋮ 손잡이 */
+.ph-reordering,.ph-reordering *{cursor:grabbing !important}
+.tl-task:hover .tl-grip,.tl-sub:hover .tl-grip,.tl-group-head:hover .tl-grip{opacity:.8}
+.tl-group-head .tl-grip{margin-left:-14px;margin-right:0;align-self:center}
+.tl-task .tl-grip{position:absolute;left:3px;top:50%;transform:translateY(-50%);margin:0}
+@media (max-width:720px){.tl-task .tl-grip,.tl-sub .tl-grip{display:none}}
+.tl-sub .tl-grip{margin-left:-14px;margin-right:0}
+.tl-sub-add .tl-grip{display:none}
 
 </style>
 
@@ -4430,6 +4438,12 @@ function createSubtask(taskId, body, actor = null) {
 function updateSubtask(id, body, actor = null) {
   const row = (DB.subtasks ?? []).find((s) => s.id === id);
   if (!row) throw new DemoError('하위 업무를 찾을 수 없습니다.');
+  // 순서만 바꿀 때(타임라인 끌기)
+  if (Object.keys(body).length === 1 && body.sort_order !== undefined) {
+    row.sort_order = Number(body.sort_order);
+    save();
+    return { ...row, rolled: { task_due: null, phase_end: null } };
+  }
   let rolled = { task_due: null, phase_end: null };
   // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호를 그 프로젝트에서 새로 받는다.
   if (body.task_id !== undefined && body.task_id !== row.task_id) {
@@ -5277,6 +5291,12 @@ function createTask(input, actor) {
 function updateTask(id, input, actor) {
   const t = DB.tasks.find((x) => x.id === id && !x.deleted_at);
   if (!t) throw new DemoError('업무를 찾을 수 없습니다.');
+  // 순서만 바꿀 때(타임라인 끌기) — 이력·알림 없이 자리만 옮긴다
+  if (Object.keys(input).length === 1 && input.sort_order !== undefined) {
+    t.sort_order = input.sort_order == null ? null : Number(input.sort_order);
+    save();
+    return hydrate(t);
+  }
   const before = hydrate(t);
 
   // area 는 외주 여부 — 'OUT' 이거나 비어 있다. 다른 영역 코드는 하위 업무 몫이라 '외주 아님'으로 읽는다.
@@ -6341,6 +6361,7 @@ function handle(method, path, body) {
       lead_slack_user_id: body.lead_slack_user_id ?? pr.lead_slack_user_id,
       slack_channel_id: body.slack_channel_id ?? pr.slack_channel_id,
       is_archived: body.is_archived === undefined ? pr.is_archived : (body.is_archived ? 1 : 0),
+      sort_order: body.sort_order === undefined ? pr.sort_order : Number(body.sort_order),
       updated_at: nowISO(),
     });
     save();
@@ -14044,6 +14065,8 @@ async function renderTimeline(root) {
            role="button" tabindex="0" ${subs ? `aria-expanded="${open ? 'true' : 'false'}"` : ''}
            title="${subs ? `눌러서 하위 업무 ${subs}건 ${open ? '접기' : '펼치기'}` : '눌러서 업무 창 열기'}">
         <div class="tl-label">
+          <span class="tl-grip" data-grip="task" data-grip-id="${esc(t.id)}" role="button" tabindex="0"
+                aria-label="${esc(t.title)} 순서 바꾸기 — 끌거나 Alt+↑/↓" title="끌어서 업무 순서 바꾸기 (Alt+↑/↓)">⋮⋮</span>
           <span class="tl-tfold" aria-hidden="true">${subs ? (open ? '▾' : '▸') : ''}</span>
           ${ticketTag(t)}
           <button class="tl-tname" data-task-edit="${esc(t.id)}" title="업무 창 열기 — 이름·상태·하위 업무 고치기">${esc(t.title)}</button>
@@ -14091,7 +14114,8 @@ async function renderTimeline(root) {
           style="left:${at}%" aria-hidden="true">${due === state.today ? '오늘' : esc(shortDate(due))}</span>`;
       return wrap({
         id: r.id,
-        html: `${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}
+        html: `<span class="tl-grip" data-grip="sub" data-grip-id="${esc(r.id)}" role="button" tabindex="0"
+            aria-label="${esc(r.title)} 순서 바꾸기 — 끌거나 Alt+↑/↓" title="끌어서 하위 업무 순서 바꾸기 (Alt+↑/↓)">⋮⋮</span>${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}
           <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}${r.owner_name ? ` · 담당 ${esc(r.owner_name)}` : ''}${due ? ` · 마감 ${esc(shortDate(due))}` : ''}${r.comment_count ? ` · 댓글 ${r.comment_count}` : ''} — 눌러서 팝업으로">${esc(r.title)}</span>
           ${subStatusPick(r)}`,
       }, dot);
@@ -14102,7 +14126,9 @@ async function renderTimeline(root) {
     if (!rows) return `<div class="tl-row tl-task tl-task-note" data-of-phase="${esc(phaseId)}">
       <div class="tl-label"><span class="tl-meta">불러오는 중…</span></div><div class="tl-track">${gridLines()}</div></div>`;
     // 마감일 순, 기한 없는 것은 뒤로
-    const sorted = [...rows].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title));
+    // 끌어서 정한 차례가 먼저, 없으면 마감일 순(기한 없는 것은 뒤로)
+    const ord = (x) => (x.sort_order == null ? Infinity : x.sort_order);
+    const sorted = [...rows].sort((a, b) => (ord(a) - ord(b)) || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title));
     return sorted.map((t) => taskRow(t, phaseId)
       + ((t.subtask_total && openTasks.has(t.id)) ? subRows(t, phaseId) : '')).join('') + addRow(phaseId);
   };
@@ -14120,7 +14146,7 @@ async function renderTimeline(root) {
     return `
       <div class="tl-row tl-phase${open ? ' is-open' : ''}" data-phase-row="${esc(ph.id)}">
         <div class="tl-label">
-          <span class="tl-grip" data-ph-grip="${esc(ph.id)}" role="button" tabindex="0"
+          <span class="tl-grip" data-grip="phase" data-grip-id="${esc(ph.id)}" role="button" tabindex="0"
                 aria-label="${esc(ph.name)} 순서 바꾸기 — 끌거나 Alt+↑/↓" title="끌어서 순서 바꾸기 (Alt+↑/↓)">⋮⋮</span>
           <button class="tlg-fold" data-fold-phase="${esc(ph.id)}" aria-expanded="${open}"
                   aria-label="업무 펼치기/접기" title="${open ? '업무 접기' : '업무 펼치기'}">${open ? '▾' : '▸'}</button>
@@ -14153,11 +14179,10 @@ async function renderTimeline(root) {
       ${open ? taskRows(ph.id) : ''}`;
   };
 
-  // 마일스톤 줄 — 없어도 자리를 둔다. 더하는 단추는 이 줄 끝에
-  const milestoneLane = (r) => `
+  // 마일스톤 줄 — 있을 때만
+  const milestoneLane = (r) => (!r.milestones.length ? '' : `
       <div class="tl-row tl-row-ms">
-        <div class="tl-label"><span class="tl-meta">마일스톤 ${r.milestones.length}</span>
-          <button class="tl-add-btn" data-add-milestone="${esc(r.id)}">+ 마일스톤</button></div>
+        <div class="tl-label"><span class="tl-meta">마일스톤 ${r.milestones.length}</span></div>
         <div class="tl-track">
           ${gridLines()}
           ${r.milestones.map((m) => {
@@ -14172,7 +14197,7 @@ async function renderTimeline(root) {
                       aria-label="${esc(`${m.name} ${m.due_date} ${st.label}`)}"><i></i></button>`;
           }).join('')}
         </div>
-      </div>`;
+      </div>`);
 
   root.innerHTML = `
     ${tlHead()}
@@ -14202,6 +14227,8 @@ async function renderTimeline(root) {
         ${live.map((r) => `
           <section class="tl-group" data-tl-project="${esc(r.id)}" style="${projectStyle(r.id)}">
             <div class="tl-group-head">
+              <span class="tl-grip" data-grip="project" data-grip-id="${esc(r.id)}" role="button" tabindex="0"
+                    aria-label="${esc(r.name)} 순서 바꾸기 — 끌거나 Alt+↑/↓" title="끌어서 프로젝트 순서 바꾸기 (Alt+↑/↓)">⋮⋮</span>
               <h2>${projectName(r.id, r.name)}</h2>
               <button class="pr-edit" data-edit-project="${esc(r.id)}"
                       aria-label="프로젝트 수정" title="프로젝트 수정">✎</button>
@@ -14344,7 +14371,15 @@ async function renderTimeline(root) {
     else openSubs(line.dataset.line);
   };
   bindBarDrag(root, win, () => findTask, reload);
-  bindPhaseOrder(root, live, reload);
+  // 지금 차례 — 바뀐 것만 저장하려고 묻는다
+  const orderOf = (kind, id) => {
+    if (kind === 'project') return live.find((r) => r.id === id)?.sort_order;
+    if (kind === 'phase') return allPhases.find((p) => p.id === id)?.sort_order;
+    if (kind === 'task') { for (const rows of phaseTasks.values()) { const x = rows?.find((r) => r.id === id); if (x) return x.sort_order; } return undefined; }
+    for (const rows of taskSubs.values()) { const x = rows?.find((r) => r.id === id); if (x) return x.sort_order; }
+    return undefined;
+  };
+  bindRowOrder(root, orderOf, reload);
   bindLabelResize(root);
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
@@ -14398,7 +14433,7 @@ async function renderTimeline(root) {
       if (e.key === 'Escape') { e.preventDefault(); ttl.value = ttl.defaultValue; syncTitleCell(ttl); ttl.blur(); }
       return;
     }
-    if (e.target.closest('[data-ph-grip]')) return;   // 손잡이는 bindPhaseOrder 가 맡는다
+    if (e.target.closest('[data-grip]')) return;   // 손잡이는 bindRowOrder 가 맡는다
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const mh = e.target.closest('.tl-axis [data-month]');
     if (mh) { e.preventDefault(); go(`#/project/monthly?month=${mh.dataset.month}`); return; }
@@ -14440,7 +14475,7 @@ async function renderTimeline(root) {
     }
     // 페이즈 줄의 제목 칸 — 이름(수정)·코멘트 뱃지가 아닌 곳을 누르면 업무가 펼쳐진다
     const phLbl = e.target.closest('.tl-phase[data-phase-row] .tl-label');
-    if (phLbl && !e.target.closest('.tl-name, [data-phase-cm], [data-ph-grip], a, button')) {
+    if (phLbl && !e.target.closest('.tl-name, [data-phase-cm], [data-grip], a, button')) {
       e.preventDefault();
       return togglePhase(phLbl.closest('[data-phase-row]').dataset.phaseRow);
     }
@@ -14664,35 +14699,61 @@ function bindBarDrag(root, win, getFind, reload) {
 }
 
 // ── 페이즈 순서 ─────────────────────────────────────────
-// 페이즈 줄 앞의 ⋮⋮ 손잡이를 끌어 같은 프로젝트 안에서 순서를 바꾼다(마우스·터치 같다).
-// 펼친 업무·하위 줄은 페이즈를 따라 함께 움직인다. 손잡이에서 Alt+↑/↓ 로 한 칸씩도 옮긴다.
-// 저장은 그 프로젝트 페이즈를 1..n 으로 다시 매겨, 값이 바뀐 것만 PATCH 한다.
+// ── 끌어서 순서 바꾸기 — 프로젝트 · 페이즈 · 상위 업무 · 하위 업무 ─────────────
+// 줄 앞의 ⋮⋮ 손잡이를 끌면 같은 묶음 안에서 자리를 옮긴다(마우스·터치 같다). 손잡이에서 Alt+↑/↓ 로 한 칸씩도.
+// 펼친 아래 줄(페이즈의 업무, 업무의 하위)은 함께 움직인다. Esc 로 끌기를 그만둔다.
+// 저장은 그 묶음을 1..n 으로 다시 매겨, 값이 바뀐 것만 차례로 PATCH 한다.
+const GRIP_KINDS = {
+  project: {
+    rows: (root) => [...root.querySelectorAll('.tl-group[data-tl-project]')],
+    id: (row) => row.dataset.tlProject,
+    block: (row) => [row],
+    url: (id) => `/api/projects/${encodeURIComponent(id)}`,
+    done: '프로젝트 순서를 바꿨습니다.',
+  },
+  phase: {
+    rows: (root, row) => [...row.closest('.tl-group').querySelectorAll('.tl-phase[data-phase-row]')],
+    id: (row) => row.dataset.phaseRow,
+    block: (row) => [row, ...row.parentElement.querySelectorAll(`[data-of-phase="${CSS.escape(row.dataset.phaseRow)}"]`)],
+    url: (id) => `/api/phases/${encodeURIComponent(id)}`,
+    done: '페이즈 순서를 바꿨습니다.',
+  },
+  task: {
+    rows: (root, row) => [...root.querySelectorAll(`.tl-task[data-line][data-of-phase="${CSS.escape(row.dataset.ofPhase)}"]`)],
+    id: (row) => row.dataset.line,
+    block: (row) => [row, ...row.parentElement.querySelectorAll(`[data-of-task="${CSS.escape(row.dataset.line)}"]`)],
+    url: (id) => `/api/tasks/${encodeURIComponent(id)}`,
+    done: '업무 순서를 바꿨습니다.',
+  },
+  sub: {
+    rows: (root, row) => [...root.querySelectorAll(`.tl-sub[data-sub-line][data-of-task="${CSS.escape(row.dataset.ofTask)}"]`)],
+    id: (row) => row.dataset.subLine,
+    block: (row) => [row],
+    url: (id) => `/api/subtasks/${encodeURIComponent(id)}`,
+    done: '하위 업무 순서를 바꿨습니다.',
+  },
+};
+const ROW_OF = { project: '.tl-group', phase: '[data-phase-row]', task: '.tl-task[data-line]', sub: '.tl-sub[data-sub-line]' };
 let refocusGrip = null;   // 키보드로 옮긴 뒤 다시 그려도 손잡이에 머문다
-function bindPhaseOrder(root, live, reload) {
-  const phasesIn = (projectId) => live.find((r) => r.id === projectId)?.phases ?? [];
-  const save = async (projectId, ids) => {
-    const before = phasesIn(projectId);
-    const jobs = ids.map((id, i) => ({ id, o: i + 1, cur: before.find((p) => p.id === id)?.sort_order }))
-      .filter((j) => j.cur !== j.o);
+
+function bindRowOrder(root, orderOf, reload) {
+  const save = async (kind, ids) => {
+    const K = GRIP_KINDS[kind];
+    const jobs = ids.map((id, i) => ({ id, o: i + 1 })).filter((j) => orderOf(kind, j.id) !== j.o);
     if (!jobs.length) return reload();
     try {
-      for (const j of jobs) await api.patch(`/api/phases/${j.id}`, { sort_order: j.o });   // 차례로 — 동시에 쓰지 않는다
-      toast('페이즈 순서를 바꿨습니다.');
+      for (const j of jobs) await api.patch(K.url(j.id), { sort_order: j.o });   // 차례로 — 동시에 쓰지 않는다
+      toast(K.done);
     } catch (err) { toast(err.message, true); }
     return reload();
   };
   if (refocusGrip) {
-    root.querySelector(`[data-ph-grip="${CSS.escape(refocusGrip)}"]`)?.focus();
+    root.querySelector(`[data-grip="${refocusGrip.kind}"][data-grip-id="${CSS.escape(refocusGrip.id)}"]`)?.focus();
     refocusGrip = null;
   }
 
   let drag = null;
-  const rowsOf = (group) => [...group.querySelectorAll('.tl-phase[data-phase-row]')];
-  const blockOf = (row) => {
-    const id = row.dataset.phaseRow;
-    return [row, ...row.parentElement.querySelectorAll(`[data-of-phase="${CSS.escape(id)}"]`)];
-  };
-  const clearMarks = (group) => group.querySelectorAll('.drop-before, .drop-after')
+  const clearMarks = () => root.querySelectorAll('.drop-before, .drop-after')
     .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
   const stop = (cancel) => {
     if (!drag) return null;
@@ -14700,33 +14761,36 @@ function bindPhaseOrder(root, live, reload) {
     drag = null;
     cancelAnimationFrame(d.raf);
     d.block.forEach((el) => el.classList.remove('ph-dragging'));
-    d.group.classList.remove('ph-reordering');
-    clearMarks(d.group);
+    root.classList.remove('ph-reordering');
+    clearMarks();
     document.removeEventListener('keydown', d.onKey, true);
     return cancel ? null : d;
   };
 
   root.addEventListener('pointerdown', (e) => {
-    const grip = e.target.closest('[data-ph-grip]');
+    const grip = e.target.closest('[data-grip]');
     if (!grip || e.button !== 0 || !canEdit()) return;
-    const row = grip.closest('[data-phase-row]');
-    const group = row.closest('.tl-group');
+    const kind = grip.dataset.grip;
+    const K = GRIP_KINDS[kind];
+    const row = grip.closest(ROW_OF[kind]);
+    if (!K || !row) return;
     e.preventDefault();
+    e.stopPropagation();
     grip.setPointerCapture?.(e.pointerId);
-    drag = { grip, row, group, y0: e.clientY, y: e.clientY, on: false, idx: null, raf: 0,
-      block: blockOf(row), onKey: (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); stop(true); } } };
+    drag = { kind, K, grip, row, y0: e.clientY, y: e.clientY, on: false, idx: null, raf: 0,
+      block: K.block(row), onKey: (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); stop(true); } } };
     document.addEventListener('keydown', drag.onKey, true);
   });
   const place = () => {
     const d = drag;
     if (!d) return;
-    const others = rowsOf(d.group).filter((r) => r !== d.row);
-    // 놓일 자리 = 마우스보다 가운데가 위에 있는 다른 페이즈 수
+    const others = d.K.rows(root, d.row).filter((r) => r !== d.row);
+    // 놓일 자리 = 마우스보다 가운데가 위에 있는 다른 줄 수
     const idx = others.filter((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 < d.y; }).length;
     d.idx = idx;
-    clearMarks(d.group);
+    clearMarks();
     if (others[idx]) others[idx].classList.add('drop-before');
-    else if (others.length) blockOf(others[others.length - 1]).at(-1).classList.add('drop-after');
+    else if (others.length) d.K.block(others[others.length - 1]).at(-1).classList.add('drop-after');
   };
   const autoScroll = () => {
     if (!drag) return;
@@ -14742,7 +14806,7 @@ function bindPhaseOrder(root, live, reload) {
       if (Math.abs(e.clientY - drag.y0) < 4) return;
       drag.on = true;
       drag.block.forEach((el) => el.classList.add('ph-dragging'));
-      drag.group.classList.add('ph-reordering');
+      root.classList.add('ph-reordering');
       drag.raf = requestAnimationFrame(autoScroll);
     }
     e.preventDefault();
@@ -14753,29 +14817,35 @@ function bindPhaseOrder(root, live, reload) {
     if (!d) return;
     d.grip.releasePointerCapture?.(e.pointerId);
     if (!d.on || d.idx === null) return;
-    const ids = rowsOf(d.group).map((r) => r.dataset.phaseRow).filter((id) => id !== d.row.dataset.phaseRow);
-    ids.splice(d.idx, 0, d.row.dataset.phaseRow);
-    const now = rowsOf(d.group).map((r) => r.dataset.phaseRow);
+    const now = d.K.rows(root, d.row).map(d.K.id);
+    const me = d.K.id(d.row);
+    const ids = now.filter((id) => id !== me);
+    ids.splice(d.idx, 0, me);
     if (ids.join() === now.join()) return;
-    save(d.group.dataset.tlProject, ids);
+    save(d.kind, ids);
   };
   root.addEventListener('pointerup', end);
   root.addEventListener('pointercancel', () => stop(true));
+  // 손잡이를 누른 것은 줄을 누른 것이 아니다 — 펼치기·창 열기로 번지지 않게
+  root.addEventListener('click', (e) => { if (e.target.closest('[data-grip]')) { e.stopPropagation(); e.preventDefault(); } }, true);
 
   // 키보드 — 손잡이에서 Alt+↑/↓
   root.addEventListener('keydown', (e) => {
-    const grip = e.target.closest('[data-ph-grip]');
+    const grip = e.target.closest('[data-grip]');
     if (!grip || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     e.preventDefault();
     if (!canEdit()) return;
-    const group = grip.closest('.tl-group');
-    const ids = rowsOf(group).map((r) => r.dataset.phaseRow);
-    const i = ids.indexOf(grip.dataset.phGrip);
+    const kind = grip.dataset.grip;
+    const K = GRIP_KINDS[kind];
+    const row = grip.closest(ROW_OF[kind]);
+    if (!K || !row) return;
+    const ids = K.rows(root, row).map(K.id);
+    const i = ids.indexOf(K.id(row));
     const j = i + (e.key === 'ArrowUp' ? -1 : 1);
     if (j < 0 || j >= ids.length) return;
     [ids[i], ids[j]] = [ids[j], ids[i]];
-    refocusGrip = grip.dataset.phGrip;
-    save(group.dataset.tlProject, ids);
+    refocusGrip = { kind, id: K.id(row) };
+    save(kind, ids);
   });
 }
 
