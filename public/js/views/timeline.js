@@ -154,7 +154,9 @@ export async function renderTimeline(root) {
       const late = stc !== 'DONE' && due && due < state.today;
       const at = due ? tlPoint(win, due) : null;
       const dot = at === null ? '' : `<span class="tl-sub-dot${r.due_date ? '' : ' inherit'}${late ? ' late' : ''}" data-st="${stc}"
-          style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'}"></span>`;
+          style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'}"></span>
+        <span class="tl-sub-date${at > 88 ? ' flip' : ''}${late ? ' late' : ''}${stc === 'DONE' ? ' done' : ''}${r.due_date ? '' : ' inherit'}"
+          style="left:${at}%" aria-hidden="true">${due === state.today ? '오늘' : esc(shortDate(due))}</span>`;
       return wrap({
         id: r.id,
         html: `${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}

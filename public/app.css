@@ -2296,3 +2296,10 @@ body[data-gate="view"] .fl-edit{pointer-events:none}
 body[data-gate="view"] .sbm .x.sbm-act{display:none}
 .gc-label{font:inherit;font-size:.88rem;font-weight:600;color:var(--ink);border:1px solid transparent;border-radius:6px;padding:2px 6px;margin-left:-6px;background:none;min-width:0;width:100%}
 .gc-label:hover{border-color:var(--line)} .gc-label:focus{outline:none;border-color:var(--focus);background:var(--surface)}
+/* 하위 업무 마감 점 옆 날짜 — 끝에 걸리면 점 왼쪽으로 */
+.tl-sub-date{position:absolute;top:50%;transform:translate(10px,-50%);font-family:var(--mono);font-size:.68rem;color:var(--muted);
+  white-space:nowrap;pointer-events:none;line-height:1}
+.tl-sub-date.flip{transform:translate(calc(-100% - 10px),-50%)}
+.tl-sub-date.late{color:var(--s-delay);font-weight:600}
+.tl-sub-date.done{opacity:.55}
+.tl-sub-date.inherit{opacity:.6}

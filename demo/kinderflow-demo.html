@@ -2300,6 +2300,13 @@ body[data-gate="view"] .fl-edit{pointer-events:none}
 body[data-gate="view"] .sbm .x.sbm-act{display:none}
 .gc-label{font:inherit;font-size:.88rem;font-weight:600;color:var(--ink);border:1px solid transparent;border-radius:6px;padding:2px 6px;margin-left:-6px;background:none;min-width:0;width:100%}
 .gc-label:hover{border-color:var(--line)} .gc-label:focus{outline:none;border-color:var(--focus);background:var(--surface)}
+/* 하위 업무 마감 점 옆 날짜 — 끝에 걸리면 점 왼쪽으로 */
+.tl-sub-date{position:absolute;top:50%;transform:translate(10px,-50%);font-family:var(--mono);font-size:.68rem;color:var(--muted);
+  white-space:nowrap;pointer-events:none;line-height:1}
+.tl-sub-date.flip{transform:translate(calc(-100% - 10px),-50%)}
+.tl-sub-date.late{color:var(--s-delay);font-weight:600}
+.tl-sub-date.done{opacity:.55}
+.tl-sub-date.inherit{opacity:.6}
 
 </style>
 
@@ -13665,7 +13672,9 @@ async function renderTimeline(root) {
       const late = stc !== 'DONE' && due && due < state.today;
       const at = due ? tlPoint(win, due) : null;
       const dot = at === null ? '' : `<span class="tl-sub-dot${r.due_date ? '' : ' inherit'}${late ? ' late' : ''}" data-st="${stc}"
-          style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'}"></span>`;
+          style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'}"></span>
+        <span class="tl-sub-date${at > 88 ? ' flip' : ''}${late ? ' late' : ''}${stc === 'DONE' ? ' done' : ''}${r.due_date ? '' : ' inherit'}"
+          style="left:${at}%" aria-hidden="true">${due === state.today ? '오늘' : esc(shortDate(due))}</span>`;
       return wrap({
         id: r.id,
         html: `${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}
