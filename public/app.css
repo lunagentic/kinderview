@@ -2351,3 +2351,19 @@ body[data-gate="view"] .modal [data-edit-full],body[data-gate="view"] .modal [da
 }
 /* 상세 머리 — 제목이 남는 폭을 다 쓴다(좁게 접히지 않게). 단추는 자리가 모자라면 아래로 */
 .page-head:has(h1 .ttl-wrap)>div:first-child{flex:1 1 360px;min-width:0}
+
+/* 타임라인 편집 위계 — 무엇을 더하든 그것이 들어갈 묶음의 맨 아래에서 */
+.tl-row-ms .tl-label{display:flex;align-items:center;gap:8px}
+.tl-row-ms .tl-add-btn{margin-left:auto;flex:none}
+.tl-proj-add{min-height:30px}
+.tl-sub-add{cursor:default}
+.tl-sub-add:hover .tl-label,.tl-sub-add:hover .tl-track{background:none}
+.tl-sub-form{flex:1;min-width:0;display:flex}
+.tl-sub-form input{flex:1;min-width:0;font:inherit;font-size:.76rem;color:var(--ink);background:none;
+  border:1px dashed var(--line);border-radius:6px;padding:2px 10px}
+.tl-sub-form input::placeholder{color:var(--muted)}
+.tl-sub-form input:hover{border-color:var(--indigo)}
+.tl-sub-form input:focus{outline:none;border-style:solid;border-color:var(--focus);background:var(--surface)}
+body[data-gate="view"] .tl-sub-add,body[data-gate="view"] .tl-proj-add{display:none}
+.tl-row-ms .tl-label,.tl-proj-add .tl-label{flex-direction:row;justify-content:flex-start;align-items:center}
+.tl-proj-add .tl-add-btn{align-self:center}
