@@ -2323,3 +2323,11 @@ li.sc-panel{display:block !important;list-style:none;margin:0 0 8px 0;padding:8p
 .sc-add{display:flex;gap:6px;align-items:flex-start}
 .sc-add textarea{flex:1;min-width:0;resize:none;overflow:hidden;font:inherit;font-size:.82rem;padding:5px 8px;min-height:0;line-height:1.4}
 @media (max-width:720px){.sc-row{grid-template-columns:auto 1fr auto}.sc-when{grid-column:2}.sc-body{grid-column:1 / -1}}
+
+/* 타임라인 페이즈 줄 × — 평소엔 옅게, 줄에 올리면 진하게. 보기 전용은 감춘다 */
+.tl-ph-del{flex:none;border:0;background:none;color:var(--muted);font-size:1rem;line-height:1;
+  padding:2px 5px;border-radius:6px;cursor:pointer;opacity:.35}
+.tl-phase:hover .tl-ph-del,.tl-ph-del:focus-visible{opacity:1}
+.tl-ph-del:hover{color:var(--s-delay)}
+@media (hover:none){.tl-ph-del{opacity:.8}}
+body[data-gate="view"] .tl-ph-del{display:none}

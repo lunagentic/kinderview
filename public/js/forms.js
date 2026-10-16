@@ -914,7 +914,7 @@ export function phaseForm({ phase = null, projectId, onSaved }) {
     body,
     footer: `${editing ? '<div class="left"><button class="btn" data-add-task>+ 이 페이즈에 업무 등록</button></div>' : ''}
       <div class="right">
-      ${editing ? '<button class="btn btn-danger" data-remove>삭제</button>' : ''}
+      ${editing ? '<button class="btn btn-discard" data-remove>삭제</button>' : ''}
       <button class="btn" data-close>취소</button>
       <button class="btn btn-primary" data-save>${editing ? '저장' : '추가'}</button></div>`,
     onMount({ root, close }) {
@@ -994,7 +994,7 @@ export function milestoneForm({ milestone = null, projectId, phases = [], onSave
     title: editing ? '마일스톤 수정' : '마일스톤 추가',
     body,
     footer: `<div class="right">
-      ${editing ? '<button class="btn btn-danger" data-remove>삭제</button>' : ''}
+      ${editing ? '<button class="btn btn-discard" data-remove>삭제</button>' : ''}
       <button class="btn" data-close>취소</button>
       <button class="btn btn-primary" data-save>${editing ? '저장' : '추가'}</button></div>`,
     onMount({ root, close }) {
