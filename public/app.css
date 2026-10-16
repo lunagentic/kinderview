@@ -2375,3 +2375,18 @@ body[data-gate="view"] .tl-sub-add,body[data-gate="view"] .tl-proj-add{display:n
 @media (max-width:720px){.tl-task .tl-grip,.tl-sub .tl-grip{display:none}}
 .tl-sub .tl-grip{margin-left:-14px;margin-right:0}
 .tl-sub-add .tl-grip{display:none}
+/* 업무 등록 칸 — 하위 업무 칸과 같은 모양. 업무명만 적어 먼저 만든다 */
+.tl-task-form{flex:1 1 auto;min-width:0;display:flex;gap:6px;align-items:center}
+.tl-task-form input,.tl-task-form select{font:inherit;font-size:.76rem;color:var(--ink);background:none;
+  border:1px dashed var(--line);border-radius:6px;padding:2px 10px}
+.tl-task-form input{flex:1 1 auto;min-width:0}
+.tl-task-form select{flex:0 1 110px;min-width:0;padding:2px 6px;color:var(--ink-2)}
+.tl-task-form input::placeholder{color:var(--muted)}
+.tl-task-form input:hover,.tl-task-form select:hover{border-color:var(--indigo)}
+.tl-task-form input:focus,.tl-task-form select:focus{outline:none;border-style:solid;border-color:var(--focus);background:var(--surface)}
+.tl-proj-add .tl-label{gap:8px}
+.tl-proj-add .tl-add-btn{flex:none}
+.tl-top-add{min-height:34px}
+.tl-top-add .tl-label{flex-direction:row;justify-content:flex-start;align-items:center}
+.tl-task.flash .tl-label,.tl-task.flash .tl-track{animation:sbm-flash 1.8s ease-out}
+body[data-gate="view"] .tl-top-add,body[data-gate="view"] .tl-task-add{display:none}
