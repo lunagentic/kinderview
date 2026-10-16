@@ -2331,3 +2331,23 @@ li.sc-panel{display:block !important;list-style:none;margin:0 0 8px 0;padding:8p
 .tl-ph-del:hover{color:var(--s-delay)}
 @media (hover:none){.tl-ph-del{opacity:.8}}
 body[data-gate="view"] .tl-ph-del{display:none}
+
+/* 업무 팝업 — 상세와 같은 칸(변경 이력만 뺀다). 넓게, 두 단: 왼쪽 정보·내용·하위·첨부, 오른쪽 코멘트 */
+.modal.xwide{width:min(1180px,100%)}
+.sbm-chips{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px}
+.sbm-chips:empty{display:none}
+.sbm-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);gap:22px;align-items:start}
+.sbm-side{position:sticky;top:0}
+.sbm-full .sbm-sec .kv{margin-top:10px}
+.sbm-full .desc-edit{margin-top:8px}
+.sbm-full .att-panel h4{margin:0;font-size:.9rem;font-weight:700}
+.sbm-full .att-panel .att-add{margin-top:8px}
+.sbm-side .sbm-sec{border:1px solid var(--line-soft);border-radius:8px;padding:12px 14px}
+.modal-foot .left{display:flex;gap:8px;flex-wrap:wrap}
+body[data-gate="view"] .modal [data-edit-full],body[data-gate="view"] .modal [data-del-task-full]{display:none}
+@media (max-width:860px){
+  .sbm-cols{grid-template-columns:minmax(0,1fr)}
+  .sbm-side{position:static}
+}
+/* 상세 머리 — 제목이 남는 폭을 다 쓴다(좁게 접히지 않게). 단추는 자리가 모자라면 아래로 */
+.page-head:has(h1 .ttl-wrap)>div:first-child{flex:1 1 360px;min-width:0}

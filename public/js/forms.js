@@ -1,7 +1,8 @@
 import { api } from './api.js';
 import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag, firstUrl, subStatusOf, subProgress, subStatusPick, nudgeNote,
-  subAreaPick, subOwnerPick,} from './ui.js';
+  subAreaPick, subOwnerPick, dDay, dateTime, linkify, statusChip,} from './ui.js';
+import { attPanelInner, mountAttachments } from './attachments.js';
 import { subCommentButton, toggleSubComments } from './subComments.js';
 import { bindComments } from './comments.js';
 import { canEdit, canAdmin } from './gate.js';
@@ -1311,44 +1312,120 @@ export function subtaskModal({ task, onChange, focus = null }) {
       </li>`).join('')}</ul>`
     : '<p class="empty-line">아직 하위 업무가 없습니다. 여러 개로 나뉘는 일이면 아래에서 더해 주세요.</p>');
 
+  // 상세 화면과 같은 칸을 둔다(변경 이력만 뺀다). 목록에서 넘어온 업무에는 협업자·내용·첨부가 없다 —
+  // 창을 열자마자 상세와 같은 한 건을 다시 받아 그 칸들을 채운다.
+  const smPriority = (code) => state.meta.priorities?.find((x) => x.code === code)?.label ?? '-';
+  const smReview = (code) => state.meta.review_statuses?.find((x) => x.code === code)?.label ?? '-';
+  const smChips = (x) => `
+    ${x.area === 'OUT' ? '<span class="chip out" title="외주 업무">외주</span>' : ''}
+    ${(x.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="하위 업무의 영역">${esc(areaMeta(a).label)}</span>`).join('')}
+    <span class="area-pick" title="분류 변경">
+      <select data-category aria-label="분류 변경">
+        <option value=""${x.category ? '' : ' selected'}>분류 없음</option>
+        ${(state.meta.categories ?? []).map((c) => `<option value="${esc(c.code)}"${c.code === x.category ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}
+      </select>
+    </span>
+    ${x.is_delayed ? '<span class="chip delay">⚠ 지연</span>' : ''}
+    ${x.has_open_issue ? `<span class="chip issue">🔥 미해결 이슈 ${x.open_issue_count}</span>` : ''}`;
+  const smInfo = (x) => `
+    <dl class="kv">
+      <dt>책임자</dt><dd class="owner-cell">
+        <select data-owner aria-label="책임자 변경">
+          ${state.members.filter((m) => m.is_active || m.slack_user_id === x.owner_slack_user_id).map((m) => `<option value="${esc(m.slack_user_id)}"${
+            m.slack_user_id === x.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+        </select>
+      </dd>
+      ${(x.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${x.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}
+      <dt>협업자</dt><dd>${x.collaborators?.length
+        ? x.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
+        : '<span style="color:var(--muted)">-</span>'}</dd>
+      ${x.phase_name ? `<dt>페이즈</dt><dd>${esc(x.phase_name)}</dd>` : ''}
+      <dt>일정</dt><dd class="due-cell">${x.start_date ? `${shortDate(x.start_date)} → ` : ''}
+        <input type="date" class="due-edit" value="${esc(x.due_date ?? '')}" data-due aria-label="마감일 변경">
+        <span style="color:${x.is_delayed ? 'var(--s-delay)' : 'var(--muted)'};font-size:.8rem">${x.status === 'DONE' || x.d_day == null ? '' : dDay(x.d_day)}</span></dd>
+      <dt>우선순위</dt><dd>${esc(smPriority(x.priority))}</dd>
+      <dt>상태</dt><dd>${statusChip(x.status)}</dd>
+      ${x.completed_at ? `<dt>완료</dt><dd class="num">${dateTime(x.completed_at)}</dd>` : ''}
+    </dl>`;
+  const smDesc = (x) => (canEdit()
+    ? `<textarea class="desc-edit" data-desc rows="3" maxlength="4000" placeholder="필요한 배경이나 완료 기준을 적어 두세요. 적은 뒤 「저장」을 누릅니다." aria-label="업무 내용">${esc(x.description ?? '')}</textarea>`
+    : (x.description ? `<p class="desc-view">${linkify(x.description)}</p>` : '<p class="empty-line">아직 적은 내용이 없습니다.</p>'));
+  const smOut = (x) => (x.area !== 'OUT' ? '' : `
+    <div class="sbm-sec" data-out-panel>
+      <div class="sbm-sec-head"><h4>외주 정보</h4></div>
+      <dl class="kv">
+        <dt>외주 업체</dt><dd>${esc(x.vendor_name ?? '-')}</dd>
+        <dt>외부 작업자</dt><dd>${esc(x.vendor_worker_name ?? '-')}</dd>
+        <dt>내부 담당</dt><dd>${person(x.owner_slack_user_id, x.owner_name)}</dd>
+        <dt>요청일</dt><dd class="num">${shortDate(x.requested_at)}</dd>
+        <dt>납품 예정</dt><dd class="num" style="${x.is_delivery_delayed ? 'color:var(--s-delay)' : ''}">${shortDate(x.delivery_due_date)}${x.is_delivery_delayed ? ' · 납품 지연' : ''}</dd>
+        <dt>실제 납품</dt><dd class="num">${shortDate(x.delivered_at)}</dd>
+        <dt>검수 상태</dt><dd>
+          <select data-review aria-label="검수 상태">
+            ${(state.meta.review_statuses ?? []).map((r) => `<option value="${esc(r.code)}"${r.code === x.review_status ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}
+          </select></dd>
+        ${x.work_scope ? `<dt>작업 내용</dt><dd>${esc(x.work_scope)}</dd>` : ''}
+      </dl>
+    </div>`);
+  void smReview;
+
   const body = `
-    <div class="sbm">
+    <div class="sbm sbm-full">
       <div class="sbm-head">
         <span class="sbm-proj">${ticketTag(t)}${esc(t.project_name ?? '')}${t.phase_name ? ` · ${esc(t.phase_name)}` : ''}</span>
         <input class="sbm-ttl sbm-ttl-edit" type="text" value="${esc(t.title)}" maxlength="120"
                data-task-title="${esc(t.id)}" aria-label="업무명" title="눌러서 고치기 — Enter 저장 · Esc 되돌리기">
+        <div class="sbm-chips" data-chips>${smChips(t)}</div>
         <div class="sbm-meta">
           <span class="st">${statusPick(t)}</span>
           <span class="meta" data-head-meta>마감 ${t.due_date ? esc(shortDate(t.due_date)) : '미정'}${t.owner_name ? ` · 책임 ${esc(t.owner_name)}` : ''}</span>
           <a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>상세 열기 ›</a>
         </div>
       </div>
-      <div class="sbm-sec">
-        <div class="sbm-sec-head"><h4>하위 업무</h4></div>
-        <div data-prog>${bar()}</div>
-        <div data-list>${list()}</div>
-        <form class="sub-add" data-sub-add>
-          ${subAddArea(t.sub_areas?.slice(-1).map((a) => ({ area: a })) ?? [])}
-          <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
-          <button class="btn btn-ghost" type="submit">+ 추가</button>
-        </form>
-        <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다. 고친 뒤 <b>저장</b>(또는 Enter)을 누르세요.</p>
-      </div>
-      <div class="sbm-sec sbm-att" data-att-row hidden>
-        <div class="sbm-sec-head"><h4>링크·첨부</h4><a class="lnk" href="#/project/tasks/${esc(t.id)}" data-go-detail>더하기는 상세에서 ›</a></div>
-        <div class="att-chips" data-att-chips></div>
-      </div>
-      <div class="sbm-sec">
-        <div class="sbm-sec-head"><h4>디렉터 코멘트</h4></div>
-        <div data-comments class="sbm-comments"></div>
+      <div class="sbm-cols">
+        <div class="sbm-main">
+          <div class="sbm-sec">
+            <div class="sbm-sec-head"><h4>업무 정보</h4></div>
+            <div data-info>${smInfo(t)}</div>
+          </div>
+          <div class="sbm-sec" data-desc-sec>
+            <div class="sbm-sec-head"><h4>업무 내용</h4></div>
+            <div data-desc-box>${smDesc(t)}</div>
+          </div>
+          <div class="sbm-sec">
+            <div class="sbm-sec-head"><h4>하위 업무</h4></div>
+            <div data-prog>${bar()}</div>
+            <div data-list>${list()}</div>
+            <form class="sub-add" data-sub-add>
+              ${subAddArea(t.sub_areas?.slice(-1).map((a) => ({ area: a })) ?? [])}
+              <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
+              <button class="btn btn-ghost" type="submit">+ 추가</button>
+            </form>
+            <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다. 고친 뒤 <b>저장</b>(또는 Enter)을 누르세요.</p>
+          </div>
+          <div class="sbm-sec att-panel" data-att-panel>${attPanelInner(t.attachments ?? [], 'h4')}</div>
+          <div data-out-box>${smOut(t)}</div>
+        </div>
+        <div class="sbm-side">
+          <div class="sbm-sec">
+            <div class="sbm-sec-head"><h4>디렉터 코멘트</h4></div>
+            <div data-comments class="sbm-comments"></div>
+          </div>
+        </div>
       </div>
     </div>`;
 
   modal({
     title: t.key ? `업무 ${t.key}` : '업무',
     body,
-    // 닫기는 머리의 ✕ 하나로 — 꼬리에는 「저장(하고 닫기)」 하나만 둔다
-    footer: `<div class="right"><button class="btn btn-primary" data-save-all title="고친 것을 저장하고 창을 닫습니다 (Enter)">저장</button></div>`,
+    wide: true,
+    // 닫기는 머리의 ✕ 하나로 — 상세의 단추(+ 이슈 · 수정 · 삭제)는 왼쪽, 「저장(하고 닫기)」은 오른쪽
+    footer: `<div class="left">
+        <button class="btn" data-new-issue title="이 업무에 걸린 이슈를 등록합니다">+ 이슈</button>
+        <button class="btn" data-edit-full title="프로젝트·기간·우선순위·협업자까지 고치는 수정 창">수정</button>
+        <button class="btn btn-discard" data-del-task-full>삭제</button>
+      </div>
+      <div class="right"><button class="btn btn-primary" data-save-all title="고친 것을 저장하고 창을 닫습니다 (Enter)">저장</button></div>`,
     beforeClose: () => unsavedGuard(),
     onMount({ root, close }) {
       const repaint = () => {
@@ -1375,16 +1452,29 @@ export function subtaskModal({ task, onChange, focus = null }) {
 
       const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
 
+      root.classList.add('xwide');
       // 상세와 같은 코멘트를 쓴다 — 여기서 남긴 말이 상세·타임라인 뱃지에 같이 보인다
       bindComments(root.querySelector('[data-comments]'), t.id, { onChange: () => { changed = true; } });
-      // 첨부는 칩으로만 — 더하는 건 상세에서
-      api.get(`/api/tasks/${t.id}/attachments`).then((rows) => {
-        if (!rows?.length) return;
-        const box = root.querySelector('[data-att-row]');
-        box.hidden = false;
-        box.querySelector('[data-att-chips]').innerHTML = rows.map((a) => `
-          <a class="att-chip" href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(a.name)}">${a.kind === 'image' ? '🖼' : '🔗'} ${esc(a.name)}</a>`).join('');
+      // 첨부도 상세와 같은 부품 — 링크 붙이기 · 이미지 올리기 · 끌어다 놓기 · 캡처 붙여넣기
+      const att = mountAttachments(root.querySelector('[data-att-panel]'), t.id, {
+        rows: t.attachments ?? [], pasteRoot: root, onChange: () => { changed = true; },
+      });
+      // 상세와 같은 한 건을 받아 정보·내용·외주 칸을 채운다. 이미 손댄 칸은 건드리지 않는다.
+      let full = t;
+      api.get(`/api/tasks/${t.id}`).then((x) => {
+        if (!root.isConnected) return;
+        full = x;
+        if (!('owner_slack_user_id' in pending.task) && !('due_date' in pending.task)) root.querySelector('[data-info]').innerHTML = smInfo(x);
+        if (!('category' in pending.task)) root.querySelector('[data-chips]').innerHTML = smChips(x);
+        if (!('description' in pending.task)) root.querySelector('[data-desc-box]').innerHTML = smDesc(x);
+        root.querySelector('[data-out-box]').innerHTML = smOut(x);
+        if (!t.attachments) att.reload();   // 목록에서 온 업무는 첨부를 모른다
+        growDesc();
       }).catch(() => {});
+      const growDesc = () => {
+        const d = root.querySelector('[data-desc]');
+        if (d) { d.style.height = 'auto'; d.style.height = `${Math.max(d.scrollHeight + 2, 70)}px`; }
+      };
 
       // ── 고친 것은 모아 두었다가 「저장」(또는 Enter)으로 한 번에 올린다 ──
       // 칸을 벗어날 때마다 저장하면 저장됐는지 알 수 없다. 상세 화면과 같은 방식이다.
@@ -1392,6 +1482,8 @@ export function subtaskModal({ task, onChange, focus = null }) {
       const pendingCount = () => Object.keys(pending.task).length
         + [...pending.subs.values()].reduce((n, o) => n + Object.keys(o).length, 0);
       const saveBtn = root.querySelector('[data-save-all]');
+      // 모아 두지 않고 바로 처리하는 칸 — 하위 추가 · 옮기기 · 코멘트 · 하위 댓글 · 첨부 · 외주 검수
+      const SM_SKIP = '[data-sub-add], .sbm-move, [data-comments], .sc-panel, [data-att-panel], [data-out-panel]';
       const paintSave = () => {
         const n = pendingCount();
         saveBtn.textContent = n ? `저장 (${n})` : '저장';
@@ -1424,9 +1516,17 @@ export function subtaskModal({ task, onChange, focus = null }) {
         let name;
         let value;
         let orig;
+        const src = full ?? t;
         if (el.matches('[data-task-title]')) { name = 'title'; value = el.value.replace(/\s+/g, ' ').trim(); orig = t.title; }
         else if (el.matches('[data-status]')) { name = 'status'; value = el.value; orig = t.status; }
-        else return false;
+        else if (el.matches('[data-owner]')) { name = 'owner_slack_user_id'; value = el.value; orig = src.owner_slack_user_id ?? ''; }
+        else if (el.matches('[data-category]')) { name = 'category'; value = el.value || null; orig = src.category ?? null; }
+        else if (el.matches('[data-desc]')) { name = 'description'; value = el.value.trim() || null; orig = src.description ?? null; }
+        else if (el.matches('[data-due]')) {
+          // 마감은 비울 수 없다 — 상세와 같은 규칙
+          if (!el.value) { if (el.matches(':focus')) return true; toast('마감일을 비울 수는 없습니다.', true); el.value = src.due_date ?? ''; delete pending.task.due_date; el.classList.remove('dirty'); paintSave(); return true; }
+          name = 'due_date'; value = el.value; orig = src.due_date ?? '';
+        } else return false;
         if (value === orig) delete pending.task[name]; else pending.task[name] = value;
         el.classList.toggle('dirty', name in pending.task);
         paintSave();
@@ -1492,10 +1592,10 @@ export function subtaskModal({ task, onChange, focus = null }) {
         if (Object.keys(pending.task).length) {
           try {
             await api.patch(`/api/tasks/${t.id}`, pending.task);
-            if (pending.task.title) t.title = pending.task.title;
-            if (pending.task.status) t.status = pending.task.status;
+            Object.assign(t, pending.task);
+            Object.assign(full, pending.task);
             pending.task = {};
-            root.querySelectorAll('[data-task-title], .sbm-head [data-status]').forEach((el) => el.classList.remove('dirty'));
+            root.querySelectorAll('.dirty').forEach((el) => el.classList.remove('dirty'));
           } catch (err) { fail += 1; notes.push(err.message); }
         }
         changed = true;
@@ -1520,17 +1620,18 @@ export function subtaskModal({ task, onChange, focus = null }) {
       root.addEventListener('input', (e) => {
         e.target.classList?.remove('bad');
         if (e.target.matches?.('.sbm-title-ta')) grow(e.target);
-        if (e.target.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
+        if (e.target.matches?.('[data-desc]')) growDesc();
+        if (e.target.closest(SM_SKIP)) return;
         if (!stageSub(e.target)) stageTask(e.target);
       });
       root.addEventListener('change', (e) => {
-        if (e.target.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
+        if (e.target.closest(SM_SKIP)) return;
         if (!stageSub(e.target)) stageTask(e.target);
       });
 
       root.addEventListener('keydown', (e) => {
         const el = e.target;
-        if (el.closest('[data-sub-add], .sbm-move, [data-comments]')) return;
+        if (el.closest(SM_SKIP)) return;
         if (el.tagName === 'TEXTAREA' && !el.matches('[data-sub-title]')) return;
         if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return;
         if (e.key === 'Enter') {
@@ -1687,6 +1788,49 @@ export function subtaskModal({ task, onChange, focus = null }) {
           return;
         }
         if (e.target.closest('[data-go-detail]')) close();
+        if (e.target.closest('[data-new-issue]')) {
+          e.stopPropagation();   // app.js 의 공통 「+ 이슈 등록」이 한 번 더 열지 않게
+          issueForm({ defaults: { project_id: t.project_id, task_id: t.id }, onSaved: () => { changed = true; } });
+          return;
+        }
+        if (e.target.closest('[data-edit-full]')) {
+          if (pendingCount()) {
+            const ok = await confirmModal('저장하지 않은 변경이 있습니다. 수정 창을 열면 그 내용은 사라집니다. 계속할까요?');
+            if (!ok) return;
+          }
+          close(true);
+          taskForm({ task: full, onSaved: () => onChange?.() });
+          return;
+        }
+        if (e.target.closest('[data-del-task-full]')) {
+          if (!editable()) return;
+          if (!(await confirmModal(`「${t.title}」을(를) 삭제할까요? 연결된 이슈는 남습니다.`, { confirmLabel: '삭제', danger: true }))) return;
+          try {
+            await api.del(`/api/tasks/${t.id}`);
+            toast('업무를 삭제했습니다.');
+            changed = true;
+            close(true);
+          } catch (err) { toast(err.message, true); }
+        }
+      });
+      // 외주 검수 상태 — 상세처럼 바로 올린다
+      root.addEventListener('change', async (e) => {
+        const rv = e.target.closest('[data-review]');
+        if (!rv) return;
+        if (!editable()) { rv.value = full.review_status ?? ''; return; }
+        try {
+          await api.patch(`/api/tasks/${t.id}`, { review_status: rv.value });
+          full.review_status = rv.value;
+          changed = true;
+          toast('검수 상태를 변경했습니다.');
+          if (rv.value === 'REJECTED' && full.status !== 'OUT_REVISION'
+            && await confirmModal('반려 처리했습니다. 업무 상태를 "수정"으로 전환할까요?')) {
+            await api.patch(`/api/tasks/${t.id}`, { status: 'OUT_REVISION' });
+            const headSt = root.querySelector('.sbm-head [data-status]');
+            if (headSt) { headSt.value = 'OUT_REVISION'; headSt.dataset.st = 'OUT_REVISION'; }
+            t.status = 'OUT_REVISION';
+          }
+        } catch (err) { toast(err.message, true); }
       });
 
       // 닫힐 때 바뀐 게 있으면 바깥(타임라인 패널의 n/m 뱃지, 진행률)을 새로 그린다
