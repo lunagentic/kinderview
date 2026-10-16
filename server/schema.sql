@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS task (
   id                  TEXT PRIMARY KEY,
   project_id          TEXT REFERENCES project(id),
   phase_id            TEXT REFERENCES phase(id) ON DELETE SET NULL,
+  sort_order          INTEGER,           -- 페이즈 안 차례(타임라인에서 끌어 정함). 비면 마감일 순
   title               TEXT NOT NULL,
   -- 업무 영역은 하위 업무에 붙는다. 상위 업무의 area 는 이제 외주 여부만 뜻한다 — 'OUT' 이거나 비어 있다.
   area                TEXT CHECK (area IS NULL OR area = 'OUT'),

@@ -487,6 +487,14 @@ function moveAreaToSubtasks() {
 }
 
 /** 하위 업무 댓글 — comment.subtask_id 를 더하고, 예전 한 줄 메모를 댓글 1개로 옮긴다 */
+// 업무의 차례 — 타임라인에서 끌어 정한다
+function addTaskSortOrder() {
+  const sql = tableSql('task');
+  if (!sql || /\bsort_order\b/.test(sql)) return null;
+  db.exec('ALTER TABLE task ADD COLUMN sort_order INTEGER');
+  return '업무 차례 칸 추가';
+}
+
 function addSubtaskComments() {
   const sql = tableSql('comment');
   if (!sql || /\bsubtask_id\b/.test(sql)) return null;
@@ -595,7 +603,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

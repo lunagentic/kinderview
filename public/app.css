@@ -2367,3 +2367,11 @@ body[data-gate="view"] .modal [data-edit-full],body[data-gate="view"] .modal [da
 body[data-gate="view"] .tl-sub-add,body[data-gate="view"] .tl-proj-add{display:none}
 .tl-row-ms .tl-label,.tl-proj-add .tl-label{flex-direction:row;justify-content:flex-start;align-items:center}
 .tl-proj-add .tl-add-btn{align-self:center}
+/* 끌어서 순서 — 프로젝트 · 업무 · 하위 줄에도 같은 ⋮⋮ 손잡이 */
+.ph-reordering,.ph-reordering *{cursor:grabbing !important}
+.tl-task:hover .tl-grip,.tl-sub:hover .tl-grip,.tl-group-head:hover .tl-grip{opacity:.8}
+.tl-group-head .tl-grip{margin-left:-14px;margin-right:0;align-self:center}
+.tl-task .tl-grip{position:absolute;left:3px;top:50%;transform:translateY(-50%);margin:0}
+@media (max-width:720px){.tl-task .tl-grip,.tl-sub .tl-grip{display:none}}
+.tl-sub .tl-grip{margin-left:-14px;margin-right:0}
+.tl-sub-add .tl-grip{display:none}
