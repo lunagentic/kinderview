@@ -2738,6 +2738,10 @@ function handle(method, path, body) {
     return sbRpc('kf_gate_list').then((rows) => rows ?? []);
   }
   if (method === 'PATCH' && seg[1] === 'gate-codes' && seg[2]) {
+    if (body && 'label' in body) {
+      return sbRpc('kf_gate_set_label', { p_id: Number(seg[2]), p_label: String(body.label ?? '') })
+        .then((label) => ({ label }));
+    }
     if (body && 'member_id' in body) {
       return sbRpc('kf_gate_set_member', { p_id: Number(seg[2]), p_member: body.member_id || null })
         .then((member_id) => ({ member_id }));
