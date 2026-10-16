@@ -2293,6 +2293,13 @@ body[data-gate="view"] .fl-edit{pointer-events:none}
 @media (max-width:720px){.fl-sd{grid-template-columns:1fr}}
 .fl-main .fl-to-sub{color:var(--indigo);border:1px solid color-mix(in oklab, var(--indigo) 35%, var(--line));font-weight:600}
 .fl-main .fl-to-sub:hover{background:color-mix(in oklab, var(--indigo) 8%, var(--surface))}
+/* 업무 팝업 — 이동·삭제는 늘 보이게 (마우스를 올려야 보이면 못 찾는다) */
+.sbm-list .x.sbm-act{width:auto;color:var(--muted);font-size:.75rem;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.sbm-list .x.sbm-del:hover{color:var(--s-delay);border-color:currentColor;background:var(--surface)}
+.sbm-list .x.mv.sbm-act:hover{color:var(--indigo);border-color:currentColor}
+body[data-gate="view"] .sbm .x.sbm-act{display:none}
+.gc-label{font:inherit;font-size:.88rem;font-weight:600;color:var(--ink);border:1px solid transparent;border-radius:6px;padding:2px 6px;margin-left:-6px;background:none;min-width:0;width:100%}
+.gc-label:hover{border-color:var(--line)} .gc-label:focus{outline:none;border-color:var(--focus);background:var(--surface)}
 
 </style>
 
@@ -2450,6 +2457,10 @@ const MEMBERS = [
   { id: 'U07SON',  name: '손',   handle: 'son',  active: 1 },
   { id: 'U08YUN',  name: '윤',   handle: 'yun',  active: 1 },
   { id: 'U09MYUNG', name: '명학', handle: 'myung', active: 1 },
+  { id: 'U10TAESEONG', name: '태성', handle: 'taeseong', active: 1 },
+  { id: 'U11JUNYOUNG', name: '준영', handle: 'junyoung', active: 1 },
+  { id: 'U12SEONGYOUNG', name: '성영', handle: 'seongyoung', active: 1 },
+  { id: 'U13JJO', name: '쪼', handle: 'jjo', active: 1 },
 ];
 
 
@@ -6016,6 +6027,10 @@ function handle(method, path, body) {
     return sbRpc('kf_gate_list').then((rows) => rows ?? []);
   }
   if (method === 'PATCH' && seg[1] === 'gate-codes' && seg[2]) {
+    if (body && 'label' in body) {
+      return sbRpc('kf_gate_set_label', { p_id: Number(seg[2]), p_label: String(body.label ?? '') })
+        .then((label) => ({ label }));
+    }
     if (body && 'member_id' in body) {
       return sbRpc('kf_gate_set_member', { p_id: Number(seg[2]), p_member: body.member_id || null })
         .then((member_id) => ({ member_id }));
@@ -8144,8 +8159,8 @@ function subtaskModal({ task, onChange, focus = null }) {
                title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
         ${subStatusPick(r)}
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
-        <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
-        <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
+        <button class="x mv sbm-act" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄ 이동</button>
+        <button class="x sbm-act sbm-del" data-sub-del="${esc(r.id)}" aria-label="하위 업무 삭제" title="하위 업무 삭제">삭제</button>
         <input class="sub-note-edit" type="text" maxlength="300" value="${esc(r.note ?? '')}" data-sub-note="${esc(r.id)}"
                placeholder="메모 추가" aria-label="하위 업무 메모">
       </li>`).join('')}</ul>`
@@ -8483,6 +8498,8 @@ function subtaskModal({ task, onChange, focus = null }) {
         const del = e.target.closest('[data-sub-del]');
         if (del) {
           if (!editable()) return;
+          const victim = rows.find((r) => r.id === del.dataset.subDel);
+          if (!(await confirmModal(`하위 업무 「${victim?.title ?? ''}」을(를) 지울까요?`, { confirmLabel: '삭제', danger: true }))) return;
           pending.subs.delete(del.dataset.subDel);
           paintSave();
           try { await api.del(`/api/subtasks/${del.dataset.subDel}`); changed = true; }
@@ -14781,7 +14798,7 @@ const GC_ROLE = { ADMIN: '관리자', DIRECTOR: '디렉터', EDIT: '편집' };
 const codeRow = (c) => `
   <li class="gc-row${c.active ? '' : ' off'}">
     <span class="gc-name">
-      <b>${esc(c.label ?? '이름 없음')}</b>
+      <input class="gc-label" data-code-label="${esc(c.id)}" value="${esc(c.label ?? '')}" maxlength="40" placeholder="코드 이름" aria-label="코드 이름" title="눌러서 이름 바꾸기">
       <span class="rp-meta">${GC_ROLE[c.role] ?? c.role}${
         c.claimed_by ? ` · ${esc(c.claimed_by)}` : ' · 아직 안 씀'}${
         c.use_count ? ` · ${esc(c.use_count)}회` : ''}</span>
@@ -14841,7 +14858,7 @@ function gatePanel() {
               `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === state.me ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>
           </label>
           <button class="btn btn-primary" type="submit">들어가기</button>
-          <p class="hint gate-who-hint">처음 쓰는 코드는 이 사람에게 묶입니다. 그다음부터는 이 코드로 들어오면 작성자가 자동으로 이 사람이 됩니다. (관리자 코드는 묶이지 않습니다)</p>
+          <p class="hint gate-who-hint">사람이 정해진 코드는 넣는 순간 그 사람으로 들어갑니다 — 이 칸은 사람이 정해지지 않은 코드에만 쓰입니다. (관리자 코드는 묶이지 않습니다)</p>
         </form>
       `}
 
@@ -14931,6 +14948,16 @@ function gatePanel() {
       });
 
       root.addEventListener('change', async (e) => {
+        const lab = e.target.closest('[data-code-label]');
+        if (lab) {
+          const label = lab.value.replace(/\s+/g, ' ').trim();
+          if (!label) { toast('코드 이름을 적어 주세요.', true); loadCodes(); return; }
+          lab.disabled = true;
+          try { await api.patch(`/api/gate-codes/${lab.dataset.codeLabel}`, { label }); toast('코드 이름을 바꿨습니다.'); }
+          catch (err) { toast(err.message, true); }
+          loadCodes();
+          return;
+        }
         const who = e.target.closest('[data-code-member]');
         if (!who) return;
         who.disabled = true;

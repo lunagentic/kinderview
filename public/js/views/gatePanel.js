@@ -14,7 +14,7 @@ const GC_ROLE = { ADMIN: '관리자', DIRECTOR: '디렉터', EDIT: '편집' };
 const codeRow = (c) => `
   <li class="gc-row${c.active ? '' : ' off'}">
     <span class="gc-name">
-      <b>${esc(c.label ?? '이름 없음')}</b>
+      <input class="gc-label" data-code-label="${esc(c.id)}" value="${esc(c.label ?? '')}" maxlength="40" placeholder="코드 이름" aria-label="코드 이름" title="눌러서 이름 바꾸기">
       <span class="rp-meta">${GC_ROLE[c.role] ?? c.role}${
         c.claimed_by ? ` · ${esc(c.claimed_by)}` : ' · 아직 안 씀'}${
         c.use_count ? ` · ${esc(c.use_count)}회` : ''}</span>
@@ -74,7 +74,7 @@ export function gatePanel() {
               `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === state.me ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>
           </label>
           <button class="btn btn-primary" type="submit">들어가기</button>
-          <p class="hint gate-who-hint">처음 쓰는 코드는 이 사람에게 묶입니다. 그다음부터는 이 코드로 들어오면 작성자가 자동으로 이 사람이 됩니다. (관리자 코드는 묶이지 않습니다)</p>
+          <p class="hint gate-who-hint">사람이 정해진 코드는 넣는 순간 그 사람으로 들어갑니다 — 이 칸은 사람이 정해지지 않은 코드에만 쓰입니다. (관리자 코드는 묶이지 않습니다)</p>
         </form>
       `}
 
@@ -164,6 +164,16 @@ export function gatePanel() {
       });
 
       root.addEventListener('change', async (e) => {
+        const lab = e.target.closest('[data-code-label]');
+        if (lab) {
+          const label = lab.value.replace(/\s+/g, ' ').trim();
+          if (!label) { toast('코드 이름을 적어 주세요.', true); loadCodes(); return; }
+          lab.disabled = true;
+          try { await api.patch(`/api/gate-codes/${lab.dataset.codeLabel}`, { label }); toast('코드 이름을 바꿨습니다.'); }
+          catch (err) { toast(err.message, true); }
+          loadCodes();
+          return;
+        }
         const who = e.target.closest('[data-code-member]');
         if (!who) return;
         who.disabled = true;

@@ -1304,8 +1304,8 @@ export function subtaskModal({ task, onChange, focus = null }) {
                title="비우면 상위 업무 마감을 따릅니다. 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다.">
         ${subStatusPick(r)}
         <span class="when">${r.done_at ? `${esc(shortDate(r.done_at.slice(0, 10)))} 완료` : ''}</span>
-        <button class="x mv" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄</button>
-        <button class="x" data-sub-del="${esc(r.id)}" aria-label="삭제" title="삭제">×</button>
+        <button class="x mv sbm-act" data-sub-move="${esc(r.id)}" aria-label="다른 업무로 이동" title="다른 업무로 이동">⇄ 이동</button>
+        <button class="x sbm-act sbm-del" data-sub-del="${esc(r.id)}" aria-label="하위 업무 삭제" title="하위 업무 삭제">삭제</button>
         <input class="sub-note-edit" type="text" maxlength="300" value="${esc(r.note ?? '')}" data-sub-note="${esc(r.id)}"
                placeholder="메모 추가" aria-label="하위 업무 메모">
       </li>`).join('')}</ul>`
@@ -1643,6 +1643,8 @@ export function subtaskModal({ task, onChange, focus = null }) {
         const del = e.target.closest('[data-sub-del]');
         if (del) {
           if (!editable()) return;
+          const victim = rows.find((r) => r.id === del.dataset.subDel);
+          if (!(await confirmModal(`하위 업무 「${victim?.title ?? ''}」을(를) 지울까요?`, { confirmLabel: '삭제', danger: true }))) return;
           pending.subs.delete(del.dataset.subDel);
           paintSave();
           try { await api.del(`/api/subtasks/${del.dataset.subDel}`); changed = true; }

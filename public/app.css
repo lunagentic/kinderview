@@ -2289,3 +2289,10 @@ body[data-gate="view"] .fl-edit{pointer-events:none}
 @media (max-width:720px){.fl-sd{grid-template-columns:1fr}}
 .fl-main .fl-to-sub{color:var(--indigo);border:1px solid color-mix(in oklab, var(--indigo) 35%, var(--line));font-weight:600}
 .fl-main .fl-to-sub:hover{background:color-mix(in oklab, var(--indigo) 8%, var(--surface))}
+/* 업무 팝업 — 이동·삭제는 늘 보이게 (마우스를 올려야 보이면 못 찾는다) */
+.sbm-list .x.sbm-act{width:auto;color:var(--muted);font-size:.75rem;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.sbm-list .x.sbm-del:hover{color:var(--s-delay);border-color:currentColor;background:var(--surface)}
+.sbm-list .x.mv.sbm-act:hover{color:var(--indigo);border-color:currentColor}
+body[data-gate="view"] .sbm .x.sbm-act{display:none}
+.gc-label{font:inherit;font-size:.88rem;font-weight:600;color:var(--ink);border:1px solid transparent;border-radius:6px;padding:2px 6px;margin-left:-6px;background:none;min-width:0;width:100%}
+.gc-label:hover{border-color:var(--line)} .gc-label:focus{outline:none;border-color:var(--focus);background:var(--surface)}
