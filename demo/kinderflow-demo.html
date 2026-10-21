@@ -1951,7 +1951,8 @@ body[data-gate="view"] .bd-st .chip-select{pointer-events:none}
 .rp-sub{font-size:.8rem;color:var(--muted)} .rp-sub b.bad,.btn b.bad{color:var(--s-delay)}
 .rp-stack{display:flex;height:40px;border-radius:8px;overflow:hidden;background:var(--line-soft);margin:10px 0 8px;border:1px solid var(--line)}
 .rp-stack i{display:block;height:100%}
-.pr-high{background:#3b2fc8} .pr-normal{background:#5b8def} .pr-low{background:#a9b9e8}
+/* 리포트 우선순위 막대·범례 색 — 리포트 안에서만(업무 목록의 우선순위 칩과 이름이 같다) */
+:is(.rp-stack,.rp-legend) .pr-high{background:#3b2fc8} :is(.rp-stack,.rp-legend) .pr-normal{background:#5b8def} :is(.rp-stack,.rp-legend) .pr-low{background:#a9b9e8}
 .rp-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.76rem;color:var(--muted);margin-top:8px}
 .rp-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0}
 .rp-legend .done,.rp-bar .done{background:var(--s-done)} .rp-legend .wait,.rp-bar .wait{background:#a9b9e8}
@@ -2394,6 +2395,13 @@ body[data-gate="view"] .tl-sub-add,body[data-gate="view"] .tl-proj-add{display:n
 .tl-top-add .tl-label{flex-direction:row;justify-content:flex-start;align-items:center}
 .tl-task.flash .tl-label,.tl-task.flash .tl-track{animation:sbm-flash 1.8s ease-out}
 body[data-gate="view"] .tl-top-add,body[data-gate="view"] .tl-task-add{display:none}
+
+/* 업무 목록 우선순위 — 작은 글자 칩. 높음만 눈에 띄게 */
+.tk-pr{justify-self:start;font-size:.74rem;font-weight:600;line-height:1.5;padding:1px 8px;border-radius:999px;
+  border:1px solid var(--line);color:var(--muted);background:none;white-space:nowrap}
+.tk-pr.pr-high{color:var(--s-delay);border-color:color-mix(in srgb,var(--s-delay) 35%,transparent);background:color-mix(in srgb,var(--s-delay) 8%,transparent)}
+.tk-pr.pr-normal{color:var(--ink-2)}
+.tk-pr.pr-low{color:var(--muted);opacity:.75}
 
 </style>
 
