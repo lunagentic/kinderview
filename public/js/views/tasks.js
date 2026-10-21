@@ -157,7 +157,8 @@ export async function renderTasks(root, query) {
   const ownerOptions = state.members
     .filter((m) => (m.is_active || p.get('owner') === m.slack_user_id) && (m.slack_user_id !== state.meBound || p.get('owner') === m.slack_user_id))
     .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('');
-  const meOpt = state.meBound ? `나 (${memberOf(state.meBound)?.display_name ?? ''})` : '나 — 편집 코드를 넣으면';
+  // 보기 전용(코드 없음)에서는 「나」 칸을 두지 않는다 — 누구인지 모른다
+  const meOpt = state.meBound ? `나 (${memberOf(state.meBound)?.display_name ?? ''})` : '나';
 
   // 핵심과업 별표 — 내가 단 것만 채워진 별. 남이 단 별은 내 목록에 영향이 없다
   const tkStar = (t) => {
@@ -229,7 +230,7 @@ export async function renderTasks(root, query) {
     <div class="filter-row" style="margin-bottom:18px">
       <select data-f="project"><option value="">프로젝트 전체</option>${projectOptions}</select>
       <select data-f="area"><option value="">영역 전체</option>${areaOptions}</select>
-      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>${esc(meOpt)}</option>${ownerOptions}</select>
+      <select data-f="owner"><option value="">담당 전체</option>${state.meBound || p.get('owner') === 'me' ? `<option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>${esc(meOpt)}</option>` : ''}${ownerOptions}</select>
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label class="chk"><input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함</label>
       <button class="btn btn-ghost" data-reset>필터 초기화</button>
