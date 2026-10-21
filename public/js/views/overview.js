@@ -130,7 +130,6 @@ export async function renderOverview(root) {
       </div>
       <div class="page-actions">
         <button class="btn" data-new-project>+ 프로젝트</button>
-        <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
       </div>
     </div>
 

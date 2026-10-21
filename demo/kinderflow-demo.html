@@ -2151,8 +2151,9 @@ body[data-gate="view"] .tl-grip{display:none}
 /* 간트 막대 위 기간 글자 — 막대 가운데에. 막대가 짧아도 읽히게 막대 칸 전체 폭에 쓴다 */
 .bd-tl{height:18px}
 .bd-tl-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;
-  font-size:.68rem;font-weight:600;color:var(--md-text);letter-spacing:-.01em;white-space:nowrap;pointer-events:none;
-  text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;font-variant-numeric:tabular-nums}
+  font-size:.68rem;font-weight:600;color:#1f2233;letter-spacing:-.01em;white-space:nowrap;pointer-events:none;
+  /* 막대는 두 테마 모두 옅은 색이다 — 글자는 늘 진하게, 흰 테두리로 어두운 바탕에서도 읽히게(다크에서 흰 글자+흰 번짐이 뭉개졌다) */
+  text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 1px #fff;font-variant-numeric:tabular-nums}
 /* 타임라인 머리 — 달 이름 · 주 눈금 · 오늘 */
 .bd-head .bd-bar{padding:2px 8px}
 .bd-scale{position:relative;display:block;flex:1;height:22px}
@@ -6742,7 +6743,8 @@ const memberOf = (id) => state.members.find((m) => m.slack_user_id === id) || nu
 const projectOf = (id) => state.projects.find((p) => p.id === id) || null;
 const activeMembers = () => state.members.filter((m) => m.is_active);
 /** 고르는 칸의 이름 — 내 편집 코드에 묶인 사람(나)은 「나 (손)」으로 */
-const meLabel = (m) => (!m ? '' : m.slack_user_id === state.me ? `나 (${m.display_name})` : m.display_name);
+// meBound: 편집 코드에 묶인 사람(app.js renderMePicker 가 정한다). 코드가 없으면 「나」도 없다.
+const meLabel = (m) => (!m ? '' : m.slack_user_id === state.meBound ? `나 (${m.display_name})` : m.display_name);
 const activeProjects = () =>
   state.projects.filter((p) => !p.is_archived && ['ACTIVE', 'PLANNED'].includes(p.status));
 
@@ -10493,7 +10495,6 @@ async function renderOverview(root) {
       </div>
       <div class="page-actions">
         <button class="btn" data-new-project>+ 프로젝트</button>
-        <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
       </div>
     </div>
 
@@ -10598,6 +10599,7 @@ async function renderOverview(root) {
     else if (e.target.closest('[data-area-leads]')) areaLeadsForm({ onSaved: () => window.dispatchEvent(new Event('kf:reload')) });
   });
 }
+
 
 
 
@@ -10750,11 +10752,11 @@ async function renderTasks(root, query) {
   const areaOptions = state.meta.areas
     .map((a) => `<option value="${esc(a.code)}"${p.get('area') === a.code ? ' selected' : ''}>${esc(a.full)}</option>`).join('');
   // 비활성 구성원은 고르지 않는다 — 이미 그 사람으로 걸러 둔 경우만 남긴다
-  // 나는 맨 위 「나 (손)」 하나로 — 아래 목록에서 또 나오지 않게 뺀다
+  // 나는 맨 위 「나 (손)」 하나로 — 아래 목록에서 또 나오지 않게 뺀다. 코드가 없으면 「나」는 고를 수 없다.
   const ownerOptions = state.members
-    .filter((m) => (m.is_active || p.get('owner') === m.slack_user_id) && (m.slack_user_id !== state.me || p.get('owner') === m.slack_user_id))
+    .filter((m) => (m.is_active || p.get('owner') === m.slack_user_id) && (m.slack_user_id !== state.meBound || p.get('owner') === m.slack_user_id))
     .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('');
-  const meOpt = state.me ? `나 (${memberOf(state.me)?.display_name ?? '현재 사용자'})` : '나 (현재 사용자)';
+  const meOpt = state.meBound ? `나 (${memberOf(state.meBound)?.display_name ?? ''})` : '나 — 편집 코드를 넣으면';
 
   // 핵심과업 별표 — 내가 단 것만 채워진 별. 남이 단 별은 내 목록에 영향이 없다
   const tkStar = (t) => {
@@ -10802,7 +10804,6 @@ async function renderTasks(root, query) {
           <button type="button" data-view="gantt" aria-pressed="${gantt}">타임라인</button>
         </div>
         <button class="btn" data-new-project>+ 프로젝트</button>
-        <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
       </div>
     </div>
 
@@ -10876,6 +10877,7 @@ async function renderTasks(root, query) {
       })}`;
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
+  const needMe = () => { toast('내 업무를 보려면 편집 코드를 넣어 주세요. 코드로 누구인지 압니다.', true); gatePanel(); };
 
   if (gantt) {
     hoverTip(root);
@@ -11064,6 +11066,8 @@ async function renderTasks(root, query) {
     const q = e.target.closest('[data-quick]');
     if (q) {
       const quick = QUICK.find((x) => x.key === q.dataset.quick);
+      // 「나」가 걸린 걸러보기는 코드에 묶인 사람이 있어야 뜻이 있다 — 없으면 남(기본 사용자)의 목록이 나온다
+      if (!state.meBound && quick.params.owner === 'me' && !matchesQuick(p, quick)) { needMe(); return undefined; }
       const next = new URLSearchParams();
       if (rawMonth) next.set('month', rawMonth);     // 고른 달은 유지한다
       if (gantt) next.set('view', 'gantt');          // 보기도 유지한다
@@ -11286,6 +11290,7 @@ async function renderTasks(root, query) {
     const f = e.target.closest('[data-f]');
     if (!f) return;
     const key = f.dataset.f;
+    if (key === 'owner' && f.value === 'me' && !state.meBound) { f.value = p.get('owner') ?? ''; needMe(); return; }
     setParam({ [key]: f.type === 'checkbox' ? (f.checked ? '1' : '') : f.value });
   });
 
@@ -13895,7 +13900,6 @@ async function renderBoard(root, query) {
         <button class="btn" data-month="${esc(shiftYm(base, -1))}" aria-label="이전 달">‹</button>
         <button class="btn" data-month="${esc(thisYm)}"${base === thisYm ? ' disabled' : ''}>이번 달</button>
         <button class="btn" data-month="${esc(shiftYm(base, 1))}" aria-label="다음 달">›</button>
-        <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
       </div>
     </div>
     <div class="board">${groups.map((g) => group(g, folded.has(g.ym), openSet)).join('')}</div>
@@ -16385,6 +16389,7 @@ function renderMePicker() {
   const active = state.members.filter((m) => m.is_active);
   const fixed = bound && active.some((m) => m.slack_user_id === bound) ? bound : null;
   if (fixed && state.me !== fixed) setMe(fixed);
+  state.meBound = fixed;   // 「나 (손)」 표시는 코드에 묶인 사람에게만
 
   sel.innerHTML = active
     .map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === state.me ? ' selected' : ''}>${esc(m.display_name)}</option>`)

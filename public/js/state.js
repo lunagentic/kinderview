@@ -45,7 +45,8 @@ export const memberOf = (id) => state.members.find((m) => m.slack_user_id === id
 export const projectOf = (id) => state.projects.find((p) => p.id === id) || null;
 export const activeMembers = () => state.members.filter((m) => m.is_active);
 /** 고르는 칸의 이름 — 내 편집 코드에 묶인 사람(나)은 「나 (손)」으로 */
-export const meLabel = (m) => (!m ? '' : m.slack_user_id === state.me ? `나 (${m.display_name})` : m.display_name);
+// meBound: 편집 코드에 묶인 사람(app.js renderMePicker 가 정한다). 코드가 없으면 「나」도 없다.
+export const meLabel = (m) => (!m ? '' : m.slack_user_id === state.meBound ? `나 (${m.display_name})` : m.display_name);
 export const activeProjects = () =>
   state.projects.filter((p) => !p.is_archived && ['ACTIVE', 'PLANNED'].includes(p.status));
 

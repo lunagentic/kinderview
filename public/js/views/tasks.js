@@ -6,6 +6,7 @@ import {
   titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle, ticketTag, hoverTip, subStatusPick, subStatusOf, subAreaPick, nudgeNote,
 } from '../ui.js';
 import { canEdit } from '../gate.js';
+import { gatePanel } from './gatePanel.js';
 import { taskForm, projectForm, subtaskModal, subAssignChange } from '../forms.js';
 import { ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTable, bindGanttTable } from '../gantt.js';
 
@@ -152,11 +153,11 @@ export async function renderTasks(root, query) {
   const areaOptions = state.meta.areas
     .map((a) => `<option value="${esc(a.code)}"${p.get('area') === a.code ? ' selected' : ''}>${esc(a.full)}</option>`).join('');
   // 비활성 구성원은 고르지 않는다 — 이미 그 사람으로 걸러 둔 경우만 남긴다
-  // 나는 맨 위 「나 (손)」 하나로 — 아래 목록에서 또 나오지 않게 뺀다
+  // 나는 맨 위 「나 (손)」 하나로 — 아래 목록에서 또 나오지 않게 뺀다. 코드가 없으면 「나」는 고를 수 없다.
   const ownerOptions = state.members
-    .filter((m) => (m.is_active || p.get('owner') === m.slack_user_id) && (m.slack_user_id !== state.me || p.get('owner') === m.slack_user_id))
+    .filter((m) => (m.is_active || p.get('owner') === m.slack_user_id) && (m.slack_user_id !== state.meBound || p.get('owner') === m.slack_user_id))
     .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('');
-  const meOpt = state.me ? `나 (${memberOf(state.me)?.display_name ?? '현재 사용자'})` : '나 (현재 사용자)';
+  const meOpt = state.meBound ? `나 (${memberOf(state.meBound)?.display_name ?? ''})` : '나 — 편집 코드를 넣으면';
 
   // 핵심과업 별표 — 내가 단 것만 채워진 별. 남이 단 별은 내 목록에 영향이 없다
   const tkStar = (t) => {
@@ -204,7 +205,6 @@ export async function renderTasks(root, query) {
           <button type="button" data-view="gantt" aria-pressed="${gantt}">타임라인</button>
         </div>
         <button class="btn" data-new-project>+ 프로젝트</button>
-        <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
       </div>
     </div>
 
@@ -278,6 +278,7 @@ export async function renderTasks(root, query) {
       })}`;
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
+  const needMe = () => { toast('내 업무를 보려면 편집 코드를 넣어 주세요. 코드로 누구인지 압니다.', true); gatePanel(); };
 
   if (gantt) {
     hoverTip(root);
@@ -466,6 +467,8 @@ export async function renderTasks(root, query) {
     const q = e.target.closest('[data-quick]');
     if (q) {
       const quick = QUICK.find((x) => x.key === q.dataset.quick);
+      // 「나」가 걸린 걸러보기는 코드에 묶인 사람이 있어야 뜻이 있다 — 없으면 남(기본 사용자)의 목록이 나온다
+      if (!state.meBound && quick.params.owner === 'me' && !matchesQuick(p, quick)) { needMe(); return undefined; }
       const next = new URLSearchParams();
       if (rawMonth) next.set('month', rawMonth);     // 고른 달은 유지한다
       if (gantt) next.set('view', 'gantt');          // 보기도 유지한다
@@ -688,6 +691,7 @@ export async function renderTasks(root, query) {
     const f = e.target.closest('[data-f]');
     if (!f) return;
     const key = f.dataset.f;
+    if (key === 'owner' && f.value === 'me' && !state.meBound) { f.value = p.get('owner') ?? ''; needMe(); return; }
     setParam({ [key]: f.type === 'checkbox' ? (f.checked ? '1' : '') : f.value });
   });
 

@@ -2147,8 +2147,9 @@ body[data-gate="view"] .tl-grip{display:none}
 /* 간트 막대 위 기간 글자 — 막대 가운데에. 막대가 짧아도 읽히게 막대 칸 전체 폭에 쓴다 */
 .bd-tl{height:18px}
 .bd-tl-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;
-  font-size:.68rem;font-weight:600;color:var(--md-text);letter-spacing:-.01em;white-space:nowrap;pointer-events:none;
-  text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;font-variant-numeric:tabular-nums}
+  font-size:.68rem;font-weight:600;color:#1f2233;letter-spacing:-.01em;white-space:nowrap;pointer-events:none;
+  /* 막대는 두 테마 모두 옅은 색이다 — 글자는 늘 진하게, 흰 테두리로 어두운 바탕에서도 읽히게(다크에서 흰 글자+흰 번짐이 뭉개졌다) */
+  text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 1px #fff;font-variant-numeric:tabular-nums}
 /* 타임라인 머리 — 달 이름 · 주 눈금 · 오늘 */
 .bd-head .bd-bar{padding:2px 8px}
 .bd-scale{position:relative;display:block;flex:1;height:22px}

@@ -315,6 +315,7 @@ function renderMePicker() {
   const active = state.members.filter((m) => m.is_active);
   const fixed = bound && active.some((m) => m.slack_user_id === bound) ? bound : null;
   if (fixed && state.me !== fixed) setMe(fixed);
+  state.meBound = fixed;   // 「나 (손)」 표시는 코드에 묶인 사람에게만
 
   sel.innerHTML = active
     .map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === state.me ? ' selected' : ''}>${esc(m.display_name)}</option>`)

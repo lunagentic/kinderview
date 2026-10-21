@@ -196,7 +196,6 @@ export async function renderBoard(root, query) {
         <button class="btn" data-month="${esc(shiftYm(base, -1))}" aria-label="이전 달">‹</button>
         <button class="btn" data-month="${esc(thisYm)}"${base === thisYm ? ' disabled' : ''}>이번 달</button>
         <button class="btn" data-month="${esc(shiftYm(base, 1))}" aria-label="다음 달">›</button>
-        <button class="btn btn-primary" data-new-task>+ 업무 등록</button>
       </div>
     </div>
     <div class="board">${groups.map((g) => group(g, folded.has(g.ym), openSet)).join('')}</div>
