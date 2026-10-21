@@ -2594,6 +2594,44 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-lnk .r .pct{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;min-width:32px;text-align:right}
 .po-lnk .po-stc{margin-left:0}
 .po-note{font-size:.76rem;color:var(--muted);margin-top:14px}
+/* 그 사람의 모든 과업 — 유형 칩(상위·하위·연계) + 묶음 접기 + 상위에서 하위 펼침 */
+.po-all{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+.po-all-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.po-all-head h4{margin:0;font-size:.95rem;font-weight:800;display:flex;align-items:center;gap:8px}
+.po-all-head h4 .n{font-size:.76rem;color:var(--muted);font-weight:700}
+.po-all-kinds{display:inline-flex;gap:4px;background:var(--surface-2);border-radius:999px;padding:3px}
+.po-all-kinds button{border:0;background:none;font:inherit;font-size:.8rem;font-weight:700;color:var(--ink-2);padding:4px 11px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.po-all-kinds button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.po-all-kinds .n{font-size:.72rem;color:var(--muted);margin-left:2px}
+.po-all-done{margin-left:auto;font-size:.8rem;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.po-all .kd{flex:none;font-size:.68rem;font-weight:800;border-radius:6px;padding:2px 7px;letter-spacing:.02em}
+.po-all .kd.parent{background:color-mix(in srgb,var(--indigo) 14%,var(--surface));color:var(--indigo)}
+.po-all .kd.sub{background:color-mix(in srgb,var(--s-done) 16%,var(--surface));color:#0E7A6F}
+.po-all .kd.link{background:var(--surface-2);color:var(--ink-2)}
+.po-all-sec{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--surface)}
+.po-all-h{width:100%;display:flex;align-items:center;gap:8px;border:0;background:none;font:inherit;padding:9px 12px;cursor:pointer;color:var(--ink);text-align:left}
+.po-all-h b{font-size:.84rem}.po-all-h .hint{font-size:.74rem;color:var(--muted);margin-left:2px}.po-all-h .tog{margin-left:auto;font-size:.74rem;color:var(--muted)}
+.po-all-list{list-style:none;margin:0;padding:0 8px 6px;display:grid;gap:2px}
+.po-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 6px;border-radius:8px;font-size:.84rem}
+.po-row:hover{background:var(--surface-2)}
+.po-row.me{background:color-mix(in srgb,var(--indigo) 7%,var(--surface))}
+.po-row.done .t{color:var(--muted);text-decoration:line-through}
+.po-row .t{flex:1 1 220px;min-width:0;color:var(--ink);text-decoration:none;font-weight:600;word-break:keep-all;overflow-wrap:anywhere}
+.po-row a.t:hover{text-decoration:underline}
+.po-row .k{font-family:var(--mono);font-size:.7rem;color:var(--muted);font-weight:600;margin-right:5px}
+.po-row .ctx{flex:1 1 200px;min-width:0;font-size:.76rem;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;gap:4px;word-break:keep-all;overflow-wrap:anywhere}
+.po-row a.ctx:hover{color:var(--indigo)}
+.po-row .r{display:inline-flex;align-items:center;gap:8px;flex:none;margin-left:auto}
+.po-row .dt,.po-row .pct,.po-row .who{font-size:.76rem;color:var(--muted)}
+.po-row .pct{font-weight:700;min-width:36px;text-align:right}
+.po-row .m{flex:none;width:16px;text-align:center;font-size:.8rem}.po-row .m.d{color:var(--s-done)}.po-row .m.p{color:var(--s-prog)}.po-row .m.w{color:var(--muted)}
+.po-rank.xs{margin-left:0;font-size:.68rem;padding:2px 7px}
+.po-exp{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;font:inherit;font-size:.72rem;color:var(--ink-2);padding:2px 9px;cursor:pointer}
+.po-exp.none{color:var(--muted);border-style:dashed;cursor:default}
+.po-row-subs{list-style:none;margin:4px 0 2px;padding:0 0 0 22px;flex-basis:100%;display:grid;gap:2px;border-left:2px solid var(--line);margin-left:8px}
+.po-row-subs li{display:flex;align-items:center;gap:8px;font-size:.8rem;padding:4px 6px;border-radius:6px;flex-wrap:wrap}
+.po-row-subs li .t{flex:1 1 180px;font-weight:500}.po-row-subs li.d .t{color:var(--muted);text-decoration:line-through}
+@media (max-width:720px){.po-row .r{margin-left:0;flex-basis:100%;justify-content:flex-start;padding-left:4px}.po-row .ctx{flex-basis:100%}.po-all-done{margin-left:0}}
 .po-col .po-note:first-of-type{margin-top:0}
 @media (max-width:1100px){.po-kpis{grid-template-columns:1fr 1fr}.po-kpi.wk{grid-column:1/-1}}
 @media (max-width:720px){
@@ -13890,6 +13928,11 @@ let mode = 'week';   // 'week' | 'month'
 let sortBy = 'rank'; // 'rank'(P1 먼저) | 'person'(구성원별) | 'due'(마감 가까운 순)
 let month = null;    // 월간 보기의 달(YYYY-MM). 비면 이번 달
 let week = null;     // 주간 보기의 주(그 주 월요일 YYYY-MM-DD). 비면 이번 주
+// 「그 사람의 모든 과업」 패널 — 유형 필터·완료 포함·묶음 접기·펼친 상위
+let allKind = 'all';                 // 'all' | 'parent' | 'sub' | 'link'
+let allDone = false;                 // 완료 포함
+const allSec = { parent: true, sub: true, link: false };
+const expanded = new Set();          // 하위를 펼친 상위 업무 id
 const poShiftMonth = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const poMonthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
@@ -14055,7 +14098,68 @@ async function renderPoBoard(host) {
           ${linked.length ? `<ul class="po-lnk">${linked.map((x) => `<li><a class="t" href="#/project/tasks/${esc(x.id)}" title="${esc(x.title)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a><span class="r">${esc(x.owner_name ?? '')} ${stChip(x)}<span class="pct">${x.pct}%</span></span></li>`).join('')}</ul>`
             : `<div class="po-note">${t.phase_id ? '같은 페이즈에 다른 업무가 없습니다' : '페이즈가 없어 연계 업무를 찾을 수 없습니다'}</div>`}
           <div class="po-note">연계 업무 = 같은 페이즈의 다른 업무(마감순 6건)</div></div>
-      </div></div>`;
+      </div>
+      ${allPanel(t)}</div>`;
+  };
+
+  // ── 「그 사람의 모든 과업」 — 대표과업 카드를 고르면 그 사람의 상위·하위·연계를 한 패널에 (읽기만)
+  // 상위 = 그 사람이 책임자인 상위 업무(줄 끝 ▸ 로 하위 펼침) · 하위 = 다른 사람 상위 아래 그 사람 담당 하위(→ 상위 꼬리표)
+  // 연계 = 그 사람 상위 업무와 같은 페이즈의 다른 사람 업무(페이즈당 6건)
+  const subParentsOf = (id) => all.filter((x) => x.owner_slack_user_id !== id && (x.sub_owners ?? []).includes(id));
+  const loadPersonSubs = async (id) => {
+    const need = subParentsOf(id).filter((x) => !subsCache.has(x.id));
+    await Promise.all(need.map((x) => api.get(`/api/tasks/${encodeURIComponent(x.id)}/subtasks`).then((rows) => subsCache.set(x.id, rows)).catch(() => subsCache.set(x.id, []))));
+  };
+  const subMark = (s) => (s.status === 'DONE' ? '<span class="m d">✓</span>' : s.status === 'IN_PROGRESS' ? '<span class="m p">◐</span>' : '<span class="m w">○</span>');
+  const personAll = (id, picked) => {
+    const keep = (x) => allDone || x.status !== 'DONE';
+    const parents = all.filter((x) => x.owner_slack_user_id === id && keep(x))
+      .sort((a, b) => (a.id === picked ? -1 : b.id === picked ? 1 : 0) || (b.star - a.star) || starOrder(a, b));
+    const subs = [];
+    for (const p of subParentsOf(id)) for (const s of subsCache.get(p.id) ?? []) if (s.owner_slack_user_id === id && keep(s)) subs.push({ ...s, parent: p });
+    subs.sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'));
+    const seen = new Set(parents.map((x) => x.id)); const links = [];
+    for (const p of parents) {
+      if (!p.phase_id) continue;
+      all.filter((x) => x.phase_id === p.phase_id && x.owner_slack_user_id !== id && !seen.has(x.id) && keep(x))
+        .sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999')).slice(0, 6)
+        .forEach((x) => { seen.add(x.id); links.push(x); });
+    }
+    return { parents, subs, links, pending: subParentsOf(id).some((x) => !subsCache.has(x.id)) };
+  };
+  const allPanel = (t) => {
+    const id = t.owner_slack_user_id; const name = memberOf(id)?.display_name ?? t.owner_name ?? '';
+    const { parents, subs, links, pending } = personAll(id, t.id);
+    const n = { all: parents.length + subs.length + links.length, parent: parents.length, sub: subs.length, link: links.length };
+    const KINDS = [['all', '전체'], ['parent', '상위'], ['sub', '하위'], ['link', '연계']];
+    const right = (x, due) => `<span class="r">${stChip(x)}<span class="dt">📅 ${poMd(due)}</span>${x.pct != null ? `<span class="pct">${x.pct}%</span>` : ''}</span>`;
+    const rankTag = (x) => { const k = keyTasks.find((y) => y.id === x.id); return k ? `<span class="po-rank${k.star ? ' star' : ''} xs">${k.star ? '★ ' : ''}P${k.rank}</span>` : ''; };
+    const parentRow = (x) => {
+      const subsOf = subsCache.get(x.id); const isOpen = expanded.has(x.id); const subN = x.subtask_total ?? 0;
+      return `<li class="po-row${x.id === t.id ? ' me' : ''}${x.status === 'DONE' ? ' done' : ''}"><span class="kd parent">상위</span>${rankTag(x)}
+        <a class="t" href="#/project/tasks/${esc(x.id)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>${right(x, x.due_date)}
+        ${subN ? `<button type="button" class="po-exp" data-expand="${esc(x.id)}" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'} 하위 ${x.subtask_done ?? 0}/${subN}</button>` : '<span class="po-exp none">하위 없음</span>'}
+        ${isOpen ? `<ul class="po-row-subs">${!subsOf ? '<li class="po-dim">불러오는 중…</li>' : subsOf.map((s) => `<li class="${s.status === 'DONE' ? 'd' : ''}"><span class="kd sub">하위</span>${subMark(s)}<span class="t">${esc(s.title)}</span><span class="who">${esc(memberOf(s.owner_slack_user_id)?.display_name ?? '')}</span>${s.due_date ? `<span class="dt">${poMd(s.due_date)}</span>` : ''}</li>`).join('') || '<li class="po-dim">하위 업무가 없습니다</li>'}</ul>` : ''}</li>`;
+    };
+    const subRow = (s) => `<li class="po-row${s.status === 'DONE' ? ' done' : ''}"><span class="kd sub">하위</span>${subMark(s)}<span class="t">${esc(s.title)}</span>
+        <a class="ctx" href="#/project/tasks/${esc(s.parent.id)}" title="상위 업무 열기">→ 상위 <span class="k">${esc(s.parent.key ?? '')}</span>${esc(s.parent.title)} · ${esc(s.parent.owner_name ?? '')}</a>
+        <span class="r">${stChip({ status: s.status, late: false })}${s.due_date ? `<span class="dt">📅 ${poMd(s.due_date)}</span>` : ''}</span></li>`;
+    const linkRow = (x) => `<li class="po-row${x.status === 'DONE' ? ' done' : ''}"><span class="kd link">연계</span><a class="t" href="#/project/tasks/${esc(x.id)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>
+        <span class="ctx">${av(x.owner_slack_user_id)} ${esc(x.owner_name ?? '')} · ${esc(x.phase_name ?? '')}</span>${right(x, x.due_date)}</li>`;
+    const sec = (key, label, rows, render, hint) => {
+      if (allKind !== 'all' && allKind !== key) return '';
+      const isOpen = allKind === key || allSec[key];
+      return `<div class="po-all-sec${isOpen ? ' open' : ''}"><button type="button" class="po-all-h" data-sec="${key}" aria-expanded="${isOpen}"><span class="kd ${key}">${label}</span><b>${rows.length}</b><span class="hint">${hint}</span><span class="tog">${isOpen ? '접기' : '펼치기'}</span></button>
+        ${isOpen ? (rows.length ? `<ul class="po-all-list">${rows.map(render).join('')}</ul>` : `<div class="po-note">${key === 'sub' && pending ? '불러오는 중…' : '없습니다'}</div>`) : ''}</div>`;
+    };
+    return `<div class="po-all" id="po-all">
+      <div class="po-all-head"><h4>${av(id)} ${esc(name)} 님의 모든 과업 <span class="n">${n.all}</span></h4>
+        <div class="po-all-kinds" role="tablist">${KINDS.map(([k, l]) => `<button type="button" class="${allKind === k ? 'on' : ''}" data-kind="${k}" role="tab" aria-selected="${allKind === k}">${l} <span class="n">${n[k]}</span></button>`).join('')}</div>
+        <label class="po-all-done"><input type="checkbox" data-all-done${allDone ? ' checked' : ''}> 완료 포함</label></div>
+      ${sec('parent', '상위', parents, parentRow, '책임 업무 · ▸ 로 하위 펼침')}
+      ${sec('sub', '하위', subs, subRow, '다른 사람 상위 아래 담당 하위')}
+      ${sec('link', '연계', links, linkRow, '같은 페이즈의 다른 사람 업무')}
+    </div>`;
   };
 
   // 월간 보기의 지표 — 월간 업무 화면의 다섯 칸(목표·완료·지연·미해결 이슈·다음 달로 밀림)을 같은 숫자로
@@ -14115,14 +14219,21 @@ async function renderPoBoard(host) {
     paint();
     if (!open) return;
     document.getElementById('po-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    if (subsCache.has(id) && extraCache.has(id)) return;
-    const jobs = [loadExtra(id)];
+    const t = keyTasks.find((x) => x.id === id);
+    const jobs = [loadExtra(id), loadPersonSubs(t.owner_slack_user_id)];
     if (!subsCache.has(id)) {
       jobs.push(api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`).then((rows) => subsCache.set(id, rows))
         .catch((err) => { subsCache.set(id, []); toast(err.message, true); }));
     }
     await Promise.all(jobs);
     if (open === id) paint();
+  };
+  const expandRow = async (pid) => {
+    if (expanded.has(pid)) { expanded.delete(pid); paint(); return; }
+    expanded.add(pid); paint();
+    if (subsCache.has(pid)) return;
+    try { subsCache.set(pid, await api.get(`/api/tasks/${encodeURIComponent(pid)}/subtasks`)); } catch { subsCache.set(pid, []); }
+    paint();
   };
   // ── 순위 저장 — po_rank 만 바꾼다. 상태·마감·별표는 건드리지 않는다 ──
   const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
@@ -14160,6 +14271,7 @@ async function renderPoBoard(host) {
   host.addEventListener('change', (e) => {
     const so = e.target.closest('[data-sort]');
     if (so) { sortBy = so.value; paint(); return; }
+    if (e.target.closest('[data-all-done]')) { allDone = e.target.checked; paint(); return; }
     const sel = e.target.closest('[data-rank]');
     if (sel) reorder(sel.dataset.rank, Number(sel.value) - 1);
   });
@@ -14173,6 +14285,12 @@ async function renderPoBoard(host) {
     const m = e.target.closest('[data-who]');
     if (m) { who = m.dataset.who; paint(); return; }
     if (e.target.closest('[data-close]')) { open = null; paint(); return; }
+    const kd = e.target.closest('[data-kind]');
+    if (kd) { allKind = kd.dataset.kind; paint(); return; }
+    const sc = e.target.closest('[data-sec]');
+    if (sc) { allSec[sc.dataset.sec] = !allSec[sc.dataset.sec]; paint(); return; }
+    const ex = e.target.closest('[data-expand]');
+    if (ex) { expandRow(ex.dataset.expand); return; }
     const rs = e.target.closest('[data-rank-reset]');
     if (rs) { resetRanks(rs.dataset.rankReset); return; }
     if (e.target.closest('a, button')) return;
@@ -14187,7 +14305,7 @@ async function renderPoBoard(host) {
   // 순위를 바꾼 뒤 다시 그릴 때 펼쳐 둔 카드의 하위 업무·링크·디렉터 코멘트도 다시 읽는다
   if (open && keyTasks.some((t) => t.id === open) && !(subsCache.has(open) && extraCache.has(open))) {
     const id = open;
-    const jobs = [loadExtra(id)];
+    const jobs = [loadExtra(id), loadPersonSubs(keyTasks.find((x) => x.id === id).owner_slack_user_id)];
     if (!subsCache.has(id)) {
       jobs.push(api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`).then((rows) => subsCache.set(id, rows))
         .catch((err) => { subsCache.set(id, []); toast(err.message, true); }));

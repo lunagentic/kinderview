@@ -26,6 +26,11 @@ let mode = 'week';   // 'week' | 'month'
 let sortBy = 'rank'; // 'rank'(P1 먼저) | 'person'(구성원별) | 'due'(마감 가까운 순)
 let month = null;    // 월간 보기의 달(YYYY-MM). 비면 이번 달
 let week = null;     // 주간 보기의 주(그 주 월요일 YYYY-MM-DD). 비면 이번 주
+// 「그 사람의 모든 과업」 패널 — 유형 필터·완료 포함·묶음 접기·펼친 상위
+let allKind = 'all';                 // 'all' | 'parent' | 'sub' | 'link'
+let allDone = false;                 // 완료 포함
+const allSec = { parent: true, sub: true, link: false };
+const expanded = new Set();          // 하위를 펼친 상위 업무 id
 const poShiftMonth = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const poMonthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
@@ -191,7 +196,68 @@ export async function renderPoBoard(host) {
           ${linked.length ? `<ul class="po-lnk">${linked.map((x) => `<li><a class="t" href="#/project/tasks/${esc(x.id)}" title="${esc(x.title)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a><span class="r">${esc(x.owner_name ?? '')} ${stChip(x)}<span class="pct">${x.pct}%</span></span></li>`).join('')}</ul>`
             : `<div class="po-note">${t.phase_id ? '같은 페이즈에 다른 업무가 없습니다' : '페이즈가 없어 연계 업무를 찾을 수 없습니다'}</div>`}
           <div class="po-note">연계 업무 = 같은 페이즈의 다른 업무(마감순 6건)</div></div>
-      </div></div>`;
+      </div>
+      ${allPanel(t)}</div>`;
+  };
+
+  // ── 「그 사람의 모든 과업」 — 대표과업 카드를 고르면 그 사람의 상위·하위·연계를 한 패널에 (읽기만)
+  // 상위 = 그 사람이 책임자인 상위 업무(줄 끝 ▸ 로 하위 펼침) · 하위 = 다른 사람 상위 아래 그 사람 담당 하위(→ 상위 꼬리표)
+  // 연계 = 그 사람 상위 업무와 같은 페이즈의 다른 사람 업무(페이즈당 6건)
+  const subParentsOf = (id) => all.filter((x) => x.owner_slack_user_id !== id && (x.sub_owners ?? []).includes(id));
+  const loadPersonSubs = async (id) => {
+    const need = subParentsOf(id).filter((x) => !subsCache.has(x.id));
+    await Promise.all(need.map((x) => api.get(`/api/tasks/${encodeURIComponent(x.id)}/subtasks`).then((rows) => subsCache.set(x.id, rows)).catch(() => subsCache.set(x.id, []))));
+  };
+  const subMark = (s) => (s.status === 'DONE' ? '<span class="m d">✓</span>' : s.status === 'IN_PROGRESS' ? '<span class="m p">◐</span>' : '<span class="m w">○</span>');
+  const personAll = (id, picked) => {
+    const keep = (x) => allDone || x.status !== 'DONE';
+    const parents = all.filter((x) => x.owner_slack_user_id === id && keep(x))
+      .sort((a, b) => (a.id === picked ? -1 : b.id === picked ? 1 : 0) || (b.star - a.star) || starOrder(a, b));
+    const subs = [];
+    for (const p of subParentsOf(id)) for (const s of subsCache.get(p.id) ?? []) if (s.owner_slack_user_id === id && keep(s)) subs.push({ ...s, parent: p });
+    subs.sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'));
+    const seen = new Set(parents.map((x) => x.id)); const links = [];
+    for (const p of parents) {
+      if (!p.phase_id) continue;
+      all.filter((x) => x.phase_id === p.phase_id && x.owner_slack_user_id !== id && !seen.has(x.id) && keep(x))
+        .sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999')).slice(0, 6)
+        .forEach((x) => { seen.add(x.id); links.push(x); });
+    }
+    return { parents, subs, links, pending: subParentsOf(id).some((x) => !subsCache.has(x.id)) };
+  };
+  const allPanel = (t) => {
+    const id = t.owner_slack_user_id; const name = memberOf(id)?.display_name ?? t.owner_name ?? '';
+    const { parents, subs, links, pending } = personAll(id, t.id);
+    const n = { all: parents.length + subs.length + links.length, parent: parents.length, sub: subs.length, link: links.length };
+    const KINDS = [['all', '전체'], ['parent', '상위'], ['sub', '하위'], ['link', '연계']];
+    const right = (x, due) => `<span class="r">${stChip(x)}<span class="dt">📅 ${poMd(due)}</span>${x.pct != null ? `<span class="pct">${x.pct}%</span>` : ''}</span>`;
+    const rankTag = (x) => { const k = keyTasks.find((y) => y.id === x.id); return k ? `<span class="po-rank${k.star ? ' star' : ''} xs">${k.star ? '★ ' : ''}P${k.rank}</span>` : ''; };
+    const parentRow = (x) => {
+      const subsOf = subsCache.get(x.id); const isOpen = expanded.has(x.id); const subN = x.subtask_total ?? 0;
+      return `<li class="po-row${x.id === t.id ? ' me' : ''}${x.status === 'DONE' ? ' done' : ''}"><span class="kd parent">상위</span>${rankTag(x)}
+        <a class="t" href="#/project/tasks/${esc(x.id)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>${right(x, x.due_date)}
+        ${subN ? `<button type="button" class="po-exp" data-expand="${esc(x.id)}" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'} 하위 ${x.subtask_done ?? 0}/${subN}</button>` : '<span class="po-exp none">하위 없음</span>'}
+        ${isOpen ? `<ul class="po-row-subs">${!subsOf ? '<li class="po-dim">불러오는 중…</li>' : subsOf.map((s) => `<li class="${s.status === 'DONE' ? 'd' : ''}"><span class="kd sub">하위</span>${subMark(s)}<span class="t">${esc(s.title)}</span><span class="who">${esc(memberOf(s.owner_slack_user_id)?.display_name ?? '')}</span>${s.due_date ? `<span class="dt">${poMd(s.due_date)}</span>` : ''}</li>`).join('') || '<li class="po-dim">하위 업무가 없습니다</li>'}</ul>` : ''}</li>`;
+    };
+    const subRow = (s) => `<li class="po-row${s.status === 'DONE' ? ' done' : ''}"><span class="kd sub">하위</span>${subMark(s)}<span class="t">${esc(s.title)}</span>
+        <a class="ctx" href="#/project/tasks/${esc(s.parent.id)}" title="상위 업무 열기">→ 상위 <span class="k">${esc(s.parent.key ?? '')}</span>${esc(s.parent.title)} · ${esc(s.parent.owner_name ?? '')}</a>
+        <span class="r">${stChip({ status: s.status, late: false })}${s.due_date ? `<span class="dt">📅 ${poMd(s.due_date)}</span>` : ''}</span></li>`;
+    const linkRow = (x) => `<li class="po-row${x.status === 'DONE' ? ' done' : ''}"><span class="kd link">연계</span><a class="t" href="#/project/tasks/${esc(x.id)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>
+        <span class="ctx">${av(x.owner_slack_user_id)} ${esc(x.owner_name ?? '')} · ${esc(x.phase_name ?? '')}</span>${right(x, x.due_date)}</li>`;
+    const sec = (key, label, rows, render, hint) => {
+      if (allKind !== 'all' && allKind !== key) return '';
+      const isOpen = allKind === key || allSec[key];
+      return `<div class="po-all-sec${isOpen ? ' open' : ''}"><button type="button" class="po-all-h" data-sec="${key}" aria-expanded="${isOpen}"><span class="kd ${key}">${label}</span><b>${rows.length}</b><span class="hint">${hint}</span><span class="tog">${isOpen ? '접기' : '펼치기'}</span></button>
+        ${isOpen ? (rows.length ? `<ul class="po-all-list">${rows.map(render).join('')}</ul>` : `<div class="po-note">${key === 'sub' && pending ? '불러오는 중…' : '없습니다'}</div>`) : ''}</div>`;
+    };
+    return `<div class="po-all" id="po-all">
+      <div class="po-all-head"><h4>${av(id)} ${esc(name)} 님의 모든 과업 <span class="n">${n.all}</span></h4>
+        <div class="po-all-kinds" role="tablist">${KINDS.map(([k, l]) => `<button type="button" class="${allKind === k ? 'on' : ''}" data-kind="${k}" role="tab" aria-selected="${allKind === k}">${l} <span class="n">${n[k]}</span></button>`).join('')}</div>
+        <label class="po-all-done"><input type="checkbox" data-all-done${allDone ? ' checked' : ''}> 완료 포함</label></div>
+      ${sec('parent', '상위', parents, parentRow, '책임 업무 · ▸ 로 하위 펼침')}
+      ${sec('sub', '하위', subs, subRow, '다른 사람 상위 아래 담당 하위')}
+      ${sec('link', '연계', links, linkRow, '같은 페이즈의 다른 사람 업무')}
+    </div>`;
   };
 
   // 월간 보기의 지표 — 월간 업무 화면의 다섯 칸(목표·완료·지연·미해결 이슈·다음 달로 밀림)을 같은 숫자로
@@ -251,14 +317,21 @@ export async function renderPoBoard(host) {
     paint();
     if (!open) return;
     document.getElementById('po-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    if (subsCache.has(id) && extraCache.has(id)) return;
-    const jobs = [loadExtra(id)];
+    const t = keyTasks.find((x) => x.id === id);
+    const jobs = [loadExtra(id), loadPersonSubs(t.owner_slack_user_id)];
     if (!subsCache.has(id)) {
       jobs.push(api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`).then((rows) => subsCache.set(id, rows))
         .catch((err) => { subsCache.set(id, []); toast(err.message, true); }));
     }
     await Promise.all(jobs);
     if (open === id) paint();
+  };
+  const expandRow = async (pid) => {
+    if (expanded.has(pid)) { expanded.delete(pid); paint(); return; }
+    expanded.add(pid); paint();
+    if (subsCache.has(pid)) return;
+    try { subsCache.set(pid, await api.get(`/api/tasks/${encodeURIComponent(pid)}/subtasks`)); } catch { subsCache.set(pid, []); }
+    paint();
   };
   // ── 순위 저장 — po_rank 만 바꾼다. 상태·마감·별표는 건드리지 않는다 ──
   const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
@@ -296,6 +369,7 @@ export async function renderPoBoard(host) {
   host.addEventListener('change', (e) => {
     const so = e.target.closest('[data-sort]');
     if (so) { sortBy = so.value; paint(); return; }
+    if (e.target.closest('[data-all-done]')) { allDone = e.target.checked; paint(); return; }
     const sel = e.target.closest('[data-rank]');
     if (sel) reorder(sel.dataset.rank, Number(sel.value) - 1);
   });
@@ -309,6 +383,12 @@ export async function renderPoBoard(host) {
     const m = e.target.closest('[data-who]');
     if (m) { who = m.dataset.who; paint(); return; }
     if (e.target.closest('[data-close]')) { open = null; paint(); return; }
+    const kd = e.target.closest('[data-kind]');
+    if (kd) { allKind = kd.dataset.kind; paint(); return; }
+    const sc = e.target.closest('[data-sec]');
+    if (sc) { allSec[sc.dataset.sec] = !allSec[sc.dataset.sec]; paint(); return; }
+    const ex = e.target.closest('[data-expand]');
+    if (ex) { expandRow(ex.dataset.expand); return; }
     const rs = e.target.closest('[data-rank-reset]');
     if (rs) { resetRanks(rs.dataset.rankReset); return; }
     if (e.target.closest('a, button')) return;
@@ -323,7 +403,7 @@ export async function renderPoBoard(host) {
   // 순위를 바꾼 뒤 다시 그릴 때 펼쳐 둔 카드의 하위 업무·링크·디렉터 코멘트도 다시 읽는다
   if (open && keyTasks.some((t) => t.id === open) && !(subsCache.has(open) && extraCache.has(open))) {
     const id = open;
-    const jobs = [loadExtra(id)];
+    const jobs = [loadExtra(id), loadPersonSubs(keyTasks.find((x) => x.id === id).owner_slack_user_id)];
     if (!subsCache.has(id)) {
       jobs.push(api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`).then((rows) => subsCache.set(id, rows))
         .catch((err) => { subsCache.set(id, []); toast(err.message, true); }));

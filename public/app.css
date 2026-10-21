@@ -2590,6 +2590,44 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-lnk .r .pct{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;min-width:32px;text-align:right}
 .po-lnk .po-stc{margin-left:0}
 .po-note{font-size:.76rem;color:var(--muted);margin-top:14px}
+/* 그 사람의 모든 과업 — 유형 칩(상위·하위·연계) + 묶음 접기 + 상위에서 하위 펼침 */
+.po-all{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+.po-all-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.po-all-head h4{margin:0;font-size:.95rem;font-weight:800;display:flex;align-items:center;gap:8px}
+.po-all-head h4 .n{font-size:.76rem;color:var(--muted);font-weight:700}
+.po-all-kinds{display:inline-flex;gap:4px;background:var(--surface-2);border-radius:999px;padding:3px}
+.po-all-kinds button{border:0;background:none;font:inherit;font-size:.8rem;font-weight:700;color:var(--ink-2);padding:4px 11px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.po-all-kinds button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.po-all-kinds .n{font-size:.72rem;color:var(--muted);margin-left:2px}
+.po-all-done{margin-left:auto;font-size:.8rem;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.po-all .kd{flex:none;font-size:.68rem;font-weight:800;border-radius:6px;padding:2px 7px;letter-spacing:.02em}
+.po-all .kd.parent{background:color-mix(in srgb,var(--indigo) 14%,var(--surface));color:var(--indigo)}
+.po-all .kd.sub{background:color-mix(in srgb,var(--s-done) 16%,var(--surface));color:#0E7A6F}
+.po-all .kd.link{background:var(--surface-2);color:var(--ink-2)}
+.po-all-sec{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--surface)}
+.po-all-h{width:100%;display:flex;align-items:center;gap:8px;border:0;background:none;font:inherit;padding:9px 12px;cursor:pointer;color:var(--ink);text-align:left}
+.po-all-h b{font-size:.84rem}.po-all-h .hint{font-size:.74rem;color:var(--muted);margin-left:2px}.po-all-h .tog{margin-left:auto;font-size:.74rem;color:var(--muted)}
+.po-all-list{list-style:none;margin:0;padding:0 8px 6px;display:grid;gap:2px}
+.po-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 6px;border-radius:8px;font-size:.84rem}
+.po-row:hover{background:var(--surface-2)}
+.po-row.me{background:color-mix(in srgb,var(--indigo) 7%,var(--surface))}
+.po-row.done .t{color:var(--muted);text-decoration:line-through}
+.po-row .t{flex:1 1 220px;min-width:0;color:var(--ink);text-decoration:none;font-weight:600;word-break:keep-all;overflow-wrap:anywhere}
+.po-row a.t:hover{text-decoration:underline}
+.po-row .k{font-family:var(--mono);font-size:.7rem;color:var(--muted);font-weight:600;margin-right:5px}
+.po-row .ctx{flex:1 1 200px;min-width:0;font-size:.76rem;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;gap:4px;word-break:keep-all;overflow-wrap:anywhere}
+.po-row a.ctx:hover{color:var(--indigo)}
+.po-row .r{display:inline-flex;align-items:center;gap:8px;flex:none;margin-left:auto}
+.po-row .dt,.po-row .pct,.po-row .who{font-size:.76rem;color:var(--muted)}
+.po-row .pct{font-weight:700;min-width:36px;text-align:right}
+.po-row .m{flex:none;width:16px;text-align:center;font-size:.8rem}.po-row .m.d{color:var(--s-done)}.po-row .m.p{color:var(--s-prog)}.po-row .m.w{color:var(--muted)}
+.po-rank.xs{margin-left:0;font-size:.68rem;padding:2px 7px}
+.po-exp{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;font:inherit;font-size:.72rem;color:var(--ink-2);padding:2px 9px;cursor:pointer}
+.po-exp.none{color:var(--muted);border-style:dashed;cursor:default}
+.po-row-subs{list-style:none;margin:4px 0 2px;padding:0 0 0 22px;flex-basis:100%;display:grid;gap:2px;border-left:2px solid var(--line);margin-left:8px}
+.po-row-subs li{display:flex;align-items:center;gap:8px;font-size:.8rem;padding:4px 6px;border-radius:6px;flex-wrap:wrap}
+.po-row-subs li .t{flex:1 1 180px;font-weight:500}.po-row-subs li.d .t{color:var(--muted);text-decoration:line-through}
+@media (max-width:720px){.po-row .r{margin-left:0;flex-basis:100%;justify-content:flex-start;padding-left:4px}.po-row .ctx{flex-basis:100%}.po-all-done{margin-left:0}}
 .po-col .po-note:first-of-type{margin-top:0}
 @media (max-width:1100px){.po-kpis{grid-template-columns:1fr 1fr}.po-kpi.wk{grid-column:1/-1}}
 @media (max-width:720px){
