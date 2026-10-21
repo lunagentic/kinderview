@@ -13881,7 +13881,8 @@ const calendar = (ym, milestones, tasks) => {
 const matrix = (tasks, projects) => {
   const people = new Map(tasks.map((t) => [t.owner_slack_user_id, t.owner_name]));
   for (const t of tasks) for (const c of t.collaborators ?? []) if (!people.has(c.slack_user_id)) people.set(c.slack_user_id, c.display_name);
-  const owners = [...people.entries()];
+  // 비활성 구성원은 자리표에서 뺀다
+  const owners = [...people.entries()].filter(([uid]) => memberOf(uid)?.is_active !== 0);
   if (!owners.length || !projects.length) return '<p class="hint">표시할 담당 업무가 없습니다.</p>';
   // 담당 점 + 협업 태그. 협업은 담당 수에 안 섞는다.
   const cell = (uid, pid) => {
