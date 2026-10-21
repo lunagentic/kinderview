@@ -302,7 +302,8 @@ function seedCategories() {
   const at = new Date().toISOString();
   run("INSERT INTO category (id, label, sort_order, created_at) VALUES ('NEW', '신규 기능', 1, :at)", { at });
   run("INSERT INTO category (id, label, sort_order, created_at) VALUES ('IMPROVE', '기능 개선', 2, :at)", { at });
-  return '업무 분류 두 가지 심기 (신규 기능 · 기능 개선)';
+  run("INSERT INTO category (id, label, sort_order, created_at) VALUES ('ETC', '기타', 99, :at)", { at });
+  return '업무 분류 세 가지 심기 (신규 기능 · 기능 개선 · 기타)';
 }
 
 function ensureConstraints() {

@@ -2462,6 +2462,13 @@ body[data-gate="view"] .tk-sub-row .tk-star:not(.on),body[data-gate="view"] .sbm
   .tk-subs{padding-left:14px}
   .tk-sub-own{display:none}
 }
+/* 협업자 — 업무 정보 칸에서 바로 더하고 뺀다 */
+.co-edit{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px}
+.co-chip{display:inline-flex;align-items:center;gap:2px;padding:1px 2px 1px 0;border-radius:999px}
+.co-chip .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.9rem;line-height:1;padding:0 4px;border-radius:999px}
+.co-chip .x:hover{color:var(--s-delay);background:var(--surface-2)}
+.co-add{max-width:120px}
+body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 
 </style>
 
@@ -3620,6 +3627,7 @@ function buildSeed() {
     categories: [
       { id: 'NEW', label: '신규 기능', sort_order: 1, created_at: nowISO() },
       { id: 'IMPROVE', label: '기능 개선', sort_order: 2, created_at: nowISO() },
+      { id: 'ETC', label: '기타', sort_order: 99, created_at: nowISO() },
     ],
   };
   numberTickets(seed);   // 시드 업무도 번호를 갖는다 — 넣은 순서대로
@@ -8528,6 +8536,41 @@ const subAddArea = (rows = []) => {
   </select>`;
 };
 
+// ── 협업자 — 업무 정보 칸에서 바로 더하고 뺀다(상세·업무 창 같이 씀) ──
+/** ids: 지금 협업자 slack id 목록, owner: 책임자(협업자로 고를 수 없다) */
+const collabEdit = (ids = [], owner = null) => {
+  const live = ids.filter((id) => memberOf(id)?.is_active);
+  const pick = activeMembers().filter((m) => m.slack_user_id !== owner && !ids.includes(m.slack_user_id));
+  return `<span class="co-edit" data-co-box data-co-ids="${esc(ids.join(','))}" data-co-owner="${esc(owner ?? '')}">
+    ${live.map((id) => `<span class="co-chip">${person(id)}<button type="button" class="x" data-co-del="${esc(id)}"
+        aria-label="협업자에서 빼기" title="협업자에서 빼기">×</button></span>`).join('')}
+    ${pick.length ? `<select class="sub-owner none co-add" data-co-add aria-label="협업자 더하기" title="협업자 더하기">
+      <option value="">+ 협업자</option>
+      ${pick.map((m) => `<option value="${esc(m.slack_user_id)}">${esc(meLabel(m))}</option>`).join('')}
+    </select>` : ''}
+  </span>`;
+};
+/** 협업자 더하기·빼기를 바로 저장하고 그 칸만 다시 그린다. 다룬 일이면 true */
+async function collabChange(e, taskId, { onChange } = {}) {
+  const add = e.type === 'change' ? e.target.closest('[data-co-add]') : null;
+  const del = e.type === 'click' ? e.target.closest('[data-co-del]') : null;
+  if (!add && !del) return false;
+  if (add && !add.value) return true;
+  e.stopPropagation();
+  const box = (add ?? del).closest('[data-co-box]');
+  if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); if (add) add.value = ''; return true; }
+  const cur = box.dataset.coIds ? box.dataset.coIds.split(',') : [];
+  const next = add ? [...cur, add.value] : cur.filter((id) => id !== del.dataset.coDel);
+  try {
+    await api.patch(`/api/tasks/${taskId}`, { collaborators: next });
+    const who = memberOf(add ? add.value : del.dataset.coDel)?.display_name ?? '';
+    toast(add ? `${who} 님을 협업자로 더했습니다.` : `${who} 님을 협업자에서 뺐습니다.`);
+    box.outerHTML = collabEdit(next, box.dataset.coOwner || null);
+    onChange?.(next);
+  } catch (err) { toast(err.message, true); if (add) add.value = ''; }
+  return true;
+}
+
 /** 하위 업무 줄의 영역·담당 셀렉트가 바뀌면 저장한다. 다룬 변경이면 true */
 async function subAssignChange(e, { editable, after }) {
   const ar = e.target.closest('[data-sub-area]');
@@ -8729,9 +8772,7 @@ function subtaskModal({ task, onChange, focus = null }) {
         </select>
       </dd>
       ${(x.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${x.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}
-      <dt>협업자</dt><dd>${x.collaborators?.length
-        ? x.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
-        : '<span style="color:var(--muted)">-</span>'}</dd>
+      <dt>협업자</dt><dd>${collabEdit((x.collaborators ?? []).map((c) => c.slack_user_id), x.owner_slack_user_id)}</dd>
       ${x.phase_name ? `<dt>페이즈</dt><dd>${esc(x.phase_name)}</dd>` : ''}
       <dt>일정</dt><dd class="due-cell">${x.start_date ? `${shortDate(x.start_date)} → ` : ''}
         <input type="date" class="due-edit" value="${esc(x.due_date ?? '')}" data-due aria-label="마감일 변경">
@@ -8877,7 +8918,7 @@ function subtaskModal({ task, onChange, focus = null }) {
         + [...pending.subs.values()].reduce((n, o) => n + Object.keys(o).length, 0);
       const saveBtn = root.querySelector('[data-save-all]');
       // 모아 두지 않고 바로 처리하는 칸 — 하위 추가 · 옮기기 · 코멘트 · 하위 댓글 · 첨부 · 외주 검수
-      const SM_SKIP = '[data-sub-add], .sbm-move, [data-comments], .sc-panel, [data-att-panel], [data-out-panel]';
+      const SM_SKIP = '[data-sub-add], .sbm-move, [data-comments], .sc-panel, [data-att-panel], [data-out-panel], [data-co-box]';
       const paintSave = () => {
         const n = pendingCount();
         saveBtn.textContent = n ? `저장 (${n})` : '저장';
@@ -9037,6 +9078,10 @@ function subtaskModal({ task, onChange, focus = null }) {
         if (e.target.closest(SM_SKIP)) return;
         if (!stageSub(e.target)) stageTask(e.target);
       });
+      // 협업자는 모아 두지 않고 바로 저장한다
+      const coDone = (ids) => { changed = true; if (full) full.collaborators = ids.map((id) => ({ slack_user_id: id })); };
+      root.addEventListener('change', (e) => { collabChange(e, t.id, { onChange: coDone }); });
+      root.addEventListener('click', (e) => { collabChange(e, t.id, { onChange: coDone }); });
       root.addEventListener('change', (e) => {
         const ha = e.target.closest('[data-head-area]');
         if (ha) {
@@ -11377,9 +11422,7 @@ async function renderTaskDetail(root, id, query = '') {
             </dd>
             ${(t.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${
               t.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}
-            <dt>협업자</dt><dd>${t.collaborators.length
-              ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
-              : '<span style="color:var(--muted)">-</span>'}</dd>
+            <dt>협업자</dt><dd>${collabEdit(t.collaborators.map((c) => c.slack_user_id), t.owner_slack_user_id)}</dd>
             ${t.phase_name ? `<dt>페이즈</dt><dd>${esc(t.phase_name)}</dd>` : ''}
             <dt>일정</dt><dd class="due-cell">${t.start_date ? `${shortDate(t.start_date)} → ` : ''}
               <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}" data-due aria-label="마감일 변경">
@@ -11479,7 +11522,12 @@ async function renderTaskDetail(root, id, query = '') {
     paintDirty();
   };
 
+  // 협업자는 바로 저장한다(모아 두는 「저장」과 따로)
+  const coDone = (ids) => { t.collaborators = ids.map((id) => ({ slack_user_id: id })); };
+  root.addEventListener('change', (e) => { collabChange(e, t.id, { onChange: coDone }); });
+  root.addEventListener('click', (e) => { collabChange(e, t.id, { onChange: coDone }); });
   root.addEventListener('change', async (e) => {
+    if (e.target.closest('[data-co-box]')) return undefined;
     const own = e.target.closest('[data-owner]');
     if (own) { stage('owner_slack_user_id', own.value); return undefined; }
     const cat = e.target.closest('[data-category]');

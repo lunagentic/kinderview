@@ -165,6 +165,7 @@ function buildSeed() {
     categories: [
       { id: 'NEW', label: '신규 기능', sort_order: 1, created_at: nowISO() },
       { id: 'IMPROVE', label: '기능 개선', sort_order: 2, created_at: nowISO() },
+      { id: 'ETC', label: '기타', sort_order: 99, created_at: nowISO() },
     ],
   };
   numberTickets(seed);   // 시드 업무도 번호를 갖는다 — 넣은 순서대로

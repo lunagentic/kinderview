@@ -2458,3 +2458,10 @@ body[data-gate="view"] .tk-sub-row .tk-star:not(.on),body[data-gate="view"] .sbm
   .tk-subs{padding-left:14px}
   .tk-sub-own{display:none}
 }
+/* 협업자 — 업무 정보 칸에서 바로 더하고 뺀다 */
+.co-edit{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px}
+.co-chip{display:inline-flex;align-items:center;gap:2px;padding:1px 2px 1px 0;border-radius:999px}
+.co-chip .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.9rem;line-height:1;padding:0 4px;border-radius:999px}
+.co-chip .x:hover{color:var(--s-delay);background:var(--surface-2)}
+.co-add{max-width:120px}
+body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}

@@ -6,7 +6,7 @@ import {
   titleCell, autoGrow, syncTitleCell, linkify, subStatusOf, subProgress, subStatusPick, nudgeNote, firstUrl,
   subAreaPick, subOwnerPick, ticketTag,} from '../ui.js';
 import { subCommentButton, toggleSubComments } from '../subComments.js';
-import { taskForm, issueForm, subAddArea, subAssignChange } from '../forms.js';
+import { taskForm, issueForm, subAddArea, subAssignChange, collabEdit, collabChange } from '../forms.js';
 import { bindComments } from '../comments.js';
 import { attPanelInner, mountAttachments } from '../attachments.js';
 
@@ -129,9 +129,7 @@ export async function renderTaskDetail(root, id, query = '') {
             </dd>
             ${(t.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${
               t.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}
-            <dt>협업자</dt><dd>${t.collaborators.length
-              ? t.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
-              : '<span style="color:var(--muted)">-</span>'}</dd>
+            <dt>협업자</dt><dd>${collabEdit(t.collaborators.map((c) => c.slack_user_id), t.owner_slack_user_id)}</dd>
             ${t.phase_name ? `<dt>페이즈</dt><dd>${esc(t.phase_name)}</dd>` : ''}
             <dt>일정</dt><dd class="due-cell">${t.start_date ? `${shortDate(t.start_date)} → ` : ''}
               <input type="date" class="due-edit" value="${esc(t.due_date ?? '')}" data-due aria-label="마감일 변경">
@@ -231,7 +229,12 @@ export async function renderTaskDetail(root, id, query = '') {
     paintDirty();
   };
 
+  // 협업자는 바로 저장한다(모아 두는 「저장」과 따로)
+  const coDone = (ids) => { t.collaborators = ids.map((id) => ({ slack_user_id: id })); };
+  root.addEventListener('change', (e) => { collabChange(e, t.id, { onChange: coDone }); });
+  root.addEventListener('click', (e) => { collabChange(e, t.id, { onChange: coDone }); });
   root.addEventListener('change', async (e) => {
+    if (e.target.closest('[data-co-box]')) return undefined;
     const own = e.target.closest('[data-owner]');
     if (own) { stage('owner_slack_user_id', own.value); return undefined; }
     const cat = e.target.closest('[data-category]');

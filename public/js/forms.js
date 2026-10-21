@@ -1143,6 +1143,41 @@ export const subAddArea = (rows = []) => {
   </select>`;
 };
 
+// ── 협업자 — 업무 정보 칸에서 바로 더하고 뺀다(상세·업무 창 같이 씀) ──
+/** ids: 지금 협업자 slack id 목록, owner: 책임자(협업자로 고를 수 없다) */
+export const collabEdit = (ids = [], owner = null) => {
+  const live = ids.filter((id) => memberOf(id)?.is_active);
+  const pick = activeMembers().filter((m) => m.slack_user_id !== owner && !ids.includes(m.slack_user_id));
+  return `<span class="co-edit" data-co-box data-co-ids="${esc(ids.join(','))}" data-co-owner="${esc(owner ?? '')}">
+    ${live.map((id) => `<span class="co-chip">${person(id)}<button type="button" class="x" data-co-del="${esc(id)}"
+        aria-label="협업자에서 빼기" title="협업자에서 빼기">×</button></span>`).join('')}
+    ${pick.length ? `<select class="sub-owner none co-add" data-co-add aria-label="협업자 더하기" title="협업자 더하기">
+      <option value="">+ 협업자</option>
+      ${pick.map((m) => `<option value="${esc(m.slack_user_id)}">${esc(meLabel(m))}</option>`).join('')}
+    </select>` : ''}
+  </span>`;
+};
+/** 협업자 더하기·빼기를 바로 저장하고 그 칸만 다시 그린다. 다룬 일이면 true */
+export async function collabChange(e, taskId, { onChange } = {}) {
+  const add = e.type === 'change' ? e.target.closest('[data-co-add]') : null;
+  const del = e.type === 'click' ? e.target.closest('[data-co-del]') : null;
+  if (!add && !del) return false;
+  if (add && !add.value) return true;
+  e.stopPropagation();
+  const box = (add ?? del).closest('[data-co-box]');
+  if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); if (add) add.value = ''; return true; }
+  const cur = box.dataset.coIds ? box.dataset.coIds.split(',') : [];
+  const next = add ? [...cur, add.value] : cur.filter((id) => id !== del.dataset.coDel);
+  try {
+    await api.patch(`/api/tasks/${taskId}`, { collaborators: next });
+    const who = memberOf(add ? add.value : del.dataset.coDel)?.display_name ?? '';
+    toast(add ? `${who} 님을 협업자로 더했습니다.` : `${who} 님을 협업자에서 뺐습니다.`);
+    box.outerHTML = collabEdit(next, box.dataset.coOwner || null);
+    onChange?.(next);
+  } catch (err) { toast(err.message, true); if (add) add.value = ''; }
+  return true;
+}
+
 /** 하위 업무 줄의 영역·담당 셀렉트가 바뀌면 저장한다. 다룬 변경이면 true */
 export async function subAssignChange(e, { editable, after }) {
   const ar = e.target.closest('[data-sub-area]');
@@ -1344,9 +1379,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         </select>
       </dd>
       ${(x.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${x.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}
-      <dt>협업자</dt><dd>${x.collaborators?.length
-        ? x.collaborators.map((c) => person(c.slack_user_id, c.display_name)).join(' ')
-        : '<span style="color:var(--muted)">-</span>'}</dd>
+      <dt>협업자</dt><dd>${collabEdit((x.collaborators ?? []).map((c) => c.slack_user_id), x.owner_slack_user_id)}</dd>
       ${x.phase_name ? `<dt>페이즈</dt><dd>${esc(x.phase_name)}</dd>` : ''}
       <dt>일정</dt><dd class="due-cell">${x.start_date ? `${shortDate(x.start_date)} → ` : ''}
         <input type="date" class="due-edit" value="${esc(x.due_date ?? '')}" data-due aria-label="마감일 변경">
@@ -1492,7 +1525,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         + [...pending.subs.values()].reduce((n, o) => n + Object.keys(o).length, 0);
       const saveBtn = root.querySelector('[data-save-all]');
       // 모아 두지 않고 바로 처리하는 칸 — 하위 추가 · 옮기기 · 코멘트 · 하위 댓글 · 첨부 · 외주 검수
-      const SM_SKIP = '[data-sub-add], .sbm-move, [data-comments], .sc-panel, [data-att-panel], [data-out-panel]';
+      const SM_SKIP = '[data-sub-add], .sbm-move, [data-comments], .sc-panel, [data-att-panel], [data-out-panel], [data-co-box]';
       const paintSave = () => {
         const n = pendingCount();
         saveBtn.textContent = n ? `저장 (${n})` : '저장';
@@ -1652,6 +1685,10 @@ export function subtaskModal({ task, onChange, focus = null }) {
         if (e.target.closest(SM_SKIP)) return;
         if (!stageSub(e.target)) stageTask(e.target);
       });
+      // 협업자는 모아 두지 않고 바로 저장한다
+      const coDone = (ids) => { changed = true; if (full) full.collaborators = ids.map((id) => ({ slack_user_id: id })); };
+      root.addEventListener('change', (e) => { collabChange(e, t.id, { onChange: coDone }); });
+      root.addEventListener('click', (e) => { collabChange(e, t.id, { onChange: coDone }); });
       root.addEventListener('change', (e) => {
         const ha = e.target.closest('[data-head-area]');
         if (ha) {
