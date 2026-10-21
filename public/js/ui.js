@@ -368,5 +368,8 @@ export const subAreaChip = (r) => (r.area
   ? `<span class="sub-area-chip" title="업무 영역">${esc(areaMeta(r.area).label)}</span>` : '');
 
 /** 상위 업무가 밀렸을 때의 안내 글 */
-export const nudgeNote = (nudged) => (nudged
-  ? `상위 업무 상태가 「${nudged === 'REVIEW' ? '검토' : nudged === 'IN_PROGRESS' ? '진행중' : nudged}」로 바뀌었습니다` : null);
+export const nudgeNote = (nudged) => {
+  if (!nudged) return null;
+  if (nudged === 'DONE') return '하위 업무가 모두 끝나 상위 업무를 「완료」로 바꿨습니다';
+  return `상위 업무 상태가 「${nudged === 'REVIEW' ? '검토' : nudged === 'IN_PROGRESS' ? '진행중' : nudged}」로 바뀌었습니다`;
+};

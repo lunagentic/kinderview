@@ -974,6 +974,9 @@ button.tl-tname:focus-visible{outline:2px solid var(--focus);outline-offset:1px;
 .tl-sub-dot[data-st="DONE"]{background:var(--s-done)}
 .tl-sub-dot.late{background:var(--s-delay)}
 .tl-sub-dot.inherit{opacity:.45}
+body[data-gate="edit"] .tl-sub-dot,body[data-gate="director"] .tl-sub-dot,body[data-gate="admin"] .tl-sub-dot{cursor:ew-resize;touch-action:pan-y}
+.tl-sub-dot::after{content:'';position:absolute;inset:-6px}   /* 작은 ◆ 도 잡기 쉽게 */
+.tl-sub-dot.dragging{z-index:5;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--indigo);opacity:1}
 .sbm-list li.flash{animation:sbm-flash 1.6s ease-out}
 @keyframes sbm-flash{0%,40%{background:color-mix(in oklab, var(--indigo) 14%, var(--surface))}100%{background:transparent}}
 .tl-tst{flex:none;font-size:.68rem;font-weight:600;padding:0 6px;border-radius:999px;border:1px solid currentColor;line-height:1.5;margin-right:8px}
@@ -1548,6 +1551,10 @@ body[data-gate="view"] .sbm-ttl-edit{pointer-events:none}
 .sbm-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
 .sbm-meta .lnk{margin-left:auto;color:var(--indigo);text-decoration:none;font-size:.78rem}
 .sbm-meta .lnk:hover{text-decoration:underline}
+.sbm-pre{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;font-size:.68rem;line-height:1.5;
+  color:var(--s-delay);background:color-mix(in oklab, var(--s-delay) 10%, transparent);vertical-align:middle}
+[data-save-all].nudge{animation:save-nudge .9s ease 2}
+@keyframes save-nudge{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px color-mix(in oklab, var(--indigo) 35%, transparent)}}
 .sbm-sec-head{display:flex;align-items:baseline;gap:8px}
 .sbm-sec-head h4{margin:0;font-size:.9rem;font-weight:700}
 .sbm-prog{display:flex;align-items:center;gap:10px;margin-top:8px}
@@ -1604,6 +1611,11 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
 .tlg-bar{position:absolute;top:10px;height:14px;min-width:6px;border-radius:4px;background:var(--s-wait);opacity:.9;z-index:2}
 .tlg-bar.prog{background:var(--s-prog)} .tlg-bar.review{background:var(--s-review)}
 .tlg-bar.done{background:var(--s-done)} .tlg-bar.late{background:var(--s-delay)}
+/* 하위 일정 때문에 앞으로 늘어난 부분 — 같은 색 빗금, 끌 수 없다 */
+.tlg-ext{position:absolute;top:10px;height:14px;border-radius:4px 0 0 4px;z-index:1;opacity:.55;--c:var(--s-wait);
+  background:repeating-linear-gradient(135deg,var(--c) 0 3px,transparent 3px 6px);box-shadow:inset 0 0 0 1px var(--c)}
+.tlg-ext.prog{--c:var(--s-prog)} .tlg-ext.review{--c:var(--s-review)} .tlg-ext.done{--c:var(--s-done)} .tlg-ext.late{--c:var(--s-delay)}
+.tl-task .tlg-ext{top:8px}
 .tlg-dd{position:absolute;top:7px;margin-left:6px;white-space:nowrap;z-index:2;font-family:var(--mono);font-size:.76rem;color:var(--muted)}
 .tlg-dd .due-view,.tlg-none .due-view{font-size:.76rem;display:inline-flex;flex-direction:row;align-items:baseline;gap:5px}
 .tlg-dd .dday{font-size:.68rem}
@@ -2137,6 +2149,8 @@ body[data-gate="view"] .tl-grip{display:none}
 .sub-area:focus-visible,.sub-owner:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-events:none}
 .sub-add .sub-area{max-width:120px}
+.tl-sub .sub-area{font-size:.68rem;font-weight:600;padding:2px 7px;max-width:84px}   /* 타임라인 하위 줄 — 「영역 없음」 자리도 늘 둔다 */
+.sbm-chips .sbm-area{font-size:.72rem;font-weight:600;padding:2px 9px}
 .sub-area-chip{display:inline-flex;align-items:center;flex:none;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:999px;
   color:var(--indigo);background:color-mix(in oklab, var(--indigo) 8%, var(--surface));border:1px solid color-mix(in oklab, var(--indigo) 25%, var(--line));white-space:nowrap}
 .tl-sown{flex:none;font-size:.7rem;color:var(--muted);white-space:nowrap}
@@ -2144,7 +2158,7 @@ body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-event
 .out-check{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.84rem}
 .out-check .hint{font-size:.74rem}
 .lead-box:empty{display:none}
-@media (max-width:720px){.sbm-list li,.subs li{flex-wrap:wrap}.tl-sub .sub-area-chip,.tl-sown{display:none}}
+@media (max-width:720px){.sbm-list li,.subs li{flex-wrap:wrap}.tl-sub .sub-area-chip,.tl-sub .sub-area,.tl-sown{display:none}}
 @media (max-width:720px){
   .subs li .sbm-title,.sbm-list li .sbm-title{flex:1 1 55%;min-width:0}
   .sub-area,.sub-owner{min-height:0;height:28px;padding:0 9px}

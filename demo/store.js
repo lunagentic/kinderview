@@ -1154,7 +1154,7 @@ const subProgressOf = (taskId) => {
 };
 /**
  * 하위 업무 상태가 상위 업무를 민다. 하나라도 움직이면 「대기」 상위는 「진행중」으로,
- * 전부 끝나면 「진행중」까지의 상위는 「검토」로 간다. 완료는 사람이 누른다. 외주 상태·검토·완료는 건드리지 않는다.
+ * 전부 끝나면 「검토」까지의 상위는 「완료」로 간다. 완료였는데 하위가 다시 열리면 「진행중」으로. 외주 상태는 건드리지 않는다.
  */
 function rollUpStatus(taskId) {
   const subs = subtasksOf(taskId);
@@ -1163,11 +1163,12 @@ function rollUpStatus(taskId) {
   const allDone = subs.every((s) => (s.status ?? (s.is_done ? 'DONE' : 'TODO')) === 'DONE');
   const anyMoved = subs.some((s) => (s.status ?? (s.is_done ? 'DONE' : 'TODO')) !== 'TODO');
   let next = null;
-  if (allDone && (t.status === 'TODO' || t.status === 'IN_PROGRESS')) next = 'REVIEW';
+  if (allDone && ['TODO', 'IN_PROGRESS', 'REVIEW'].includes(t.status)) next = 'DONE';
+  else if (!allDone && t.status === 'DONE') next = 'IN_PROGRESS';
   else if (anyMoved && t.status === 'TODO') next = 'IN_PROGRESS';
   if (!next) return null;
   const before = t.status;
-  Object.assign(t, { status: next, updated_at: nowISO() });
+  Object.assign(t, { status: next, completed_at: next === 'DONE' ? nowISO() : null, updated_at: nowISO() });
   logEvent(t.id, 'STATUS_CHANGED', before, next, currentMe());
   return next;
 }
@@ -1531,6 +1532,9 @@ function hydrate(t, ref = today()) {
     director_comment_count: commentsOf(t.id)
       .filter((c) => !c.deleted_at && c.author_role === 'DIRECTOR').length,
     subtask_total: subtasksOf(t.id).length,
+    // 하위 마감의 처음·끝 — 타임라인 막대가 하위 일정을 품는다
+    sub_first_due: subtasksOf(t.id).map((x) => x.due_date).filter(Boolean).sort()[0] ?? null,
+    sub_last_due: subtasksOf(t.id).map((x) => x.due_date).filter(Boolean).sort().at(-1) ?? null,
     attachment_count: attachmentsOf(t.id).length,
     subtask_done: subtasksOf(t.id).filter((s) => s.is_done).length,
     is_outsourcing: t.area === 'OUT',
@@ -1748,7 +1752,8 @@ const projectRows = () => (DB.projects ?? []).map((p) => ({
 }));
 
 // ── 영역 리드 ───────────────────────────────────────────
-const leadRows = () => (DB.area_leads ?? []).map((l) => {
+// role 'OFF' 는 물러난 리드 줄 — 지우지 못한 줄을 화면에서 뺀다
+const leadRows = () => (DB.area_leads ?? []).filter((l) => l.role !== 'OFF').map((l) => {
   const m = member(l.slack_user_id);
   return { ...l, display_name: m?.display_name ?? l.slack_user_id,
     avatar_url: m?.avatar_url ?? null, is_active: Boolean(m?.is_active) };

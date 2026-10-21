@@ -606,6 +606,8 @@ const TASK_SELECT = `
          (SELECT COUNT(*) FROM issue i
             WHERE i.task_id = t.id AND i.deleted_at IS NULL AND i.status <> 'RESOLVED') AS open_issue_count,
          (SELECT COUNT(*) FROM subtask s WHERE s.task_id = t.id) AS subtask_total,
+         (SELECT MIN(s.due_date) FROM subtask s WHERE s.task_id = t.id) AS sub_first_due,
+         (SELECT MAX(s.due_date) FROM subtask s WHERE s.task_id = t.id) AS sub_last_due,
          (SELECT GROUP_CONCAT(DISTINCT s.area) FROM subtask s WHERE s.task_id = t.id AND s.area IS NOT NULL) AS sub_areas_csv,
          (SELECT GROUP_CONCAT(DISTINCT s.owner_slack_user_id) FROM subtask s WHERE s.task_id = t.id AND s.owner_slack_user_id IS NOT NULL) AS sub_owners_csv,
          (SELECT COUNT(*) FROM attachment a WHERE a.task_id = t.id) AS attachment_count,
@@ -996,8 +998,8 @@ export const subtasks = {
 
 /**
  * 하위 업무 상태가 상위 업무를 민다. 하나라도 움직이면 「대기」 상위는 「진행중」으로,
- * 전부 끝나면 「진행중」까지의 상위는 「검토」로 간다. 완료는 사람이 누른다 — 하위가 다 끝났다고 상위가 끝난 건 아니다.
- * 외주 상태(OUT_*)와 이미 검토·완료인 업무는 건드리지 않는다. 바꿨으면 새 상태를, 아니면 null 을 돌려준다.
+ * 전부 끝나면 「검토」까지의 상위는 「완료」로 간다. 완료였는데 하위가 다시 열리면 「진행중」으로 되돌린다.
+ * 외주 상태(OUT_*)는 건드리지 않는다. 바꿨으면 새 상태를, 아니면 null 을 돌려준다.
  */
 function rollUpStatus(taskId, actor) {
   const subs = all('SELECT status FROM subtask WHERE task_id = :t', { t: taskId });
@@ -1007,11 +1009,14 @@ function rollUpStatus(taskId, actor) {
   const allDone = subs.every((s) => s.status === 'DONE');
   const anyMoved = subs.some((s) => s.status !== 'TODO');
   let next = null;
-  if (allDone && (t.status === 'TODO' || t.status === 'IN_PROGRESS')) next = 'REVIEW';
+  if (allDone && ['TODO', 'IN_PROGRESS', 'REVIEW'].includes(t.status)) next = 'DONE';
+  else if (!allDone && t.status === 'DONE') next = 'IN_PROGRESS';
   else if (anyMoved && t.status === 'TODO') next = 'IN_PROGRESS';
   if (!next) return null;
   const at = nowISO();
-  run('UPDATE task SET status = :st, updated_at = :at WHERE id = :id', { id: taskId, st: next, at });
+  // 완료 시각은 완료와 함께 움직인다 (CHECK 제약과 짝을 맞춘다)
+  run('UPDATE task SET status = :st, completed_at = :done, updated_at = :at WHERE id = :id',
+    { id: taskId, st: next, done: next === 'DONE' ? at : null, at });
   if (actor) logEvent(taskId, 'STATUS_CHANGED', t.status, next, actor, at);
   return next;
 }

@@ -1298,7 +1298,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         ${ticketTag({ ...r, project_id: t.project_id })}
         ${subAreaPick(r)}
         <textarea class="sbm-title sbm-title-ta" rows="1" maxlength="120"
-               data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기 — Enter 저장">${esc(r.title)}</textarea>
+               data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기 — Enter 담기 · 저장 단추로 반영">${esc(r.title)}</textarea>
         ${firstUrl(r.title) ? `<a class="x lnk-out" href="${esc(firstUrl(r.title))}" target="_blank" rel="noopener" title="${esc(firstUrl(r.title))}" aria-label="링크 열기">↗</a>` : ''}
         <span class="sbm-br" aria-hidden="true"></span>
         ${subOwnerPick(r)}
@@ -1319,7 +1319,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
   const smReview = (code) => state.meta.review_statuses?.find((x) => x.code === code)?.label ?? '-';
   const smChips = (x) => `
     ${x.area === 'OUT' ? '<span class="chip out" title="외주 업무">외주</span>' : ''}
-    ${(x.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="하위 업무의 영역">${esc(areaMeta(a).label)}</span>`).join('')}
+    ${(x.sub_areas?.length ? x.sub_areas : (x.area === 'OUT' ? [] : [''])).map(smAreaPick).join('')}
     <span class="area-pick" title="분류 변경">
       <select data-category aria-label="분류 변경">
         <option value=""${x.category ? '' : ' selected'}>분류 없음</option>
@@ -1328,6 +1328,13 @@ export function subtaskModal({ task, onChange, focus = null }) {
     </span>
     ${x.is_delayed ? '<span class="chip delay">⚠ 지연</span>' : ''}
     ${x.has_open_issue ? `<span class="chip issue">🔥 미해결 이슈 ${x.open_issue_count}</span>` : ''}`;
+  // 머리의 영역 칩 — 눌러 고르면 그 영역(없으면 「영역 없음」)인 하위 업무가 모두 새 영역으로 담긴다
+  const smAreaPick = (a) => `
+    <select class="sub-area sbm-area${a ? '' : ' none'}" data-head-area="${esc(a)}" aria-label="업무 영역 바꾸기"
+            title="눌러서 영역 바꾸기 — 이 영역인 하위 업무가 모두 바뀝니다">
+      <option value=""${a ? '' : ' selected'}>영역 없음</option>
+      ${(state.meta?.areas ?? []).filter((m) => m.code !== 'OUT').map((m) => `<option value="${esc(m.code)}"${m.code === a ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}
+    </select>`;
   const smInfo = (x) => `
     <dl class="kv">
       <dt>책임자</dt><dd class="owner-cell">
@@ -1345,7 +1352,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         <input type="date" class="due-edit" value="${esc(x.due_date ?? '')}" data-due aria-label="마감일 변경">
         <span style="color:${x.is_delayed ? 'var(--s-delay)' : 'var(--muted)'};font-size:.8rem">${x.status === 'DONE' || x.d_day == null ? '' : dDay(x.d_day)}</span></dd>
       <dt>우선순위</dt><dd>${esc(smPriority(x.priority))}</dd>
-      <dt>상태</dt><dd>${statusChip(x.status)}</dd>
+      <dt>상태</dt><dd data-live-status>${statusChip(x.status)}</dd>
       ${x.completed_at ? `<dt>완료</dt><dd class="num">${dateTime(x.completed_at)}</dd>` : ''}
     </dl>`;
   const smDesc = (x) => (canEdit()
@@ -1375,7 +1382,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
       <div class="sbm-head">
         <span class="sbm-proj">${ticketTag(t)}${esc(t.project_name ?? '')}${t.phase_name ? ` · ${esc(t.phase_name)}` : ''}</span>
         <input class="sbm-ttl sbm-ttl-edit" type="text" value="${esc(t.title)}" maxlength="120"
-               data-task-title="${esc(t.id)}" aria-label="업무명" title="눌러서 고치기 — Enter 저장 · Esc 되돌리기">
+               data-task-title="${esc(t.id)}" aria-label="업무명" title="눌러서 고치기 — Enter 담기 · Esc 되돌리기 · 저장 단추로 반영">
         <div class="sbm-chips" data-chips>${smChips(t)}</div>
         <div class="sbm-meta">
           <span class="st">${statusPick(t)}</span>
@@ -1402,7 +1409,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
               <input type="text" name="title" maxlength="120" placeholder="하위 업무 추가 (예: 활동지 3종)" aria-label="하위 업무명">
               <button class="btn btn-ghost" type="submit">+ 추가</button>
             </form>
-            <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다. 고친 뒤 <b>저장</b>(또는 Enter)을 누르세요.</p>
+            <p class="sub-note">하위 업무마다 영역과 담당을 정합니다 — 영역을 고르면 그 영역 리드가 담당이 됩니다. 마감을 비우면 상위 업무 마감을 따르고, 더 늦게 잡으면 상위 업무와 페이즈가 그 날까지 늘어납니다. 고친 칸은 Enter 로 담기고 창은 그대로 있습니다 — 다 고친 뒤 <b>저장</b>(또는 Ctrl+Enter)을 누르세요.</p>
           </div>
           <div class="sbm-sec att-panel" data-att-panel>${attPanelInner(t.attachments ?? [], 'h4')}</div>
           <div data-out-box>${smOut(t)}</div>
@@ -1426,7 +1433,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         <button class="btn" data-edit-full title="프로젝트·기간·우선순위·협업자까지 고치는 수정 창">수정</button>
         <button class="btn btn-discard" data-del-task-full>삭제</button>
       </div>
-      <div class="right"><button class="btn btn-primary" data-save-all title="고친 것을 저장하고 창을 닫습니다 (Enter)">저장</button></div>`,
+      <div class="right"><button class="btn btn-primary" data-save-all title="고친 것을 저장하고 창을 닫습니다 (Ctrl+Enter)">저장</button></div>`,
     beforeClose: () => unsavedGuard(),
     onMount({ root, close }) {
       const repaint = () => {
@@ -1471,6 +1478,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
         root.querySelector('[data-out-box]').innerHTML = smOut(x);
         if (!t.attachments) att.reload();   // 목록에서 온 업무는 첨부를 모른다
         growDesc();
+        paintLive();
       }).catch(() => {});
       const growDesc = () => {
         const d = root.querySelector('[data-desc]');
@@ -1530,8 +1538,26 @@ export function subtaskModal({ task, onChange, focus = null }) {
         } else return false;
         if (value === orig) delete pending.task[name]; else pending.task[name] = value;
         el.classList.toggle('dirty', name in pending.task);
+        paintLive();
         paintSave();
         return true;
+      };
+      // 머리와 「업무 정보」는 같은 값을 따로 보여 준다 — 저장 전이라도 한쪽을 바꾸면 다른 쪽도 맞춘다
+      const PRE = '<span class="sbm-pre" title="아직 저장하지 않은 값입니다">저장 전</span>';
+      const paintLive = () => {
+        const src = full ?? t;
+        const p = pending.task;
+        const st = p.status ?? src.status ?? t.status;
+        const stDd = root.querySelector('[data-info] [data-live-status]');
+        if (stDd) stDd.innerHTML = `${statusChip(st)}${'status' in p ? ` ${PRE}` : ''}`;
+        const due = p.due_date ?? src.due_date ?? t.due_date;
+        const ownerId = p.owner_slack_user_id ?? src.owner_slack_user_id;
+        const ownerName = ownerId ? (memberOf(ownerId)?.display_name ?? src.owner_name ?? t.owner_name) : null;
+        const meta = root.querySelector('[data-head-meta]');
+        if (meta) {
+          meta.innerHTML = `마감 ${due ? esc(shortDate(due)) : '미정'}${ownerName ? ` · 책임 ${esc(ownerName)}` : ''}${
+            'due_date' in p || 'owner_slack_user_id' in p ? ` ${PRE}` : ''}`;
+        }
       };
       // 목록을 다시 그려도(추가·삭제·옮기기) 아직 안 올린 값은 칸에 남긴다
       applyPending = () => {
@@ -1584,6 +1610,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
               t.status = r.nudged;
               const headSt = root.querySelector('.sbm-head [data-status]');
               if (headSt) { headSt.value = r.nudged; headSt.dataset.st = r.nudged; }
+              if (full) full.status = r.nudged;
             }
             const rl = r?.rolled ?? {};
             if (rl.task_due) { t.due_date = rl.task_due; notes.push(`상위 업무 마감이 ${shortDate(rl.task_due)}로 밀렸습니다`); }
@@ -1601,8 +1628,8 @@ export function subtaskModal({ task, onChange, focus = null }) {
         }
         changed = true;
         toast(`${fail ? `저장하지 못한 것이 ${fail}건 있습니다` : '저장했습니다'}${notes.length ? ` · ${notes.join(' · ')}` : ''}`, fail > 0);
-        const meta = root.querySelector('[data-head-meta]');
-        if (meta) meta.textContent = `마감 ${t.due_date ? shortDate(t.due_date) : '미정'}${t.owner_name ? ` · 책임 ${t.owner_name}` : ''}`;
+        if (full !== t) full.due_date = t.due_date;   // 하위가 민 마감은 t 에만 들어온다
+        paintLive();
         saveBtn.disabled = false;
         if (fail) await load();   // 실패한 것만 칸에 남겨 다시 고칠 수 있게
         paintSave();
@@ -1626,18 +1653,64 @@ export function subtaskModal({ task, onChange, focus = null }) {
         if (!stageSub(e.target)) stageTask(e.target);
       });
       root.addEventListener('change', (e) => {
+        const ha = e.target.closest('[data-head-area]');
+        if (ha) {
+          if (!editable()) { ha.value = ha.dataset.headArea; return; }
+          const from = ha.dataset.headArea;
+          const hits = root.querySelectorAll('[data-sub-area]');
+          let n = 0;
+          hits.forEach((sel) => {
+            const r = rows.find((x) => x.id === sel.dataset.subArea);
+            if (!r || (sel.value || '') !== from) return;
+            sel.value = ha.value;
+            sel.classList.toggle('none', !ha.value);
+            stageSub(sel);
+            n += 1;
+          });
+          if (!n) {
+            toast(rows.length ? '이 영역인 하위 업무가 없습니다.' : '영역은 하위 업무에 붙습니다. 먼저 하위 업무를 추가해 주세요.', true);
+            ha.value = from;
+            return;
+          }
+          ha.dataset.headArea = ha.value;
+          ha.classList.toggle('none', !ha.value);
+          ha.classList.add('dirty');
+          toast(`하위 업무 ${n}건의 영역을 「${ha.value ? areaMeta(ha.value).label : '영역 없음'}」으로 담았습니다 — 저장을 누르면 반영됩니다.`);
+          return;
+        }
         if (e.target.closest(SM_SKIP)) return;
         if (!stageSub(e.target)) stageTask(e.target);
       });
 
+      // Ctrl/⌘+Enter — 창 안 어디에 있든(칸 밖이어도) 저장하고 닫는다
+      const ctrlEnter = (e) => {
+        if (!root.isConnected) { document.removeEventListener('keydown', ctrlEnter, true); return; }
+        if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.isComposing) return;
+        const el = e.target;
+        if (el !== document.body && !root.contains(el)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (root.contains(el) && !el.closest(SM_SKIP) && ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) && !stageSub(el)) stageTask(el);
+        saveAndClose();
+      };
+      document.addEventListener('keydown', ctrlEnter, true);
       root.addEventListener('keydown', (e) => {
         const el = e.target;
         if (el.closest(SM_SKIP)) return;
         if (el.tagName === 'TEXTAREA' && !el.matches('[data-sub-title]')) return;
         if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return;
         if (e.key === 'Enter') {
+          // Enter 는 그 칸만 담아 두고 창은 둔다 — 이어서 다른 칸을 고칠 수 있게. 닫기는 「저장」 단추로.
           e.preventDefault();
-          const go = () => { if (!stageSub(el)) stageTask(el); saveAndClose(); };
+          const go = () => {
+            if (!stageSub(el)) stageTask(el);
+            el.blur();
+            if (pendingCount()) {
+              saveBtn.classList.remove('nudge');
+              void saveBtn.offsetWidth;   // 다시 깜빡이게
+              saveBtn.classList.add('nudge');
+            }
+          };
           // 한글 조합 중의 엔터 — 글자가 확정된 뒤에 저장한다
           if (e.isComposing || e.keyCode === 229) {
             let done = false;

@@ -1,11 +1,12 @@
 import { api } from '../api.js';
-import { state, activeProjects, areaMeta } from '../state.js';
+import { state, activeProjects } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
-  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle, ticketTag, hoverTip, subStatusPick, subStatusOf,
+  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle, ticketTag, hoverTip, subStatusPick, subStatusOf, subAreaPick, nudgeNote,
 } from '../ui.js';
-import { taskForm, projectForm, subtaskModal } from '../forms.js';
+import { canEdit } from '../gate.js';
+import { taskForm, projectForm, subtaskModal, subAssignChange } from '../forms.js';
 import { ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTable, bindGanttTable } from '../gantt.js';
 
 // 업무 화면은 "언제까지 무엇을" 보는 곳이다.
@@ -589,7 +590,7 @@ export async function renderTasks(root, query) {
     return `<div class="tk-sub-row${subStatusOf(r) === 'DONE' ? ' done' : ''}">
       <button class="tk-star${mine ? ' on' : ''}" data-sub-star="${esc(r.id)}" aria-pressed="${mine}" title="핵심과업" aria-label="핵심과업">${mine ? '★' : '☆'}</button>
       ${ticketTag({ ...r, project_id: t.project_id })}
-      ${r.area ? `<span class="sub-area-chip">${esc(areaMeta(r.area).label)}</span>` : ''}
+      ${subAreaPick(r)}
       <button class="tk-sub-ttl" data-sub-open="${esc(r.id)}" data-task="${esc(t.id)}" title="눌러서 업무 창 열기">${esc(r.title)}</button>
       <span class="tk-sub-own">${esc(r.owner_name ?? '')}</span>
       <span class="tk-sub-due${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}" title="${r.due_date ? '하위 업무 마감' : '상위 업무 마감을 따름'}">${due ? esc(shortDate(due)) : ''}</span>
@@ -639,11 +640,13 @@ export async function renderTasks(root, query) {
 
   root.addEventListener('change', async (e) => {
     // 펼친 하위 업무의 상태 — 바로 올리고, 상위 n/m·상태가 바뀌므로 다시 그린다(펼친 줄은 남는다)
+    if (e.target.closest('.tk-subs [data-sub-area]')
+      && await subAssignChange(e, { editable: () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), false), after: reload })) return undefined;
     const sst = e.target.closest('.tk-subs [data-sub-status]');
     if (sst) {
       try {
         const r = await api.patch(`/api/subtasks/${sst.dataset.subStatus}`, { status: sst.value });
-        toast(r?.nudged ? '하위 업무 상태를 바꿨습니다 · 상위 업무 상태도 따라 바뀌었습니다' : '하위 업무 상태를 바꿨습니다.');
+        toast(nudgeNote(r?.nudged) ?? '하위 업무 상태를 바꿨습니다.');
       } catch (err) { toast(err.message, true); }
       return reload();
     }

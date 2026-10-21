@@ -370,12 +370,32 @@ view.addEventListener('click', (e) => {
 });
 
 window.addEventListener('hashchange', render);
-window.addEventListener('kf:reload', async () => {
+// 같은 화면을 다시 그릴 때는 보던 자리를 지킨다. 순서를 끌어 바꿨는데
+// 맨 위로 튀면 방금 옮긴 줄을 다시 찾아야 한다.
+const SCROLLERS = '.tl-wrap, .gantt-wrap, .table-wrap, .board';
+const keepScroll = (inner = true) => {
+  const se = document.scrollingElement ?? document.documentElement;
+  const page = { x: se.scrollLeft, y: se.scrollTop };
+  const boxes = !inner ? [] : [...view.querySelectorAll(SCROLLERS)].map((el) => [el.scrollLeft, el.scrollTop]);
+  view.style.minHeight = `${view.offsetHeight}px`;   // 비우는 순간 높이가 꺼져 튀지 않게
+  return () => {
+    view.querySelectorAll(SCROLLERS).forEach((el, i) => {
+      if (!boxes[i]) return;
+      el.scrollLeft = boxes[i][0];
+      el.scrollTop = boxes[i][1];
+    });
+    se.scrollTo(page.x, page.y);
+    view.style.minHeight = '';
+  };
+};
+
+window.addEventListener('kf:reload', async (e) => {
+  const restore = keepScroll(!e.detail?.rescroll);
   await loadBootstrap().catch(() => {});
   renderMePicker();
   paintGate();
   refreshInbox();
-  render();
+  try { await render(); } finally { restore(); }
 });
 
 boot();

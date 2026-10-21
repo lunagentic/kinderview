@@ -226,7 +226,8 @@ export function bindGanttScale(root, w) {
       else tlAnchor = tlAddMonths(w.anchor, n * (w.quarterly ? 3 : 1));
       if (tlAnchor === tlHome()) tlAnchor = null;
     } else return;
-    window.dispatchEvent(new Event('kf:reload'));
+    // 기간이 바뀌므로 가로 위치는 새 기준에 맞춘다(보던 세로 자리만 지킨다)
+    window.dispatchEvent(new CustomEvent('kf:reload', { detail: { rescroll: true } }));
   });
 }
 
@@ -259,15 +260,21 @@ export function ganttTaskTrack(t, w) {
               title="눌러서 마감일 정하기">마감 정하기</span></span>`;
   }
   const from = t.start_date && t.start_date <= t.due_date ? t.start_date : t.due_date;
+  // 하위 마감이 상위 시작보다 이르면 그만큼 앞으로 늘려 그린다(저장된 시작일은 그대로) — 빗금 구간
+  const subFrom = t.sub_first_due && t.sub_first_due < from ? t.sub_first_due : null;
   const box = tlSpan(w.win, from, t.due_date);
+  const ext = subFrom ? tlSpan(w.win, subFrom, from) : null;
   const late = t.is_delayed ? ' late' : '';
-  if (!box) return `<span class="tlg-none due${late}">이 기간 밖 · ${dueCell(t)}</span>`;
+  if (!box && !ext) return `<span class="tlg-none due${late}">이 기간 밖 · ${dueCell(t)}</span>`;
   const tone = t.is_delayed ? 'late' : statusMeta(t.status).tone;
   const tip = `<b>${esc(t.title)}</b><br>${esc(t.start_date ? `${shortDate(t.start_date)} ~ ` : '')}${esc(shortDate(t.due_date))}`
-    + ` · ${esc(statusMeta(t.status).label)}${t.is_delayed ? ' · 지연' : ''}`;
+    + ` · ${esc(statusMeta(t.status).label)}${t.is_delayed ? ' · 지연' : ''}`
+    + (subFrom ? `<br>하위 일정 포함 ${esc(shortDate(subFrom))} ~ ${esc(shortDate(t.sub_last_due && t.sub_last_due > t.due_date ? t.sub_last_due : t.due_date))}` : '');
+  const end = box ?? ext;
   return `
-    <i class="tlg-bar ${tone}" style="left:${box.left}%;width:${box.width}%" data-tip="${esc(tip)}"></i>
-    <span class="tlg-dd due${late}" style="left:${box.left + box.width}%">${dueCell(t)}</span>`;
+    ${ext ? `<i class="tlg-ext ${tone}" style="left:${ext.left}%;width:${ext.width}%" data-tip="${esc(tip)}" aria-hidden="true"></i>` : ''}
+    ${box ? `<i class="tlg-bar ${tone}" style="left:${box.left}%;width:${box.width}%" data-tip="${esc(tip)}"></i>` : ''}
+    <span class="tlg-dd due${late}" style="left:${end.left + end.width}%">${dueCell(t)}</span>`;
 }
 
 // ── 업무 표 + 격자 (업무 탭의 타임라인 보기) ───────────

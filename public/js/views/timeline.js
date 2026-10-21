@@ -3,9 +3,9 @@ import { state, statusMeta } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusPick, go, toast, bindDueEdit, confirmModal, titleCell, autoGrow, syncTitleCell, ticketTag, readPref, writePref,
-  subStatusPick, subStatusOf, nudgeNote, subAreaChip,
+  subStatusPick, subStatusOf, nudgeNote, subAreaPick,
 } from '../ui.js';
-import { phaseForm, milestoneForm, projectForm, subtaskModal, taskForm, phaseCommentsModal, directorDigestModal } from '../forms.js';
+import { phaseForm, milestoneForm, projectForm, subtaskModal, taskForm, phaseCommentsModal, directorDigestModal, subAssignChange } from '../forms.js';
 import {
   ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTaskTrack, tlSpan, tlPoint, tlDiff, tlAdd,
 } from '../gantt.js';
@@ -170,13 +170,14 @@ export async function renderTimeline(root) {
       const late = stc !== 'DONE' && due && due < state.today;
       const at = due ? tlPoint(win, due) : null;
       const dot = at === null ? '' : `<span class="tl-sub-dot${r.due_date ? '' : ' inherit'}${late ? ' late' : ''}" data-st="${stc}"
-          style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'}"></span>
+          data-sub="${esc(r.id)}" data-due="${esc(due)}"
+          style="left:${at}%" title="${esc(r.title)} · 마감 ${esc(shortDate(due))}${r.due_date ? '' : ' (상위 업무 마감)'} — 끌어서 마감 옮기기"></span>
         <span class="tl-sub-date${at > 88 ? ' flip' : ''}${late ? ' late' : ''}${stc === 'DONE' ? ' done' : ''}${r.due_date ? '' : ' inherit'}"
           style="left:${at}%" aria-hidden="true">${due === state.today ? '오늘' : esc(shortDate(due))}</span>`;
       return wrap({
         id: r.id,
         html: `<span class="tl-grip" data-grip="sub" data-grip-id="${esc(r.id)}" role="button" tabindex="0"
-            aria-label="${esc(r.title)} 순서 바꾸기 — 끌거나 Alt+↑/↓" title="끌어서 하위 업무 순서 바꾸기 (Alt+↑/↓)">⋮⋮</span>${ticketTag({ ...r, project_id: t.project_id })}${subAreaChip(r)}
+            aria-label="${esc(r.title)} 순서 바꾸기 — 끌거나 Alt+↑/↓" title="끌어서 하위 업무 순서 바꾸기 (Alt+↑/↓)">⋮⋮</span>${ticketTag({ ...r, project_id: t.project_id })}${subAreaPick(r)}
           <span class="tl-sname${stc === 'DONE' ? ' done' : ''}" title="${esc(r.title)}${r.owner_name ? ` · 담당 ${esc(r.owner_name)}` : ''}${due ? ` · 마감 ${esc(shortDate(due))}` : ''}${r.comment_count ? ` · 댓글 ${r.comment_count}` : ''} — 눌러서 팝업으로">${esc(r.title)}</span>
           ${subStatusPick(r)}`,
       }, dot);
@@ -467,6 +468,9 @@ export async function renderTimeline(root) {
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
   root.addEventListener('change', async (e) => {
+    // 하위 줄의 영역 — 「영역 없음」 자리에서 바로 고른다(고르면 그 영역 리드가 담당)
+    if (e.target.closest('.tl-sub [data-sub-area]')
+      && await subAssignChange(e, { editable: () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), false), after: reload })) return undefined;
     const sst = e.target.closest('.tl-sub [data-sub-status]');
     if (sst) {
       try {
@@ -681,6 +685,7 @@ export async function renderTimeline(root) {
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { lineClick(line); return undefined; }
     // 하위 업무 줄 — 상태 칩이 아닌 곳을 누르면 그 업무 창이 그 하위 업무를 짚은 채 열린다
     const sline = e.target.closest('.tl-sub[data-sub-line]');
+    if (sline && sline.dataset.dragged) { delete sline.dataset.dragged; return undefined; }
     if (sline && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(sline.dataset.ofTask, { focus: sline.dataset.subLine }); return undefined; }
     const bl = e.target.closest('.tld-task[data-line]');
     if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) return go(`#/project/tasks/${bl.dataset.line}`);
@@ -757,6 +762,18 @@ function bindBarDrag(root, win, getFind, reload) {
   let drag = null;
   root.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !canEdit()) return;
+    // 하위 업무 마감 ◆ — 끌면 그 하위의 마감만 옮긴다
+    const dot = e.target.closest('.tl-sub .tl-sub-dot[data-sub]');
+    if (dot) {
+      const track = dot.closest('.tl-track');
+      if (!track) return;
+      drag = { sub: dot.dataset.sub, due: dot.dataset.due, bar: dot, line: dot.closest('.tl-sub'), x0: e.clientX,
+        pxDay: track.getBoundingClientRect().width / days, delta: 0, on: false, dd: dot.nextElementSibling,
+        title: dot.closest('.tl-sub').querySelector('.tl-sname')?.textContent ?? '' };
+      dot.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+      return;
+    }
     const bar = e.target.closest('.tl-task .tlg-bar');
     if (!bar) return;
     const line = bar.closest('.tl-task[data-line]');
@@ -777,12 +794,14 @@ function bindBarDrag(root, win, getFind, reload) {
     if (delta === drag.delta) return;
     drag.delta = delta;
     const pct = (delta / days) * 100;
-    drag.bar.style.transform = `translateX(${pct / 100 * drag.bar.parentElement.getBoundingClientRect().width}px)`;
+    const px = pct / 100 * drag.bar.parentElement.getBoundingClientRect().width;
+    // ◆ 는 45° 돌려 그린 것이라 돌림을 함께 둔다
+    drag.bar.style.transform = drag.sub ? `translateX(${px}px) rotate(45deg)` : `translateX(${px}px)`;
     drag.bar.classList.add('dragging');
     drag.line.classList.add('is-dragging');
     if (drag.dd) {
-      drag.dd.style.transform = drag.bar.style.transform;
-      const due = tlAdd(drag.t.due_date, delta);
+      drag.dd.style.transform = `translateX(${px}px)`;
+      const due = tlAdd(drag.sub ? drag.due : drag.t.due_date, delta);
       drag.dd.textContent = `${shortDate(due)} (${delta > 0 ? '+' : ''}${delta}일)`;
     }
   });
@@ -797,6 +816,18 @@ function bindBarDrag(root, win, getFind, reload) {
     d.line.dataset.dragged = '1';   // 바로 이어지는 click 이 하위 업무 창을 열지 않게
     setTimeout(() => { delete d.line.dataset.dragged; }, 300);
     if (!d.delta) { d.bar.style.transform = ''; if (d.dd) { d.dd.style.transform = ''; } reload(); return; }
+    if (d.sub) {
+      const due = tlAdd(d.due, d.delta);
+      try {
+        const r = await api.patch(`/api/subtasks/${d.sub}`, { due_date: due });
+        const notes = [`「${d.title}」 마감을 ${shortDate(due)}(으)로 옮겼습니다`];
+        if (r?.rolled?.task_due) notes.push(`상위 업무 마감이 ${shortDate(r.rolled.task_due)}로 밀렸습니다`);
+        if (r?.rolled?.phase_end) notes.push(`페이즈 종료일도 ${shortDate(r.rolled.phase_end)}로 늘어났습니다`);
+        toast(notes.join(' · '));
+      } catch (err) { toast(err.message, true); }
+      reload();
+      return;
+    }
     const patch = { due_date: tlAdd(d.t.due_date, d.delta) };
     if (d.t.start_date) patch.start_date = tlAdd(d.t.start_date, d.delta);
     try {
