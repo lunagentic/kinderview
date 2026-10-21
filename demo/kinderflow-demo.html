@@ -2485,6 +2485,113 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
   .tl-proj-add .tl-task-form{flex:1 0 100%}
 }
 
+/* ── PO 보드 (1단계, 읽기 전용) — 승인 시안 docs/po-board ──────────────── */
+.po{word-break:keep-all;overflow-wrap:anywhere}
+.po .page-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.po .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:.8rem;color:var(--ink-2);white-space:nowrap}
+.po-kpis{display:grid;grid-template-columns:1.25fr .9fr 1.1fr 2.2fr;gap:14px;margin-bottom:22px}
+.po-kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;min-height:150px;display:flex;flex-direction:column}
+.po-kpi .lab{font-size:.82rem;color:var(--ink-2);font-weight:700}
+.po-kpi .big{font-size:2.2rem;font-weight:800;letter-spacing:-.04em;line-height:1.1;margin-top:10px}
+.po-kpi .big small{font-size:1rem;color:var(--ink-2);font-weight:700;margin-left:2px}
+.po-kpi .big .delta{font-size:.95rem;margin-left:8px;font-weight:700}.po-kpi .delta.up{color:var(--s-done)}.po-kpi .delta.down{color:var(--s-delay)}
+.po-kpi .big.red{color:var(--s-delay)}
+.po-kpi .meta{font-size:.78rem;color:var(--muted);margin-top:6px}
+.po-kpi.donut{flex-direction:row;align-items:center;gap:16px}
+.po-kpi.donut svg{width:104px;height:104px;flex:none;display:block;margin-top:6px}
+.po-kpi.donut .leg{display:grid;grid-template-columns:auto 1fr auto;gap:5px 8px;font-size:.82rem;align-items:center;flex:1}
+.po-kpi.donut .leg i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.po-kpi.donut .leg b{text-align:right;font-variant-numeric:tabular-nums}
+.po-kpi.two{padding:0;display:grid;grid-template-columns:1fr 1fr}
+.po-kpi.two > div{padding:16px 18px}.po-kpi.two > div+div{border-left:1px solid var(--line-soft)}
+.po-wtl{display:grid;grid-template-columns:1fr;gap:6px;margin-top:10px;position:relative}
+.po-axis{display:grid;grid-template-columns:repeat(7,1fr);font-size:.72rem;color:var(--muted);text-align:center;border-bottom:1px solid var(--line-soft);padding-bottom:4px}
+.po-axis b{color:var(--ink);display:block;font-size:.8rem}
+.po-axis .today,.po-axis .today b{color:var(--indigo)}
+.po-lane{position:relative;height:20px}
+.po-empty-lane{color:var(--muted);font-size:.78rem}
+.po-bar{position:absolute;top:0;height:20px;border-radius:6px;--c:var(--s-prog);background:color-mix(in srgb,var(--c) 22%,var(--surface));color:var(--ink);font-size:.72rem;font-weight:700;line-height:20px;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.po-bar::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c)}
+.po-bar.done{--c:var(--s-done)}.po-bar.late{--c:var(--s-delay)}.po-bar.review{--c:var(--s-review)}.po-bar.wait{--c:var(--s-wait)}
+.po-now{position:absolute;top:0;bottom:0;width:2px;background:var(--indigo);opacity:.7;transform:translateX(-1px)}
+.po-now::before{content:'';position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--indigo)}
+.po-sec{display:flex;align-items:center;gap:10px;margin:6px 0 10px}
+.po-sec h2{margin:0;font-size:1.05rem;font-weight:800;display:flex;align-items:center;gap:8px}
+.po-sec .n{background:var(--surface-2);border-radius:999px;padding:1px 8px;font-size:.78rem;color:var(--ink-2);font-weight:700}
+.po-sec .chip{margin-left:auto}
+.po-mems{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.po-mem{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px 5px 6px;font:inherit;font-size:.84rem;color:var(--ink);cursor:pointer;white-space:nowrap}
+.po-mem.on{background:var(--indigo);border-color:var(--indigo);color:#fff}
+.po-mem .n{font-size:.76rem;color:var(--muted);font-weight:700}.po-mem.on .n{color:#fff;opacity:.85}
+.po-mem .avatar.all{background:var(--ink-2);color:#fff}
+.po-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:14px;margin-bottom:18px}
+.po-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 14px 12px;min-height:178px;
+  display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.po-card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(21,26,45,.08)}
+.po-card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.po-card.on{border-color:var(--indigo);box-shadow:0 0 0 1px var(--indigo),0 10px 26px rgba(21,26,45,.1)}
+.po-card.on::after{content:'';position:absolute;left:50%;bottom:-7px;width:12px;height:12px;background:var(--surface);border-right:1px solid var(--indigo);border-bottom:1px solid var(--indigo);transform:translateX(-50%) rotate(45deg)}
+.po-who{display:flex;align-items:center;gap:8px;min-height:30px}
+.po-who .nm{font-weight:700;font-size:.9rem;line-height:1.2}
+.po-who .team{font-size:.72rem;color:var(--muted);line-height:1.2}
+.po-rank{margin-left:auto;flex:none;font-size:.74rem;font-weight:800;border-radius:999px;padding:3px 9px;background:color-mix(in srgb,var(--indigo) 12%,var(--surface));color:var(--indigo)}
+.po-rank.star{background:color-mix(in srgb,var(--amber) 22%,var(--surface));color:#9A6A00}
+.po-ttl{font-weight:800;font-size:.98rem;line-height:1.35;height:calc(1.35em * 2);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.po-ttl .k,.po-lnk .k{font-family:var(--mono);font-size:.7rem;color:var(--muted);font-weight:600;margin-right:5px}
+.po-prog{display:flex;align-items:center;gap:8px;--c:var(--s-prog)}
+.po-prog.done{--c:var(--s-done)}.po-prog.late{--c:var(--s-delay)}.po-prog.review{--c:var(--s-review)}.po-prog.wait{--c:var(--s-wait)}
+.po-prog .tr{flex:1;height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.po-prog .tr i{display:block;height:100%;border-radius:999px;background:var(--c)}
+.po-prog .pc{font-size:.8rem;font-weight:700;font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
+.po-foot{display:flex;align-items:center;gap:8px;margin-top:auto;font-size:.74rem;color:var(--muted);flex-wrap:wrap}
+.po-stc{margin-left:auto;flex:none;font-size:.72rem;font-weight:700;border-radius:999px;padding:2px 8px;color:#fff;background:var(--s-prog)}
+.po-stc.done{background:var(--s-done)}.po-stc.late{background:var(--s-delay)}.po-stc.review{background:var(--s-review)}.po-stc.wait{background:var(--s-wait)}
+.po-empty{grid-column:1/-1;color:var(--muted);padding:20px;text-align:center;border:1px dashed var(--line);border-radius:var(--radius)}
+.po-detail{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:18px}
+.po-dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.po-dh .star{color:var(--amber);font-size:1.2rem}
+.po-dh .rank{font-size:.78rem;font-weight:800;border-radius:999px;padding:4px 10px;background:var(--indigo);color:#fff}
+.po-dh h3{margin:0;font-size:1.15rem;font-weight:800}
+.po-dh .meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:.82rem;color:var(--ink-2)}
+.po-dh .meta > span{display:inline-flex;align-items:center;gap:6px}
+.po-dh .pr{margin-left:auto;display:flex;align-items:center;gap:12px}
+.po-dh .pr .big{font-size:1.6rem;font-weight:800;color:var(--indigo);letter-spacing:-.03em;line-height:1}
+.po-dh .pr .tr{width:170px;height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.po-dh .pr .tr i{display:block;height:100%;background:var(--indigo);border-radius:999px}
+.po-dh .pr .sm{font-size:.74rem;color:var(--muted)}
+.po-x{border:0;background:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:4px 8px}
+.po-cols{display:grid;grid-template-columns:1.1fr 1.3fr 1.3fr;gap:14px;margin-top:16px}
+.po-col{background:var(--ground);border-radius:12px;padding:14px 16px;min-width:0}
+.po-col h4{margin:0 0 10px;font-size:.9rem;font-weight:800;display:flex;align-items:center;gap:8px}
+.po-col h4 .n{font-size:.76rem;color:var(--muted);font-weight:700}
+.po-kv{display:grid;grid-template-columns:72px 1fr;gap:7px 10px;font-size:.84rem;align-items:start;margin:0}
+.po-kv dt{color:var(--muted);margin:0}.po-kv dd{margin:0}
+.po-kv dd.late{color:var(--s-delay);font-weight:700}
+.po-kv .desc{color:var(--ink-2);white-space:pre-line;font-size:.8rem;max-height:7.5em;overflow:hidden}
+.po-subl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:.86rem}
+.po-subl li{display:flex;align-items:flex-start;gap:8px}
+.po-subl .m{flex:none;width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.68rem;font-weight:800;margin-top:1px}
+.po-subl .m.d{background:var(--s-done);color:#fff}.po-subl .m.p{background:color-mix(in srgb,var(--s-prog) 18%,var(--surface));color:var(--s-prog)}.po-subl .m.w{border:1.5px solid var(--s-wait);color:transparent}
+.po-subl li.d span{color:var(--muted);text-decoration:line-through}
+.po-subl .more{color:var(--muted);font-size:.78rem;padding-left:26px}
+.po-lnk{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:.84rem}
+.po-lnk li{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center}
+.po-lnk .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);text-decoration:none}
+.po-lnk .t:hover{color:var(--indigo);text-decoration:underline}
+.po-lnk .r{display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--muted);white-space:nowrap}
+.po-lnk .r .pct{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;min-width:32px;text-align:right}
+.po-lnk .po-stc{margin-left:0}
+.po-note{font-size:.76rem;color:var(--muted);margin-top:14px}
+.po-col .po-note:first-of-type{margin-top:0}
+@media (max-width:1100px){.po-kpis{grid-template-columns:1fr 1fr}.po-kpi.wk{grid-column:1/-1}}
+@media (max-width:720px){
+  .po-kpis{grid-template-columns:1fr}.po-kpi{min-height:0}.po-kpi.donut svg{width:88px;height:88px}
+  .po-mems{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .po-cards{grid-template-columns:1fr 1fr;gap:10px}.po-card{min-height:170px;padding:12px}
+  .po-cols{grid-template-columns:1fr}.po-dh .pr{margin-left:0;width:100%}.po-dh .pr .tr{flex:1;width:auto}
+}
+@media (max-width:420px){.po-cards{grid-template-columns:1fr}}
+
 </style>
 
   <header class="topbar">
@@ -13719,6 +13826,193 @@ function flSubDialog(a, meeting, refresh) {
 
 
 
+// PO 보드 — 모든 구성원의 핵심 과업을 한눈에. 1단계는 읽기만 한다(승인 시안 docs/po-board).
+// 우선순위: ★ 핵심과업으로 표시한 업무가 1순위로 맨 위, 그 다음 구성원마다 완료 아닌 책임 업무 중 지연 우선·마감 가까운 1건.
+// 진행률 = 하위 업무 완료 비율. 연계 업무 = 같은 페이즈의 다른 업무(마감순 6건). 쓰기는 2단계에서 잇는다.
+
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+const dt = (s) => { if (!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const poMd = (s) => { const d = dt(s); return d ? `${d.getUTCMonth() + 1}/${d.getUTCDate()} (${DOW[d.getUTCDay()]})` : '미정'; };
+const dayN = (s) => Math.round(dt(s) / 864e5);
+const PR = { HIGH: '높음', NORMAL: '보통', LOW: '낮음' };
+const toneOf = (t) => (t.late ? 'late' : t.status === 'DONE' ? 'done' : t.status === 'REVIEW' ? 'review' : t.status === 'TODO' ? 'wait' : 'prog');
+const stChip = (t) => `<span class="po-stc ${toneOf(t)}">${t.late ? '지연' : esc(statusMeta(t.status).label)}</span>`;
+const av = (id) => avatar(memberOf(id) ?? { display_name: '?' }, 'sm');
+const pctOf = (t) => (t.subtask_total ? Math.round((t.subtask_done ?? 0) / t.subtask_total * 100) : (t.status === 'DONE' ? 100 : 0));
+const rankKey = (t) => `${t.late ? 0 : 1}|${t.due_date ?? '9999-99-99'}`;
+
+// 화면을 다시 그려도 고른 사람·펼친 카드는 남는다
+let who = 'all';
+let open = null;
+
+/** 목록 응답을 보드가 쓰는 모양으로 */
+function poShape(t) {
+  const areas = t.sub_areas ?? [];
+  return {
+    ...t,
+    late: Boolean(t.is_delayed),
+    pct: pctOf(t),
+    star: (t.stars ?? []).length > 0,
+    team: areas.length ? areaMeta(areas[0]).label : '',
+    owners: [t.owner_slack_user_id, ...(t.sub_owners ?? [])].filter((id, i, a) => id && a.indexOf(id) === i),
+  };
+}
+
+/** ★ 먼저, 그 다음 사람마다 하나 */
+function pickKeyTasks(all) {
+  const starred = all.filter((t) => t.star).sort((a, b) => rankKey(a).localeCompare(rankKey(b)));
+  const hasStar = new Set(starred.map((t) => t.owner_slack_user_id));
+  const out = starred.map((t) => ({ ...t, rank: 1 }));
+  for (const m of activeMembers()) {
+    const mine = all.filter((t) => t.owner_slack_user_id === m.slack_user_id && t.status !== 'DONE' && !t.star);
+    if (!mine.length) continue;
+    const best = mine.sort((a, b) => rankKey(a).localeCompare(rankKey(b)))[0];
+    out.push({ ...best, rank: hasStar.has(m.slack_user_id) ? 2 : 1 });
+  }
+  return out;
+}
+
+async function renderPoBoard(host) {
+  host.innerHTML = loading();
+  let all;
+  try {
+    const rows = await api.get('/api/tasks?done=1&all_backlog=1');
+    all = rows.filter((t) => t.area !== 'OUT').map(poShape);
+  } catch (err) { host.innerHTML = errorBox(err.message); return; }
+  const keyTasks = pickKeyTasks(all);
+  const today = state.today;
+  const wk0d = new Date(dt(today) - ((dt(today).getUTCDay() + 6) % 7) * 864e5);
+  const wk0 = wk0d.toISOString().slice(0, 10);
+  const wk1 = new Date(wk0d.getTime() + 6 * 864e5).toISOString().slice(0, 10);
+  const inWeek = (d) => Boolean(d) && d >= wk0 && d <= wk1;
+  const lw0 = new Date(wk0d.getTime() - 7 * 864e5).toISOString().slice(0, 10);
+  const doneThis = all.filter((t) => t.status === 'DONE' && inWeek(t.due_date)).length;
+  const doneLast = all.filter((t) => t.status === 'DONE' && t.due_date && t.due_date >= lw0 && t.due_date < wk0).length;
+  const kpi = {
+    done: keyTasks.filter((t) => t.status === 'DONE').length,
+    prog: keyTasks.filter((t) => ['IN_PROGRESS', 'REVIEW'].includes(t.status) && !t.late).length,
+    wait: keyTasks.filter((t) => ['TODO', 'REQUEST_PLANNED'].includes(t.status) && !t.late).length,
+    late: keyTasks.filter((t) => t.late).length,
+    pct: keyTasks.length ? Math.round(keyTasks.reduce((n, t) => n + t.pct, 0) / keyTasks.length) : 0,
+    doneThis, delta: doneThis - doneLast,
+  };
+  const members = activeMembers().map((m) => ({ id: m.slack_user_id, name: m.display_name, n: keyTasks.filter((t) => t.owner_slack_user_id === m.slack_user_id).length }))
+    .filter((m) => m.n);
+  const subsCache = new Map();
+
+  const donut = () => {
+    const tot = kpi.done + kpi.prog + kpi.wait + kpi.late || 1;
+    const R = 42; const C = 2 * Math.PI * R; let acc = 0;
+    const parts = [[kpi.done, 'var(--s-done)'], [kpi.prog, 'var(--s-prog)'], [kpi.wait, 'var(--s-wait)'], [kpi.late, 'var(--s-delay)']];
+    const segs = parts.map(([n, c]) => { const len = n / tot * C; const s = `<circle r="${R}" cx="52" cy="52" fill="none" stroke="${c}" stroke-width="12" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-acc}" transform="rotate(-90 52 52)"/>`; acc += len; return s; }).join('');
+    return `<svg viewBox="0 0 104 104" aria-label="핵심 과업 진행률 ${kpi.pct}%"><circle r="${R}" cx="52" cy="52" fill="none" stroke="var(--surface-2)" stroke-width="12"/>${segs}
+      <text x="52" y="57" text-anchor="middle" font-size="22" font-weight="800" fill="var(--ink)">${kpi.pct}%</text></svg>`;
+  };
+  const weekTl = () => {
+    const w0 = dayN(wk0); const todayI = dayN(today) - w0;
+    const days = [...Array(7)].map((_, i) => new Date((w0 + i) * 864e5));
+    const lanes = keyTasks.filter((t) => t.due_date && dayN(t.due_date) >= w0 - 21 && (t.start_date ? dayN(t.start_date) : dayN(t.due_date) - 7) <= w0 + 6).slice(0, 5);
+    const bars = lanes.map((t) => {
+      const s = Math.max(0, (t.start_date ? dayN(t.start_date) : dayN(t.due_date) - 6) - w0); const e = Math.min(7, dayN(t.due_date) - w0 + 1);
+      const l = Math.max(0, Math.min(s, 6)); const r = Math.max(l + 1, e);
+      return `<div class="po-lane"><div class="po-bar ${toneOf(t)}" style="left:${l / 7 * 100}%;width:${(r - l) / 7 * 100}%" title="${esc(t.title)} · 마감 ${poMd(t.due_date)}">${esc(t.title)}${t.team ? ` (${esc(t.team)})` : ''}</div></div>`;
+    }).join('');
+    return `<div class="po-wtl"><div class="po-axis">${days.map((d, i) => `<span class="${i === todayI ? 'today' : ''}"><b>${d.getUTCMonth() + 1}/${d.getUTCDate()}</b>${DOW[d.getUTCDay()]}</span>`).join('')}</div>
+      ${bars || '<div class="po-lane po-empty-lane">이번 주에 걸린 핵심 과업이 없습니다</div>'}
+      ${todayI >= 0 && todayI < 7 ? `<div class="po-now" style="left:${(todayI + 0.5) / 7 * 100}%"></div>` : ''}</div>`;
+  };
+  const card = (t) => `
+    <div class="po-card${open === t.id ? ' on' : ''}" data-id="${esc(t.id)}" role="button" tabindex="0" aria-expanded="${open === t.id}">
+      <div class="po-who">${av(t.owner_slack_user_id)}<div><div class="nm">${esc(t.owner_name ?? '')}</div><div class="team">${esc(t.team || '팀 미정')}</div></div>
+        <span class="po-rank${t.star ? ' star' : ''}">${t.star ? '★ ' : ''}${t.rank}순위</span></div>
+      <div class="po-ttl" title="${esc(t.title)}"><span class="k">${esc(t.key ?? '')}</span>${esc(t.title)}</div>
+      <div class="po-prog ${toneOf(t)}"><span class="tr"><i style="width:${t.pct}%"></i></span><span class="pc">${t.pct}%</span></div>
+      <div class="po-foot"><span class="dt">📅 ${t.start_date ? `${shortDate(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div></div>`;
+  const detail = (t) => {
+    const subs = subsCache.get(t.id);
+    const linked = all.filter((x) => t.phase_id && x.phase_id === t.phase_id && x.id !== t.id)
+      .sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999')).slice(0, 6);
+    const SHOW = 8;
+    const mark = (s) => (s.status === 'DONE' ? '<span class="m d">✓</span>' : s.status === 'IN_PROGRESS' ? '<span class="m p">◐</span>' : '<span class="m w">○</span>');
+    const subN = t.subtask_total ?? 0; const subD = t.subtask_done ?? 0;
+    return `<div class="po-detail" id="po-detail">
+      <div class="po-dh">${t.star ? '<span class="star">★</span>' : ''}<span class="rank">${t.rank}순위</span><h3>${esc(t.title)}</h3>
+        <div class="meta"><span>${av(t.owner_slack_user_id)} ${esc(t.owner_name ?? '')}${t.team ? ` · ${esc(t.team)}` : ''}</span><span>📅 ${t.start_date ? `${poMd(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div>
+        <div class="pr"><span class="big">${t.pct}%</span><span class="tr"><i style="width:${t.pct}%"></i></span><span class="sm">${subN ? `${subD} / ${subN}개 하위 업무 완료` : '하위 업무 없음'}</span></div>
+        <button class="btn" type="button" disabled title="2단계에서 연결">⇅ 우선순위 변경</button>
+        <a class="btn" href="#/project/tasks/${esc(t.id)}" title="업무 상세 열기">상세 열기 ›</a>
+        <button class="po-x" type="button" data-close aria-label="닫기">✕</button></div>
+      <div class="po-cols">
+        <div class="po-col"><h4>과업 요약</h4><dl class="po-kv">
+          <dt>번호</dt><dd>${esc(t.key ?? '-')}</dd><dt>프로젝트</dt><dd>${esc(t.project_name ?? '미정')}</dd><dt>페이즈</dt><dd>${esc(t.phase_name ?? '미정')}</dd>
+          <dt>책임자</dt><dd>${esc(t.owner_name ?? '')}</dd><dt>실무 담당</dt><dd>${t.owners.length > 1 ? t.owners.slice(1).map((id) => esc(memberOf(id)?.display_name ?? id)).join(' · ') : '—'}</dd>
+          <dt>마감</dt><dd${t.late ? ' class="late"' : ''}>${poMd(t.due_date)}${t.late ? ' · 지연' : ''}</dd><dt>우선순위</dt><dd>${PR[t.priority] ?? '보통'}</dd>
+          ${t.star ? `<dt>핵심과업</dt><dd>★ ${(t.stars ?? []).map((id) => esc(memberOf(id)?.display_name ?? id)).join(', ')} 님이 표시</dd>` : ''}
+          ${t.description ? `<dt>내용</dt><dd class="desc">${esc(t.description)}</dd>` : ''}</dl></div>
+        <div class="po-col"><h4>하위 업무 <span class="n">${subD}/${subN}</span></h4>
+          ${!subs ? '<div class="po-note">불러오는 중…</div>' : subs.length
+            ? `<ul class="po-subl">${subs.slice(0, SHOW).map((s) => `<li class="${s.status === 'DONE' ? 'd' : ''}">${mark(s)}<span>${esc(s.title)}</span></li>`).join('')}
+               ${subs.length > SHOW ? `<li class="more">… 외 ${subs.length - SHOW}건</li>` : ''}</ul>`
+            : '<div class="po-note">하위 업무가 없습니다</div>'}</div>
+        <div class="po-col"><h4>연계 업무 <span class="n">${linked.length}</span></h4>
+          ${linked.length ? `<ul class="po-lnk">${linked.map((x) => `<li><a class="t" href="#/project/tasks/${esc(x.id)}" title="${esc(x.title)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a><span class="r">${esc(x.owner_name ?? '')} ${stChip(x)}<span class="pct">${x.pct}%</span></span></li>`).join('')}</ul>`
+            : `<div class="po-note">${t.phase_id ? '같은 페이즈에 다른 업무가 없습니다' : '페이즈가 없어 연계 업무를 찾을 수 없습니다'}</div>`}
+          <div class="po-note">연계 업무 = 같은 페이즈의 다른 업무(마감순 6건)</div></div>
+      </div></div>`;
+  };
+
+  const paint = () => {
+    const list = keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who);
+    const sel = keyTasks.find((t) => t.id === open);
+    host.innerHTML = `
+      <div class="po">
+        <div class="page-head"><div><h1>PO 보드</h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건 · 읽기 전용(1단계)</div></div>
+          <div class="page-actions"><span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span><button class="btn btn-primary" type="button" disabled title="2단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
+        <div class="po-kpis">
+          <div class="po-kpi donut"><div><div class="lab">전체 핵심 과업 진행률</div>${donut()}</div>
+            <div class="leg">${[['완료', kpi.done, 'var(--s-done)'], ['진행중', kpi.prog, 'var(--s-prog)'], ['대기', kpi.wait, 'var(--s-wait)'], ['지연', kpi.late, 'var(--s-delay)']].map(([l, n, c]) => `<i style="background:${c}"></i><span>${l}</span><b>${n}</b>`).join('')}</div></div>
+          <div class="po-kpi"><div class="lab">이번 주 완료</div><div class="big">${kpi.doneThis}<small>건</small>${kpi.delta ? `<span class="delta ${kpi.delta > 0 ? 'up' : 'down'}">${kpi.delta > 0 ? '+' : ''}${kpi.delta}</span>` : ''}</div><div class="meta">지난 주 대비 · 마감일 기준</div></div>
+          <div class="po-kpi two"><div><div class="lab">진행 중</div><div class="big">${kpi.prog}<small>건</small></div><div class="meta">핵심 과업 ${keyTasks.length}건 중</div></div><div><div class="lab">지연 과업</div><div class="big red">${kpi.late}<small>건</small></div><div class="meta">조치 필요</div></div></div>
+          <div class="po-kpi wk"><div class="lab">주간 타임라인</div>${weekTl()}</div>
+        </div>
+        <div class="po-sec"><h2>구성원별 핵심 과업 <span class="n">${keyTasks.length}</span></h2><span class="chip">★ 핵심과업 우선</span></div>
+        <div class="po-mems"><button type="button" class="po-mem${who === 'all' ? ' on' : ''}" data-who="all"><span class="avatar sm all">전</span>전체 <span class="n">${keyTasks.length}</span></button>
+          ${members.map((m) => `<button type="button" class="po-mem${who === m.id ? ' on' : ''}" data-who="${esc(m.id)}">${av(m.id)}${esc(m.name)} <span class="n">${m.n}</span></button>`).join('')}</div>
+        <div class="po-cards">${list.length ? list.map(card).join('') : '<div class="po-empty">이 구성원의 핵심 과업이 없습니다</div>'}</div>
+        ${sel ? detail(sel) : ''}
+        <div class="po-note">우선순위: ★ 핵심과업으로 표시한 업무가 맨 위(1순위) · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율</div>
+      </div>`;
+  };
+  const openCard = async (id) => {
+    open = open === id ? null : id;
+    paint();
+    if (!open) return;
+    document.getElementById('po-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (subsCache.has(id)) return;
+    try { subsCache.set(id, await api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`)); }
+    catch (err) { subsCache.set(id, []); toast(err.message, true); }
+    if (open === id) paint();
+  };
+  host.addEventListener('click', (e) => {
+    const m = e.target.closest('[data-who]');
+    if (m) { who = m.dataset.who; paint(); return; }
+    if (e.target.closest('[data-close]')) { open = null; paint(); return; }
+    if (e.target.closest('a, button')) return;
+    const c = e.target.closest('.po-card[data-id]');
+    if (c) openCard(c.dataset.id);
+  });
+  host.addEventListener('keydown', (e) => {
+    const c = e.target.closest?.('.po-card[data-id]');
+    if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(c.dataset.id); }
+  });
+  paint();
+}
+
+
+
+
+
+
 
 
 // 간트 — 먼데이닷컴식 표. 「이번 달」「지난 달」 묶음(마감 달 기준)에 업무가 한 줄씩 서고,
@@ -16103,6 +16397,7 @@ function gatePanel() {
 
 
 
+
 const view = document.getElementById('view');
 
 // 프로젝트 매니징 아래의 화면들.
@@ -16193,6 +16488,7 @@ const PROJECT_TABS = [
   { key: 'board',    label: '간트' },
   { key: 'report',   label: '리포트' },
   { key: 'monthly',  label: '월간 업무' },
+  { key: 'poboard',  label: 'PO 보드' },
 ];
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
 // 저장이 막힌 환경에서도 기본 순서로 그대로 동작해야 한다.
@@ -16338,6 +16634,7 @@ async function render() {
       else if (sub === 'board') await renderBoard(host, query);
       else if (sub === 'report') await renderReport(host, query);
       else if (sub === 'flow') await renderFlow(host);
+      else if (sub === 'poboard') await renderPoBoard(host);
       else await renderWeekly(host, query);
       return;
     }

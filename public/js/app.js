@@ -11,6 +11,7 @@ import { renderBoard } from './views/board.js';
 import { renderReport } from './views/report.js';
 import { renderMonthly } from './views/monthly.js';
 import { renderFlow } from './views/flow.js';
+import { renderPoBoard } from './views/poBoard.js';
 import { renderNotifications } from './views/notifications.js';
 import { renderTimeline, timelineJump } from './views/timeline.js';
 import { renderTime } from './views/time.js';
@@ -108,6 +109,7 @@ const PROJECT_TABS = [
   { key: 'board',    label: '간트' },
   { key: 'report',   label: '리포트' },
   { key: 'monthly',  label: '월간 업무' },
+  { key: 'poboard',  label: 'PO 보드' },
 ];
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
 // 저장이 막힌 환경에서도 기본 순서로 그대로 동작해야 한다.
@@ -253,6 +255,7 @@ async function render() {
       else if (sub === 'board') await renderBoard(host, query);
       else if (sub === 'report') await renderReport(host, query);
       else if (sub === 'flow') await renderFlow(host);
+      else if (sub === 'poboard') await renderPoBoard(host);
       else await renderWeekly(host, query);
       return;
     }
