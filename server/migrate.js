@@ -512,6 +512,14 @@ function addTaskSortOrder() {
   return '업무 차례 칸 추가';
 }
 
+/** PO 보드 순위 칸 — 같은 책임자의 ★ 핵심과업 안 실행 순서 */
+function addPoRank() {
+  const sql = tableSql('task');
+  if (!sql || /\bpo_rank\b/.test(sql)) return null;
+  db.exec('ALTER TABLE task ADD COLUMN po_rank INTEGER');
+  return 'PO 보드 순위 칸 추가';
+}
+
 function addSubtaskComments() {
   const sql = tableSql('comment');
   if (!sql || /\bsubtask_id\b/.test(sql)) return null;
@@ -642,7 +650,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder(), addTaskStars(), addSubtaskStars(), finishDoneParents()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder(), addTaskStars(), addSubtaskStars(), finishDoneParents(), addPoRank()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

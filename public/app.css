@@ -2587,3 +2587,6 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
   .po-cols{grid-template-columns:1fr}.po-dh .pr{margin-left:0;width:100%}.po-dh .pr .tr{flex:1;width:auto}
 }
 @media (max-width:420px){.po-cards{grid-template-columns:1fr}}
+.po-rankpick{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--ink-2)}
+.po-rankpick select{font:inherit;font-size:.84rem;padding:5px 26px 5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{display:none}

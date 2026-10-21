@@ -1360,6 +1360,11 @@ export const tasks = {
       run('UPDATE task SET sort_order = :o WHERE id = :id', { id, o: input.sort_order == null ? null : Number(input.sort_order) });
       return { before: cur, after: tasks.get(id) };
     }
+    // PO 보드 순위 — 같은 책임자의 ★ 핵심과업 안에서 실행 순서. 비우면 마감순. 상태·마감은 건드리지 않는다
+    if (Object.keys(input).length === 1 && input.po_rank !== undefined) {
+      run('UPDATE task SET po_rank = :r WHERE id = :id', { id, r: input.po_rank == null ? null : Number(input.po_rank) });
+      return { before: cur, after: tasks.get(id) };
+    }
     // 핵심과업 별표 — 사람마다 따로(내 별표만 켜고 끈다)
     if (Object.keys(input).length === 1 && input.star !== undefined) {
       const stars = new Set(JSON.parse(cur.stars_json ?? '[]'));

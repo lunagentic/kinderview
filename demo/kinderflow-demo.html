@@ -2591,6 +2591,9 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
   .po-cols{grid-template-columns:1fr}.po-dh .pr{margin-left:0;width:100%}.po-dh .pr .tr{flex:1;width:auto}
 }
 @media (max-width:420px){.po-cards{grid-template-columns:1fr}}
+.po-rankpick{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--ink-2)}
+.po-rankpick select{font:inherit;font-size:.84rem;padding:5px 26px 5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{display:none}
 
 </style>
 
@@ -5541,6 +5544,12 @@ function updateTask(id, input, actor) {
   // 순서만 바꿀 때(타임라인 끌기) — 이력·알림 없이 자리만 옮긴다
   if (Object.keys(input).length === 1 && input.sort_order !== undefined) {
     t.sort_order = input.sort_order == null ? null : Number(input.sort_order);
+    save();
+    return hydrate(t);
+  }
+  // PO 보드 순위 — 같은 책임자의 ★ 핵심과업 안에서 실행 순서(1, 2, 3…). 비우면 마감순. 상태·마감은 건드리지 않는다
+  if (Object.keys(input).length === 1 && input.po_rank !== undefined) {
+    t.po_rank = input.po_rank == null ? null : Number(input.po_rank);
     save();
     return hydrate(t);
   }
@@ -13826,6 +13835,8 @@ function flSubDialog(a, meeting, refresh) {
 
 
 
+
+
 // PO 보드 — 모든 구성원의 핵심 과업을 한눈에. 1단계는 읽기만 한다(승인 시안 docs/po-board).
 // 우선순위: ★ 핵심과업으로 표시한 업무가 1순위로 맨 위, 그 다음 구성원마다 완료 아닌 책임 업무 중 지연 우선·마감 가까운 1건.
 // 진행률 = 하위 업무 완료 비율. 연계 업무 = 같은 페이즈의 다른 업무(마감순 6건). 쓰기는 2단계에서 잇는다.
@@ -13858,16 +13869,21 @@ function poShape(t) {
   };
 }
 
-/** ★ 먼저, 그 다음 사람마다 하나 */
+/** 같은 사람의 ★ 핵심과업 차례 — 정해 둔 순위(po_rank) 먼저, 없으면 지연 우선·마감순 */
+const starOrder = (a, b) => ((a.po_rank ?? 999) - (b.po_rank ?? 999)) || rankKey(a).localeCompare(rankKey(b));
+const starsOf = (all, owner) => all.filter((t) => t.star && t.owner_slack_user_id === owner).sort(starOrder);
+
+/** ★ 먼저(사람마다 정한 순위대로), 그 다음 사람마다 하나 */
 function pickKeyTasks(all) {
-  const starred = all.filter((t) => t.star).sort((a, b) => rankKey(a).localeCompare(rankKey(b)));
-  const hasStar = new Set(starred.map((t) => t.owner_slack_user_id));
-  const out = starred.map((t) => ({ ...t, rank: 1 }));
+  const out = [];
+  const owners = [...new Set(all.filter((t) => t.star).map((t) => t.owner_slack_user_id))];
+  for (const o of owners) starsOf(all, o).forEach((t, i) => out.push({ ...t, rank: i + 1 }));
+  out.sort((a, b) => (a.rank - b.rank) || rankKey(a).localeCompare(rankKey(b)));   // 전체 보기에서는 1순위끼리 먼저
   for (const m of activeMembers()) {
     const mine = all.filter((t) => t.owner_slack_user_id === m.slack_user_id && t.status !== 'DONE' && !t.star);
     if (!mine.length) continue;
     const best = mine.sort((a, b) => rankKey(a).localeCompare(rankKey(b)))[0];
-    out.push({ ...best, rank: hasStar.has(m.slack_user_id) ? 2 : 1 });
+    out.push({ ...best, rank: starsOf(all, m.slack_user_id).length + 1 });
   }
   return out;
 }
@@ -13928,6 +13944,16 @@ async function renderPoBoard(host) {
       <div class="po-ttl" title="${esc(t.title)}"><span class="k">${esc(t.key ?? '')}</span>${esc(t.title)}</div>
       <div class="po-prog ${toneOf(t)}"><span class="tr"><i style="width:${t.pct}%"></i></span><span class="pc">${t.pct}%</span></div>
       <div class="po-foot"><span class="dt">📅 ${t.start_date ? `${shortDate(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div></div>`;
+  // 순위 고르기 — 같은 사람의 ★ 핵심과업이 둘 이상일 때만. 고르면 바로 저장하고 그 사람 카드가 다시 선다
+  const rankPicker = (t) => {
+    const mine = starsOf(all, t.owner_slack_user_id);
+    if (!t.star || mine.length < 2) {
+      return `<button class="btn" type="button" disabled title="${t.star ? '같은 사람의 ★ 핵심과업이 둘 이상일 때 실행 순서를 정할 수 있습니다' : '★ 핵심과업으로 표시한 업무만 순서를 정할 수 있습니다'}">⇅ 우선순위 변경</button>`;
+    }
+    const custom = mine.some((x) => x.po_rank != null);
+    return `<label class="po-rankpick">실행 순서 <select data-rank="${esc(t.id)}" aria-label="실행 순서">${mine.map((_, i) => `<option value="${i + 1}"${i + 1 === t.rank ? ' selected' : ''}>${i + 1}순위</option>`).join('')}</select></label>
+      ${custom ? `<button class="btn" type="button" data-rank-reset="${esc(t.owner_slack_user_id)}" title="정해 둔 순서를 지우고 지연 우선·마감순으로 되돌립니다">순서 초기화</button>` : ''}`;
+  };
   const detail = (t) => {
     const subs = subsCache.get(t.id);
     const linked = all.filter((x) => t.phase_id && x.phase_id === t.phase_id && x.id !== t.id)
@@ -13939,7 +13965,7 @@ async function renderPoBoard(host) {
       <div class="po-dh">${t.star ? '<span class="star">★</span>' : ''}<span class="rank">${t.rank}순위</span><h3>${esc(t.title)}</h3>
         <div class="meta"><span>${av(t.owner_slack_user_id)} ${esc(t.owner_name ?? '')}${t.team ? ` · ${esc(t.team)}` : ''}</span><span>📅 ${t.start_date ? `${poMd(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div>
         <div class="pr"><span class="big">${t.pct}%</span><span class="tr"><i style="width:${t.pct}%"></i></span><span class="sm">${subN ? `${subD} / ${subN}개 하위 업무 완료` : '하위 업무 없음'}</span></div>
-        <button class="btn" type="button" disabled title="2단계에서 연결">⇅ 우선순위 변경</button>
+        ${rankPicker(t)}
         <a class="btn" href="#/project/tasks/${esc(t.id)}" title="업무 상세 열기">상세 열기 ›</a>
         <button class="po-x" type="button" data-close aria-label="닫기">✕</button></div>
       <div class="po-cols">
@@ -13993,10 +14019,49 @@ async function renderPoBoard(host) {
     catch (err) { subsCache.set(id, []); toast(err.message, true); }
     if (open === id) paint();
   };
+  // ── 순위 저장 — po_rank 만 바꾼다. 상태·마감·별표는 건드리지 않는다 ──
+  const editable = () => canEdit() || (toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true), gatePanel(), false);
+  const saveRanks = async (ordered) => {
+    let n = 0;
+    for (let i = 0; i < ordered.length; i += 1) {
+      if (ordered[i].po_rank === i + 1) continue;
+      await api.patch(`/api/tasks/${encodeURIComponent(ordered[i].id)}`, { po_rank: i + 1 });
+      n += 1;
+    }
+    return n;
+  };
+  const reorder = async (taskId, to) => {
+    if (!editable()) return paint();
+    const t = all.find((x) => x.id === taskId);
+    const mine = starsOf(all, t.owner_slack_user_id);
+    const from = mine.findIndex((x) => x.id === taskId);
+    if (from < 0 || to === from) return;
+    mine.splice(to, 0, mine.splice(from, 1)[0]);
+    try {
+      await saveRanks(mine);
+      toast(`「${t.title}」을(를) ${to + 1}순위로 옮겼습니다.`);
+    } catch (err) { toast(err.message, true); }
+    renderPoBoard(host);   // 저장된 순위로 다시 읽어 그 사람 카드를 다시 세운다
+  };
+  const resetRanks = async (owner) => {
+    if (!editable()) return;
+    const mine = starsOf(all, owner).filter((x) => x.po_rank != null);
+    try {
+      for (const x of mine) await api.patch(`/api/tasks/${encodeURIComponent(x.id)}`, { po_rank: null });
+      toast(`${memberOf(owner)?.display_name ?? ''} 님의 실행 순서를 지연 우선·마감순으로 되돌렸습니다.`);
+    } catch (err) { toast(err.message, true); }
+    renderPoBoard(host);
+  };
+  host.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-rank]');
+    if (sel) reorder(sel.dataset.rank, Number(sel.value) - 1);
+  });
   host.addEventListener('click', (e) => {
     const m = e.target.closest('[data-who]');
     if (m) { who = m.dataset.who; paint(); return; }
     if (e.target.closest('[data-close]')) { open = null; paint(); return; }
+    const rs = e.target.closest('[data-rank-reset]');
+    if (rs) { resetRanks(rs.dataset.rankReset); return; }
     if (e.target.closest('a, button')) return;
     const c = e.target.closest('.po-card[data-id]');
     if (c) openCard(c.dataset.id);
@@ -14006,6 +14071,12 @@ async function renderPoBoard(host) {
     if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(c.dataset.id); }
   });
   paint();
+  // 순위를 바꾼 뒤 다시 그릴 때 펼쳐 둔 카드의 하위 업무도 다시 읽는다
+  if (open && keyTasks.some((t) => t.id === open) && !subsCache.has(open)) {
+    const id = open;
+    api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`).then((rows) => { subsCache.set(id, rows); if (open === id) paint(); })
+      .catch((err) => { subsCache.set(id, []); toast(err.message, true); if (open === id) paint(); });
+  }
 }
 
 
