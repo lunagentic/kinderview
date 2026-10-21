@@ -2602,6 +2602,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
 .po-mo-head .lab .meta{display:block;font-weight:400;margin-top:2px}
 .po-mo-nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 .po-mo-nav .btn{padding:4px 10px;min-height:0;font-size:.8rem}
+.po-wk-nav{margin-left:0;align-items:center}.po-wk-nav .chip{padding:5px 10px}
 .po-pills .pill{flex:1 1 98px;padding:8px 12px}
 .po-mo-bar{display:flex;align-items:center;gap:8px}
 .po-mo-bar .tr{flex:1;height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}

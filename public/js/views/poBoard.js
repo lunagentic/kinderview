@@ -25,6 +25,7 @@ let open = null;
 let mode = 'week';   // 'week' | 'month'
 let sortBy = 'rank'; // 'rank'(P1 먼저) | 'person'(구성원별) | 'due'(마감 가까운 순)
 let month = null;    // 월간 보기의 달(YYYY-MM). 비면 이번 달
+let week = null;     // 주간 보기의 주(그 주 월요일 YYYY-MM-DD). 비면 이번 주
 const poShiftMonth = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const poMonthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
@@ -73,8 +74,12 @@ export async function renderPoBoard(host) {
   } catch (err) { host.innerHTML = errorBox(err.message); return; }
   const keyTasks = pickKeyTasks(all);
   const today = state.today;
-  const wk0d = new Date(dt(today) - ((dt(today).getUTCDay() + 6) % 7) * 864e5);
-  const wk0 = wk0d.toISOString().slice(0, 10);
+  const mondayOf = (d) => new Date(dt(d) - ((dt(d).getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10);
+  const thisWk0 = mondayOf(today);
+  if (week && !/^\d{4}-\d{2}-\d{2}$/.test(week)) week = null;
+  const wk0 = week ? mondayOf(week) : thisWk0;
+  const wk0d = dt(wk0);
+  const isThisWeek = wk0 === thisWk0;
   const wk1 = new Date(wk0d.getTime() + 6 * 864e5).toISOString().slice(0, 10);
   const inWeek = (d) => Boolean(d) && d >= wk0 && d <= wk1;
   const lw0 = new Date(wk0d.getTime() - 7 * 864e5).toISOString().slice(0, 10);
@@ -198,12 +203,12 @@ export async function renderPoBoard(host) {
       <div class="po">
         <div class="page-head"><div><h1>PO 보드</h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
           <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" class="${mode === 'week' ? 'on' : ''}" data-mode="week" role="tab" aria-selected="${mode === 'week'}">주간</button><button type="button" class="${mode === 'month' ? 'on' : ''}" data-mode="month" role="tab" aria-selected="${mode === 'month'}">월간</button></div>
-            ${mode === 'week' ? `<span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span>` : ''}<button class="btn btn-primary" type="button" disabled title="다음 단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
+            ${mode === 'week' ? `<span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() - 7 * 864e5).toISOString().slice(0, 10))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${isThisWeek ? ' disabled' : ''}>이번 주</button><span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() + 7 * 864e5).toISOString().slice(0, 10))}" aria-label="다음 주">›</button></span>` : ''}<button class="btn btn-primary" type="button" disabled title="다음 단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
         <div class="po-kpis${mode === 'month' ? ' month' : ''}">
           <div class="po-kpi donut"><div><div class="lab">전체 핵심 과업 진행률</div>${donut()}</div>
             <div class="leg">${[['완료', kpi.done, 'var(--s-done)'], ['진행중', kpi.prog, 'var(--s-prog)'], ['대기', kpi.wait, 'var(--s-wait)'], ['지연', kpi.late, 'var(--s-delay)']].map(([l, n, c]) => `<i style="background:${c}"></i><span>${l}</span><b>${n}</b>`).join('')}</div></div>
           ${mode === 'month' && mr ? monthKpis() : `
-          <div class="po-kpi"><div class="lab">이번 주 완료</div><div class="big">${kpi.doneThis}<small>건</small>${kpi.delta ? `<span class="delta ${kpi.delta > 0 ? 'up' : 'down'}">${kpi.delta > 0 ? '+' : ''}${kpi.delta}</span>` : ''}</div><div class="meta">지난 주 대비 · 마감일 기준</div></div>
+          <div class="po-kpi"><div class="lab">${isThisWeek ? '이번 주' : '그 주'} 완료</div><div class="big">${kpi.doneThis}<small>건</small>${kpi.delta ? `<span class="delta ${kpi.delta > 0 ? 'up' : 'down'}">${kpi.delta > 0 ? '+' : ''}${kpi.delta}</span>` : ''}</div><div class="meta">${isThisWeek ? '지난 주' : '그 전 주'} 대비 · 마감일 기준</div></div>
           <div class="po-kpi two"><div><div class="lab">진행 중</div><div class="big">${kpi.prog}<small>건</small></div><div class="meta">핵심 과업 ${keyTasks.length}건 중</div></div><div><div class="lab">지연 과업</div><div class="big red">${kpi.late}<small>건</small></div><div class="meta">조치 필요</div></div></div>
           <div class="po-kpi wk"><div class="lab">주간 타임라인</div>${weekTl()}</div>`}
         </div>
@@ -269,6 +274,8 @@ export async function renderPoBoard(host) {
     if (md) { if (md.dataset.mode !== mode) { mode = md.dataset.mode; renderPoBoard(host); } return; }
     const mo = e.target.closest('[data-month]');
     if (mo) { month = mo.dataset.month; renderPoBoard(host); return; }
+    const wk = e.target.closest('[data-week]');
+    if (wk) { week = wk.dataset.week; renderPoBoard(host); return; }
     const m = e.target.closest('[data-who]');
     if (m) { who = m.dataset.who; paint(); return; }
     if (e.target.closest('[data-close]')) { open = null; paint(); return; }
