@@ -2594,6 +2594,24 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-rankpick{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--ink-2)}
 .po-rankpick select{font:inherit;font-size:.84rem;padding:5px 26px 5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{display:none}
+/* PO 보드 — 주간/월간 전환과 월간 목표 칸(월간 업무 화면의 다섯 칸과 같은 숫자) */
+.po-seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--surface);padding:3px}
+.po-seg button{border:0;background:none;font:inherit;font-size:.82rem;font-weight:700;color:var(--muted);padding:5px 14px;border-radius:999px;cursor:pointer}
+.po-seg button.on{background:var(--indigo);color:#fff}
+.po-kpis.month{grid-template-columns:1.25fr 3.2fr}
+.po-kpi.mo{gap:10px}
+.po-mo-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.po-mo-head .lab .meta{display:block;font-weight:400;margin-top:2px}
+.po-mo-nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.po-mo-nav .btn{padding:4px 10px;min-height:0;font-size:.8rem}
+.po-pills .pill{flex:1 1 98px;padding:8px 12px}
+.po-mo-bar{display:flex;align-items:center;gap:8px}
+.po-mo-bar .tr{flex:1;height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.po-mo-bar .tr i{display:block;height:100%;background:var(--s-done);border-radius:999px}
+.po-mo-bar .pc{font-size:.8rem;font-weight:700;min-width:38px;text-align:right}
+.po-mo-proj{display:flex;gap:6px;flex-wrap:wrap}
+.po-mo-proj .chip{font-size:.76rem;padding:3px 10px}
+@media (max-width:1100px){.po-kpis.month{grid-template-columns:1fr}}
 
 </style>
 
@@ -13852,9 +13870,13 @@ const av = (id) => avatar(memberOf(id) ?? { display_name: '?' }, 'sm');
 const pctOf = (t) => (t.subtask_total ? Math.round((t.subtask_done ?? 0) / t.subtask_total * 100) : (t.status === 'DONE' ? 100 : 0));
 const rankKey = (t) => `${t.late ? 0 : 1}|${t.due_date ?? '9999-99-99'}`;
 
-// 화면을 다시 그려도 고른 사람·펼친 카드는 남는다
+// 화면을 다시 그려도 고른 사람·펼친 카드·주간/월간·고른 달은 남는다
 let who = 'all';
 let open = null;
+let mode = 'week';   // 'week' | 'month'
+let month = null;    // 월간 보기의 달(YYYY-MM). 비면 이번 달
+const poShiftMonth = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+const poMonthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
 /** 목록 응답을 보드가 쓰는 모양으로 */
 function poShape(t) {
@@ -13891,9 +13913,13 @@ function pickKeyTasks(all) {
 async function renderPoBoard(host) {
   host.innerHTML = loading();
   let all;
+  let mr = null;   // 월간 보기 — 월간 업무 화면과 같은 /api/monthly 를 그대로 읽는다(계산 규칙 한 곳)
   try {
-    const rows = await api.get('/api/tasks?done=1&all_backlog=1');
+    const want = mode === 'month' ? `/api/monthly${month ? `?month=${encodeURIComponent(month)}` : ''}` : null;
+    const [rows, m] = await Promise.all([api.get('/api/tasks?done=1&all_backlog=1'), want ? api.get(want) : null]);
     all = rows.filter((t) => t.area !== 'OUT').map(poShape);
+    mr = m;
+    if (mr) month = mr.month;
   } catch (err) { host.innerHTML = errorBox(err.message); return; }
   const keyTasks = pickKeyTasks(all);
   const today = state.today;
@@ -13987,19 +14013,41 @@ async function renderPoBoard(host) {
       </div></div>`;
   };
 
+  // 월간 보기의 지표 — 월간 업무 화면의 다섯 칸(목표·완료·지연·미해결 이슈·다음 달로 밀림)을 같은 숫자로
+  const monthKpis = () => {
+    const s = mr.summary;
+    const thisMonth = mr.as_of.slice(0, 7);
+    return `
+      <div class="po-kpi mo">
+        <div class="po-mo-head"><div class="lab">월간 목표 — ${esc(poMonthTitle(mr.month))} <span class="meta">${shortDate(mr.period_start)} ~ ${shortDate(mr.period_end)} · 이 달에 마감인 업무가 목표 · 기준일 ${shortDate(mr.as_of)}</span></div>
+          <div class="po-mo-nav"><button class="btn" type="button" data-month="${esc(poShiftMonth(mr.month, -1))}" aria-label="이전 달">‹</button><button class="btn" type="button" data-month="${esc(thisMonth)}"${mr.month === thisMonth ? ' disabled' : ''}>이번 달</button><button class="btn" type="button" data-month="${esc(poShiftMonth(mr.month, 1))}" aria-label="다음 달">›</button>
+            <a class="btn" href="#/project/monthly?month=${esc(mr.month)}">월간 업무 상세 ›</a></div></div>
+        <div class="pill-row po-pills" data-mo-pills>
+          <div class="pill"><div class="k">목표 업무</div><div class="v" data-mo="target">${s.target}</div></div>
+          <div class="pill${s.pct === 100 ? ' good' : ''}"><div class="k">완료</div><div class="v"><span data-mo="done">${s.done}</span><small> ${s.pct == null ? '-' : `${s.pct}%`}</small></div></div>
+          <div class="pill${s.delayed ? ' bad' : ''}"><div class="k">지연</div><div class="v" data-mo="delayed">${s.delayed}</div></div>
+          <div class="pill${s.open_issues ? ' bad' : ''}"><div class="k">미해결 이슈</div><div class="v" data-mo="open_issues">${s.open_issues}</div></div>
+          <div class="pill${s.slipped ? ' warn' : ''}"><div class="k">다음 달로 밀림</div><div class="v" data-mo="slipped">${s.slipped}</div></div>
+        </div>
+        ${s.target ? `<div class="po-mo-bar"><span class="tr"><i style="width:${s.pct ?? 0}%"></i></span><span class="pc">${s.pct ?? 0}%</span></div>` : ''}
+        <div class="po-mo-proj">${mr.groups.map((g) => `<span class="chip"><b>${esc(g.project_name)}</b> ${g.done}/${g.target}</span>`).join('') || '<span class="meta">이 달에 마감인 업무가 없습니다</span>'}</div>
+      </div>`;
+  };
   const paint = () => {
     const list = keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who);
     const sel = keyTasks.find((t) => t.id === open);
     host.innerHTML = `
       <div class="po">
-        <div class="page-head"><div><h1>PO 보드</h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건 · 읽기 전용(1단계)</div></div>
-          <div class="page-actions"><span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span><button class="btn btn-primary" type="button" disabled title="2단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
-        <div class="po-kpis">
+        <div class="page-head"><div><h1>PO 보드</h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
+          <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" class="${mode === 'week' ? 'on' : ''}" data-mode="week" role="tab" aria-selected="${mode === 'week'}">주간</button><button type="button" class="${mode === 'month' ? 'on' : ''}" data-mode="month" role="tab" aria-selected="${mode === 'month'}">월간</button></div>
+            ${mode === 'week' ? `<span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span>` : ''}<button class="btn btn-primary" type="button" disabled title="다음 단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
+        <div class="po-kpis${mode === 'month' ? ' month' : ''}">
           <div class="po-kpi donut"><div><div class="lab">전체 핵심 과업 진행률</div>${donut()}</div>
             <div class="leg">${[['완료', kpi.done, 'var(--s-done)'], ['진행중', kpi.prog, 'var(--s-prog)'], ['대기', kpi.wait, 'var(--s-wait)'], ['지연', kpi.late, 'var(--s-delay)']].map(([l, n, c]) => `<i style="background:${c}"></i><span>${l}</span><b>${n}</b>`).join('')}</div></div>
+          ${mode === 'month' && mr ? monthKpis() : `
           <div class="po-kpi"><div class="lab">이번 주 완료</div><div class="big">${kpi.doneThis}<small>건</small>${kpi.delta ? `<span class="delta ${kpi.delta > 0 ? 'up' : 'down'}">${kpi.delta > 0 ? '+' : ''}${kpi.delta}</span>` : ''}</div><div class="meta">지난 주 대비 · 마감일 기준</div></div>
           <div class="po-kpi two"><div><div class="lab">진행 중</div><div class="big">${kpi.prog}<small>건</small></div><div class="meta">핵심 과업 ${keyTasks.length}건 중</div></div><div><div class="lab">지연 과업</div><div class="big red">${kpi.late}<small>건</small></div><div class="meta">조치 필요</div></div></div>
-          <div class="po-kpi wk"><div class="lab">주간 타임라인</div>${weekTl()}</div>
+          <div class="po-kpi wk"><div class="lab">주간 타임라인</div>${weekTl()}</div>`}
         </div>
         <div class="po-sec"><h2>구성원별 핵심 과업 <span class="n">${keyTasks.length}</span></h2><span class="chip">★ 핵심과업 우선</span></div>
         <div class="po-mems"><button type="button" class="po-mem${who === 'all' ? ' on' : ''}" data-who="all"><span class="avatar sm all">전</span>전체 <span class="n">${keyTasks.length}</span></button>
@@ -14057,6 +14105,10 @@ async function renderPoBoard(host) {
     if (sel) reorder(sel.dataset.rank, Number(sel.value) - 1);
   });
   host.addEventListener('click', (e) => {
+    const md = e.target.closest('[data-mode]');
+    if (md) { if (md.dataset.mode !== mode) { mode = md.dataset.mode; renderPoBoard(host); } return; }
+    const mo = e.target.closest('[data-month]');
+    if (mo) { month = mo.dataset.month; renderPoBoard(host); return; }
     const m = e.target.closest('[data-who]');
     if (m) { who = m.dataset.who; paint(); return; }
     if (e.target.closest('[data-close]')) { open = null; paint(); return; }

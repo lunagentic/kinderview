@@ -2590,3 +2590,21 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-rankpick{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--ink-2)}
 .po-rankpick select{font:inherit;font-size:.84rem;padding:5px 26px 5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{display:none}
+/* PO 보드 — 주간/월간 전환과 월간 목표 칸(월간 업무 화면의 다섯 칸과 같은 숫자) */
+.po-seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--surface);padding:3px}
+.po-seg button{border:0;background:none;font:inherit;font-size:.82rem;font-weight:700;color:var(--muted);padding:5px 14px;border-radius:999px;cursor:pointer}
+.po-seg button.on{background:var(--indigo);color:#fff}
+.po-kpis.month{grid-template-columns:1.25fr 3.2fr}
+.po-kpi.mo{gap:10px}
+.po-mo-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.po-mo-head .lab .meta{display:block;font-weight:400;margin-top:2px}
+.po-mo-nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.po-mo-nav .btn{padding:4px 10px;min-height:0;font-size:.8rem}
+.po-pills .pill{flex:1 1 98px;padding:8px 12px}
+.po-mo-bar{display:flex;align-items:center;gap:8px}
+.po-mo-bar .tr{flex:1;height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.po-mo-bar .tr i{display:block;height:100%;background:var(--s-done);border-radius:999px}
+.po-mo-bar .pc{font-size:.8rem;font-weight:700;min-width:38px;text-align:right}
+.po-mo-proj{display:flex;gap:6px;flex-wrap:wrap}
+.po-mo-proj .chip{font-size:.76rem;padding:3px 10px}
+@media (max-width:1100px){.po-kpis.month{grid-template-columns:1fr}}
