@@ -23,6 +23,7 @@ const rankKey = (t) => `${t.late ? 0 : 1}|${t.due_date ?? '9999-99-99'}`;
 let who = 'all';
 let open = null;
 let mode = 'week';   // 'week' | 'month'
+let sortBy = 'rank'; // 'rank'(P1 먼저) | 'person'(구성원별) | 'due'(마감 가까운 순)
 let month = null;    // 월간 보기의 달(YYYY-MM). 비면 이번 달
 const poShiftMonth = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const poMonthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
@@ -115,7 +116,7 @@ export async function renderPoBoard(host) {
   const card = (t) => `
     <div class="po-card${open === t.id ? ' on' : ''}" data-id="${esc(t.id)}" role="button" tabindex="0" aria-expanded="${open === t.id}">
       <div class="po-who">${av(t.owner_slack_user_id)}<div><div class="nm">${esc(t.owner_name ?? '')}</div><div class="team">${esc(t.team || '팀 미정')}</div></div>
-        <span class="po-rank${t.star ? ' star' : ''}">${t.star ? '★ ' : ''}${t.rank}순위</span></div>
+        <span class="po-rank${t.star ? ' star' : ''}" title="${t.star ? '★ 핵심과업 · ' : ''}우선순위 P${t.rank}">${t.star ? '★ ' : ''}P${t.rank}</span></div>
       <div class="po-ttl" title="${esc(t.title)}"><span class="k">${esc(t.key ?? '')}</span>${esc(t.title)}</div>
       <div class="po-prog ${toneOf(t)}"><span class="tr"><i style="width:${t.pct}%"></i></span><span class="pc">${t.pct}%</span></div>
       <div class="po-foot"><span class="dt">📅 ${t.start_date ? `${shortDate(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div></div>`;
@@ -126,7 +127,7 @@ export async function renderPoBoard(host) {
       return `<button class="btn" type="button" disabled title="${t.star ? '같은 사람의 ★ 핵심과업이 둘 이상일 때 실행 순서를 정할 수 있습니다' : '★ 핵심과업으로 표시한 업무만 순서를 정할 수 있습니다'}">⇅ 우선순위 변경</button>`;
     }
     const custom = mine.some((x) => x.po_rank != null);
-    return `<label class="po-rankpick">실행 순서 <select data-rank="${esc(t.id)}" aria-label="실행 순서">${mine.map((_, i) => `<option value="${i + 1}"${i + 1 === t.rank ? ' selected' : ''}>${i + 1}순위</option>`).join('')}</select></label>
+    return `<label class="po-rankpick">실행 순서 <select data-rank="${esc(t.id)}" aria-label="실행 순서">${mine.map((_, i) => `<option value="${i + 1}"${i + 1 === t.rank ? ' selected' : ''}>P${i + 1}</option>`).join('')}</select></label>
       ${custom ? `<button class="btn" type="button" data-rank-reset="${esc(t.owner_slack_user_id)}" title="정해 둔 순서를 지우고 지연 우선·마감순으로 되돌립니다">순서 초기화</button>` : ''}`;
   };
   const detail = (t) => {
@@ -137,7 +138,7 @@ export async function renderPoBoard(host) {
     const mark = (s) => (s.status === 'DONE' ? '<span class="m d">✓</span>' : s.status === 'IN_PROGRESS' ? '<span class="m p">◐</span>' : '<span class="m w">○</span>');
     const subN = t.subtask_total ?? 0; const subD = t.subtask_done ?? 0;
     return `<div class="po-detail" id="po-detail">
-      <div class="po-dh">${t.star ? '<span class="star">★</span>' : ''}<span class="rank">${t.rank}순위</span><h3>${esc(t.title)}</h3>
+      <div class="po-dh">${t.star ? '<span class="star">★</span>' : ''}<span class="rank" title="우선순위 P${t.rank}">P${t.rank}</span><h3>${esc(t.title)}</h3>
         <div class="meta"><span>${av(t.owner_slack_user_id)} ${esc(t.owner_name ?? '')}${t.team ? ` · ${esc(t.team)}` : ''}</span><span>📅 ${t.start_date ? `${poMd(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div>
         <div class="pr"><span class="big">${t.pct}%</span><span class="tr"><i style="width:${t.pct}%"></i></span><span class="sm">${subN ? `${subD} / ${subN}개 하위 업무 완료` : '하위 업무 없음'}</span></div>
         ${rankPicker(t)}
@@ -182,8 +183,16 @@ export async function renderPoBoard(host) {
         <div class="po-mo-proj">${mr.groups.map((g) => `<span class="chip"><b>${esc(g.project_name)}</b> ${g.done}/${g.target}</span>`).join('') || '<span class="meta">이 달에 마감인 업무가 없습니다</span>'}</div>
       </div>`;
   };
+  // 카드 정렬 — 우선순위(P1 먼저) · 구성원별 · 마감 가까운 순
+  const SORTS = [['rank', '우선순위 (P1 먼저)'], ['person', '구성원별'], ['due', '마감 가까운 순']];
+  const sortList = (list) => {
+    const byRank = (a, b) => (a.rank - b.rank) || rankKey(a).localeCompare(rankKey(b));
+    if (sortBy === 'person') return [...list].sort((a, b) => (a.owner_name ?? '').localeCompare(b.owner_name ?? '', 'ko') || byRank(a, b));
+    if (sortBy === 'due') return [...list].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || byRank(a, b));
+    return [...list].sort((a, b) => (b.star - a.star) || byRank(a, b));   // ★ 가 같은 P 안에서도 먼저
+  };
   const paint = () => {
-    const list = keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who);
+    const list = sortList(keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who));
     const sel = keyTasks.find((t) => t.id === open);
     host.innerHTML = `
       <div class="po">
@@ -198,12 +207,12 @@ export async function renderPoBoard(host) {
           <div class="po-kpi two"><div><div class="lab">진행 중</div><div class="big">${kpi.prog}<small>건</small></div><div class="meta">핵심 과업 ${keyTasks.length}건 중</div></div><div><div class="lab">지연 과업</div><div class="big red">${kpi.late}<small>건</small></div><div class="meta">조치 필요</div></div></div>
           <div class="po-kpi wk"><div class="lab">주간 타임라인</div>${weekTl()}</div>`}
         </div>
-        <div class="po-sec"><h2>구성원별 핵심 과업 <span class="n">${keyTasks.length}</span></h2><span class="chip">★ 핵심과업 우선</span></div>
+        <div class="po-sec"><h2>구성원별 핵심 과업 <span class="n">${keyTasks.length}</span></h2><label class="po-sort">정렬 <select data-sort aria-label="카드 정렬">${SORTS.map(([k, l]) => `<option value="${k}"${k === sortBy ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>
         <div class="po-mems"><button type="button" class="po-mem${who === 'all' ? ' on' : ''}" data-who="all"><span class="avatar sm all">전</span>전체 <span class="n">${keyTasks.length}</span></button>
           ${members.map((m) => `<button type="button" class="po-mem${who === m.id ? ' on' : ''}" data-who="${esc(m.id)}">${av(m.id)}${esc(m.name)} <span class="n">${m.n}</span></button>`).join('')}</div>
         <div class="po-cards">${list.length ? list.map(card).join('') : '<div class="po-empty">이 구성원의 핵심 과업이 없습니다</div>'}</div>
         ${sel ? detail(sel) : ''}
-        <div class="po-note">우선순위: ★ 핵심과업으로 표시한 업무가 맨 위(1순위) · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율</div>
+        <div class="po-note">우선순위 P1·P2·P3… : ★ 핵심과업으로 표시한 업무가 P1 · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율</div>
       </div>`;
   };
   const openCard = async (id) => {
@@ -236,7 +245,7 @@ export async function renderPoBoard(host) {
     mine.splice(to, 0, mine.splice(from, 1)[0]);
     try {
       await saveRanks(mine);
-      toast(`「${t.title}」을(를) ${to + 1}순위로 옮겼습니다.`);
+      toast(`「${t.title}」을(를) P${to + 1}로 옮겼습니다.`);
     } catch (err) { toast(err.message, true); }
     renderPoBoard(host);   // 저장된 순위로 다시 읽어 그 사람 카드를 다시 세운다
   };
@@ -250,6 +259,8 @@ export async function renderPoBoard(host) {
     renderPoBoard(host);
   };
   host.addEventListener('change', (e) => {
+    const so = e.target.closest('[data-sort]');
+    if (so) { sortBy = so.value; paint(); return; }
     const sel = e.target.closest('[data-rank]');
     if (sel) reorder(sel.dataset.rank, Number(sel.value) - 1);
   });

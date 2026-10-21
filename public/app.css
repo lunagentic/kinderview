@@ -2515,6 +2515,8 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-sec h2{margin:0;font-size:1.05rem;font-weight:800;display:flex;align-items:center;gap:8px}
 .po-sec .n{background:var(--surface-2);border-radius:999px;padding:1px 8px;font-size:.78rem;color:var(--ink-2);font-weight:700}
 .po-sec .chip{margin-left:auto}
+.po-sort{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--ink-2)}
+.po-sort select{font:inherit;font-size:.84rem;padding:5px 26px 5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .po-mems{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .po-mem{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px 5px 6px;font:inherit;font-size:.84rem;color:var(--ink);cursor:pointer;white-space:nowrap}
 .po-mem.on{background:var(--indigo);border-color:var(--indigo);color:#fff}
