@@ -2402,6 +2402,17 @@ body[data-gate="view"] .tl-top-add,body[data-gate="view"] .tl-task-add{display:n
 .tk-pr.pr-high{color:var(--s-delay);border-color:color-mix(in srgb,var(--s-delay) 35%,transparent);background:color-mix(in srgb,var(--s-delay) 8%,transparent)}
 .tk-pr.pr-normal{color:var(--ink-2)}
 .tk-pr.pr-low{color:var(--muted);opacity:.75}
+/* 핵심과업 별표 — 줄 맨 앞. 빈 별은 옅게, 내가 단 별은 앰버 */
+.tk-star{flex:none;border:0;background:none;padding:0 2px;margin-right:2px;font-size:1rem;line-height:1.2;
+  color:var(--line);cursor:pointer;vertical-align:-1px}
+.tk-row:hover .tk-star{color:var(--muted)}
+.tk-star:hover{color:var(--amber)!important}
+.tk-star.on{color:var(--amber)}
+.tk-star:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
+.quick .tk-qstar{color:var(--amber);font-size:.95rem;min-width:34px}
+.quick .tk-qstar.on{color:#fff;background:var(--amber);border-color:var(--amber)}
+body[data-gate="view"] .tk-star:not(.on){display:none}
+body[data-gate="view"] .tk-star{pointer-events:none}
 
 </style>
 
@@ -4983,6 +4994,7 @@ function listTasks(f = {}) {
   if (f.stage === 'DONE') rows = rows.filter((t) => t.status === 'DONE');
   if (f.delayed) rows = rows.filter((t) => t.is_delayed);
   if (f.hasIssue) rows = rows.filter((t) => t.has_open_issue);
+  if (f.starBy) rows = rows.filter((t) => (t.stars ?? []).includes(f.starBy));
   if (!f.includeDone && !f.status?.length && f.stage !== 'DONE') rows = rows.filter((t) => t.status !== 'DONE');
   // 백로그(마감일 미정)는 달력 위의 일이 아니다. 따로 달라고 해야 나온다.
   if (f.backlog) rows = rows.filter((t) => !t.due_date);
@@ -5321,6 +5333,15 @@ function updateTask(id, input, actor) {
   // 순서만 바꿀 때(타임라인 끌기) — 이력·알림 없이 자리만 옮긴다
   if (Object.keys(input).length === 1 && input.sort_order !== undefined) {
     t.sort_order = input.sort_order == null ? null : Number(input.sort_order);
+    save();
+    return hydrate(t);
+  }
+  // 핵심과업 별표 — 사람마다 따로 단다(내 별표만 켜고 끈다). 이력·알림 없음
+  if (Object.keys(input).length === 1 && input.star !== undefined) {
+    if (!actor) throw new DemoError('현재 사용자를 먼저 골라 주세요.');
+    const stars = new Set(t.stars ?? []);
+    if (input.star) stars.add(actor); else stars.delete(actor);
+    t.stars = [...stars];
     save();
     return hydrate(t);
   }
@@ -6258,6 +6279,7 @@ function handle(method, path, body) {
       owner: listParam(sp, 'owner')?.map((o) => (o === 'me' ? me : o)),
       status: listParam(sp, 'status'), stage: sp.get('stage') || undefined,
       delayed: sp.get('delayed') === '1', hasIssue: sp.get('issue') === '1',
+      starBy: sp.get('star') === '1' ? me : undefined,
       includeDone: sp.get('done') === '1',
       backlog: sp.get('backlog') === '1',
       includeBacklog: sp.get('all_backlog') === '1',
@@ -10356,6 +10378,8 @@ async function renderOverview(root) {
 // 묶음은 프로젝트 › 영역 › 업무 — 영역이 곧 담당이라 이 층이 책임 단위가 된다.
 
 const QUICK = [
+  // 핵심과업 — 내가 별표를 단 업무만. 사람마다 따로 단다
+  { key: 'star',    label: '★', title: '핵심과업', params: { star: '1' } },
   { key: 'mine',    label: '내 영역 업무', params: { owner: 'me' } },
   { key: 'progress',label: '진행중',       params: { stage: 'IN_PROGRESS' } },
   { key: 'review',  label: '검토',         params: { stage: 'REVIEW' } },
@@ -10491,12 +10515,18 @@ async function renderTasks(root, query) {
   const ownerOptions = state.members
     .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}${m.is_active ? '' : ' (비활성)'}</option>`).join('');
 
+  // 핵심과업 별표 — 내가 단 것만 채워진 별. 남이 단 별은 내 목록에 영향이 없다
+  const tkStar = (t) => {
+    const on = (t.stars ?? []).includes(state.me);
+    return `<button class="tk-star${on ? ' on' : ''}" data-star="${esc(t.id)}" aria-pressed="${on}"
+      title="핵심과업" aria-label="핵심과업">${on ? '★' : '☆'}</button>`;
+  };
   const taskRow = (t) => `
     <div class="tk-row" data-open="${esc(t.id)}" tabindex="0" role="button">
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
-        ${ticketTag(t)}${titleCell(t)}
+        ${tkStar(t)}${ticketTag(t)}${titleCell(t)}
         ${(t.area === 'OUT' ? ['OUT'] : []).concat(t.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="업무 영역(하위 업무)">${esc(state.meta.areas.find((x) => x.code === a)?.label ?? a)}</span>`).join('')}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}${
@@ -10547,7 +10577,8 @@ async function renderTasks(root, query) {
 
     <div class="filters">
       <div class="quick">
-        ${QUICK.map((q) => `<button data-quick="${q.key}" class="${matchesQuick(p, q) ? 'on' : ''}">${esc(q.label)}</button>`).join('')}
+        ${QUICK.map((q) => `<button data-quick="${q.key}" class="${matchesQuick(p, q) ? 'on' : ''}${q.key === 'star' ? ' tk-qstar' : ''}"${
+          q.title ? ` title="${esc(q.title)}" aria-label="${esc(q.title)}"` : ''}>${esc(q.label)}</button>`).join('')}
       </div>
     </div>
 
@@ -10772,6 +10803,22 @@ async function renderTasks(root, query) {
       return setParam({ view: v.dataset.view === 'gantt' ? 'gantt' : '' });
     }
 
+    const star = e.target.closest('[data-star]');
+    if (star) {
+      e.stopPropagation();
+      if (!state.me) { toast('오른쪽 위 「현재 사용자」를 먼저 골라 주세요.', true); return undefined; }
+      const on = star.getAttribute('aria-pressed') !== 'true';
+      star.disabled = true;
+      return api.patch(`/api/tasks/${star.dataset.star}`, { star: on }).then(() => {
+        if (p.get('star') === '1' && !on) return reload();   // 핵심과업만 보는 중이면 줄이 빠진다
+        star.classList.toggle('on', on);
+        star.setAttribute('aria-pressed', String(on));
+        star.textContent = on ? '★' : '☆';
+        toast(on ? '핵심과업으로 표시했습니다.' : '핵심과업에서 뺐습니다.');
+        return undefined;
+      }).catch((err) => toast(err.message, true)).finally(() => { star.disabled = false; });
+    }
+
     const q = e.target.closest('[data-quick]');
     if (q) {
       const quick = QUICK.find((x) => x.key === q.dataset.quick);
@@ -10844,7 +10891,7 @@ async function renderTasks(root, query) {
       return;
     }
     const row = e.target.closest('[data-open]');
-    if (row && (e.key === 'Enter' || e.key === ' ') && !e.target.closest('input, select')) {
+    if (row && (e.key === 'Enter' || e.key === ' ') && !e.target.closest('input, select, button')) {
       e.preventDefault();
       go(`#/project/tasks/${row.dataset.open}`);
     }

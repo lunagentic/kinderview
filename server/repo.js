@@ -639,6 +639,7 @@ const decorate = (row) => {
   row.is_delayed = !!row.is_delayed;
   row.is_delivery_delayed = !!row.is_delivery_delayed;
   row.has_open_issue = row.open_issue_count > 0;
+  row.stars = row.stars_json ? JSON.parse(row.stars_json) : [];
   row.comment_count = row.comment_count ?? 0;
   row.director_comment_count = row.director_comment_count ?? 0;
   row.subtask_total = row.subtask_total ?? 0;
@@ -1238,6 +1239,10 @@ export const tasks = {
     if (filter.hasIssue) {
       where.push(`EXISTS (SELECT 1 FROM issue i WHERE i.task_id = t.id AND i.deleted_at IS NULL AND i.status <> 'RESOLVED')`);
     }
+    if (filter.starBy) {
+      where.push('EXISTS (SELECT 1 FROM json_each(t.stars_json) s WHERE s.value = :starBy)');
+      params.starBy = filter.starBy;
+    }
     if (!filter.includeDone && !filter.status?.length && filter.stage !== 'DONE') {
       where.push("t.status <> 'DONE'");
     }
@@ -1339,7 +1344,14 @@ export const tasks = {
     // 순서만 바꿀 때(타임라인 끌기) — 이력·알림 없이 자리만 옮긴다
     if (Object.keys(input).length === 1 && input.sort_order !== undefined) {
       run('UPDATE task SET sort_order = :o WHERE id = :id', { id, o: input.sort_order == null ? null : Number(input.sort_order) });
-      return tasks.get(id);
+      return { before: cur, after: tasks.get(id) };
+    }
+    // 핵심과업 별표 — 사람마다 따로(내 별표만 켜고 끈다)
+    if (Object.keys(input).length === 1 && input.star !== undefined) {
+      const stars = new Set(JSON.parse(cur.stars_json ?? '[]'));
+      if (input.star) stars.add(actor); else stars.delete(actor);
+      run('UPDATE task SET stars_json = :s WHERE id = :id', { id, s: JSON.stringify([...stars]) });
+      return { before: cur, after: tasks.get(id) };
     }
 
     // area 는 외주 여부 — 'OUT' 이거나 비어 있다. 다른 영역 코드는 하위 업무 몫이라 여기서는 '외주 아님'으로 읽는다.

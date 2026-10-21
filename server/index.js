@@ -116,6 +116,7 @@ route('GET', '/api/tasks', (ctx) => {
     stage: u.searchParams.get('stage') || undefined,
     delayed: u.searchParams.get('delayed') === '1',
     hasIssue: u.searchParams.get('issue') === '1',
+    starBy: u.searchParams.get('star') === '1' ? ctx.me : undefined,
     includeDone: u.searchParams.get('done') === '1',
     backlog: u.searchParams.get('backlog') === '1',
     includeBacklog: u.searchParams.get('all_backlog') === '1',

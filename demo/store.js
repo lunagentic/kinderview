@@ -1588,6 +1588,7 @@ function listTasks(f = {}) {
   if (f.stage === 'DONE') rows = rows.filter((t) => t.status === 'DONE');
   if (f.delayed) rows = rows.filter((t) => t.is_delayed);
   if (f.hasIssue) rows = rows.filter((t) => t.has_open_issue);
+  if (f.starBy) rows = rows.filter((t) => (t.stars ?? []).includes(f.starBy));
   if (!f.includeDone && !f.status?.length && f.stage !== 'DONE') rows = rows.filter((t) => t.status !== 'DONE');
   // 백로그(마감일 미정)는 달력 위의 일이 아니다. 따로 달라고 해야 나온다.
   if (f.backlog) rows = rows.filter((t) => !t.due_date);
@@ -1926,6 +1927,15 @@ function updateTask(id, input, actor) {
   // 순서만 바꿀 때(타임라인 끌기) — 이력·알림 없이 자리만 옮긴다
   if (Object.keys(input).length === 1 && input.sort_order !== undefined) {
     t.sort_order = input.sort_order == null ? null : Number(input.sort_order);
+    save();
+    return hydrate(t);
+  }
+  // 핵심과업 별표 — 사람마다 따로 단다(내 별표만 켜고 끈다). 이력·알림 없음
+  if (Object.keys(input).length === 1 && input.star !== undefined) {
+    if (!actor) throw new DemoError('현재 사용자를 먼저 골라 주세요.');
+    const stars = new Set(t.stars ?? []);
+    if (input.star) stars.add(actor); else stars.delete(actor);
+    t.stars = [...stars];
     save();
     return hydrate(t);
   }
@@ -2863,6 +2873,7 @@ function handle(method, path, body) {
       owner: listParam(sp, 'owner')?.map((o) => (o === 'me' ? me : o)),
       status: listParam(sp, 'status'), stage: sp.get('stage') || undefined,
       delayed: sp.get('delayed') === '1', hasIssue: sp.get('issue') === '1',
+      starBy: sp.get('star') === '1' ? me : undefined,
       includeDone: sp.get('done') === '1',
       backlog: sp.get('backlog') === '1',
       includeBacklog: sp.get('all_backlog') === '1',

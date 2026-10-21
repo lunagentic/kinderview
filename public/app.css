@@ -2398,3 +2398,14 @@ body[data-gate="view"] .tl-top-add,body[data-gate="view"] .tl-task-add{display:n
 .tk-pr.pr-high{color:var(--s-delay);border-color:color-mix(in srgb,var(--s-delay) 35%,transparent);background:color-mix(in srgb,var(--s-delay) 8%,transparent)}
 .tk-pr.pr-normal{color:var(--ink-2)}
 .tk-pr.pr-low{color:var(--muted);opacity:.75}
+/* 핵심과업 별표 — 줄 맨 앞. 빈 별은 옅게, 내가 단 별은 앰버 */
+.tk-star{flex:none;border:0;background:none;padding:0 2px;margin-right:2px;font-size:1rem;line-height:1.2;
+  color:var(--line);cursor:pointer;vertical-align:-1px}
+.tk-row:hover .tk-star{color:var(--muted)}
+.tk-star:hover{color:var(--amber)!important}
+.tk-star.on{color:var(--amber)}
+.tk-star:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
+.quick .tk-qstar{color:var(--amber);font-size:.95rem;min-width:34px}
+.quick .tk-qstar.on{color:#fff;background:var(--amber);border-color:var(--amber)}
+body[data-gate="view"] .tk-star:not(.on){display:none}
+body[data-gate="view"] .tk-star{pointer-events:none}

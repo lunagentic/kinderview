@@ -13,6 +13,8 @@ import { ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTa
 // 묶음은 프로젝트 › 영역 › 업무 — 영역이 곧 담당이라 이 층이 책임 단위가 된다.
 
 const QUICK = [
+  // 핵심과업 — 내가 별표를 단 업무만. 사람마다 따로 단다
+  { key: 'star',    label: '★', title: '핵심과업', params: { star: '1' } },
   { key: 'mine',    label: '내 영역 업무', params: { owner: 'me' } },
   { key: 'progress',label: '진행중',       params: { stage: 'IN_PROGRESS' } },
   { key: 'review',  label: '검토',         params: { stage: 'REVIEW' } },
@@ -148,12 +150,18 @@ export async function renderTasks(root, query) {
   const ownerOptions = state.members
     .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}${m.is_active ? '' : ' (비활성)'}</option>`).join('');
 
+  // 핵심과업 별표 — 내가 단 것만 채워진 별. 남이 단 별은 내 목록에 영향이 없다
+  const tkStar = (t) => {
+    const on = (t.stars ?? []).includes(state.me);
+    return `<button class="tk-star${on ? ' on' : ''}" data-star="${esc(t.id)}" aria-pressed="${on}"
+      title="핵심과업" aria-label="핵심과업">${on ? '★' : '☆'}</button>`;
+  };
   const taskRow = (t) => `
     <div class="tk-row" data-open="${esc(t.id)}" tabindex="0" role="button">
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
-        ${ticketTag(t)}${titleCell(t)}
+        ${tkStar(t)}${ticketTag(t)}${titleCell(t)}
         ${(t.area === 'OUT' ? ['OUT'] : []).concat(t.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="업무 영역(하위 업무)">${esc(state.meta.areas.find((x) => x.code === a)?.label ?? a)}</span>`).join('')}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}${
@@ -204,7 +212,8 @@ export async function renderTasks(root, query) {
 
     <div class="filters">
       <div class="quick">
-        ${QUICK.map((q) => `<button data-quick="${q.key}" class="${matchesQuick(p, q) ? 'on' : ''}">${esc(q.label)}</button>`).join('')}
+        ${QUICK.map((q) => `<button data-quick="${q.key}" class="${matchesQuick(p, q) ? 'on' : ''}${q.key === 'star' ? ' tk-qstar' : ''}"${
+          q.title ? ` title="${esc(q.title)}" aria-label="${esc(q.title)}"` : ''}>${esc(q.label)}</button>`).join('')}
       </div>
     </div>
 
@@ -429,6 +438,22 @@ export async function renderTasks(root, query) {
       return setParam({ view: v.dataset.view === 'gantt' ? 'gantt' : '' });
     }
 
+    const star = e.target.closest('[data-star]');
+    if (star) {
+      e.stopPropagation();
+      if (!state.me) { toast('오른쪽 위 「현재 사용자」를 먼저 골라 주세요.', true); return undefined; }
+      const on = star.getAttribute('aria-pressed') !== 'true';
+      star.disabled = true;
+      return api.patch(`/api/tasks/${star.dataset.star}`, { star: on }).then(() => {
+        if (p.get('star') === '1' && !on) return reload();   // 핵심과업만 보는 중이면 줄이 빠진다
+        star.classList.toggle('on', on);
+        star.setAttribute('aria-pressed', String(on));
+        star.textContent = on ? '★' : '☆';
+        toast(on ? '핵심과업으로 표시했습니다.' : '핵심과업에서 뺐습니다.');
+        return undefined;
+      }).catch((err) => toast(err.message, true)).finally(() => { star.disabled = false; });
+    }
+
     const q = e.target.closest('[data-quick]');
     if (q) {
       const quick = QUICK.find((x) => x.key === q.dataset.quick);
@@ -501,7 +526,7 @@ export async function renderTasks(root, query) {
       return;
     }
     const row = e.target.closest('[data-open]');
-    if (row && (e.key === 'Enter' || e.key === ' ') && !e.target.closest('input, select')) {
+    if (row && (e.key === 'Enter' || e.key === ' ') && !e.target.closest('input, select, button')) {
       e.preventDefault();
       go(`#/project/tasks/${row.dataset.open}`);
     }
