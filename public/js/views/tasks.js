@@ -3,9 +3,9 @@ import { state, activeProjects, areaMeta } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
-  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle, ticketTag, hoverTip,
+  titleCell, autoGrow, syncTitleCell, categoryPick, categoryStyle, ticketTag, hoverTip, subStatusPick, subStatusOf,
 } from '../ui.js';
-import { taskForm, projectForm } from '../forms.js';
+import { taskForm, projectForm, subtaskModal } from '../forms.js';
 import { ganttWindow, ganttScaleBar, bindGanttScale, ganttInitialScroll, ganttTable, bindGanttTable } from '../gantt.js';
 
 // 업무 화면은 "언제까지 무엇을" 보는 곳이다.
@@ -24,6 +24,9 @@ const QUICK = [
 ];
 
 const PR_TONE = { HIGH: 'pr-high', NORMAL: 'pr-normal', LOW: 'pr-low' };
+
+// 하위 업무 리스트를 펼쳐 둔 업무 — 다시 그려도 펼친 채로 둔다
+const tkOpenRows = new Set();
 
 // 프로젝트를 보여 주는 순서. 이 브라우저에만 남는다 —
 // 서버의 sort_order 는 건드리지 않는다. 그 값이 프로젝트 색을 정하기 때문에,
@@ -147,7 +150,9 @@ export async function renderTasks(root, query) {
     .map((pr) => `<option value="${esc(pr.id)}"${p.get('project') === pr.id ? ' selected' : ''}>${esc(pr.name)}</option>`).join('');
   const areaOptions = state.meta.areas
     .map((a) => `<option value="${esc(a.code)}"${p.get('area') === a.code ? ' selected' : ''}>${esc(a.full)}</option>`).join('');
+  // 비활성 구성원은 고르지 않는다 — 이미 그 사람으로 걸러 둔 경우만 남긴다
   const ownerOptions = state.members
+    .filter((m) => m.is_active || p.get('owner') === m.slack_user_id)
     .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}${m.is_active ? '' : ' (비활성)'}</option>`).join('');
 
   // 핵심과업 별표 — 내가 단 것만 채워진 별. 남이 단 별은 내 목록에 영향이 없다
@@ -157,11 +162,12 @@ export async function renderTasks(root, query) {
       title="핵심과업" aria-label="핵심과업">${on ? '★' : '☆'}</button>`;
   };
   const taskRow = (t) => `
-    <div class="tk-row" data-open="${esc(t.id)}" tabindex="0" role="button">
+    <div class="tk-row${tkOpenRows.has(t.id) ? ' is-open' : ''}" data-open="${esc(t.id)}" tabindex="0" role="button"
+         aria-expanded="${tkOpenRows.has(t.id)}" title="눌러서 하위 업무 ${tkOpenRows.has(t.id) ? '접기' : '펼치기'}">
       <span class="tk-grip" aria-hidden="true" title="끌어서 차례를 바꿉니다">⠿</span>
       <span class="tk-due num ${t.is_delayed ? 'late' : ''}">${dueCell(t)}</span>
       <span class="tk-title">
-        ${tkStar(t)}${ticketTag(t)}${titleCell(t)}
+        ${tkStar(t)}<button class="tk-open" data-detail="${esc(t.id)}" title="상세 열기" aria-label="상세 열기">✎</button>${ticketTag(t)}${titleCell(t)}
         ${(t.area === 'OUT' ? ['OUT'] : []).concat(t.sub_areas ?? []).map((a) => `<span class="sub-area-chip" title="업무 영역(하위 업무)">${esc(state.meta.areas.find((x) => x.code === a)?.label ?? a)}</span>`).join('')}
         ${flags(t)}${t.subtask_total
           ? `<i class="tk-sub${t.subtask_done === t.subtask_total ? ' all' : ''}">${t.subtask_done}/${t.subtask_total}</i>` : ''}${
@@ -220,7 +226,7 @@ export async function renderTasks(root, query) {
     <div class="filter-row" style="margin-bottom:18px">
       <select data-f="project"><option value="">프로젝트 전체</option>${projectOptions}</select>
       <select data-f="area"><option value="">영역 전체</option>${areaOptions}</select>
-      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나</option>${ownerOptions}</select>
+      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나 (현재 사용자)</option>${ownerOptions}</select>
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label class="chk"><input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함</label>
       <button class="btn btn-ghost" data-reset>필터 초기화</button>
@@ -508,11 +514,37 @@ export async function renderTasks(root, query) {
       return reload();
     }
 
+    // ✎ — 상세 화면
+    const det = e.target.closest('[data-detail]');
+    if (det) { e.stopPropagation(); go(`#/project/tasks/${det.dataset.detail}`); return undefined; }
+
+    // 하위 업무 리스트 — ★, 이름(팝업)
+    const sstar = e.target.closest('[data-sub-star]');
+    if (sstar) {
+      if (!state.me) { toast('오른쪽 위 「현재 사용자」를 먼저 골라 주세요.', true); return undefined; }
+      const on = sstar.getAttribute('aria-pressed') !== 'true';
+      sstar.disabled = true;
+      return api.patch(`/api/subtasks/${sstar.dataset.subStar}`, { star: on }).then(() => {
+        sstar.classList.toggle('on', on);
+        sstar.setAttribute('aria-pressed', String(on));
+        sstar.textContent = on ? '★' : '☆';
+        toast(on ? '핵심과업으로 표시했습니다.' : '핵심과업에서 뺐습니다.');
+      }).catch((err) => toast(err.message, true)).finally(() => { sstar.disabled = false; });
+    }
+    const sopen = e.target.closest('[data-sub-open]');
+    if (sopen) {
+      const t = rows.find((x) => x.id === sopen.dataset.task);
+      if (t) subtaskModal({ task: t, focus: sopen.dataset.subOpen, onChange: reload });
+      return undefined;
+    }
+    if (e.target.closest('.tk-subs')) return undefined;
+
+    // 줄 — 하위 업무 리스트 펼치기/접기. 제목 칸(이름 고치기)·고르는 칸·단추는 제 일을 한다
     const row = e.target.closest('[data-open]');
-    if (row && !e.target.closest('select') && !e.target.closest('.tk-grip')
+    if (row && !e.target.closest('select, button, input, a') && !e.target.closest('.tk-grip')
         && !e.target.closest('.due-edit') && !e.target.closest('.due-view')
-        && !e.target.closest('.ttl-edit') && !e.target.closest('.tk-del')) {
-      go(`#/project/tasks/${row.dataset.open}`);
+        && !e.target.closest('.ttl-edit:not([readonly])')) {
+      tkToggle(row.dataset.open);
     }
     return undefined;
   });
@@ -526,9 +558,9 @@ export async function renderTasks(root, query) {
       return;
     }
     const row = e.target.closest('[data-open]');
-    if (row && (e.key === 'Enter' || e.key === ' ') && !e.target.closest('input, select, button')) {
+    if (row && (e.key === 'Enter' || e.key === ' ') && !e.target.closest('input, select, button, textarea')) {
       e.preventDefault();
-      go(`#/project/tasks/${row.dataset.open}`);
+      tkToggle(row.dataset.open);
     }
   });
 
@@ -549,6 +581,49 @@ export async function renderTasks(root, query) {
     }
   }
 
+  // ── 하위 업무 리스트 ──
+  const tkSubRow = (t, r) => {
+    const mine = (r.stars ?? []).includes(state.me);
+    const due = r.due_date || t.due_date;
+    const late = subStatusOf(r) !== 'DONE' && due && due < state.today;
+    return `<div class="tk-sub-row${subStatusOf(r) === 'DONE' ? ' done' : ''}">
+      <button class="tk-star${mine ? ' on' : ''}" data-sub-star="${esc(r.id)}" aria-pressed="${mine}" title="핵심과업" aria-label="핵심과업">${mine ? '★' : '☆'}</button>
+      ${ticketTag({ ...r, project_id: t.project_id })}
+      ${r.area ? `<span class="sub-area-chip">${esc(areaMeta(r.area).label)}</span>` : ''}
+      <button class="tk-sub-ttl" data-sub-open="${esc(r.id)}" data-task="${esc(t.id)}" title="눌러서 업무 창 열기">${esc(r.title)}</button>
+      <span class="tk-sub-own">${esc(r.owner_name ?? '')}</span>
+      <span class="tk-sub-due${late ? ' late' : ''}${r.due_date ? '' : ' inherit'}" title="${r.due_date ? '하위 업무 마감' : '상위 업무 마감을 따름'}">${due ? esc(shortDate(due)) : ''}</span>
+      ${subStatusPick(r)}
+    </div>`;
+  };
+  const tkPaintSubs = async (id) => {
+    const line = root.querySelector(`.tk-row[data-open="${CSS.escape(id)}"]`);
+    if (!line) return;
+    line.nextElementSibling?.matches?.('.tk-subs') && line.nextElementSibling.remove();
+    const open = tkOpenRows.has(id);
+    line.classList.toggle('is-open', open);
+    line.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    const box = document.createElement('div');
+    box.className = 'tk-subs';
+    box.dataset.subsFor = id;
+    box.innerHTML = '<div class="tk-sub-empty">불러오는 중…</div>';
+    line.insertAdjacentElement('afterend', box);
+    try {
+      const subs = await api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`);
+      const t = rows.find((x) => x.id === id) ?? { id };
+      box.innerHTML = subs.length ? subs.map((r) => tkSubRow(t, r)).join('')
+        : '<div class="tk-sub-empty">하위 업무 없음 · ✎ 상세에서 더할 수 있습니다</div>';
+    } catch (err) { box.innerHTML = `<div class="tk-sub-empty">${esc(err.message)}</div>`; }
+  };
+  function tkToggle(id) {
+    if (tkOpenRows.has(id)) tkOpenRows.delete(id); else tkOpenRows.add(id);
+    tkPaintSubs(id);
+  }
+  // 핵심과업으로 걸러 보면 하위까지 펼쳐 둔다 — ★ 단 하위가 바로 보이게
+  if (p.get('star') === '1') for (const t of rows) tkOpenRows.add(t.id);
+  for (const id of tkOpenRows) if (rows.some((t) => t.id === id)) tkPaintSubs(id);
+
   autoGrow(root);
 
   // 마감일은 누를 때 입력칸이 된다
@@ -563,6 +638,15 @@ export async function renderTasks(root, query) {
   });
 
   root.addEventListener('change', async (e) => {
+    // 펼친 하위 업무의 상태 — 바로 올리고, 상위 n/m·상태가 바뀌므로 다시 그린다(펼친 줄은 남는다)
+    const sst = e.target.closest('.tk-subs [data-sub-status]');
+    if (sst) {
+      try {
+        const r = await api.patch(`/api/subtasks/${sst.dataset.subStatus}`, { status: sst.value });
+        toast(r?.nudged ? '하위 업무 상태를 바꿨습니다 · 상위 업무 상태도 따라 바뀌었습니다' : '하위 업무 상태를 바꿨습니다.');
+      } catch (err) { toast(err.message, true); }
+      return reload();
+    }
     const ttl = e.target.closest('[data-title]');
     if (ttl) {
       const next = ttl.value.replace(/\s+/g, ' ').trim();   // 줄바꿈은 제목에 남기지 않는다

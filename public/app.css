@@ -2409,3 +2409,25 @@ body[data-gate="view"] .tl-top-add,body[data-gate="view"] .tl-task-add{display:n
 .quick .tk-qstar.on{color:#fff;background:var(--amber);border-color:var(--amber)}
 body[data-gate="view"] .tk-star:not(.on){display:none}
 body[data-gate="view"] .tk-star{pointer-events:none}
+/* 업무 목록 — ✎ 상세, 줄 펼치기, 하위 업무 리스트 */
+.tk-open{flex:none;border:0;background:none;padding:0 3px;margin-right:2px;font-size:.85rem;line-height:1.3;
+  color:var(--muted);cursor:pointer;border-radius:4px;vertical-align:0}
+.tk-open:hover{color:var(--indigo);background:var(--surface-2)}
+.tk-row.is-open{background:color-mix(in srgb,var(--indigo) 4%,var(--surface))}
+.tk-subs{border-bottom:1px solid var(--line-soft);background:var(--ground);padding:4px 14px 8px 132px}
+.tk-sub-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:.84rem;border-bottom:1px dashed var(--line-soft)}
+.tk-sub-row:last-child{border-bottom:none}
+.tk-sub-row.done .tk-sub-ttl{color:var(--muted);text-decoration:line-through}
+.tk-sub-ttl{flex:1 1 auto;min-width:0;text-align:left;border:0;background:none;padding:2px 4px;font:inherit;color:var(--ink);
+  cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:4px}
+.tk-sub-ttl:hover{background:var(--surface);color:var(--indigo)}
+.tk-sub-own{flex:none;width:56px;font-size:.78rem;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk-sub-due{flex:none;width:44px;font-family:var(--mono);font-size:.74rem;color:var(--ink-2);text-align:right}
+.tk-sub-due.inherit{color:var(--muted)} .tk-sub-due.late{color:var(--s-delay);font-weight:700}
+.tk-sub-empty{font-size:.8rem;color:var(--muted);padding:6px 0}
+.sbm-list .tk-star{margin-right:0}
+body[data-gate="view"] .tk-sub-row .tk-star:not(.on),body[data-gate="view"] .sbm-list .tk-star:not(.on){display:none}
+@media (max-width:720px){
+  .tk-subs{padding-left:14px}
+  .tk-sub-own{display:none}
+}

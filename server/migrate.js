@@ -495,6 +495,14 @@ function addTaskStars() {
   return '업무 핵심과업 별표 칸 추가';
 }
 
+// 하위 업무 핵심과업 별표
+function addSubtaskStars() {
+  const sql = tableSql('subtask');
+  if (!sql || /\bstars_json\b/.test(sql)) return null;
+  db.exec('ALTER TABLE subtask ADD COLUMN stars_json TEXT');
+  return '하위 업무 핵심과업 별표 칸 추가';
+}
+
 // 업무의 차례 — 타임라인에서 끌어 정한다
 function addTaskSortOrder() {
   const sql = tableSql('task');
@@ -611,7 +619,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder(), addTaskStars()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder(), addTaskStars(), addSubtaskStars()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

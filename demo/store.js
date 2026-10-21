@@ -1076,6 +1076,15 @@ function updateSubtask(id, body, actor = null) {
     save();
     return { ...row, rolled: { task_due: null, phase_end: null } };
   }
+  // 핵심과업 별표 — 사람마다 따로(내 별표만 켜고 끈다)
+  if (Object.keys(body).length === 1 && body.star !== undefined) {
+    if (!actor) throw new DemoError('현재 사용자를 먼저 골라 주세요.');
+    const stars = new Set(row.stars ?? []);
+    if (body.star) stars.add(actor); else stars.delete(actor);
+    row.stars = [...stars];
+    save();
+    return { ...row, rolled: { task_due: null, phase_end: null } };
+  }
   let rolled = { task_due: null, phase_end: null };
   // 다른 상위 업무로 옮긴다. 프로젝트가 달라지면 티켓 번호를 그 프로젝트에서 새로 받는다.
   if (body.task_id !== undefined && body.task_id !== row.task_id) {
@@ -1588,7 +1597,11 @@ function listTasks(f = {}) {
   if (f.stage === 'DONE') rows = rows.filter((t) => t.status === 'DONE');
   if (f.delayed) rows = rows.filter((t) => t.is_delayed);
   if (f.hasIssue) rows = rows.filter((t) => t.has_open_issue);
-  if (f.starBy) rows = rows.filter((t) => (t.stars ?? []).includes(f.starBy));
+  // 핵심과업 — 상위에 ★ 를 달았거나, 그 아래 하위 하나라도 ★ 를 단 업무
+  if (f.starBy) {
+    rows = rows.filter((t) => (t.stars ?? []).includes(f.starBy)
+      || (DB.subtasks ?? []).some((s) => s.task_id === t.id && (s.stars ?? []).includes(f.starBy)));
+  }
   if (!f.includeDone && !f.status?.length && f.stage !== 'DONE') rows = rows.filter((t) => t.status !== 'DONE');
   // 백로그(마감일 미정)는 달력 위의 일이 아니다. 따로 달라고 해야 나온다.
   if (f.backlog) rows = rows.filter((t) => !t.due_date);

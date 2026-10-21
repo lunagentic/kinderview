@@ -866,7 +866,8 @@ export const subtasks = {
          LEFT JOIN member m ON m.slack_user_id = s.owner_slack_user_id
        WHERE s.task_id = :t ORDER BY s.sort_order, s.created_at`,
       { t: taskId },
-    ).map(({ last_comment, ...r }) => ({ ...r, note: last_comment ?? null, is_done: !!r.is_done, key: ticketKey(r.project_code, r.seq) }));
+    ).map(({ last_comment, stars_json, ...r }) => ({ ...r, note: last_comment ?? null, is_done: !!r.is_done, key: ticketKey(r.project_code, r.seq),
+      stars: stars_json ? JSON.parse(stars_json) : [] }));
   },
 
   /** 하위 업무의 영역 — 외주는 없다. 비우면 null */
@@ -908,6 +909,13 @@ export const subtasks = {
   update(id, patch, actor = null) {
     const cur = one('SELECT * FROM subtask WHERE id = :id', { id });
     if (!cur) throw new HttpError(404, '하위 업무를 찾을 수 없습니다.');
+    // 핵심과업 별표 — 사람마다 따로
+    if (Object.keys(patch).length === 1 && patch.star !== undefined) {
+      const stars = new Set(JSON.parse(cur.stars_json ?? '[]'));
+      if (patch.star) stars.add(actor); else stars.delete(actor);
+      run('UPDATE subtask SET stars_json = :s WHERE id = :id', { id, s: JSON.stringify([...stars]) });
+      return { ...one('SELECT * FROM subtask WHERE id = :id', { id }), stars: [...stars], rolled: { task_due: null, phase_end: null } };
+    }
     // 순서만 바꿀 때(타임라인 끌기)
     if (Object.keys(patch).length === 1 && patch.sort_order !== undefined) {
       run('UPDATE subtask SET sort_order = :o WHERE id = :id', { id, o: Number(patch.sort_order) });
@@ -1240,7 +1248,8 @@ export const tasks = {
       where.push(`EXISTS (SELECT 1 FROM issue i WHERE i.task_id = t.id AND i.deleted_at IS NULL AND i.status <> 'RESOLVED')`);
     }
     if (filter.starBy) {
-      where.push('EXISTS (SELECT 1 FROM json_each(t.stars_json) s WHERE s.value = :starBy)');
+      where.push(`(EXISTS (SELECT 1 FROM json_each(t.stars_json) s WHERE s.value = :starBy)
+        OR EXISTS (SELECT 1 FROM subtask sb, json_each(sb.stars_json) s WHERE sb.task_id = t.id AND s.value = :starBy))`);
       params.starBy = filter.starBy;
     }
     if (!filter.includeDone && !filter.status?.length && filter.stage !== 'DONE') {

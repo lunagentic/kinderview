@@ -194,20 +194,7 @@ export async function renderTaskDetail(root, id, query = '') {
         </div>
 
 
-        <div class="panel">
-          <h3>변경 이력</h3>
-          ${healthLine(t)}
-          <div class="timeline">
-            ${t.events.map((e) => `
-              <div class="ev">
-                <span class="t">${dateTime(e.occurred_at)}</span>
-                <span>${esc(e.actor_name)} · ${esc(EVENT_LABEL[e.event_type] ?? e.event_type)}
-                  ${e.event_type === 'STATUS_CHANGED' ? `<b>${esc(statusLabel(e.from_value))} → ${esc(statusLabel(e.to_value))}</b>` : ''}
-                  ${e.event_type === 'DUE_CHANGED' ? `<b>${shortDate(e.from_value)} → ${shortDate(e.to_value)}</b>` : ''}
-                  ${e.event_type === 'REVIEW_STATUS_CHANGED' ? `<b>${esc(reviewLabel(e.from_value))} → ${esc(reviewLabel(e.to_value))}</b>` : ''}
-                </span>
-              </div>`).join('')}
-          </div>
+        <!-- 변경 이력은 감춰 둔다(사용자 요청) — 기록은 계속 쌓인다 -->
         </div>
       </div>
     </div>`;

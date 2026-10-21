@@ -1294,6 +1294,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
   };
   const list = () => (rows.length ? `<ul class="subs sbm-list">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
+        ${(() => { const on = (r.stars ?? []).includes(state.me); return `<button type="button" class="tk-star${on ? ' on' : ''}" data-sub-star="${esc(r.id)}" aria-pressed="${on}" title="핵심과업" aria-label="핵심과업">${on ? '★' : '☆'}</button>`; })()}
         ${ticketTag({ ...r, project_id: t.project_id })}
         ${subAreaPick(r)}
         <textarea class="sbm-title sbm-title-ta" rows="1" maxlength="120"
@@ -1740,6 +1741,21 @@ export function subtaskModal({ task, onChange, focus = null }) {
       });
 
       root.addEventListener('click', async (e) => {
+        // 핵심과업 별표 — 바로 올린다(모아 두는 「저장」과 따로)
+        const sstar = e.target.closest('[data-sub-star]');
+        if (sstar) {
+          if (!editable()) return;
+          if (!state.me) { toast('오른쪽 위 「현재 사용자」를 먼저 골라 주세요.', true); return; }
+          const on = sstar.getAttribute('aria-pressed') !== 'true';
+          try {
+            await api.patch(`/api/subtasks/${sstar.dataset.subStar}`, { star: on });
+            const r = rows.find((x) => x.id === sstar.dataset.subStar);
+            if (r) r.stars = on ? [...new Set([...(r.stars ?? []), state.me])] : (r.stars ?? []).filter((x) => x !== state.me);
+            sstar.classList.toggle('on', on); sstar.setAttribute('aria-pressed', String(on)); sstar.textContent = on ? '★' : '☆';
+            changed = true;
+          } catch (err) { toast(err.message, true); }
+          return;
+        }
         const cmBtn = e.target.closest('[data-sub-cm]');
         if (cmBtn) {
           await toggleSubComments(cmBtn, { onCount: (n) => {

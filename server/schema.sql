@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS subtask (
   note        TEXT,               -- 한 줄 메모(엑셀 「메모」 열과 같다)
   note_by     TEXT,               -- 메모를 마지막으로 적은 사람 · 시각 — 담당자 알림함 「메모」
   note_at     TEXT,
+  stars_json  TEXT,               -- 핵심과업 별표를 단 사람(slack id) JSON 배열
   created_at  TEXT NOT NULL,
   done_at     TEXT,
   CHECK ((is_done = 1 AND done_at IS NOT NULL) OR (is_done = 0 AND done_at IS NULL))
