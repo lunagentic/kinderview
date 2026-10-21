@@ -2566,6 +2566,16 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-kv dt{color:var(--muted);margin:0}.po-kv dd{margin:0}
 .po-kv dd.late{color:var(--s-delay);font-weight:700}
 .po-kv .desc{color:var(--ink-2);white-space:pre-line;font-size:.8rem;max-height:7.5em;overflow:hidden}
+.po-kv .po-kv-ttl{font-weight:700;word-break:keep-all;overflow-wrap:anywhere}
+.po-kv .po-kv-ttl .k{font-family:var(--mono);font-size:.72rem;color:var(--muted);font-weight:600;margin-right:6px}
+.po-kv .po-dim{color:var(--muted)}
+.po-links,.po-dir{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.8rem}
+.po-links a{color:var(--accent);text-decoration:none;overflow-wrap:anywhere}.po-links a:hover{text-decoration:underline}
+.po-links small{color:var(--muted);font-size:.7rem}
+.po-dir li{background:var(--surface-2);border-radius:8px;padding:6px 8px}
+.po-dir li.more{background:none;padding:0;color:var(--muted);font-size:.74rem}
+.po-dir b{font-size:.76rem;color:var(--s-review)}.po-dir small{color:var(--muted);font-size:.7rem;margin-left:4px}
+.po-dir .body{color:var(--ink-2);white-space:pre-line;margin-top:2px;max-height:6em;overflow:hidden}
 .po-subl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:.86rem}
 .po-subl li{display:flex;align-items:flex-start;gap:8px}
 .po-subl .m{flex:none;width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.68rem;font-weight:800;margin-top:1px}

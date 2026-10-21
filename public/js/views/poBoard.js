@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state, memberOf, areaMeta, statusMeta, activeMembers } from '../state.js';
-import { esc, loading, errorBox, toast, avatar, shortDate } from '../ui.js';
+import { esc, loading, errorBox, toast, avatar, shortDate, linkify } from '../ui.js';
 import { canEdit } from '../gate.js';
 import { gatePanel } from './gatePanel.js';
 
@@ -96,6 +96,17 @@ export async function renderPoBoard(host) {
   const members = activeMembers().map((m) => ({ id: m.slack_user_id, name: m.display_name, n: keyTasks.filter((t) => t.owner_slack_user_id === m.slack_user_id).length }))
     .filter((m) => m.n);
   const subsCache = new Map();
+  // 과업 요약의 링크·디렉터 코멘트 — 카드를 열 때 한 번 읽어 둔다(읽기만). 하위 업무와 같은 방식
+  const extraCache = new Map();
+  const loadExtra = async (id) => {
+    if (extraCache.has(id)) return;
+    const [atts, cms] = await Promise.all([
+      api.get(`/api/tasks/${encodeURIComponent(id)}/attachments`).catch(() => []),
+      api.get(`/api/tasks/${encodeURIComponent(id)}/comments`).catch(() => []),
+    ]);
+    extraCache.set(id, { atts, director: cms.filter((c) => c.author_role === 'DIRECTOR' && !c.deleted_at && c.body) });
+  };
+  const atHostOf = (u) => { try { return new URL(u).host; } catch { return ''; } };
 
   const donut = () => {
     const tot = kpi.done + kpi.prog + kpi.wait + kpi.late || 1;
@@ -142,6 +153,19 @@ export async function renderPoBoard(host) {
     const SHOW = 8;
     const mark = (s) => (s.status === 'DONE' ? '<span class="m d">✓</span>' : s.status === 'IN_PROGRESS' ? '<span class="m p">◐</span>' : '<span class="m w">○</span>');
     const subN = t.subtask_total ?? 0; const subD = t.subtask_done ?? 0;
+    const ex = extraCache.get(t.id);
+    const linksRow = () => {
+      if (!ex) return '<dd class="po-dim">불러오는 중…</dd>';
+      if (!ex.atts.length) return '<dd class="po-dim">—</dd>';
+      return `<dd><ul class="po-links">${ex.atts.map((a) => `<li>${a.kind === 'image' ? '🖼' : '🔗'} <a href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(a.url)}">${esc(a.name || a.url)}</a>${a.kind === 'link' && atHostOf(a.url) ? ` <small>${esc(atHostOf(a.url))}</small>` : ''}</li>`).join('')}</ul></dd>`;
+    };
+    const dirRow = () => {
+      if (!ex) return '<dd class="po-dim">불러오는 중…</dd>';
+      if (!ex.director.length) return '<dd class="po-dim">—</dd>';
+      const rows = [...ex.director].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 3);
+      return `<dd><ul class="po-dir">${rows.map((c) => `<li><b>${esc(c.author_title || '디렉터')}</b> <small>${shortDate(c.created_at.slice(0, 10))}</small><div class="body">${linkify(c.body)}</div></li>`).join('')}
+        ${ex.director.length > rows.length ? `<li class="more">… 외 ${ex.director.length - rows.length}건 — 상세 열기에서 모두 봅니다</li>` : ''}</ul></dd>`;
+    };
     return `<div class="po-detail" id="po-detail">
       <div class="po-dh">${t.star ? '<span class="star">★</span>' : ''}<span class="rank" title="우선순위 P${t.rank}">P${t.rank}</span><h3>${esc(t.title)}</h3>
         <div class="meta"><span>${av(t.owner_slack_user_id)} ${esc(t.owner_name ?? '')}${t.team ? ` · ${esc(t.team)}` : ''}</span><span>📅 ${t.start_date ? `${poMd(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div>
@@ -151,11 +175,13 @@ export async function renderPoBoard(host) {
         <button class="po-x" type="button" data-close aria-label="닫기">✕</button></div>
       <div class="po-cols">
         <div class="po-col"><h4>과업 요약</h4><dl class="po-kv">
-          <dt>번호</dt><dd>${esc(t.key ?? '-')}</dd><dt>프로젝트</dt><dd>${esc(t.project_name ?? '미정')}</dd><dt>페이즈</dt><dd>${esc(t.phase_name ?? '미정')}</dd>
+          <dt>과업</dt><dd class="po-kv-ttl"><span class="k">${esc(t.key ?? '-')}</span>${esc(t.title)}</dd><dt>프로젝트</dt><dd>${esc(t.project_name ?? '미정')}</dd><dt>페이즈</dt><dd>${esc(t.phase_name ?? '미정')}</dd>
           <dt>책임자</dt><dd>${esc(t.owner_name ?? '')}</dd><dt>실무 담당</dt><dd>${t.owners.length > 1 ? t.owners.slice(1).map((id) => esc(memberOf(id)?.display_name ?? id)).join(' · ') : '—'}</dd>
           <dt>마감</dt><dd${t.late ? ' class="late"' : ''}>${poMd(t.due_date)}${t.late ? ' · 지연' : ''}</dd><dt>우선순위</dt><dd>${PR[t.priority] ?? '보통'}</dd>
           ${t.star ? `<dt>핵심과업</dt><dd>★ ${(t.stars ?? []).map((id) => esc(memberOf(id)?.display_name ?? id)).join(', ')} 님이 표시</dd>` : ''}
-          ${t.description ? `<dt>내용</dt><dd class="desc">${esc(t.description)}</dd>` : ''}</dl></div>
+          <dt>메모</dt>${t.description ? `<dd class="desc">${linkify(t.description)}</dd>` : '<dd class="po-dim">—</dd>'}
+          <dt>링크</dt>${linksRow()}
+          <dt>디렉터 코멘트</dt>${dirRow()}</dl></div>
         <div class="po-col"><h4>하위 업무 <span class="n">${subD}/${subN}</span></h4>
           ${!subs ? '<div class="po-note">불러오는 중…</div>' : subs.length
             ? `<ul class="po-subl">${subs.slice(0, SHOW).map((s) => `<li class="${s.status === 'DONE' ? 'd' : ''}">${mark(s)}<span>${esc(s.title)}</span></li>`).join('')}
@@ -225,9 +251,13 @@ export async function renderPoBoard(host) {
     paint();
     if (!open) return;
     document.getElementById('po-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    if (subsCache.has(id)) return;
-    try { subsCache.set(id, await api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`)); }
-    catch (err) { subsCache.set(id, []); toast(err.message, true); }
+    if (subsCache.has(id) && extraCache.has(id)) return;
+    const jobs = [loadExtra(id)];
+    if (!subsCache.has(id)) {
+      jobs.push(api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`).then((rows) => subsCache.set(id, rows))
+        .catch((err) => { subsCache.set(id, []); toast(err.message, true); }));
+    }
+    await Promise.all(jobs);
     if (open === id) paint();
   };
   // ── 순위 저장 — po_rank 만 바꾼다. 상태·마감·별표는 건드리지 않는다 ──
@@ -290,10 +320,14 @@ export async function renderPoBoard(host) {
     if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(c.dataset.id); }
   });
   paint();
-  // 순위를 바꾼 뒤 다시 그릴 때 펼쳐 둔 카드의 하위 업무도 다시 읽는다
-  if (open && keyTasks.some((t) => t.id === open) && !subsCache.has(open)) {
+  // 순위를 바꾼 뒤 다시 그릴 때 펼쳐 둔 카드의 하위 업무·링크·디렉터 코멘트도 다시 읽는다
+  if (open && keyTasks.some((t) => t.id === open) && !(subsCache.has(open) && extraCache.has(open))) {
     const id = open;
-    api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`).then((rows) => { subsCache.set(id, rows); if (open === id) paint(); })
-      .catch((err) => { subsCache.set(id, []); toast(err.message, true); if (open === id) paint(); });
+    const jobs = [loadExtra(id)];
+    if (!subsCache.has(id)) {
+      jobs.push(api.get(`/api/tasks/${encodeURIComponent(id)}/subtasks`).then((rows) => subsCache.set(id, rows))
+        .catch((err) => { subsCache.set(id, []); toast(err.message, true); }));
+    }
+    Promise.all(jobs).then(() => { if (open === id) paint(); });
   }
 }
