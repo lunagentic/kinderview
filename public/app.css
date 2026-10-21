@@ -2530,6 +2530,14 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-card.on{border-color:var(--indigo);box-shadow:0 0 0 1px var(--indigo),0 10px 26px rgba(21,26,45,.1)}
 .po-card.on::after{content:'';position:absolute;left:50%;bottom:-7px;width:12px;height:12px;background:var(--surface);border-right:1px solid var(--indigo);border-bottom:1px solid var(--indigo);transform:translateX(-50%) rotate(45deg)}
 .po-who{display:flex;align-items:center;gap:8px;min-height:30px}
+.po-tag{display:inline-block;vertical-align:middle;margin-left:8px;font-size:.72rem;font-weight:700;letter-spacing:.04em;color:var(--indigo);background:color-mix(in srgb,var(--indigo) 10%,var(--surface));border-radius:999px;padding:3px 10px}
+.po-pn .btn{padding:5px 10px;font-size:.8rem}
+.po-band{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.po-band-cur{display:inline-flex;align-items:center;gap:6px;font-size:.84rem;font-weight:700}
+.po-band .po-mo-nav .btn.disabled{opacity:.45;pointer-events:none}
+.po-band-mems{display:flex;gap:6px;overflow-x:auto;flex:1 1 200px;min-width:0;padding:2px}
+.po-band-mems .po-mem{text-decoration:none;padding:4px 10px 4px 5px;font-size:.8rem}
+@media (max-width:720px){.po-band{gap:8px}.po-band-mems{flex-basis:100%}}
 .po-grip{flex:none;width:22px;height:30px;display:inline-flex;align-items:center;justify-content:center;margin-left:-6px;color:var(--muted);font-size:1rem;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:6px}
 .po-grip:hover{background:var(--surface-2);color:var(--ink)}
 .po-card.dragging{opacity:.75;transform:scale(1.02);box-shadow:0 14px 30px rgba(21,26,45,.18);z-index:2;cursor:grabbing}

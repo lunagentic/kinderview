@@ -4,11 +4,12 @@ import { state, areaMeta, memberOf, meLabel } from '../state.js';
 import {
   esc, statusChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
   titleCell, autoGrow, syncTitleCell, linkify, subStatusOf, subProgress, subStatusPick, nudgeNote, firstUrl,
-  subAreaPick, subOwnerPick, ticketTag,} from '../ui.js';
+  subAreaPick, subOwnerPick, ticketTag, avatar,} from '../ui.js';
 import { subCommentButton, toggleSubComments } from '../subComments.js';
 import { taskForm, issueForm, subAddArea, subAssignChange, collabEdit, collabChange } from '../forms.js';
 import { bindComments } from '../comments.js';
 import { attPanelInner, mountAttachments } from '../attachments.js';
+import { poBoardNav, poBoardOpen } from './poBoard.js';
 
 const EVENT_LABEL = {
   CREATED: '업무 등록',
@@ -83,9 +84,31 @@ export async function renderTaskDetail(root, id, query = '') {
   }
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
+  root.addEventListener('click', (e) => {
+    const go = e.target.closest('[data-po-go]'); if (go) { poBoardOpen(go.dataset.poGo); return; }
+    if (e.target.closest('[data-po-back]')) poBoardOpen(t.id);
+  });
   const statuses = t.area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses;
 
+  // PO 보드에서 온 상세 — 보드로 돌아가거나 다른 구성원의 대표과업으로 바로 옮기는 띠
+  const fromPo = new URLSearchParams(query).get('from') === 'poboard';
+  const poBand = () => {
+    if (!fromPo) return '';
+    const nav = poBoardNav(); const i = nav.findIndex((x) => x.id === t.id);
+    const prev = nav[i - 1]; const next = nav[i + 1];
+    const link = (x) => `#/project/tasks/${esc(x.id)}?from=poboard`;
+    const owners = []; for (const x of nav) if (!owners.some((o) => o.owner_slack_user_id === x.owner_slack_user_id)) owners.push(x);
+    const cur = nav[i];
+    return `<div class="po-band">
+      <a class="btn" href="#/project/poboard" data-po-back>‹ PO 보드로</a>
+      ${cur ? `<span class="po-band-cur">${avatar(memberOf(cur.owner_slack_user_id) ?? { display_name: '?' }, 'sm')} ${esc(cur.owner_name ?? '')} · ${cur.star ? '★ ' : ''}P${cur.rank}</span>` : ''}
+      ${nav.length ? `<span class="po-mo-nav"><a class="btn${prev ? '' : ' disabled'}" ${prev ? `href="${link(prev)}" data-po-go="${esc(prev.id)}"` : 'aria-disabled="true"'} title="${prev ? esc(prev.title) : ''}">‹ ${prev ? esc(prev.owner_name ?? '') : '이전'}</a><a class="btn${next ? '' : ' disabled'}" ${next ? `href="${link(next)}" data-po-go="${esc(next.id)}"` : 'aria-disabled="true"'} title="${next ? esc(next.title) : ''}">${next ? esc(next.owner_name ?? '') : '다음'} ›</a></span>
+      <span class="po-band-mems">${owners.map((x) => `<a class="po-mem${x.owner_slack_user_id === t.owner_slack_user_id ? ' on' : ''}" href="${link(x)}" data-po-go="${esc(x.id)}" title="${esc(x.title)}">${avatar(memberOf(x.owner_slack_user_id) ?? { display_name: '?' }, 'sm')}${esc(x.owner_name ?? '')}</a>`).join('')}</span>` : '<span class="sub">보드를 열면 구성원 이동 단추가 생깁니다</span>'}
+    </div>`;
+  };
+  if (fromPo) window.scrollTo({ top: 0 });   // 보드에서 넘어오면 이동 띠가 바로 보이게
   root.innerHTML = `
+    ${poBand()}
     <div class="page-head">
       <div>
         <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}${t.key ? ` · ${ticketTag(t)}` : ''}</div>

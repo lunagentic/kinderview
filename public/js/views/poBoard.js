@@ -31,6 +31,13 @@ let allKind = 'all';                 // 'all' | 'parent' | 'sub' | 'link'
 let allDone = false;                 // 완료 포함
 const allSec = { parent: true, sub: true, link: false };
 const expanded = new Set();          // 하위를 펼친 상위 업무 id
+// 상세 페이지의 「PO 보드 이동 띠」가 쓰는 맥락 — 마지막으로 그린 카드 차례(정렬·구성원 필터 반영)
+let poLast = [];                     // [{ id, key, title, owner_slack_user_id, owner_name, rank, star }]
+let poCameBack = false;              // 상세에서 돌아올 때 열린 카드로 스크롤
+/** 상세 페이지에서 부른다 — 보드 카드 차례. 보드를 아직 안 열었으면 빈 배열 */
+export const poBoardNav = () => poLast;
+/** 상세 페이지에서 다른 구성원의 카드로 옮길 때 — 돌아오면 그 카드가 열려 있다 */
+export const poBoardOpen = (id) => { open = id; poCameBack = true; };
 const poShiftMonth = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const poMonthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
@@ -177,7 +184,9 @@ export async function renderPoBoard(host) {
         <div class="meta"><span>${av(t.owner_slack_user_id)} ${esc(t.owner_name ?? '')}${t.team ? ` · ${esc(t.team)}` : ''}</span><span>📅 ${t.start_date ? `${poMd(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div>
         <div class="pr"><span class="big">${t.pct}%</span><span class="tr"><i style="width:${t.pct}%"></i></span><span class="sm">${subN ? `${subD} / ${subN}개 하위 업무 완료` : '하위 업무 없음'}</span></div>
         ${rankPicker(t)}
-        <a class="btn" href="#/project/tasks/${esc(t.id)}" title="업무 상세 열기">상세 열기 ›</a>
+        ${(() => { const i = poLast.findIndex((x) => x.id === t.id); const prev = poLast[i - 1]; const next = poLast[i + 1];
+          return `<span class="po-mo-nav po-pn"><button class="btn" type="button" data-open="${prev ? esc(prev.id) : ''}"${prev ? '' : ' disabled'} title="${prev ? `이전: ${esc(prev.owner_name ?? '')} · ${esc(prev.title)}` : '처음 카드'}">‹ ${prev ? esc(prev.owner_name ?? '') : '이전'}</button><button class="btn" type="button" data-open="${next ? esc(next.id) : ''}"${next ? '' : ' disabled'} title="${next ? `다음: ${esc(next.owner_name ?? '')} · ${esc(next.title)}` : '마지막 카드'}">${next ? esc(next.owner_name ?? '') : '다음'} ›</button></span>`; })()}
+        <a class="btn" href="#/project/tasks/${esc(t.id)}?from=poboard" title="업무 상세 열기">상세 열기 ›</a>
         <button class="po-x" type="button" data-close aria-label="닫기">✕</button></div>
       <div class="po-cols">
         <div class="po-col"><h4>과업 요약</h4><dl class="po-kv">
@@ -292,10 +301,11 @@ export async function renderPoBoard(host) {
   };
   const paint = () => {
     const list = sortList(keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who));
+    poLast = list.map(({ id, key, title, owner_slack_user_id, owner_name, rank, star }) => ({ id, key, title, owner_slack_user_id, owner_name, rank, star }));
     const sel = keyTasks.find((t) => t.id === open);
     host.innerHTML = `
       <div class="po">
-        <div class="page-head"><div><h1>PO 보드</h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
+        <div class="page-head"><div><h1>PO 보드 <span class="po-tag">Priority Organizer</span></h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
           <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" class="${mode === 'week' ? 'on' : ''}" data-mode="week" role="tab" aria-selected="${mode === 'week'}">주간</button><button type="button" class="${mode === 'month' ? 'on' : ''}" data-mode="month" role="tab" aria-selected="${mode === 'month'}">월간</button></div>
             ${mode === 'week' ? `<span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() - 7 * 864e5).toISOString().slice(0, 10))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${isThisWeek ? ' disabled' : ''}>이번 주</button><span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() + 7 * 864e5).toISOString().slice(0, 10))}" aria-label="다음 주">›</button></span>` : ''}<button class="btn btn-primary" type="button" disabled title="다음 단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
         <div class="po-kpis${mode === 'month' ? ' month' : ''}">
@@ -438,6 +448,8 @@ export async function renderPoBoard(host) {
     const m = e.target.closest('[data-who]');
     if (m) { who = m.dataset.who; paint(); return; }
     if (e.target.closest('[data-close]')) { open = null; paint(); return; }
+    const op = e.target.closest('[data-open]');
+    if (op) { if (op.dataset.open) { open = null; openCard(op.dataset.open); document.querySelector(`.po-card[data-id="${op.dataset.open}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } return; }
     const kd = e.target.closest('[data-kind]');
     if (kd) { allKind = kd.dataset.kind; paint(); return; }
     const sc = e.target.closest('[data-sec]');
@@ -455,6 +467,7 @@ export async function renderPoBoard(host) {
     if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(c.dataset.id); }
   });
   paint();
+  if (poCameBack) { poCameBack = false; host.querySelector('.po-card.on')?.scrollIntoView({ block: 'center' }); }
   // 순위를 바꾼 뒤 다시 그릴 때 펼쳐 둔 카드의 하위 업무·링크·디렉터 코멘트도 다시 읽는다
   if (open && keyTasks.some((t) => t.id === open) && !(subsCache.has(open) && extraCache.has(open))) {
     const id = open;

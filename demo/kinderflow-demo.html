@@ -2534,6 +2534,14 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-card.on{border-color:var(--indigo);box-shadow:0 0 0 1px var(--indigo),0 10px 26px rgba(21,26,45,.1)}
 .po-card.on::after{content:'';position:absolute;left:50%;bottom:-7px;width:12px;height:12px;background:var(--surface);border-right:1px solid var(--indigo);border-bottom:1px solid var(--indigo);transform:translateX(-50%) rotate(45deg)}
 .po-who{display:flex;align-items:center;gap:8px;min-height:30px}
+.po-tag{display:inline-block;vertical-align:middle;margin-left:8px;font-size:.72rem;font-weight:700;letter-spacing:.04em;color:var(--indigo);background:color-mix(in srgb,var(--indigo) 10%,var(--surface));border-radius:999px;padding:3px 10px}
+.po-pn .btn{padding:5px 10px;font-size:.8rem}
+.po-band{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.po-band-cur{display:inline-flex;align-items:center;gap:6px;font-size:.84rem;font-weight:700}
+.po-band .po-mo-nav .btn.disabled{opacity:.45;pointer-events:none}
+.po-band-mems{display:flex;gap:6px;overflow-x:auto;flex:1 1 200px;min-width:0;padding:2px}
+.po-band-mems .po-mem{text-decoration:none;padding:4px 10px 4px 5px;font-size:.8rem}
+@media (max-width:720px){.po-band{gap:8px}.po-band-mems{flex-basis:100%}}
 .po-grip{flex:none;width:22px;height:30px;display:inline-flex;align-items:center;justify-content:center;margin-left:-6px;color:var(--muted);font-size:1rem;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:6px}
 .po-grip:hover{background:var(--surface-2);color:var(--ink)}
 .po-card.dragging{opacity:.75;transform:scale(1.02);box-shadow:0 14px 30px rgba(21,26,45,.18);z-index:2;cursor:grabbing}
@@ -11519,6 +11527,7 @@ async function renderTasks(root, query) {
 
 
 
+
 const EVENT_LABEL = {
   CREATED: '업무 등록',
   STATUS_CHANGED: '상태 변경',
@@ -11592,9 +11601,31 @@ async function renderTaskDetail(root, id, query = '') {
   }
 
   const reload = () => window.dispatchEvent(new Event('kf:reload'));
+  root.addEventListener('click', (e) => {
+    const go = e.target.closest('[data-po-go]'); if (go) { poBoardOpen(go.dataset.poGo); return; }
+    if (e.target.closest('[data-po-back]')) poBoardOpen(t.id);
+  });
   const statuses = t.area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses;
 
+  // PO 보드에서 온 상세 — 보드로 돌아가거나 다른 구성원의 대표과업으로 바로 옮기는 띠
+  const fromPo = new URLSearchParams(query).get('from') === 'poboard';
+  const poBand = () => {
+    if (!fromPo) return '';
+    const nav = poBoardNav(); const i = nav.findIndex((x) => x.id === t.id);
+    const prev = nav[i - 1]; const next = nav[i + 1];
+    const link = (x) => `#/project/tasks/${esc(x.id)}?from=poboard`;
+    const owners = []; for (const x of nav) if (!owners.some((o) => o.owner_slack_user_id === x.owner_slack_user_id)) owners.push(x);
+    const cur = nav[i];
+    return `<div class="po-band">
+      <a class="btn" href="#/project/poboard" data-po-back>‹ PO 보드로</a>
+      ${cur ? `<span class="po-band-cur">${avatar(memberOf(cur.owner_slack_user_id) ?? { display_name: '?' }, 'sm')} ${esc(cur.owner_name ?? '')} · ${cur.star ? '★ ' : ''}P${cur.rank}</span>` : ''}
+      ${nav.length ? `<span class="po-mo-nav"><a class="btn${prev ? '' : ' disabled'}" ${prev ? `href="${link(prev)}" data-po-go="${esc(prev.id)}"` : 'aria-disabled="true"'} title="${prev ? esc(prev.title) : ''}">‹ ${prev ? esc(prev.owner_name ?? '') : '이전'}</a><a class="btn${next ? '' : ' disabled'}" ${next ? `href="${link(next)}" data-po-go="${esc(next.id)}"` : 'aria-disabled="true"'} title="${next ? esc(next.title) : ''}">${next ? esc(next.owner_name ?? '') : '다음'} ›</a></span>
+      <span class="po-band-mems">${owners.map((x) => `<a class="po-mem${x.owner_slack_user_id === t.owner_slack_user_id ? ' on' : ''}" href="${link(x)}" data-po-go="${esc(x.id)}" title="${esc(x.title)}">${avatar(memberOf(x.owner_slack_user_id) ?? { display_name: '?' }, 'sm')}${esc(x.owner_name ?? '')}</a>`).join('')}</span>` : '<span class="sub">보드를 열면 구성원 이동 단추가 생깁니다</span>'}
+    </div>`;
+  };
+  if (fromPo) window.scrollTo({ top: 0 });   // 보드에서 넘어오면 이동 띠가 바로 보이게
   root.innerHTML = `
+    ${poBand()}
     <div class="page-head">
       <div>
         <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}${t.key ? ` · ${ticketTag(t)}` : ''}</div>
@@ -13944,6 +13975,13 @@ let allKind = 'all';                 // 'all' | 'parent' | 'sub' | 'link'
 let allDone = false;                 // 완료 포함
 const allSec = { parent: true, sub: true, link: false };
 const expanded = new Set();          // 하위를 펼친 상위 업무 id
+// 상세 페이지의 「PO 보드 이동 띠」가 쓰는 맥락 — 마지막으로 그린 카드 차례(정렬·구성원 필터 반영)
+let poLast = [];                     // [{ id, key, title, owner_slack_user_id, owner_name, rank, star }]
+let poCameBack = false;              // 상세에서 돌아올 때 열린 카드로 스크롤
+/** 상세 페이지에서 부른다 — 보드 카드 차례. 보드를 아직 안 열었으면 빈 배열 */
+const poBoardNav = () => poLast;
+/** 상세 페이지에서 다른 구성원의 카드로 옮길 때 — 돌아오면 그 카드가 열려 있다 */
+const poBoardOpen = (id) => { open = id; poCameBack = true; };
 const poShiftMonth = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const poMonthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
@@ -14090,7 +14128,9 @@ async function renderPoBoard(host) {
         <div class="meta"><span>${av(t.owner_slack_user_id)} ${esc(t.owner_name ?? '')}${t.team ? ` · ${esc(t.team)}` : ''}</span><span>📅 ${t.start_date ? `${poMd(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div>
         <div class="pr"><span class="big">${t.pct}%</span><span class="tr"><i style="width:${t.pct}%"></i></span><span class="sm">${subN ? `${subD} / ${subN}개 하위 업무 완료` : '하위 업무 없음'}</span></div>
         ${rankPicker(t)}
-        <a class="btn" href="#/project/tasks/${esc(t.id)}" title="업무 상세 열기">상세 열기 ›</a>
+        ${(() => { const i = poLast.findIndex((x) => x.id === t.id); const prev = poLast[i - 1]; const next = poLast[i + 1];
+          return `<span class="po-mo-nav po-pn"><button class="btn" type="button" data-open="${prev ? esc(prev.id) : ''}"${prev ? '' : ' disabled'} title="${prev ? `이전: ${esc(prev.owner_name ?? '')} · ${esc(prev.title)}` : '처음 카드'}">‹ ${prev ? esc(prev.owner_name ?? '') : '이전'}</button><button class="btn" type="button" data-open="${next ? esc(next.id) : ''}"${next ? '' : ' disabled'} title="${next ? `다음: ${esc(next.owner_name ?? '')} · ${esc(next.title)}` : '마지막 카드'}">${next ? esc(next.owner_name ?? '') : '다음'} ›</button></span>`; })()}
+        <a class="btn" href="#/project/tasks/${esc(t.id)}?from=poboard" title="업무 상세 열기">상세 열기 ›</a>
         <button class="po-x" type="button" data-close aria-label="닫기">✕</button></div>
       <div class="po-cols">
         <div class="po-col"><h4>과업 요약</h4><dl class="po-kv">
@@ -14205,10 +14245,11 @@ async function renderPoBoard(host) {
   };
   const paint = () => {
     const list = sortList(keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who));
+    poLast = list.map(({ id, key, title, owner_slack_user_id, owner_name, rank, star }) => ({ id, key, title, owner_slack_user_id, owner_name, rank, star }));
     const sel = keyTasks.find((t) => t.id === open);
     host.innerHTML = `
       <div class="po">
-        <div class="page-head"><div><h1>PO 보드</h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
+        <div class="page-head"><div><h1>PO 보드 <span class="po-tag">Priority Organizer</span></h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
           <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" class="${mode === 'week' ? 'on' : ''}" data-mode="week" role="tab" aria-selected="${mode === 'week'}">주간</button><button type="button" class="${mode === 'month' ? 'on' : ''}" data-mode="month" role="tab" aria-selected="${mode === 'month'}">월간</button></div>
             ${mode === 'week' ? `<span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() - 7 * 864e5).toISOString().slice(0, 10))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${isThisWeek ? ' disabled' : ''}>이번 주</button><span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() + 7 * 864e5).toISOString().slice(0, 10))}" aria-label="다음 주">›</button></span>` : ''}<button class="btn btn-primary" type="button" disabled title="다음 단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
         <div class="po-kpis${mode === 'month' ? ' month' : ''}">
@@ -14351,6 +14392,8 @@ async function renderPoBoard(host) {
     const m = e.target.closest('[data-who]');
     if (m) { who = m.dataset.who; paint(); return; }
     if (e.target.closest('[data-close]')) { open = null; paint(); return; }
+    const op = e.target.closest('[data-open]');
+    if (op) { if (op.dataset.open) { open = null; openCard(op.dataset.open); document.querySelector(`.po-card[data-id="${op.dataset.open}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } return; }
     const kd = e.target.closest('[data-kind]');
     if (kd) { allKind = kd.dataset.kind; paint(); return; }
     const sc = e.target.closest('[data-sec]');
@@ -14368,6 +14411,7 @@ async function renderPoBoard(host) {
     if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(c.dataset.id); }
   });
   paint();
+  if (poCameBack) { poCameBack = false; host.querySelector('.po-card.on')?.scrollIntoView({ block: 'center' }); }
   // 순위를 바꾼 뒤 다시 그릴 때 펼쳐 둔 카드의 하위 업무·링크·디렉터 코멘트도 다시 읽는다
   if (open && keyTasks.some((t) => t.id === open) && !(subsCache.has(open) && extraCache.has(open))) {
     const id = open;
