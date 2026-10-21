@@ -22,6 +22,7 @@ export const MEMBERS = [
   { id: 'U11JUNYOUNG', name: '준영', handle: 'junyoung', active: 1 },
   { id: 'U12SEONGYOUNG', name: '성영', handle: 'seongyoung', active: 1 },
   { id: 'U13JJO', name: '쪼', handle: 'jjo', active: 1 },
+  { id: 'U14HYUNJU', name: '정현주', handle: 'hyunju', active: 1 },
 ];
 
 // 같은 사람이 두 번 들어간 구성원 — 앞의 id 를 뒤의 id 로 합치고 앞의 id 는 비활성으로 둔다
