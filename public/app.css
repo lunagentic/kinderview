@@ -1727,7 +1727,7 @@ body[data-gate="view"] .sbm-title{pointer-events:none}
 .subs li .sub-due{margin-left:auto}
 body[data-gate="view"] .sub-due{pointer-events:none;border-color:transparent;background:none;padding-left:0}
 @media (max-width:720px){.sub-due{width:120px}}
-.sub-add{display:flex;gap:8px;margin-top:12px}
+.sub-add{display:flex;align-items:center;gap:8px;margin-top:12px}
 .sub-add input{flex:1;min-width:0}
 .sub-note{margin:10px 0 0;font-size:.78rem;color:var(--muted)}
 
@@ -2161,7 +2161,7 @@ body[data-gate="view"] .tl-grip{display:none}
 .sub-area.none,.sub-owner.none{color:var(--muted);border-style:dashed;background:var(--surface)}
 .sub-area:focus-visible,.sub-owner:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-events:none}
-.sub-add .sub-area{max-width:120px}
+.sub-add .sub-area{max-width:120px;align-self:center}   /* 입력칸 높이로 늘어나지 않게 — 위 줄의 영역 칩과 같은 크기 */
 .tl-sub .sub-area{font-size:.68rem;font-weight:600;padding:2px 7px;max-width:84px}   /* 타임라인 하위 줄 — 「영역 없음」 자리도 늘 둔다 */
 .sbm-chips .sbm-area{font-size:.72rem;font-weight:600;padding:2px 9px}
 .sub-area-chip{display:inline-flex;align-items:center;flex:none;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:999px;
@@ -2175,7 +2175,7 @@ body[data-gate="view"] .sub-area,body[data-gate="view"] .sub-owner{pointer-event
 @media (max-width:720px){
   .subs li .sbm-title,.sbm-list li .sbm-title{flex:1 1 55%;min-width:0}
   .sub-area,.sub-owner{min-height:0;height:28px;padding:0 9px}
-  .sub-add .sub-area{height:36px}
+  .sub-add .sub-area{height:28px}
 }
 /* 업무 팝업 — 고쳤지만 아직 저장 안 한 칸 */
 .modal .dirty{box-shadow:0 0 0 2px color-mix(in oklab, var(--amber) 70%, transparent) !important;border-color:var(--amber) !important}
