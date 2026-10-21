@@ -1966,6 +1966,12 @@ function updateTask(id, input, actor) {
     save();
     return hydrate(t);
   }
+  // PO 보드 카드 자리 — 끌어서 정한 순서(1, 2, 3…). 이력·알림 없음
+  if (Object.keys(input).length === 1 && input.po_order !== undefined) {
+    t.po_order = input.po_order == null ? null : Number(input.po_order);
+    save();
+    return hydrate(t);
+  }
   // 핵심과업 별표 — 사람마다 따로 단다(내 별표만 켜고 끈다). 이력·알림 없음
   if (Object.keys(input).length === 1 && input.star !== undefined) {
     if (!actor) throw new DemoError('현재 사용자를 먼저 골라 주세요.');

@@ -2530,6 +2530,11 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-card.on{border-color:var(--indigo);box-shadow:0 0 0 1px var(--indigo),0 10px 26px rgba(21,26,45,.1)}
 .po-card.on::after{content:'';position:absolute;left:50%;bottom:-7px;width:12px;height:12px;background:var(--surface);border-right:1px solid var(--indigo);border-bottom:1px solid var(--indigo);transform:translateX(-50%) rotate(45deg)}
 .po-who{display:flex;align-items:center;gap:8px;min-height:30px}
+.po-grip{flex:none;width:22px;height:30px;display:inline-flex;align-items:center;justify-content:center;margin-left:-6px;color:var(--muted);font-size:1rem;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:6px}
+.po-grip:hover{background:var(--surface-2);color:var(--ink)}
+.po-card.dragging{opacity:.75;transform:scale(1.02);box-shadow:0 14px 30px rgba(21,26,45,.18);z-index:2;cursor:grabbing}
+.po-card.dragging .po-grip{cursor:grabbing}
+body[data-gate="view"] .po-grip{display:none}
 .po-who .nm{font-weight:700;font-size:.9rem;line-height:1.2}
 .po-who .team{font-size:.72rem;color:var(--muted);line-height:1.2}
 .po-rank{margin-left:auto;flex:none;font-size:.74rem;font-weight:800;border-radius:999px;padding:3px 9px;background:color-mix(in srgb,var(--indigo) 12%,var(--surface));color:var(--indigo)}

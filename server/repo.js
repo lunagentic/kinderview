@@ -1365,6 +1365,11 @@ export const tasks = {
       run('UPDATE task SET po_rank = :r WHERE id = :id', { id, r: input.po_rank == null ? null : Number(input.po_rank) });
       return { before: cur, after: tasks.get(id) };
     }
+    // PO 보드 카드 자리 — 끌어서 정한 순서. 이력·알림 없이 자리만 옮긴다
+    if (Object.keys(input).length === 1 && input.po_order !== undefined) {
+      run('UPDATE task SET po_order = :o WHERE id = :id', { id, o: input.po_order == null ? null : Number(input.po_order) });
+      return { before: cur, after: tasks.get(id) };
+    }
     // 핵심과업 별표 — 사람마다 따로(내 별표만 켜고 끈다)
     if (Object.keys(input).length === 1 && input.star !== undefined) {
       const stars = new Set(JSON.parse(cur.stars_json ?? '[]'));

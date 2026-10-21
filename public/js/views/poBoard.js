@@ -23,7 +23,7 @@ const rankKey = (t) => `${t.late ? 0 : 1}|${t.due_date ?? '9999-99-99'}`;
 let who = 'all';
 let open = null;
 let mode = 'week';   // 'week' | 'month'
-let sortBy = 'rank'; // 'rank'(P1 먼저) | 'person'(구성원별) | 'due'(마감 가까운 순)
+let sortBy = null;   // 'rank'(P1 먼저) | 'person'(구성원별) | 'due'(마감 가까운 순) | 'custom'(끌어서 정한 내 순서). 비면 처음 열 때 정한다
 let month = null;    // 월간 보기의 달(YYYY-MM). 비면 이번 달
 let week = null;     // 주간 보기의 주(그 주 월요일 YYYY-MM-DD). 비면 이번 주
 // 「그 사람의 모든 과업」 패널 — 유형 필터·완료 포함·묶음 접기·펼친 상위
@@ -78,6 +78,7 @@ export async function renderPoBoard(host) {
     if (mr) month = mr.month;
   } catch (err) { host.innerHTML = errorBox(err.message); return; }
   const keyTasks = pickKeyTasks(all);
+  if (!sortBy) sortBy = keyTasks.some((t) => t.po_order != null) ? 'custom' : 'rank';   // 끌어 둔 자리가 있으면 그 순서로 연다
   const today = state.today;
   const mondayOf = (d) => new Date(dt(d) - ((dt(d).getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10);
   const thisWk0 = mondayOf(today);
@@ -136,7 +137,7 @@ export async function renderPoBoard(host) {
   };
   const card = (t) => `
     <div class="po-card${open === t.id ? ' on' : ''}" data-id="${esc(t.id)}" role="button" tabindex="0" aria-expanded="${open === t.id}">
-      <div class="po-who">${av(t.owner_slack_user_id)}<div><div class="nm">${esc(t.owner_name ?? '')}</div><div class="team">${esc(t.team || '팀 미정')}</div></div>
+      <div class="po-who"><span class="po-grip" data-grip title="끌어서 자리 바꾸기" aria-hidden="true">⠿</span>${av(t.owner_slack_user_id)}<div><div class="nm">${esc(t.owner_name ?? '')}</div><div class="team">${esc(t.team || '팀 미정')}</div></div>
         <span class="po-rank${t.star ? ' star' : ''}" title="${t.star ? '★ 핵심과업 · ' : ''}우선순위 P${t.rank}">${t.star ? '★ ' : ''}P${t.rank}</span></div>
       <div class="po-ttl" title="${esc(t.title)}"><span class="k">${esc(t.key ?? '')}</span>${esc(t.title)}</div>
       <div class="po-prog ${toneOf(t)}"><span class="tr"><i style="width:${t.pct}%"></i></span><span class="pc">${t.pct}%</span></div>
@@ -281,9 +282,10 @@ export async function renderPoBoard(host) {
       </div>`;
   };
   // 카드 정렬 — 우선순위(P1 먼저) · 구성원별 · 마감 가까운 순
-  const SORTS = [['rank', '우선순위 (P1 먼저)'], ['person', '구성원별'], ['due', '마감 가까운 순']];
+  const SORTS = [['rank', '우선순위 (P1 먼저)'], ['person', '구성원별'], ['due', '마감 가까운 순'], ['custom', '내 순서 (끌어서 정함)']];
   const sortList = (list) => {
     const byRank = (a, b) => (a.rank - b.rank) || rankKey(a).localeCompare(rankKey(b));
+    if (sortBy === 'custom') return [...list].sort((a, b) => ((a.po_order ?? 9999) - (b.po_order ?? 9999)) || (b.star - a.star) || byRank(a, b));
     if (sortBy === 'person') return [...list].sort((a, b) => (a.owner_name ?? '').localeCompare(b.owner_name ?? '', 'ko') || byRank(a, b));
     if (sortBy === 'due') return [...list].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || byRank(a, b));
     return [...list].sort((a, b) => (b.star - a.star) || byRank(a, b));   // ★ 가 같은 P 안에서도 먼저
@@ -366,6 +368,59 @@ export async function renderPoBoard(host) {
     } catch (err) { toast(err.message, true); }
     renderPoBoard(host);
   };
+  // ── 카드 끌어서 자리 바꾸기 — 손잡이(⠿)를 잡고 끈다. 놓으면 보이는 카드 차례를 po_order 로 저장하고 「내 순서」 정렬로 바뀐다 ──
+  const saveOrder = async (ids) => {
+    let n = 0;
+    for (let i = 0; i < ids.length; i += 1) {
+      const t = all.find((x) => x.id === ids[i]);
+      if (!t || t.po_order === i + 1) continue;
+      await api.patch(`/api/tasks/${encodeURIComponent(t.id)}`, { po_order: i + 1 });
+      t.po_order = i + 1; const k = keyTasks.find((x) => x.id === t.id); if (k) k.po_order = i + 1;
+      n += 1;
+    }
+    return n;
+  };
+  (function enableCardDrag() {
+    let id = null; let moved = false; let sx = 0; let sy = 0;
+    const cards = () => [...host.querySelectorAll('.po-cards > .po-card')];
+    host.addEventListener('pointerdown', (e) => {
+      const grip = e.target.closest('[data-grip]');
+      if (!grip) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+      id = grip.closest('.po-card').dataset.id; moved = false; sx = e.clientX; sy = e.clientY;
+      grip.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+    });
+    host.addEventListener('pointermove', (e) => {
+      if (!id) return;
+      if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) < 8) return;
+      moved = true;
+      const el = host.querySelector(`.po-card[data-id="${id}"]`); if (!el) return;
+      el.classList.add('dragging');
+      const list = cards();
+      const over = list.find((n) => { if (n === el) return false; const r = n.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; });
+      if (!over) return;
+      if (list.indexOf(over) < list.indexOf(el)) over.before(el); else over.after(el);
+    });
+    const end = async () => {
+      if (!id) return;
+      const el = host.querySelector(`.po-card[data-id="${id}"]`); el?.classList.remove('dragging');
+      const wasMoved = moved; id = null;
+      if (!wasMoved) return;
+      const ids = cards().map((c) => c.dataset.id);
+      try {
+        const n = await saveOrder(ids);
+        sortBy = 'custom';
+        toast(n ? '카드 자리를 저장했습니다.' : '자리가 그대로입니다.');
+      } catch (err) { toast(err.message, true); }
+      paint();
+      setTimeout(() => { moved = false; }, 0);
+    };
+    host.addEventListener('pointerup', end);
+    host.addEventListener('pointercancel', end);
+    host.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); } }, true);
+  }());
   host.addEventListener('change', (e) => {
     const so = e.target.closest('[data-sort]');
     if (so) { sortBy = so.value; paint(); return; }
