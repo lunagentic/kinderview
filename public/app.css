@@ -2470,3 +2470,12 @@ body[data-gate="view"] .tk-sub-row .tk-star:not(.on),body[data-gate="view"] .sbm
 .co-chip .x:hover{color:var(--s-delay);background:var(--surface-2)}
 .co-add{max-width:120px}
 body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
+/* 폰 — 업무 목록: 제목이 별·✎·번호·칩과 한 줄에 끼면 한 글자씩 꺾인다. 제목은 자기 줄을 갖는다 */
+@media (max-width:720px){
+  .tk-title{flex-wrap:wrap;row-gap:4px}
+  .tk-title .ttl-wrap{flex:1 0 100%;order:1;margin-left:0}
+  .tk-title > :not(.ttl-wrap):not(.tk-star):not(.tk-open):not(.tkey){order:2}
+  /* 타임라인 프로젝트 끝 줄 — 업무 등록 칸을 한 줄로, 「+ 페이즈 추가」는 그 아래 */
+  .tl-proj-add .tl-label{flex-wrap:wrap;row-gap:6px;padding-top:6px;padding-bottom:6px}
+  .tl-proj-add .tl-task-form{flex:1 0 100%}
+}
