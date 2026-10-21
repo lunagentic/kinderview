@@ -12,7 +12,7 @@ import { renderReport } from './views/report.js';
 import { renderMonthly } from './views/monthly.js';
 import { renderFlow } from './views/flow.js';
 import { renderNotifications } from './views/notifications.js';
-import { renderTimeline } from './views/timeline.js';
+import { renderTimeline, timelineJump } from './views/timeline.js';
 import { renderTime } from './views/time.js';
 import { renderInvoice } from './views/invoice.js';
 import { gatePanel } from './views/gatePanel.js';
@@ -370,6 +370,32 @@ view.addEventListener('click', (e) => {
 });
 
 window.addEventListener('hashchange', render);
+
+// 티켓 번호(KV-22 등)를 누르면 타임라인의 그 줄로 간다. 타임라인 안의 번호는 줄 동작을 그대로 둔다.
+const ticketJump = async (el) => {
+  const modalBox = el.closest('#modal-root .backdrop');
+  if (modalBox) {
+    modalBox.querySelector('[data-close]')?.click();   // 저장 안 한 것이 있으면 묻는다
+    if (modalBox.isConnected) return;                   // 닫지 않기로 했다
+  }
+  timelineJump(el.dataset.tkJump, el.dataset.tkSub || null);
+  if (/^#\/project\/timeline(\?|$)/.test(window.location.hash)) render();
+  else window.location.hash = '#/project/timeline';
+};
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-tk-jump]');
+  if (!el || el.closest('#view .tl-wrap')) return;
+  e.preventDefault();
+  e.stopPropagation();   // 줄 펼치기·상세 열기로 번지지 않게
+  ticketJump(el);
+}, true);
+document.addEventListener('keydown', (e) => {
+  const el = e.target.closest?.('[data-tk-jump]');
+  if (!el || (e.key !== 'Enter' && e.key !== ' ') || el.closest('#view .tl-wrap')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  ticketJump(el);
+}, true);
 // 같은 화면을 다시 그릴 때는 보던 자리를 지킨다. 순서를 끌어 바꿨는데
 // 맨 위로 튀면 방금 옮긴 줄을 다시 찾아야 한다.
 const SCROLLERS = '.tl-wrap, .gantt-wrap, .table-wrap, .board';

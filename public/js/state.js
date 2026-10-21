@@ -44,6 +44,8 @@ export function setMe(id) {
 export const memberOf = (id) => state.members.find((m) => m.slack_user_id === id) || null;
 export const projectOf = (id) => state.projects.find((p) => p.id === id) || null;
 export const activeMembers = () => state.members.filter((m) => m.is_active);
+/** 고르는 칸의 이름 — 내 편집 코드에 묶인 사람(나)은 「나 (손)」으로 */
+export const meLabel = (m) => (!m ? '' : m.slack_user_id === state.me ? `나 (${m.display_name})` : m.display_name);
 export const activeProjects = () =>
   state.projects.filter((p) => !p.is_archived && ['ACTIVE', 'PLANNED'].includes(p.status));
 
@@ -58,10 +60,12 @@ export const statusMeta = (code) => {
 export const statusesFor = (area) =>
   area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses;
 // 담당이 되는 사람은 대표 리드다. role 이 없던 시절 데이터도 대표로 본다.
+// 비활성 구성원은 리드로 보이지도, 담당으로 정해지지도 않는다
+const liveLead = (l) => l.is_active !== false && l.is_active !== 0;
 export const leadOf = (area) =>
-  state.areaLeads.find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD') ?? null;
+  state.areaLeads.find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD' && liveLead(l)) ?? null;
 // 함께 서는 사람들 — 담당은 지지 않는다
-export const coLeadsOf = (area) => state.areaLeads.filter((l) => l.area === area && l.role === 'CO');
+export const coLeadsOf = (area) => state.areaLeads.filter((l) => l.area === area && l.role === 'CO' && liveLead(l));
 /** 화면에 쓰는 이름 한 줄: "혁 · 손" */
 export const leadNames = (area) => {
   const names = [leadOf(area), ...coLeadsOf(area)].filter(Boolean).map((l) => l.display_name);

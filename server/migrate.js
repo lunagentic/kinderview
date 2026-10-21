@@ -583,6 +583,28 @@ function wakeWaitingParents() {
   return `하위 업무가 움직인 「대기」 업무 ${rows.length}건을 「진행중」으로`;
 }
 
+/** 하위가 모두 끝났는데 상위가 안 끝난 업무를 「완료」로 — 그 규칙이 생기기 전에 끝난 것을 맞춘다 */
+function finishDoneParents() {
+  if (!/\bstatus\b/.test(tableSql('subtask'))) return null;
+  const rows = db.prepare(`SELECT t.id, t.status, t.owner_slack_user_id FROM task t
+    WHERE t.deleted_at IS NULL AND t.status IN ('TODO','IN_PROGRESS','REVIEW')
+      AND EXISTS (SELECT 1 FROM subtask s WHERE s.task_id = t.id)
+      AND NOT EXISTS (SELECT 1 FROM subtask s WHERE s.task_id = t.id AND s.status <> 'DONE')`).all();
+  if (!rows.length) return null;
+  const at = new Date().toISOString();
+  db.exec('BEGIN');
+  try {
+    for (const r of rows) {
+      db.prepare("UPDATE task SET status = 'DONE', completed_at = :at, updated_at = :at WHERE id = :id").run({ id: r.id, at });
+      db.prepare(`INSERT INTO task_event (id, task_id, event_type, from_value, to_value, actor_slack_user_id, occurred_at)
+        VALUES (:eid, :id, 'STATUS_CHANGED', :from, 'DONE', :actor, :at)`)
+        .run({ eid: crypto.randomUUID(), id: r.id, from: r.status, actor: r.owner_slack_user_id, at });
+    }
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  return `하위 업무가 모두 끝난 업무 ${rows.length}건을 「완료」로`;
+}
+
 /** 업무 첨부(링크·이미지) 표 — 스키마에 있으니 없을 때만 만든다. */
 function addAttachments() {
   if (tableSql('attachment')) return null;
@@ -619,7 +641,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder(), addTaskStars(), addSubtaskStars()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder(), addTaskStars(), addSubtaskStars(), finishDoneParents()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

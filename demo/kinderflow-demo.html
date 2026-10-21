@@ -1315,6 +1315,8 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .cat-edit-foot{display:flex;justify-content:flex-end}
 
 .tk-cat{min-width:0}
+/* 목록의 분류 칩 — 옆 칩(높음·0/1)과 같은 크기로. 화살표 자리 여백을 덜어 낸다 */
+.tk-cat .chip-select{font-size:.7rem;line-height:1.5;padding:0 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tk-pr{font-size:.76rem;white-space:nowrap}
 .tk-pr.pr-high{color:var(--s-delay);font-weight:600}
 .tk-pr.pr-normal{color:var(--muted)}
@@ -1541,6 +1543,11 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tkey{font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap;flex:none;
   padding:0 5px;border:1px solid var(--line);border-radius:4px;line-height:1.5;margin-right:6px;vertical-align:middle}
 .tkey.none{border-style:dashed;color:var(--muted);opacity:.8}
+.tkey[data-tk-jump]{cursor:pointer}
+.tkey[data-tk-jump]:hover{color:var(--indigo);border-color:var(--indigo)}
+.tkey[data-tk-jump]:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.tl-wrap .tkey[data-tk-jump]{cursor:inherit}
+.tl-wrap .tkey[data-tk-jump]:hover{color:var(--muted);border-color:var(--line)}
 .tk-title .tkey{margin-right:4px}
 
 /* ── 하위 업무 팝업 ──────────────────────────── */
@@ -1774,7 +1781,12 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .sbm-sec + .sbm-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)}
 /* 뱃지와 상태 칸은 폭을 고정한다 — 글자 길이에 따라 열이 흔들리면 안 된다 */
 .tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:1px 4px;min-width:36px;box-sizing:border-box}
-.tl-task .tl-tst{flex:none;width:60px;padding:0 4px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-task .tl-tst{flex:none;width:64px;padding:0;border:none;margin-right:8px;display:inline-flex;align-items:center;position:relative}
+/* 업무 줄 상태 — 눌러서 바꾸는 칩. 지연이면 빨간 테두리와 ⚠ */
+.tl-task .tl-tst .chip-select{width:100%;font-size:.68rem;padding:1px 14px 1px 15px;line-height:1.4;background-position:6px 50%,calc(100% - 10px) 53%,calc(100% - 6px) 53%}
+.tl-task .tl-tst.late .chip-select{border-color:var(--s-delay);background-size:0 0,4px 4px,4px 4px}
+.tl-task .tl-tst.late::before{content:'⚠';position:absolute;left:5px;font-size:.6rem;color:var(--s-delay);pointer-events:none;z-index:1}
+body[data-gate="view"] .tl-task .tl-tst .chip-select{pointer-events:none}
 /* 페이즈 줄 — 한 줄: ▸ 이름 … 진척 막대 · % · 완료/전체 · 코멘트. 막대가 화면 밖으로 밀려도 여기서 읽는다 */
 /* 페이즈 줄에 올리면 줄 전체가 살짝 들리고, 제목 칸 빈 곳을 누르면 업무가 펼쳐진다. 이름은 수정 창. */
 .tl-phase .tl-label{cursor:pointer;border-radius:6px 0 0 6px}
@@ -2407,7 +2419,7 @@ body[data-gate="view"] .tl-sub-add,body[data-gate="view"] .tl-proj-add{display:n
 .tl-proj-add .tl-add-btn{flex:none}
 .tl-top-add{min-height:34px}
 .tl-top-add .tl-label{flex-direction:row;justify-content:flex-start;align-items:center}
-.tl-task.flash .tl-label,.tl-task.flash .tl-track{animation:sbm-flash 1.8s ease-out}
+.tl-task.flash .tl-label,.tl-task.flash .tl-track,.tl-sub.flash .tl-label,.tl-sub.flash .tl-track{animation:sbm-flash 2.4s ease-out}
 body[data-gate="view"] .tl-top-add,body[data-gate="view"] .tl-task-add{display:none}
 
 /* 업무 목록 우선순위 — 작은 글자 칩. 높음만 눈에 띄게 */
@@ -3664,6 +3676,17 @@ function wakeWaitingParents(db) {
     t.updated_at = at;
     (db.events ??= []).push({ id: uid(), task_id: t.id, event_type: 'STATUS_CHANGED', from_value: 'TODO',
       to_value: 'IN_PROGRESS', actor_slack_user_id: t.owner_slack_user_id, occurred_at: at });
+    n += 1;
+  }
+  // 하위가 모두 끝났는데 상위가 아직 안 끝난 것 — 「완료」 규칙이 생기기 전에 끝난 업무를 맞춘다
+  for (const t of db.tasks ?? []) {
+    if (t.deleted_at || !['TODO', 'IN_PROGRESS', 'REVIEW'].includes(t.status)) continue;
+    const subs = (db.subtasks ?? []).filter((x) => x.task_id === t.id);
+    if (!subs.length || !subs.every((x) => (x.status ?? (x.is_done ? 'DONE' : 'TODO')) === 'DONE')) continue;
+    const before = t.status;
+    Object.assign(t, { status: 'DONE', completed_at: t.completed_at || at, updated_at: at });
+    (db.events ??= []).push({ id: uid(), task_id: t.id, event_type: 'STATUS_CHANGED', from_value: before,
+      to_value: 'DONE', actor_slack_user_id: t.owner_slack_user_id, occurred_at: at });
     n += 1;
   }
   return n;
@@ -6705,6 +6728,8 @@ function setMe(id) {
 const memberOf = (id) => state.members.find((m) => m.slack_user_id === id) || null;
 const projectOf = (id) => state.projects.find((p) => p.id === id) || null;
 const activeMembers = () => state.members.filter((m) => m.is_active);
+/** 고르는 칸의 이름 — 내 편집 코드에 묶인 사람(나)은 「나 (손)」으로 */
+const meLabel = (m) => (!m ? '' : m.slack_user_id === state.me ? `나 (${m.display_name})` : m.display_name);
 const activeProjects = () =>
   state.projects.filter((p) => !p.is_archived && ['ACTIVE', 'PLANNED'].includes(p.status));
 
@@ -6719,10 +6744,12 @@ const statusMeta = (code) => {
 const statusesFor = (area) =>
   area === 'OUT' ? state.meta.out_statuses : state.meta.normal_statuses;
 // 담당이 되는 사람은 대표 리드다. role 이 없던 시절 데이터도 대표로 본다.
+// 비활성 구성원은 리드로 보이지도, 담당으로 정해지지도 않는다
+const liveLead = (l) => l.is_active !== false && l.is_active !== 0;
 const leadOf = (area) =>
-  state.areaLeads.find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD') ?? null;
+  state.areaLeads.find((l) => l.area === area && (l.role ?? 'LEAD') === 'LEAD' && liveLead(l)) ?? null;
 // 함께 서는 사람들 — 담당은 지지 않는다
-const coLeadsOf = (area) => state.areaLeads.filter((l) => l.area === area && l.role === 'CO');
+const coLeadsOf = (area) => state.areaLeads.filter((l) => l.area === area && l.role === 'CO' && liveLead(l));
 /** 화면에 쓰는 이름 한 줄: "혁 · 손" */
 const leadNames = (area) => {
   const names = [leadOf(area), ...coLeadsOf(area)].filter(Boolean).map((l) => l.display_name);
@@ -6798,9 +6825,12 @@ const projectStyle = (id) => `--pc:var(--p${projectTone(id)})`;
 const projectName = (id, name) =>
   `<span class="pname" style="${projectStyle(id)}"><i class="pdot"></i>${esc(name ?? '')}</span>`;
 /** 티켓 번호(KV-12). 프로젝트는 있는데 코드가 없으면 번호를 못 읽으니 그 이유를 단다 */
+// 번호를 누르면 타임라인의 그 줄로 간다(app.js). 하위 업무는 task_id 가 있다.
+const tkJump = (t) => (t.id
+  ? ` data-tk-jump="${esc(t.task_id ?? t.id)}"${t.task_id ? ` data-tk-sub="${esc(t.id)}"` : ''} role="link" tabindex="0"` : '');
 const ticketTag = (t) => {
-  if (t.key) return `<span class="tkey" title="티켓 번호">${esc(t.key)}</span>`;
-  if (t.project_id && t.seq) return `<span class="tkey none" title="번호 ${esc(String(t.seq))} — 프로젝트 약칭을 정하면 KV-${esc(String(t.seq))}처럼 읽힙니다">#${esc(String(t.seq))}</span>`;
+  if (t.key) return `<span class="tkey"${tkJump(t)} title="티켓 번호 — 눌러서 타임라인에서 보기">${esc(t.key)}</span>`;
+  if (t.project_id && t.seq) return `<span class="tkey none"${tkJump(t)} title="번호 ${esc(String(t.seq))} — 눌러서 타임라인에서 보기">#${esc(String(t.seq))}</span>`;
   return '';
 };
 /** 프로젝트를 아직 안 정한 업무도 있다 — 빈 칸 대신 그렇게 적는다 */
@@ -6815,12 +6845,12 @@ const avatar = (member, cls = '') => {
     : `<span class="avatar ${cls}">${initial}</span>`;
 };
 
+// 비활성 구성원은 이름을 감춘다. 나는 「나 (손)」으로 구분한다.
 const person = (id, name) => {
   const m = memberOf(id);
-  const label = name || m?.display_name || id || '-';
-  return `<span class="person">${avatar(m, 'sm')}<span>${esc(label)}</span>${
-    m && !m.is_active ? '<span class="inactive">(비활성)</span>' : ''
-  }</span>`;
+  if (m && !m.is_active) return '';
+  const label = m ? meLabel(m) : (name || id || '-');
+  return `<span class="person">${avatar(m, 'sm')}<span>${esc(label)}</span></span>`;
 };
 
 const statusChip = (code) => {
@@ -7098,7 +7128,7 @@ const subOwnerPick = (r) => {
   const people = (state.members ?? []).filter((m) => m.is_active || m.slack_user_id === cur);
   return `<select class="sub-owner${cur ? '' : ' none'}" data-sub-owner="${esc(r.id)}" aria-label="하위 업무 담당" title="담당">
     <option value=""${cur ? '' : ' selected'}>담당 없음</option>
-    ${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === cur ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+    ${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === cur ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
   </select>`;
 };
 /** 보기 전용 칩 — 타임라인처럼 좁은 줄에 */
@@ -7520,7 +7550,7 @@ function taskForm({ task = null, defaults = {}, onSaved }) {
           <span class="lab">책임자 <span class="hint" style="font-weight:400">업무 전체를 챙기는 사람 · 실무 담당은 하위 업무마다</span></span>
           <select name="owner_slack_user_id" data-owner>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
-              m.slack_user_id === (task?.owner_slack_user_id ?? defaults.owner ?? state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              m.slack_user_id === (task?.owner_slack_user_id ?? defaults.owner ?? state.me) ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
           </select>
           <span class="lead-box" data-lead-box></span>
         </label>
@@ -7962,7 +7992,7 @@ function issueForm({ issue = null, defaults = {}, onSaved }) {
           <span class="lab">담당<span class="req">*</span></span>
           <select name="owner_slack_user_id" required>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
-              m.slack_user_id === (issue?.owner_slack_user_id ?? defaults.owner_slack_user_id ?? state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              m.slack_user_id === (issue?.owner_slack_user_id ?? defaults.owner_slack_user_id ?? state.me) ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
           </select>
         </label>
         <label class="field">
@@ -8694,7 +8724,7 @@ function subtaskModal({ task, onChange, focus = null }) {
       <dt>책임자</dt><dd class="owner-cell">
         <select data-owner aria-label="책임자 변경">
           ${state.members.filter((m) => m.is_active || m.slack_user_id === x.owner_slack_user_id).map((m) => `<option value="${esc(m.slack_user_id)}"${
-            m.slack_user_id === x.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+            m.slack_user_id === x.owner_slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
         </select>
       </dd>
       ${(x.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${x.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}
@@ -10670,9 +10700,11 @@ async function renderTasks(root, query) {
   const areaOptions = state.meta.areas
     .map((a) => `<option value="${esc(a.code)}"${p.get('area') === a.code ? ' selected' : ''}>${esc(a.full)}</option>`).join('');
   // 비활성 구성원은 고르지 않는다 — 이미 그 사람으로 걸러 둔 경우만 남긴다
+  // 나는 맨 위 「나 (손)」 하나로 — 아래 목록에서 또 나오지 않게 뺀다
   const ownerOptions = state.members
-    .filter((m) => m.is_active || p.get('owner') === m.slack_user_id)
-    .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}${m.is_active ? '' : ' (비활성)'}</option>`).join('');
+    .filter((m) => (m.is_active || p.get('owner') === m.slack_user_id) && (m.slack_user_id !== state.me || p.get('owner') === m.slack_user_id))
+    .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('');
+  const meOpt = state.me ? `나 (${memberOf(state.me)?.display_name ?? '현재 사용자'})` : '나 (현재 사용자)';
 
   // 핵심과업 별표 — 내가 단 것만 채워진 별. 남이 단 별은 내 목록에 영향이 없다
   const tkStar = (t) => {
@@ -10745,7 +10777,7 @@ async function renderTasks(root, query) {
     <div class="filter-row" style="margin-bottom:18px">
       <select data-f="project"><option value="">프로젝트 전체</option>${projectOptions}</select>
       <select data-f="area"><option value="">영역 전체</option>${areaOptions}</select>
-      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나 (현재 사용자)</option>${ownerOptions}</select>
+      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>${esc(meOpt)}</option>${ownerOptions}</select>
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label class="chk"><input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함</label>
       <button class="btn btn-ghost" data-reset>필터 초기화</button>
@@ -11273,7 +11305,7 @@ const rollToast = (rolled, before) => {
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
-        ${r.key ? `<span class="tkey" title="티켓 번호">${esc(r.key)}</span>` : ''}
+        ${ticketTag(r)}
         ${subAreaPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
@@ -11303,7 +11335,7 @@ async function renderTaskDetail(root, id, query = '') {
   root.innerHTML = `
     <div class="page-head">
       <div>
-        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}${t.key ? ` · <span class="tkey">${esc(t.key)}</span>` : ''}</div>
+        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}${t.key ? ` · ${ticketTag(t)}` : ''}</div>
         <h1>${titleCell(t, 'h1')}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           ${t.area === 'OUT' ? '<span class="chip out" title="외주 업무 — 업무 수정에서 끌 수 있습니다">외주</span>' : ''}
@@ -11339,7 +11371,7 @@ async function renderTaskDetail(root, id, query = '') {
             <dt>책임자</dt><dd class="owner-cell">
               <select data-owner aria-label="책임자 변경">
                 ${state.members.filter((m) => m.is_active).map((m) => `<option value="${esc(m.slack_user_id)}"${
-                  m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+                  m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
               </select>
             </dd>
             ${(t.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${
@@ -12939,7 +12971,7 @@ const monthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
 // 줄에서 바로 고친다 — 담당(셀렉트) · 마감(누르면 날짜 입력) · 상태(색 알약 셀렉트). 업무 탭·상세와 같은 부품, 같은 PATCH.
 const ownerPick = (t) => `<select class="mr-own-pick" data-owner="${esc(t.id)}" aria-label="담당 변경" title="눌러서 담당 바꾸기">
-    ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+    ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
     ${activeMembers().some((m) => m.slack_user_id === t.owner_slack_user_id) ? '' : `<option value="${esc(t.owner_slack_user_id ?? '')}" selected>${esc(t.owner_name ?? '')}</option>`}
   </select>`;
 // 협업자 — 담당 옆에 겹친 아바타. 누르면 체크 목록이 열려 바로 더하고 뺀다.
@@ -13060,10 +13092,10 @@ async function renderMonthly(root, query) {
   bar.hidden = true;
   bar.innerHTML = `
     <b data-bulk-n>0건 선택</b>
-    <label>담당 <select data-bulk-owner><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(m.display_name)}</option>`).join('')}</select></label>
+    <label>담당 <select data-bulk-owner><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(meLabel(m))}</option>`).join('')}</select></label>
     <button class="btn sm" type="button" data-bulk="owner">담당 지정</button>
     <span class="sep"></span>
-    <label>협업자 더하기 <select data-bulk-co><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(m.display_name)}</option>`).join('')}</select></label>
+    <label>협업자 더하기 <select data-bulk-co><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(meLabel(m))}</option>`).join('')}</select></label>
     <button class="btn sm" type="button" data-bulk="co">더하기</button>
     <span class="sep"></span>
     <label>상태 <select data-bulk-status><option value="">—</option>${(state.meta?.normal_statuses ?? []).map((st) => `<option value="${esc(st.code)}">${esc(st.label)}</option>`).join('')}</select></label>
@@ -14292,12 +14324,24 @@ const openPhases = new Set();
 const openTasks = new Set();
 // 방금 등록한 업무 — 다시 그린 뒤 반짝여 짚는다
 let flashTask = null;
+// 다른 화면에서 티켓 번호를 눌러 왔다 — 그 업무(하위)를 펼쳐 짚는다
+let jumpTo = null;
+const timelineJump = (task, sub = null) => { jumpTo = { task, sub }; };
 
 // 줄 안에서 제 일을 하는 것 — 여기를 누른 것은 '하위 업무 창을 열자'가 아니다
 const CHART_LINE_CONTROLS = 'button, a, select, input, .due-view, .due-edit';
 
 async function renderTimeline(root) {
   root.innerHTML = loading();
+  const jump = jumpTo;
+  jumpTo = null;
+  if (jump) {
+    try {
+      const tk = await api.get(`/api/tasks/${encodeURIComponent(jump.task)}`);
+      if (tk.phase_id) openPhases.add(tk.phase_id);
+      if (jump.sub && tk.subtask_total !== 0) openTasks.add(tk.id);
+    } catch { /* 지운 업무면 그냥 타임라인만 연다 */ }
+  }
 
   // 타임라인과 펼쳐 둔 페이즈의 업무를 한 번에 받는다 — 다시 그릴 때 깜빡이지 않게.
   // 페이즈의 업무는 전부 보여야 한다. 완료한 것도, 마감일을 아직 안 정한 것도 —
@@ -14369,7 +14413,6 @@ async function renderTimeline(root) {
   };
   // 하위 업무가 있으면 줄을 눌러 아래로 펼친다(보기). 이름(밑줄)을 누르면 업무 창(고치기).
   const taskRow = (t, phaseId) => {
-    const st = statusMeta(t.status);
     const subs = t.subtask_total ?? 0;
     const open = subs && openTasks.has(t.id);
     return `
@@ -14385,8 +14428,7 @@ async function renderTimeline(root) {
           ${subs ? `<span class="tl-tsubs" title="하위 업무 완료 ${t.subtask_done ?? 0} / ${subs}">${t.subtask_done ?? 0}/${subs}</span>` : ''}
           <span class="tl-tgap"></span>
           ${cmBadge(t)}
-          <span class="tl-tst ${esc(st.tone)}${t.is_delayed ? ' late' : ''}" title="${esc(st.label)}">${
-            t.is_delayed ? '지연' : esc(st.label)}</span>
+          <span class="tl-tst${t.is_delayed ? ' late' : ''}"${t.is_delayed ? ' title="지연 · 마감 지남"' : ''}>${statusPick(t)}</span>
         </div>
         <div class="tl-track">${gridLines()}${ganttTaskTrack(t, w)}</div>
       </div>`;
@@ -14718,6 +14760,15 @@ async function renderTimeline(root) {
     if (line) { line.classList.add('flash'); line.scrollIntoView({ block: 'nearest' }); setTimeout(() => line.classList.remove('flash'), 1800); }
   }
   bindLabelResize(root);
+  if (jump) {
+    const line = (jump.sub && root.querySelector(`.tl-sub[data-sub-line="${CSS.escape(jump.sub)}"]`))
+      || root.querySelector(`.tl-task[data-line="${CSS.escape(jump.task)}"]`);
+    if (line) {
+      line.classList.add('flash');
+      line.scrollIntoView({ block: 'center' });
+      setTimeout(() => line.classList.remove('flash'), 2400);
+    } else toast('타임라인에 없는 업무입니다 — 페이즈가 정해지지 않았을 수 있습니다.', true);
+  }
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
   root.addEventListener('change', async (e) => {
@@ -16335,6 +16386,32 @@ view.addEventListener('click', (e) => {
 });
 
 window.addEventListener('hashchange', render);
+
+// 티켓 번호(KV-22 등)를 누르면 타임라인의 그 줄로 간다. 타임라인 안의 번호는 줄 동작을 그대로 둔다.
+const ticketJump = async (el) => {
+  const modalBox = el.closest('#modal-root .backdrop');
+  if (modalBox) {
+    modalBox.querySelector('[data-close]')?.click();   // 저장 안 한 것이 있으면 묻는다
+    if (modalBox.isConnected) return;                   // 닫지 않기로 했다
+  }
+  timelineJump(el.dataset.tkJump, el.dataset.tkSub || null);
+  if (/^#\/project\/timeline(\?|$)/.test(window.location.hash)) render();
+  else window.location.hash = '#/project/timeline';
+};
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-tk-jump]');
+  if (!el || el.closest('#view .tl-wrap')) return;
+  e.preventDefault();
+  e.stopPropagation();   // 줄 펼치기·상세 열기로 번지지 않게
+  ticketJump(el);
+}, true);
+document.addEventListener('keydown', (e) => {
+  const el = e.target.closest?.('[data-tk-jump]');
+  if (!el || (e.key !== 'Enter' && e.key !== ' ') || el.closest('#view .tl-wrap')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  ticketJump(el);
+}, true);
 // 같은 화면을 다시 그릴 때는 보던 자리를 지킨다. 순서를 끌어 바꿨는데
 // 맨 위로 튀면 방금 옮긴 줄을 다시 찾아야 한다.
 const SCROLLERS = '.tl-wrap, .gantt-wrap, .table-wrap, .board';

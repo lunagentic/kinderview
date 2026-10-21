@@ -1,4 +1,4 @@
-import { state, memberOf, statusMeta, areaMeta, issueStatusMeta } from './state.js';
+import { state, memberOf, meLabel, statusMeta, areaMeta, issueStatusMeta } from './state.js';
 
 export const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -60,9 +60,12 @@ export const projectStyle = (id) => `--pc:var(--p${projectTone(id)})`;
 export const projectName = (id, name) =>
   `<span class="pname" style="${projectStyle(id)}"><i class="pdot"></i>${esc(name ?? '')}</span>`;
 /** 티켓 번호(KV-12). 프로젝트는 있는데 코드가 없으면 번호를 못 읽으니 그 이유를 단다 */
+// 번호를 누르면 타임라인의 그 줄로 간다(app.js). 하위 업무는 task_id 가 있다.
+const tkJump = (t) => (t.id
+  ? ` data-tk-jump="${esc(t.task_id ?? t.id)}"${t.task_id ? ` data-tk-sub="${esc(t.id)}"` : ''} role="link" tabindex="0"` : '');
 export const ticketTag = (t) => {
-  if (t.key) return `<span class="tkey" title="티켓 번호">${esc(t.key)}</span>`;
-  if (t.project_id && t.seq) return `<span class="tkey none" title="번호 ${esc(String(t.seq))} — 프로젝트 약칭을 정하면 KV-${esc(String(t.seq))}처럼 읽힙니다">#${esc(String(t.seq))}</span>`;
+  if (t.key) return `<span class="tkey"${tkJump(t)} title="티켓 번호 — 눌러서 타임라인에서 보기">${esc(t.key)}</span>`;
+  if (t.project_id && t.seq) return `<span class="tkey none"${tkJump(t)} title="번호 ${esc(String(t.seq))} — 눌러서 타임라인에서 보기">#${esc(String(t.seq))}</span>`;
   return '';
 };
 /** 프로젝트를 아직 안 정한 업무도 있다 — 빈 칸 대신 그렇게 적는다 */
@@ -77,12 +80,12 @@ export const avatar = (member, cls = '') => {
     : `<span class="avatar ${cls}">${initial}</span>`;
 };
 
+// 비활성 구성원은 이름을 감춘다. 나는 「나 (손)」으로 구분한다.
 export const person = (id, name) => {
   const m = memberOf(id);
-  const label = name || m?.display_name || id || '-';
-  return `<span class="person">${avatar(m, 'sm')}<span>${esc(label)}</span>${
-    m && !m.is_active ? '<span class="inactive">(비활성)</span>' : ''
-  }</span>`;
+  if (m && !m.is_active) return '';
+  const label = m ? meLabel(m) : (name || id || '-');
+  return `<span class="person">${avatar(m, 'sm')}<span>${esc(label)}</span></span>`;
 };
 
 export const statusChip = (code) => {
@@ -360,7 +363,7 @@ export const subOwnerPick = (r) => {
   const people = (state.members ?? []).filter((m) => m.is_active || m.slack_user_id === cur);
   return `<select class="sub-owner${cur ? '' : ' none'}" data-sub-owner="${esc(r.id)}" aria-label="하위 업무 담당" title="담당">
     <option value=""${cur ? '' : ' selected'}>담당 없음</option>
-    ${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === cur ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+    ${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === cur ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
   </select>`;
 };
 /** 보기 전용 칩 — 타임라인처럼 좁은 줄에 */

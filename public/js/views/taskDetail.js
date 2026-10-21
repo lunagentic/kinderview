@@ -1,10 +1,10 @@
 import { api } from '../api.js';
 import { canEdit } from '../gate.js';
-import { state, areaMeta, memberOf } from '../state.js';
+import { state, areaMeta, memberOf, meLabel } from '../state.js';
 import {
   esc, statusChip, person, shortDate, dDay, dateTime, loading, errorBox, toast, go, confirmModal,
   titleCell, autoGrow, syncTitleCell, linkify, subStatusOf, subProgress, subStatusPick, nudgeNote, firstUrl,
-  subAreaPick, subOwnerPick,} from '../ui.js';
+  subAreaPick, subOwnerPick, ticketTag,} from '../ui.js';
 import { subCommentButton, toggleSubComments } from '../subComments.js';
 import { taskForm, issueForm, subAddArea, subAssignChange } from '../forms.js';
 import { bindComments } from '../comments.js';
@@ -58,7 +58,7 @@ const rollToast = (rolled, before) => {
 const subList = (rows = []) => (rows.length
   ? `<ul class="subs">${rows.map((r) => `
       <li class="${subStatusOf(r) === 'DONE' ? 'done' : subStatusOf(r) === 'IN_PROGRESS' ? 'prog' : ''}" data-row="${esc(r.id)}">
-        ${r.key ? `<span class="tkey" title="티켓 번호">${esc(r.key)}</span>` : ''}
+        ${ticketTag(r)}
         ${subAreaPick(r)}
         <input class="sbm-title" type="text" value="${esc(r.title)}" maxlength="120"
                data-sub-title="${esc(r.id)}" aria-label="하위 업무명" title="눌러서 고치기">
@@ -88,7 +88,7 @@ export async function renderTaskDetail(root, id, query = '') {
   root.innerHTML = `
     <div class="page-head">
       <div>
-        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}${t.key ? ` · <span class="tkey">${esc(t.key)}</span>` : ''}</div>
+        <div class="sub"><a href="#/project/tasks" style="text-decoration:underline">Tasks</a> · ${t.project_name ? esc(t.project_name) : '프로젝트 미정'}${t.key ? ` · ${ticketTag(t)}` : ''}</div>
         <h1>${titleCell(t, 'h1')}</h1>
         <div class="sub" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
           ${t.area === 'OUT' ? '<span class="chip out" title="외주 업무 — 업무 수정에서 끌 수 있습니다">외주</span>' : ''}
@@ -124,7 +124,7 @@ export async function renderTaskDetail(root, id, query = '') {
             <dt>책임자</dt><dd class="owner-cell">
               <select data-owner aria-label="책임자 변경">
                 ${state.members.filter((m) => m.is_active).map((m) => `<option value="${esc(m.slack_user_id)}"${
-                  m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+                  m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
               </select>
             </dd>
             ${(t.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${

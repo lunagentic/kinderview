@@ -1311,6 +1311,8 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .cat-edit-foot{display:flex;justify-content:flex-end}
 
 .tk-cat{min-width:0}
+/* 목록의 분류 칩 — 옆 칩(높음·0/1)과 같은 크기로. 화살표 자리 여백을 덜어 낸다 */
+.tk-cat .chip-select{font-size:.7rem;line-height:1.5;padding:0 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tk-pr{font-size:.76rem;white-space:nowrap}
 .tk-pr.pr-high{color:var(--s-delay);font-weight:600}
 .tk-pr.pr-normal{color:var(--muted)}
@@ -1537,6 +1539,11 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
 .tkey{font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap;flex:none;
   padding:0 5px;border:1px solid var(--line);border-radius:4px;line-height:1.5;margin-right:6px;vertical-align:middle}
 .tkey.none{border-style:dashed;color:var(--muted);opacity:.8}
+.tkey[data-tk-jump]{cursor:pointer}
+.tkey[data-tk-jump]:hover{color:var(--indigo);border-color:var(--indigo)}
+.tkey[data-tk-jump]:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.tl-wrap .tkey[data-tk-jump]{cursor:inherit}
+.tl-wrap .tkey[data-tk-jump]:hover{color:var(--muted);border-color:var(--line)}
 .tk-title .tkey{margin-right:4px}
 
 /* ── 하위 업무 팝업 ──────────────────────────── */
@@ -1770,7 +1777,12 @@ body[data-gate="view"] .att-add,body[data-gate="view"] .att-panel .sub-note,body
 .sbm-sec + .sbm-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)}
 /* 뱃지와 상태 칸은 폭을 고정한다 — 글자 길이에 따라 열이 흔들리면 안 된다 */
 .tl-task .tl-cm{flex:none;margin-left:2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:1px 4px;min-width:36px;box-sizing:border-box}
-.tl-task .tl-tst{flex:none;width:60px;padding:0 4px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-task .tl-tst{flex:none;width:64px;padding:0;border:none;margin-right:8px;display:inline-flex;align-items:center;position:relative}
+/* 업무 줄 상태 — 눌러서 바꾸는 칩. 지연이면 빨간 테두리와 ⚠ */
+.tl-task .tl-tst .chip-select{width:100%;font-size:.68rem;padding:1px 14px 1px 15px;line-height:1.4;background-position:6px 50%,calc(100% - 10px) 53%,calc(100% - 6px) 53%}
+.tl-task .tl-tst.late .chip-select{border-color:var(--s-delay);background-size:0 0,4px 4px,4px 4px}
+.tl-task .tl-tst.late::before{content:'⚠';position:absolute;left:5px;font-size:.6rem;color:var(--s-delay);pointer-events:none;z-index:1}
+body[data-gate="view"] .tl-task .tl-tst .chip-select{pointer-events:none}
 /* 페이즈 줄 — 한 줄: ▸ 이름 … 진척 막대 · % · 완료/전체 · 코멘트. 막대가 화면 밖으로 밀려도 여기서 읽는다 */
 /* 페이즈 줄에 올리면 줄 전체가 살짝 들리고, 제목 칸 빈 곳을 누르면 업무가 펼쳐진다. 이름은 수정 창. */
 .tl-phase .tl-label{cursor:pointer;border-radius:6px 0 0 6px}
@@ -2403,7 +2415,7 @@ body[data-gate="view"] .tl-sub-add,body[data-gate="view"] .tl-proj-add{display:n
 .tl-proj-add .tl-add-btn{flex:none}
 .tl-top-add{min-height:34px}
 .tl-top-add .tl-label{flex-direction:row;justify-content:flex-start;align-items:center}
-.tl-task.flash .tl-label,.tl-task.flash .tl-track{animation:sbm-flash 1.8s ease-out}
+.tl-task.flash .tl-label,.tl-task.flash .tl-track,.tl-sub.flash .tl-label,.tl-sub.flash .tl-track{animation:sbm-flash 2.4s ease-out}
 body[data-gate="view"] .tl-top-add,body[data-gate="view"] .tl-task-add{display:none}
 
 /* 업무 목록 우선순위 — 작은 글자 칩. 높음만 눈에 띄게 */

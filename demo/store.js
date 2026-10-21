@@ -224,6 +224,17 @@ function wakeWaitingParents(db) {
       to_value: 'IN_PROGRESS', actor_slack_user_id: t.owner_slack_user_id, occurred_at: at });
     n += 1;
   }
+  // 하위가 모두 끝났는데 상위가 아직 안 끝난 것 — 「완료」 규칙이 생기기 전에 끝난 업무를 맞춘다
+  for (const t of db.tasks ?? []) {
+    if (t.deleted_at || !['TODO', 'IN_PROGRESS', 'REVIEW'].includes(t.status)) continue;
+    const subs = (db.subtasks ?? []).filter((x) => x.task_id === t.id);
+    if (!subs.length || !subs.every((x) => (x.status ?? (x.is_done ? 'DONE' : 'TODO')) === 'DONE')) continue;
+    const before = t.status;
+    Object.assign(t, { status: 'DONE', completed_at: t.completed_at || at, updated_at: at });
+    (db.events ??= []).push({ id: uid(), task_id: t.id, event_type: 'STATUS_CHANGED', from_value: before,
+      to_value: 'DONE', actor_slack_user_id: t.owner_slack_user_id, occurred_at: at });
+    n += 1;
+  }
   return n;
 }
 

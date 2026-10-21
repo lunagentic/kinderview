@@ -3,7 +3,7 @@ import {
   esc, shortDate, loading, errorBox, go, projectStyle, progressBar, pctText, ticketTag, toast,
   dueCell, bindDueEdit, statusPick, avatar, confirmModal,
 } from '../ui.js';
-import { state, activeMembers, memberOf } from '../state.js';
+import { state, activeMembers, memberOf, meLabel } from '../state.js';
 import { sheetExportDialog, sheetImportPick } from './sheetSync.js';
 
 // 월간 업무 — 그 달에 마감인 업무가 그 달의 목표다. docs/14-timeline-spec.md 「월 단위 트래킹」
@@ -19,7 +19,7 @@ const monthTitle = (ym) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 
 // 줄에서 바로 고친다 — 담당(셀렉트) · 마감(누르면 날짜 입력) · 상태(색 알약 셀렉트). 업무 탭·상세와 같은 부품, 같은 PATCH.
 const ownerPick = (t) => `<select class="mr-own-pick" data-owner="${esc(t.id)}" aria-label="담당 변경" title="눌러서 담당 바꾸기">
-    ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+    ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === t.owner_slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
     ${activeMembers().some((m) => m.slack_user_id === t.owner_slack_user_id) ? '' : `<option value="${esc(t.owner_slack_user_id ?? '')}" selected>${esc(t.owner_name ?? '')}</option>`}
   </select>`;
 // 협업자 — 담당 옆에 겹친 아바타. 누르면 체크 목록이 열려 바로 더하고 뺀다.
@@ -140,10 +140,10 @@ export async function renderMonthly(root, query) {
   bar.hidden = true;
   bar.innerHTML = `
     <b data-bulk-n>0건 선택</b>
-    <label>담당 <select data-bulk-owner><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(m.display_name)}</option>`).join('')}</select></label>
+    <label>담당 <select data-bulk-owner><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(meLabel(m))}</option>`).join('')}</select></label>
     <button class="btn sm" type="button" data-bulk="owner">담당 지정</button>
     <span class="sep"></span>
-    <label>협업자 더하기 <select data-bulk-co><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(m.display_name)}</option>`).join('')}</select></label>
+    <label>협업자 더하기 <select data-bulk-co><option value="">—</option>${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}">${esc(meLabel(m))}</option>`).join('')}</select></label>
     <button class="btn sm" type="button" data-bulk="co">더하기</button>
     <span class="sep"></span>
     <label>상태 <select data-bulk-status><option value="">—</option>${(state.meta?.normal_statuses ?? []).map((st) => `<option value="${esc(st.code)}">${esc(st.label)}</option>`).join('')}</select></label>

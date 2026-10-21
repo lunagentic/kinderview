@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state, statusMeta } from '../state.js';
+import { state } from '../state.js';
 import {
   esc, loading, errorBox, empty, projectStyle, projectName, shortDate, dDay, hoverTip,
   statusPick, go, toast, bindDueEdit, confirmModal, titleCell, autoGrow, syncTitleCell, ticketTag, readPref, writePref,
@@ -39,12 +39,24 @@ const openPhases = new Set();
 const openTasks = new Set();
 // 방금 등록한 업무 — 다시 그린 뒤 반짝여 짚는다
 let flashTask = null;
+// 다른 화면에서 티켓 번호를 눌러 왔다 — 그 업무(하위)를 펼쳐 짚는다
+let jumpTo = null;
+export const timelineJump = (task, sub = null) => { jumpTo = { task, sub }; };
 
 // 줄 안에서 제 일을 하는 것 — 여기를 누른 것은 '하위 업무 창을 열자'가 아니다
 const CHART_LINE_CONTROLS = 'button, a, select, input, .due-view, .due-edit';
 
 export async function renderTimeline(root) {
   root.innerHTML = loading();
+  const jump = jumpTo;
+  jumpTo = null;
+  if (jump) {
+    try {
+      const tk = await api.get(`/api/tasks/${encodeURIComponent(jump.task)}`);
+      if (tk.phase_id) openPhases.add(tk.phase_id);
+      if (jump.sub && tk.subtask_total !== 0) openTasks.add(tk.id);
+    } catch { /* 지운 업무면 그냥 타임라인만 연다 */ }
+  }
 
   // 타임라인과 펼쳐 둔 페이즈의 업무를 한 번에 받는다 — 다시 그릴 때 깜빡이지 않게.
   // 페이즈의 업무는 전부 보여야 한다. 완료한 것도, 마감일을 아직 안 정한 것도 —
@@ -116,7 +128,6 @@ export async function renderTimeline(root) {
   };
   // 하위 업무가 있으면 줄을 눌러 아래로 펼친다(보기). 이름(밑줄)을 누르면 업무 창(고치기).
   const taskRow = (t, phaseId) => {
-    const st = statusMeta(t.status);
     const subs = t.subtask_total ?? 0;
     const open = subs && openTasks.has(t.id);
     return `
@@ -132,8 +143,7 @@ export async function renderTimeline(root) {
           ${subs ? `<span class="tl-tsubs" title="하위 업무 완료 ${t.subtask_done ?? 0} / ${subs}">${t.subtask_done ?? 0}/${subs}</span>` : ''}
           <span class="tl-tgap"></span>
           ${cmBadge(t)}
-          <span class="tl-tst ${esc(st.tone)}${t.is_delayed ? ' late' : ''}" title="${esc(st.label)}">${
-            t.is_delayed ? '지연' : esc(st.label)}</span>
+          <span class="tl-tst${t.is_delayed ? ' late' : ''}"${t.is_delayed ? ' title="지연 · 마감 지남"' : ''}>${statusPick(t)}</span>
         </div>
         <div class="tl-track">${gridLines()}${ganttTaskTrack(t, w)}</div>
       </div>`;
@@ -465,6 +475,15 @@ export async function renderTimeline(root) {
     if (line) { line.classList.add('flash'); line.scrollIntoView({ block: 'nearest' }); setTimeout(() => line.classList.remove('flash'), 1800); }
   }
   bindLabelResize(root);
+  if (jump) {
+    const line = (jump.sub && root.querySelector(`.tl-sub[data-sub-line="${CSS.escape(jump.sub)}"]`))
+      || root.querySelector(`.tl-task[data-line="${CSS.escape(jump.task)}"]`);
+    if (line) {
+      line.classList.add('flash');
+      line.scrollIntoView({ block: 'center' });
+      setTimeout(() => line.classList.remove('flash'), 2400);
+    } else toast('타임라인에 없는 업무입니다 — 페이즈가 정해지지 않았을 수 있습니다.', true);
+  }
 
   // ── 백로그 줄의 편집 ──────────────────────────────────
   root.addEventListener('change', async (e) => {

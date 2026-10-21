@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
+import { state, activeMembers, activeProjects, defaultProjectId, statusesFor, memberOf, meLabel, areaMeta, leadOf, coLeadsOf, reloadMeta } from './state.js';
 import { esc, modal, toast, avatar, person, confirmModal, shortDate, statusPick, ticketTag, firstUrl, subStatusOf, subProgress, subStatusPick, nudgeNote,
   subAreaPick, subOwnerPick, dDay, dateTime, linkify, statusChip,} from './ui.js';
 import { attPanelInner, mountAttachments } from './attachments.js';
@@ -166,7 +166,7 @@ export function taskForm({ task = null, defaults = {}, onSaved }) {
           <span class="lab">책임자 <span class="hint" style="font-weight:400">업무 전체를 챙기는 사람 · 실무 담당은 하위 업무마다</span></span>
           <select name="owner_slack_user_id" data-owner>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
-              m.slack_user_id === (task?.owner_slack_user_id ?? defaults.owner ?? state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              m.slack_user_id === (task?.owner_slack_user_id ?? defaults.owner ?? state.me) ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
           </select>
           <span class="lead-box" data-lead-box></span>
         </label>
@@ -608,7 +608,7 @@ export function issueForm({ issue = null, defaults = {}, onSaved }) {
           <span class="lab">담당<span class="req">*</span></span>
           <select name="owner_slack_user_id" required>
             ${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${
-              m.slack_user_id === (issue?.owner_slack_user_id ?? defaults.owner_slack_user_id ?? state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+              m.slack_user_id === (issue?.owner_slack_user_id ?? defaults.owner_slack_user_id ?? state.me) ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
           </select>
         </label>
         <label class="field">
@@ -1340,7 +1340,7 @@ export function subtaskModal({ task, onChange, focus = null }) {
       <dt>책임자</dt><dd class="owner-cell">
         <select data-owner aria-label="책임자 변경">
           ${state.members.filter((m) => m.is_active || m.slack_user_id === x.owner_slack_user_id).map((m) => `<option value="${esc(m.slack_user_id)}"${
-            m.slack_user_id === x.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}
+            m.slack_user_id === x.owner_slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('')}
         </select>
       </dd>
       ${(x.sub_owners ?? []).length ? `<dt>실무 담당</dt><dd>${x.sub_owners.map((id) => person(id, memberOf(id)?.display_name ?? id)).join(' ')}</dd>` : ''}

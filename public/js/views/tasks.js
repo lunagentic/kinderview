@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { state, activeProjects } from '../state.js';
+import { state, activeProjects, memberOf, meLabel } from '../state.js';
 import {
   esc, statusChip, flags, person, shortDate, dDay, loading, errorBox, empty, go, toast,
   projectStyle, projectName, readPref, writePref, confirmModal, dueCell, bindDueEdit,
@@ -152,9 +152,11 @@ export async function renderTasks(root, query) {
   const areaOptions = state.meta.areas
     .map((a) => `<option value="${esc(a.code)}"${p.get('area') === a.code ? ' selected' : ''}>${esc(a.full)}</option>`).join('');
   // 비활성 구성원은 고르지 않는다 — 이미 그 사람으로 걸러 둔 경우만 남긴다
+  // 나는 맨 위 「나 (손)」 하나로 — 아래 목록에서 또 나오지 않게 뺀다
   const ownerOptions = state.members
-    .filter((m) => m.is_active || p.get('owner') === m.slack_user_id)
-    .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(m.display_name)}${m.is_active ? '' : ' (비활성)'}</option>`).join('');
+    .filter((m) => (m.is_active || p.get('owner') === m.slack_user_id) && (m.slack_user_id !== state.me || p.get('owner') === m.slack_user_id))
+    .map((m) => `<option value="${esc(m.slack_user_id)}"${p.get('owner') === m.slack_user_id ? ' selected' : ''}>${esc(meLabel(m))}</option>`).join('');
+  const meOpt = state.me ? `나 (${memberOf(state.me)?.display_name ?? '현재 사용자'})` : '나 (현재 사용자)';
 
   // 핵심과업 별표 — 내가 단 것만 채워진 별. 남이 단 별은 내 목록에 영향이 없다
   const tkStar = (t) => {
@@ -227,7 +229,7 @@ export async function renderTasks(root, query) {
     <div class="filter-row" style="margin-bottom:18px">
       <select data-f="project"><option value="">프로젝트 전체</option>${projectOptions}</select>
       <select data-f="area"><option value="">영역 전체</option>${areaOptions}</select>
-      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>나 (현재 사용자)</option>${ownerOptions}</select>
+      <select data-f="owner"><option value="">담당 전체</option><option value="me"${p.get('owner') === 'me' ? ' selected' : ''}>${esc(meOpt)}</option>${ownerOptions}</select>
       <input type="search" data-f="q" value="${esc(p.get('q') ?? '')}" placeholder="업무명 검색">
       <label class="chk"><input type="checkbox" data-f="done" ${p.get('done') === '1' ? 'checked' : ''}> 완료 포함</label>
       <button class="btn btn-ghost" data-reset>필터 초기화</button>
