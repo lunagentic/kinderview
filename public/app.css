@@ -2635,6 +2635,10 @@ body[data-gate="view"] .po-grip{display:none}
 .po-row .pct{font-weight:700;min-width:36px;text-align:right}
 .po-row .m{flex:none;width:16px;text-align:center;font-size:.8rem}.po-row .m.d{color:var(--s-done)}.po-row .m.p{color:var(--s-prog)}.po-row .m.w{color:var(--muted)}
 .po-rank.xs{margin-left:0;font-size:.68rem;padding:2px 7px}
+.po-star{flex:none;border:0;background:none;padding:0 3px;font:inherit;font-size:1rem;line-height:1.2;color:var(--line);cursor:pointer;border-radius:6px}
+.po-row:hover .po-star{color:var(--muted)}.po-star:hover{color:var(--amber)!important;background:var(--surface-2)}.po-star.on{color:var(--amber)}
+.po-star.big{font-size:1.25rem;padding:0 4px;color:var(--muted)}.po-star.big.on{color:var(--amber)}
+body[data-gate="view"] .po-star{display:none}
 .po-exp{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;font:inherit;font-size:.72rem;color:var(--ink-2);padding:2px 9px;cursor:pointer}
 .po-exp.none{color:var(--muted);border-style:dashed;cursor:default}
 .po-row-subs{list-style:none;margin:4px 0 2px;padding:0 0 0 22px;flex-basis:100%;display:grid;gap:2px;border-left:2px solid var(--line);margin-left:8px}

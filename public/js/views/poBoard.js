@@ -34,6 +34,7 @@ const expanded = new Set();          // 하위를 펼친 상위 업무 id
 // 상세 페이지의 「PO 보드 이동 띠」가 쓰는 맥락 — 마지막으로 그린 카드 차례(정렬·구성원 필터 반영)
 let poLast = [];                     // [{ id, key, title, owner_slack_user_id, owner_name, rank, star }]
 let poCameBack = false;              // 상세에서 돌아올 때 열린 카드로 스크롤
+let poBound = null;                  // 이 화면이 host 에 단 손짓 — 다시 그릴 때 먼저 떼어 낸다(겹치면 한 번 눌러도 여러 번 처리된다)
 /** 상세 페이지에서 부른다 — 보드 카드 차례. 보드를 아직 안 열었으면 빈 배열 */
 export const poBoardNav = () => poLast;
 /** 상세 페이지에서 다른 구성원의 카드로 옮길 때 — 돌아오면 그 카드가 열려 있다 */
@@ -180,7 +181,7 @@ export async function renderPoBoard(host) {
         ${ex.director.length > rows.length ? `<li class="more">… 외 ${ex.director.length - rows.length}건 — 상세 열기에서 모두 봅니다</li>` : ''}</ul></dd>`;
     };
     return `<div class="po-detail" id="po-detail">
-      <div class="po-dh">${t.star ? '<span class="star">★</span>' : ''}<span class="rank" title="우선순위 P${t.rank}">P${t.rank}</span><h3>${esc(t.title)}</h3>
+      <div class="po-dh">${(() => { const on = (t.stars ?? []).includes(state.me); return `<button type="button" class="po-star big${on ? ' on' : ''}" data-star-task="${esc(t.id)}" aria-pressed="${on}" title="${on ? '★ 핵심과업 표시 지우기' : '☆ 핵심과업으로 표시'}">${on ? '★' : '☆'}</button>`; })()}<span class="rank" title="우선순위 P${t.rank}">P${t.rank}</span><h3>${esc(t.title)}</h3>
         <div class="meta"><span>${av(t.owner_slack_user_id)} ${esc(t.owner_name ?? '')}${t.team ? ` · ${esc(t.team)}` : ''}</span><span>📅 ${t.start_date ? `${poMd(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div>
         <div class="pr"><span class="big">${t.pct}%</span><span class="tr"><i style="width:${t.pct}%"></i></span><span class="sm">${subN ? `${subD} / ${subN}개 하위 업무 완료` : '하위 업무 없음'}</span></div>
         ${rankPicker(t)}
@@ -242,9 +243,11 @@ export async function renderPoBoard(host) {
     const KINDS = [['all', '전체'], ['parent', '상위'], ['sub', '하위'], ['link', '연계']];
     const right = (x, due) => `<span class="r">${stChip(x)}<span class="dt">📅 ${poMd(due)}</span>${x.pct != null ? `<span class="pct">${x.pct}%</span>` : ''}</span>`;
     const rankTag = (x) => { const k = keyTasks.find((y) => y.id === x.id); return k ? `<span class="po-rank${k.star ? ' star' : ''} xs">${k.star ? '★ ' : ''}P${k.rank}</span>` : ''; };
+    // ★ 즐겨찾기(핵심과업) — 업무 목록의 ★ 와 같은 저장 규칙(내 별표만 켜고 끈다). 상위 업무에만
+    const starBtn = (x) => { const on = (x.stars ?? []).includes(state.me); return `<button type="button" class="po-star${on ? ' on' : ''}" data-star-task="${esc(x.id)}" aria-pressed="${on}" title="${on ? '★ 핵심과업 표시 지우기' : '☆ 핵심과업으로 표시 — 보드 카드가 P1 로 올라옵니다'}">${on ? '★' : '☆'}</button>`; };
     const parentRow = (x) => {
       const subsOf = subsCache.get(x.id); const isOpen = expanded.has(x.id); const subN = x.subtask_total ?? 0;
-      return `<li class="po-row${x.id === t.id ? ' me' : ''}${x.status === 'DONE' ? ' done' : ''}"><span class="kd parent">상위</span>${rankTag(x)}
+      return `<li class="po-row${x.id === t.id ? ' me' : ''}${x.status === 'DONE' ? ' done' : ''}"><span class="kd parent">상위</span>${starBtn(x)}${rankTag(x)}
         <a class="t" href="#/project/tasks/${esc(x.id)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>${right(x, x.due_date)}
         ${subN ? `<button type="button" class="po-exp" data-expand="${esc(x.id)}" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'} 하위 ${x.subtask_done ?? 0}/${subN}</button>` : '<span class="po-exp none">하위 없음</span>'}
         ${isOpen ? `<ul class="po-row-subs">${!subsOf ? '<li class="po-dim">불러오는 중…</li>' : subsOf.map((s) => `<li class="${s.status === 'DONE' ? 'd' : ''}"><span class="kd sub">하위</span>${subMark(s)}<span class="t">${esc(s.title)}</span><span class="who">${esc(memberOf(s.owner_slack_user_id)?.display_name ?? '')}</span>${s.due_date ? `<span class="dt">${poMd(s.due_date)}</span>` : ''}</li>`).join('') || '<li class="po-dim">하위 업무가 없습니다</li>'}</ul>` : ''}</li>`;
@@ -252,7 +255,7 @@ export async function renderPoBoard(host) {
     const subRow = (s) => `<li class="po-row${s.status === 'DONE' ? ' done' : ''}"><span class="kd sub">하위</span>${subMark(s)}<span class="t">${esc(s.title)}</span>
         <a class="ctx" href="#/project/tasks/${esc(s.parent.id)}" title="상위 업무 열기">→ 상위 <span class="k">${esc(s.parent.key ?? '')}</span>${esc(s.parent.title)} · ${esc(s.parent.owner_name ?? '')}</a>
         <span class="r">${stChip({ status: s.status, late: false })}${s.due_date ? `<span class="dt">📅 ${poMd(s.due_date)}</span>` : ''}</span></li>`;
-    const linkRow = (x) => `<li class="po-row${x.status === 'DONE' ? ' done' : ''}"><span class="kd link">연계</span><a class="t" href="#/project/tasks/${esc(x.id)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>
+    const linkRow = (x) => `<li class="po-row${x.status === 'DONE' ? ' done' : ''}"><span class="kd link">연계</span>${starBtn(x)}<a class="t" href="#/project/tasks/${esc(x.id)}"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>
         <span class="ctx">${av(x.owner_slack_user_id)} ${esc(x.owner_name ?? '')} · ${esc(x.phase_name ?? '')}</span>${right(x, x.due_date)}</li>`;
     const sec = (key, label, rows, render, hint) => {
       if (allKind !== 'all' && allKind !== key) return '';
@@ -338,6 +341,15 @@ export async function renderPoBoard(host) {
     await Promise.all(jobs);
     if (open === id) paint();
   };
+  const toggleStar = async (id, on) => {
+    if (!editable()) return;
+    const t = all.find((x) => x.id === id);
+    try {
+      await api.patch(`/api/tasks/${encodeURIComponent(id)}`, { star: on });
+      toast(on ? `「${t?.title ?? ''}」을(를) ★ 핵심과업으로 표시했습니다.` : `「${t?.title ?? ''}」의 ★ 표시를 지웠습니다.`);
+    } catch (err) { toast(err.message, true); return; }
+    renderPoBoard(host);   // ★ 가 바뀌면 카드(P1)·순위·패널이 같이 바뀐다 — 다시 읽는다
+  };
   const expandRow = async (pid) => {
     if (expanded.has(pid)) { expanded.delete(pid); paint(); return; }
     expanded.add(pid); paint();
@@ -390,6 +402,9 @@ export async function renderPoBoard(host) {
     }
     return n;
   };
+  poBound?.abort();
+  poBound = new AbortController();
+  const sig = { signal: poBound.signal };
   (function enableCardDrag() {
     let id = null; let moved = false; let sx = 0; let sy = 0;
     const cards = () => [...host.querySelectorAll('.po-cards > .po-card')];
@@ -401,7 +416,7 @@ export async function renderPoBoard(host) {
       id = grip.closest('.po-card').dataset.id; moved = false; sx = e.clientX; sy = e.clientY;
       grip.setPointerCapture?.(e.pointerId);
       e.preventDefault();
-    });
+    }, sig);
     host.addEventListener('pointermove', (e) => {
       if (!id) return;
       if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) < 8) return;
@@ -412,7 +427,7 @@ export async function renderPoBoard(host) {
       const over = list.find((n) => { if (n === el) return false; const r = n.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; });
       if (!over) return;
       if (list.indexOf(over) < list.indexOf(el)) over.before(el); else over.after(el);
-    });
+    }, sig);
     const end = async () => {
       if (!id) return;
       const el = host.querySelector(`.po-card[data-id="${id}"]`); el?.classList.remove('dragging');
@@ -427,9 +442,9 @@ export async function renderPoBoard(host) {
       paint();
       setTimeout(() => { moved = false; }, 0);
     };
-    host.addEventListener('pointerup', end);
-    host.addEventListener('pointercancel', end);
-    host.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); } }, true);
+    host.addEventListener('pointerup', end, sig);
+    host.addEventListener('pointercancel', end, sig);
+    host.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); } }, { capture: true, signal: poBound.signal });
   }());
   host.addEventListener('change', (e) => {
     const so = e.target.closest('[data-sort]');
@@ -437,7 +452,7 @@ export async function renderPoBoard(host) {
     if (e.target.closest('[data-all-done]')) { allDone = e.target.checked; paint(); return; }
     const sel = e.target.closest('[data-rank]');
     if (sel) reorder(sel.dataset.rank, Number(sel.value) - 1);
-  });
+  }, sig);
   host.addEventListener('click', (e) => {
     const md = e.target.closest('[data-mode]');
     if (md) { if (md.dataset.mode !== mode) { mode = md.dataset.mode; renderPoBoard(host); } return; }
@@ -456,16 +471,18 @@ export async function renderPoBoard(host) {
     if (sc) { allSec[sc.dataset.sec] = !allSec[sc.dataset.sec]; paint(); return; }
     const ex = e.target.closest('[data-expand]');
     if (ex) { expandRow(ex.dataset.expand); return; }
+    const st = e.target.closest('[data-star-task]');
+    if (st) { toggleStar(st.dataset.starTask, st.getAttribute('aria-pressed') !== 'true'); return; }
     const rs = e.target.closest('[data-rank-reset]');
     if (rs) { resetRanks(rs.dataset.rankReset); return; }
     if (e.target.closest('a, button')) return;
     const c = e.target.closest('.po-card[data-id]');
     if (c) openCard(c.dataset.id);
-  });
+  }, sig);
   host.addEventListener('keydown', (e) => {
     const c = e.target.closest?.('.po-card[data-id]');
     if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(c.dataset.id); }
-  });
+  }, sig);
   paint();
   if (poCameBack) { poCameBack = false; host.querySelector('.po-card.on')?.scrollIntoView({ block: 'center' }); }
   // 순위를 바꾼 뒤 다시 그릴 때 펼쳐 둔 카드의 하위 업무·링크·디렉터 코멘트도 다시 읽는다
