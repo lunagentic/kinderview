@@ -143,13 +143,17 @@ export async function renderPoBoard(host) {
       ${bars || '<div class="po-lane po-empty-lane">이번 주에 걸린 핵심 과업이 없습니다</div>'}
       ${todayI >= 0 && todayI < 7 ? `<div class="po-now" style="left:${(todayI + 0.5) / 7 * 100}%"></div>` : ''}</div>`;
   };
-  const card = (t) => `
-    <div class="po-card${open === t.id ? ' on' : ''}" data-id="${esc(t.id)}" role="button" tabindex="0" aria-expanded="${open === t.id}">
-      <div class="po-who"><span class="po-grip" data-grip title="끌어서 자리 바꾸기" aria-hidden="true">⠿</span>${av(t.owner_slack_user_id)}<div><div class="nm">${esc(t.owner_name ?? '')}</div><div class="team">${esc(t.team || '팀 미정')}</div></div>
-        <span class="po-rank${t.star ? ' star' : ''}" title="${t.star ? '★ 핵심과업 · ' : ''}우선순위 P${t.rank}">${t.star ? '★ ' : ''}P${t.rank}</span></div>
-      <div class="po-ttl" title="${esc(t.title)}"><span class="k">${esc(t.key ?? '')}</span>${esc(t.title)}</div>
-      <div class="po-prog ${toneOf(t)}"><span class="tr"><i style="width:${t.pct}%"></i></span><span class="pc">${t.pct}%</span></div>
-      <div class="po-foot"><span class="dt">📅 ${t.start_date ? `${shortDate(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div></div>`;
+  // 한 사람 = 카드 하나. 핵심 과업은 카드 안에 줄로(★ P1 → P2 → 일반). 줄을 누르면 그 과업의 상세가 열린다
+  const taskRow = (t) => `
+      <div class="po-ct${open === t.id ? ' on' : ''}" data-id="${esc(t.id)}" role="button" tabindex="0" aria-expanded="${open === t.id}">
+        <div class="po-ct-h"><span class="po-rank${t.star ? ' star' : ''}" title="${t.star ? '★ 핵심과업 · ' : ''}우선순위 P${t.rank}">${t.star ? '★ ' : ''}P${t.rank}</span><div class="po-ttl" title="${esc(t.title)}"><span class="k">${esc(t.key ?? '')}</span>${esc(t.title)}</div></div>
+        <div class="po-prog ${toneOf(t)}"><span class="tr"><i style="width:${t.pct}%"></i></span><span class="pc">${t.pct}%</span></div>
+        <div class="po-foot"><span class="dt">📅 ${t.start_date ? `${shortDate(t.start_date)} - ` : ''}${poMd(t.due_date)}</span>${stChip(t)}</div></div>`;
+  const card = (g) => `
+    <div class="po-card${g.tasks.some((t) => t.id === open) ? ' on' : ''}" data-owner="${esc(g.owner)}">
+      <div class="po-who"><span class="po-grip" data-grip title="끌어서 자리 바꾸기" aria-hidden="true">⠿</span>${av(g.owner)}<div><div class="nm">${esc(g.name)}</div><div class="team">${esc(g.team || '팀 미정')}</div></div>
+        <span class="po-cnt" title="핵심 과업 ${g.tasks.length}건">핵심 ${g.tasks.length}</span></div>
+      <div class="po-cts">${g.tasks.map(taskRow).join('')}</div></div>`;
   // 순위 고르기 — 같은 사람의 ★ 핵심과업이 둘 이상일 때만. 고르면 바로 저장하고 그 사람 카드가 다시 선다
   const rankPicker = (t) => {
     const mine = starsOf(all, t.owner_slack_user_id);
@@ -295,15 +299,22 @@ export async function renderPoBoard(host) {
   };
   // 카드 정렬 — 우선순위(P1 먼저) · 구성원별 · 마감 가까운 순
   const SORTS = [['rank', '우선순위 (P1 먼저)'], ['person', '구성원별'], ['due', '마감 가까운 순'], ['custom', '내 순서 (끌어서 정함)']];
-  const sortList = (list) => {
-    const byRank = (a, b) => (a.rank - b.rank) || rankKey(a).localeCompare(rankKey(b));
-    if (sortBy === 'custom') return [...list].sort((a, b) => ((a.po_order ?? 9999) - (b.po_order ?? 9999)) || (b.star - a.star) || byRank(a, b));
-    if (sortBy === 'person') return [...list].sort((a, b) => (a.owner_name ?? '').localeCompare(b.owner_name ?? '', 'ko') || byRank(a, b));
-    if (sortBy === 'due') return [...list].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || byRank(a, b));
-    return [...list].sort((a, b) => (b.star - a.star) || byRank(a, b));   // ★ 가 같은 P 안에서도 먼저
+  // 사람별로 묶는다 — 사람 안 줄 차례는 P 순(★ 먼저). 카드 차례는 정렬에 따라 사람 단위로
+  const groupBy = (list) => {
+    const byRank = (a, b) => (b.star - a.star) || (a.rank - b.rank) || rankKey(a).localeCompare(rankKey(b));
+    const m = new Map();
+    for (const t of list) { const g = m.get(t.owner_slack_user_id) ?? { owner: t.owner_slack_user_id, name: t.owner_name ?? '', team: '', tasks: [] }; g.tasks.push(t); m.set(t.owner_slack_user_id, g); }
+    const groups = [...m.values()];
+    for (const g of groups) { g.tasks.sort(byRank); g.team = g.tasks.find((t) => t.team)?.team ?? ''; g.first = g.tasks[0]; g.due = g.tasks.map((t) => t.due_date ?? '9999').sort()[0]; g.order = Math.min(...g.tasks.map((t) => t.po_order ?? 9999)); }
+    const head = (a, b) => (b.first.star - a.first.star) || (a.first.rank - b.first.rank) || rankKey(a.first).localeCompare(rankKey(b.first));
+    if (sortBy === 'custom') return groups.sort((a, b) => (a.order - b.order) || head(a, b));
+    if (sortBy === 'person') return groups.sort((a, b) => a.name.localeCompare(b.name, 'ko') || head(a, b));
+    if (sortBy === 'due') return groups.sort((a, b) => a.due.localeCompare(b.due) || head(a, b));
+    return groups.sort(head);
   };
   const paint = () => {
-    const list = sortList(keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who));
+    const groups = groupBy(keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who));
+    const list = groups.flatMap((g) => g.tasks);
     poLast = list.map(({ id, key, title, owner_slack_user_id, owner_name, rank, star }) => ({ id, key, title, owner_slack_user_id, owner_name, rank, star }));
     const sel = keyTasks.find((t) => t.id === open);
     host.innerHTML = `
@@ -319,10 +330,10 @@ export async function renderPoBoard(host) {
           <div class="po-kpi two"><div><div class="lab">진행 중</div><div class="big">${kpi.prog}<small>건</small></div><div class="meta">핵심 과업 ${keyTasks.length}건 중</div></div><div><div class="lab">지연 과업</div><div class="big red">${kpi.late}<small>건</small></div><div class="meta">조치 필요</div></div></div>
           <div class="po-kpi wk"><div class="lab">주간 타임라인</div>${weekTl()}</div>`}
         </div>
-        <div class="po-sec"><h2>구성원별 핵심 과업 <span class="n">${keyTasks.length}</span></h2><label class="po-sort">정렬 <select data-sort aria-label="카드 정렬">${SORTS.map(([k, l]) => `<option value="${k}"${k === sortBy ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>
+        <div class="po-sec"><h2>구성원별 핵심 과업 <span class="n">${keyTasks.length}</span><span class="po-sec-sub">구성원 ${new Set(keyTasks.map((t) => t.owner_slack_user_id)).size}명</span></h2><label class="po-sort">정렬 <select data-sort aria-label="카드 정렬">${SORTS.map(([k, l]) => `<option value="${k}"${k === sortBy ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>
         <div class="po-mems"><button type="button" class="po-mem${who === 'all' ? ' on' : ''}" data-who="all"><span class="avatar sm all">전</span>전체 <span class="n">${keyTasks.length}</span></button>
           ${members.map((m) => `<button type="button" class="po-mem${who === m.id ? ' on' : ''}" data-who="${esc(m.id)}">${av(m.id)}${esc(m.name)} <span class="n">${m.n}</span></button>`).join('')}</div>
-        <div class="po-cards">${list.length ? list.map(card).join('') : '<div class="po-empty">이 구성원의 핵심 과업이 없습니다</div>'}</div>
+        <div class="po-cards">${groups.length ? groups.map(card).join('') : '<div class="po-empty">이 구성원의 핵심 과업이 없습니다</div>'}</div>
         ${sel ? detail(sel) : ''}
         <div class="po-note">우선순위 P1·P2·P3… : ★ 핵심과업으로 표시한 업무가 P1 · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율</div>
       </div>`;
@@ -348,7 +359,8 @@ export async function renderPoBoard(host) {
       await api.patch(`/api/tasks/${encodeURIComponent(id)}`, { star: on });
       toast(on ? `「${t?.title ?? ''}」을(를) ★ 핵심과업으로 표시했습니다.` : `「${t?.title ?? ''}」의 ★ 표시를 지웠습니다.`);
     } catch (err) { toast(err.message, true); return; }
-    renderPoBoard(host);   // ★ 가 바뀌면 카드(P1)·순위·패널이 같이 바뀐다 — 다시 읽는다
+    // ★ 가 바뀌면 카드(P1)·순위·패널이 같이 바뀌어야 한다 — 새로고침과 같은 길(앱 전체 다시 읽기)로 간다. 스크롤은 유지된다
+    window.dispatchEvent(new Event('kf:reload'));
   };
   const expandRow = async (pid) => {
     if (expanded.has(pid)) { expanded.delete(pid); paint(); return; }
@@ -413,7 +425,7 @@ export async function renderPoBoard(host) {
       if (!grip) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
-      id = grip.closest('.po-card').dataset.id; moved = false; sx = e.clientX; sy = e.clientY;
+      id = grip.closest('.po-card').dataset.owner; moved = false; sx = e.clientX; sy = e.clientY;
       grip.setPointerCapture?.(e.pointerId);
       e.preventDefault();
     }, sig);
@@ -421,7 +433,7 @@ export async function renderPoBoard(host) {
       if (!id) return;
       if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) < 8) return;
       moved = true;
-      const el = host.querySelector(`.po-card[data-id="${id}"]`); if (!el) return;
+      const el = host.querySelector(`.po-card[data-owner="${id}"]`); if (!el) return;
       el.classList.add('dragging');
       const list = cards();
       const over = list.find((n) => { if (n === el) return false; const r = n.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; });
@@ -430,10 +442,10 @@ export async function renderPoBoard(host) {
     }, sig);
     const end = async () => {
       if (!id) return;
-      const el = host.querySelector(`.po-card[data-id="${id}"]`); el?.classList.remove('dragging');
+      const el = host.querySelector(`.po-card[data-owner="${id}"]`); el?.classList.remove('dragging');
       const wasMoved = moved; id = null;
       if (!wasMoved) return;
-      const ids = cards().map((c) => c.dataset.id);
+      const ids = cards().flatMap((c) => [...c.querySelectorAll('.po-ct[data-id]')].map((x) => x.dataset.id));   // 사람 카드 차례대로, 사람 안은 P 순
       try {
         const n = await saveOrder(ids);
         sortBy = 'custom';
@@ -464,7 +476,7 @@ export async function renderPoBoard(host) {
     if (m) { who = m.dataset.who; paint(); return; }
     if (e.target.closest('[data-close]')) { open = null; paint(); return; }
     const op = e.target.closest('[data-open]');
-    if (op) { if (op.dataset.open) { open = null; openCard(op.dataset.open); document.querySelector(`.po-card[data-id="${op.dataset.open}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } return; }
+    if (op) { if (op.dataset.open) { open = null; openCard(op.dataset.open); document.querySelector(`.po-ct[data-id="${op.dataset.open}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } return; }
     const kd = e.target.closest('[data-kind]');
     if (kd) { allKind = kd.dataset.kind; paint(); return; }
     const sc = e.target.closest('[data-sec]');
@@ -476,11 +488,13 @@ export async function renderPoBoard(host) {
     const rs = e.target.closest('[data-rank-reset]');
     if (rs) { resetRanks(rs.dataset.rankReset); return; }
     if (e.target.closest('a, button')) return;
-    const c = e.target.closest('.po-card[data-id]');
-    if (c) openCard(c.dataset.id);
+    const row = e.target.closest('.po-ct[data-id]');
+    if (row) { openCard(row.dataset.id); return; }
+    const c = e.target.closest('.po-card[data-owner]');   // 줄 밖(머리)을 누르면 첫 과업
+    if (c) { const first = c.querySelector('.po-ct[data-id]'); if (first) openCard(first.dataset.id); }
   }, sig);
   host.addEventListener('keydown', (e) => {
-    const c = e.target.closest?.('.po-card[data-id]');
+    const c = e.target.closest?.('.po-ct[data-id]');
     if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(c.dataset.id); }
   }, sig);
   paint();
