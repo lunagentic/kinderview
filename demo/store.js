@@ -1390,6 +1390,15 @@ async function addAttachment(taskId, body) {
   return row;
 }
 
+// 설명 고치기 — 비우면 자동 이름(주소)으로 되돌린다 (서버 repo.js attachments.rename 과 같은 규칙)
+function renameAttachment(id, input) {
+  const cur = (DB.attachments ?? []).find((a) => a.id === id);
+  if (!cur) throw new DemoError('첨부를 찾을 수 없습니다.');
+  cur.name = String(input.name ?? '').trim().slice(0, 120) || (cur.kind === 'link' ? linkName(cur.url) : cur.name);
+  save();
+  return cur;
+}
+
 async function removeAttachment(id) {
   const cur = (DB.attachments ?? []).find((a) => a.id === id);
   DB.attachments = (DB.attachments ?? []).filter((a) => a.id !== id);
@@ -2974,6 +2983,7 @@ function handle(method, path, body) {
     if (method === 'GET') return attachmentsOf(seg[2]);
     if (method === 'POST') return addAttachment(seg[2], body);
   }
+  if (seg[1] === 'attachments' && seg[2] && method === 'PATCH') return renameAttachment(seg[2], body);
   if (seg[1] === 'attachments' && seg[2] && method === 'DELETE') return removeAttachment(seg[2]);
   if (seg[1] === 'subtasks' && seg[2]) {
     if (method === 'PATCH') return updateSubtask(seg[2], body, me);

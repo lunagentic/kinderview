@@ -150,6 +150,7 @@ route('GET', '/api/tasks/:id', (ctx) => {
 // ── 첨부 — 링크·이미지. 이미지는 JSON 안에 base64 로 온다(10MB 상한) ──
 route('GET', '/api/tasks/:id/attachments', (ctx) => attachments.list(ctx.params.id));
 route('POST', '/api/tasks/:id/attachments', (ctx) => attachments.add(ctx.params.id, ctx.body, ctx.me));
+route('PATCH', '/api/attachments/:id', (ctx) => attachments.rename(ctx.params.id, ctx.body));
 route('DELETE', '/api/attachments/:id', (ctx) => attachments.remove(ctx.params.id));
 
 // ── 하위 업무 ───────────────────────────────────────────

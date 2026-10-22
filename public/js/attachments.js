@@ -6,6 +6,9 @@ import { api } from './api.js';
 import { esc, toast } from './ui.js';
 
 const atHost = (u) => { try { return new URL(u).host; } catch { return ''; } };
+// 설명 없이 붙인 링크의 자동 이름(저장소 linkName 과 같은 꼴) — 설명이 따로 있는지 가르는 데 쓴다
+const autoName = (u) => { try { const x = new URL(u); return (x.host + (x.pathname === '/' ? '' : x.pathname)).slice(0, 60); } catch { return u.slice(0, 60); } };
+const hasNote = (a) => a.kind === 'link' && a.name && a.name !== autoName(a.url);
 
 export const attList = (rows = []) => {
   const links = rows.filter((a) => a.kind === 'link');
@@ -13,10 +16,11 @@ export const attList = (rows = []) => {
   if (!rows.length) return '<p class="empty-line">아직 붙인 링크나 이미지가 없습니다.</p>';
   return `
     ${links.length ? `<ul class="att-links">${links.map((a) => `
-      <li>
+      <li data-att-row="${esc(a.id)}">
         <span class="att-ic">🔗</span>
-        <a href="${esc(a.url)}" target="_blank" rel="noopener" class="att-name" title="${esc(a.url)}">${esc(a.name)}</a>
+        <a href="${esc(a.url)}" target="_blank" rel="noopener" class="att-name${hasNote(a) ? ' has-note' : ''}" title="${esc(a.url)}">${hasNote(a) ? `<b>${esc(a.name)}</b><small>${esc(autoName(a.url))}</small>` : esc(a.name)}</a>
         <span class="att-host">${esc(atHost(a.url))}</span>
+        <button class="x att-edit" data-att-edit="${esc(a.id)}" aria-label="설명 고치기" title="설명 고치기">✎</button>
         <button class="x" data-att-del="${esc(a.id)}" aria-label="삭제" title="삭제">×</button>
       </li>`).join('')}</ul>` : ''}
     ${images.length ? `<div class="att-grid">${images.map((a) => `
@@ -33,6 +37,7 @@ export const attPanelInner = (rows = [], tag = 'h3') => `
   <div data-att-list>${attList(rows)}</div>
   <form class="att-add" data-link-add>
     <input type="url" name="url" placeholder="링크 붙여넣기 (https://…)" aria-label="링크 주소">
+    <input type="text" name="note" maxlength="120" placeholder="설명 (선택) 예: 시안 v2 · 참고 문서" aria-label="링크 설명">
     <button class="btn btn-ghost" type="submit">+ 링크</button>
     <label class="btn btn-ghost att-file">이미지 올리기<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden data-att-file></label>
   </form>
@@ -54,9 +59,9 @@ export function mountAttachments(panel, taskId, { rows = [], pasteRoot = null, o
     try { atts = await api.get(`/api/tasks/${taskId}/attachments`); paint(); }
     catch (err) { toast(err.message, true); }
   };
-  const addLink = async (url) => {
+  const addLink = async (url, name = '') => {
     try {
-      await api.post(`/api/tasks/${taskId}/attachments`, { kind: 'link', url });
+      await api.post(`/api/tasks/${taskId}/attachments`, { kind: 'link', url, ...(name ? { name } : {}) });
       toast('링크를 붙였습니다.');
       await reload();
     } catch (err) { toast(err.message, true); }
@@ -86,16 +91,35 @@ export function mountAttachments(panel, taskId, { rows = [], pasteRoot = null, o
     e.stopPropagation();   // 바깥 폼으로 번지지 않게
     if (viewOnly()) return;
     const input = e.target.querySelector('[name=url]');
+    const note = e.target.querySelector('[name=note]');
     const url = input.value.trim();
     if (!url) return;
-    await addLink(url);
-    input.value = '';
+    await addLink(url, note?.value.trim() ?? '');
+    input.value = ''; if (note) note.value = '';
   });
   panel.addEventListener('change', (e) => {
     const f = e.target.closest('[data-att-file]');
     if (f?.files?.length) { if (!viewOnly()) addImages(f.files); f.value = ''; }
   });
+  // 설명 고치기 — 줄이 그 자리에서 입력칸으로 바뀐다. Enter 저장 · Esc 취소 · 비우면 자동 이름
+  const editNote = (id) => {
+    const li = panel.querySelector(`[data-att-row="${id}"]`); const a = atts.find((x) => x.id === id);
+    if (!li || !a) return;
+    li.innerHTML = `<span class="att-ic">🔗</span><form class="att-note-edit" data-att-note="${esc(id)}"><input type="text" name="name" maxlength="120" value="${esc(hasNote(a) ? a.name : '')}" placeholder="설명 (비우면 주소로 표시)" aria-label="링크 설명"><button class="btn btn-ghost" type="submit">저장</button><button class="btn btn-ghost" type="button" data-att-cancel>취소</button></form>`;
+    const inp = li.querySelector('input'); inp.focus(); inp.select();
+  };
+  panel.addEventListener('submit', async (e) => {
+    const f = e.target.closest('[data-att-note]'); if (!f) return;
+    e.preventDefault(); e.stopPropagation();
+    if (viewOnly()) return;
+    try { await api.patch(`/api/attachments/${f.dataset.attNote}`, { name: f.querySelector('[name=name]').value.trim() }); toast('설명을 저장했습니다.'); await reload(); }
+    catch (err) { toast(err.message, true); }
+  });
+  panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && e.target.closest('[data-att-note]')) { e.preventDefault(); paint(); } });
   panel.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-att-cancel]')) { e.preventDefault(); paint(); return; }
+    const ed = e.target.closest('[data-att-edit]');
+    if (ed) { e.preventDefault(); e.stopPropagation(); if (!viewOnly()) editNote(ed.dataset.attEdit); return; }
     const del = e.target.closest('[data-att-del]');
     if (!del) return;
     e.stopPropagation();

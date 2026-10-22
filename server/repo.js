@@ -1060,6 +1060,14 @@ export const attachments = {
     } else throw new HttpError(400, '첨부 종류가 올바르지 않습니다.');
     return one('SELECT * FROM attachment WHERE id = :id', { id });
   },
+  // 설명 고치기 — 비우면 자동 이름(주소)으로 되돌린다
+  rename(id, input) {
+    const cur = one('SELECT * FROM attachment WHERE id = :id', { id });
+    if (!cur) throw new HttpError(404, '첨부를 찾을 수 없습니다.');
+    const name = String(input.name ?? '').trim().slice(0, 120) || (cur.kind === 'link' ? linkName(cur.url) : cur.name);
+    run('UPDATE attachment SET name = :name WHERE id = :id', { id, name });
+    return one('SELECT * FROM attachment WHERE id = :id', { id });
+  },
   remove(id) {
     const cur = one('SELECT * FROM attachment WHERE id = :id', { id });
     if (!cur) return { ok: true };
