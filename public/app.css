@@ -2682,7 +2682,12 @@ body[data-gate="view"] .po-star{display:none}
 @media (max-width:720px){
   .po-kpis{grid-template-columns:1fr}.po-kpi{min-height:0}.po-kpi.donut svg{width:88px;height:88px}
   .po-mems{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
-  .po-cards{grid-template-columns:1fr 1fr;gap:10px}.po-card{min-height:170px;padding:12px}
+  /* 폰: 사람 카드를 한 줄(1열) 목록으로, 과업 줄은 가로 배치(왼쪽 뱃지+제목 · 오른쪽 %·마감·상태) */
+  .po-cards{grid-template-columns:1fr;gap:10px}.po-card{min-height:0;padding:12px}
+  .po-ct{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"h f" "p f";gap:6px 12px;align-items:center;padding:9px 10px}
+  .po-ct-h{grid-area:h;align-items:center}.po-ct-h .po-ttl{-webkit-line-clamp:2;max-height:calc(1.35em * 2)}
+  .po-ct .po-prog{grid-area:p}
+  .po-ct .po-foot{grid-area:f;margin-top:0;flex-direction:column;align-items:flex-end;gap:5px;white-space:nowrap}
   .po-cols{grid-template-columns:1fr}.po-dh .pr{margin-left:0;width:100%}.po-dh .pr .tr{flex:1;width:auto}
 }
 @media (max-width:420px){.po-cards{grid-template-columns:1fr}}
