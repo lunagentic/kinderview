@@ -102,7 +102,7 @@ const html = read('public/index.html');
 const bodyInner = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'))
   .replace(/\s*<script type="module"[\s\S]*?<\/script>/, '');
 
-const out = `<title>KinderFlow</title>
+const out = `<title>PO Board</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>

@@ -1,4 +1,4 @@
-<title>KinderFlow</title>
+<title>PO Board</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
@@ -441,7 +441,8 @@ details.more[open] > summary{color:var(--ink)}
   }
   /* 오른쪽이 두 줄로 접혀도 로고는 첫 줄에 선다 */
   .brand{grid-area:brand;min-width:0;padding-top:6px}
-  .brand-sub{display:none}
+  /* 하위명(Priority Organizer)은 좁은 화면에서도 보인다 */
+  .brand-sub{font-size:.62rem;white-space:nowrap}
   /* 상단바 오른쪽은 칸이 모자라면 줄을 바꾼다 — 밀어내면 페이지 전체가 넓어진다 */
   .topbar-right{grid-area:right;gap:6px 8px;min-width:0;flex-wrap:wrap;justify-content:flex-end}
   .me-picker{min-width:0}
@@ -2738,8 +2739,8 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
 
   <header class="topbar">
     <a class="brand" href="#/project">
-      <span class="brand-mark">KinderFlow</span>
-      <span class="brand-sub">문서보고 간소화</span>
+      <span class="brand-mark">PO Board</span>
+      <span class="brand-sub">Priority Organizer</span>
     </a>
     <nav class="gnb" id="gnb">
       <a href="#/project" data-nav="project">프로젝트 매니징</a>
@@ -11755,7 +11756,7 @@ async function renderTaskDetail(root, id, query = '') {
     const owners = []; for (const x of nav) if (!owners.some((o) => o.owner_slack_user_id === x.owner_slack_user_id)) owners.push(x);
     const cur = nav[i];
     return `<div class="po-band">
-      <a class="btn" href="#/project/poboard" data-po-back>‹ PO 보드로</a>
+      <a class="btn" href="#/project/poboard" data-po-back>‹ 킨더플로우로</a>
       ${cur ? `<span class="po-band-cur">${avatar(memberOf(cur.owner_slack_user_id) ?? { display_name: '?' }, 'sm')} ${esc(cur.owner_name ?? '')} · ${cur.star ? '★ ' : ''}P${cur.rank}</span>` : ''}
       ${nav.length ? `<span class="po-mo-nav"><a class="btn${prev ? '' : ' disabled'}" ${prev ? `href="${link(prev)}" data-po-go="${esc(prev.id)}"` : 'aria-disabled="true"'} title="${prev ? esc(prev.title) : ''}">‹ ${prev ? esc(prev.owner_name ?? '') : '이전'}</a><a class="btn${next ? '' : ' disabled'}" ${next ? `href="${link(next)}" data-po-go="${esc(next.id)}"` : 'aria-disabled="true"'} title="${next ? esc(next.title) : ''}">${next ? esc(next.owner_name ?? '') : '다음'} ›</a></span>
       <span class="po-band-mems">${owners.map((x) => `<a class="po-mem${x.owner_slack_user_id === t.owner_slack_user_id ? ' on' : ''}" href="${link(x)}" data-po-go="${esc(x.id)}" title="${esc(x.title)}">${avatar(memberOf(x.owner_slack_user_id) ?? { display_name: '?' }, 'sm')}${esc(x.owner_name ?? '')}</a>`).join('')}</span>` : '<span class="sub">보드를 열면 구성원 이동 단추가 생깁니다</span>'}
@@ -14420,7 +14421,7 @@ async function renderPoBoard(host) {
     const sel = keyTasks.find((t) => t.id === open);
     host.innerHTML = `
       <div class="po">
-        <div class="page-head"><div><h1>PO 보드 <span class="po-tag">Priority Organizer</span></h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
+        <div class="page-head"><div><h1>킨더플로우 <span class="po-tag">KinderFlow</span></h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
           <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" class="${mode === 'week' ? 'on' : ''}" data-mode="week" role="tab" aria-selected="${mode === 'week'}">주간</button><button type="button" class="${mode === 'month' ? 'on' : ''}" data-mode="month" role="tab" aria-selected="${mode === 'month'}">월간</button></div>
             ${mode === 'week' ? `<span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() - 7 * 864e5).toISOString().slice(0, 10))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${isThisWeek ? ' disabled' : ''}>이번 주</button><span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() + 7 * 864e5).toISOString().slice(0, 10))}" aria-label="다음 주">›</button></span>` : ''}<button class="btn btn-primary" type="button" disabled title="다음 단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
         <div class="po-kpis${mode === 'month' ? ' month' : ''}">
@@ -17105,7 +17106,7 @@ const PROJECT_TABS = [
   { key: 'board',    label: '간트' },
   { key: 'report',   label: '리포트' },
   { key: 'monthly',  label: '월간 업무' },
-  { key: 'poboard',  label: 'PO 보드' },
+  { key: 'poboard',  label: '킨더플로우' },
 ];
 // 탭 순서는 사람마다 다르다 — 끌어서 바꾸고 이 브라우저에 저장한다.
 // 저장이 막힌 환경에서도 기본 순서로 그대로 동작해야 한다.

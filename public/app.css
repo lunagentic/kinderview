@@ -437,7 +437,8 @@ details.more[open] > summary{color:var(--ink)}
   }
   /* 오른쪽이 두 줄로 접혀도 로고는 첫 줄에 선다 */
   .brand{grid-area:brand;min-width:0;padding-top:6px}
-  .brand-sub{display:none}
+  /* 하위명(Priority Organizer)은 좁은 화면에서도 보인다 */
+  .brand-sub{font-size:.62rem;white-space:nowrap}
   /* 상단바 오른쪽은 칸이 모자라면 줄을 바꾼다 — 밀어내면 페이지 전체가 넓어진다 */
   .topbar-right{grid-area:right;gap:6px 8px;min-width:0;flex-wrap:wrap;justify-content:flex-end}
   .me-picker{min-width:0}
