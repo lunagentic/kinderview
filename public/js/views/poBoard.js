@@ -319,7 +319,7 @@ export async function renderPoBoard(host) {
     const sel = keyTasks.find((t) => t.id === open);
     host.innerHTML = `
       <div class="po">
-        <div class="page-head"><div><h1>PO 보드 <span class="po-tag">Priority Organizer</span></h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
+        <div class="page-head"><div><h1>킨더플로우 <span class="po-tag">KinderFlow</span></h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
           <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" class="${mode === 'week' ? 'on' : ''}" data-mode="week" role="tab" aria-selected="${mode === 'week'}">주간</button><button type="button" class="${mode === 'month' ? 'on' : ''}" data-mode="month" role="tab" aria-selected="${mode === 'month'}">월간</button></div>
             ${mode === 'week' ? `<span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() - 7 * 864e5).toISOString().slice(0, 10))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${isThisWeek ? ' disabled' : ''}>이번 주</button><span class="chip">📅 ${poMd(wk0)} - ${poMd(wk1)}</span><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() + 7 * 864e5).toISOString().slice(0, 10))}" aria-label="다음 주">›</button></span>` : ''}<button class="btn btn-primary" type="button" disabled title="다음 단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
         <div class="po-kpis${mode === 'month' ? ' month' : ''}">

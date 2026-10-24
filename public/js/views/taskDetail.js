@@ -147,7 +147,7 @@ export async function renderTaskDetail(root, id, query = '') {
     const owners = []; for (const x of nav) if (!owners.some((o) => o.owner_slack_user_id === x.owner_slack_user_id)) owners.push(x);
     const cur = nav[i];
     return `<div class="po-band">
-      <a class="btn" href="#/project/poboard" data-po-back>‹ PO 보드로</a>
+      <a class="btn" href="#/project/poboard" data-po-back>‹ 킨더플로우로</a>
       ${cur ? `<span class="po-band-cur">${avatar(memberOf(cur.owner_slack_user_id) ?? { display_name: '?' }, 'sm')} ${esc(cur.owner_name ?? '')} · ${cur.star ? '★ ' : ''}P${cur.rank}</span>` : ''}
       ${nav.length ? `<span class="po-mo-nav"><a class="btn${prev ? '' : ' disabled'}" ${prev ? `href="${link(prev)}" data-po-go="${esc(prev.id)}"` : 'aria-disabled="true"'} title="${prev ? esc(prev.title) : ''}">‹ ${prev ? esc(prev.owner_name ?? '') : '이전'}</a><a class="btn${next ? '' : ' disabled'}" ${next ? `href="${link(next)}" data-po-go="${esc(next.id)}"` : 'aria-disabled="true"'} title="${next ? esc(next.title) : ''}">${next ? esc(next.owner_name ?? '') : '다음'} ›</a></span>
       <span class="po-band-mems">${owners.map((x) => `<a class="po-mem${x.owner_slack_user_id === t.owner_slack_user_id ? ' on' : ''}" href="${link(x)}" data-po-go="${esc(x.id)}" title="${esc(x.title)}">${avatar(memberOf(x.owner_slack_user_id) ?? { display_name: '?' }, 'sm')}${esc(x.owner_name ?? '')}</a>`).join('')}</span>` : '<span class="sub">보드를 열면 구성원 이동 단추가 생깁니다</span>'}
