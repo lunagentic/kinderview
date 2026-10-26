@@ -126,6 +126,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .brand{display:flex;flex-direction:column;line-height:1.2}
 .brand-mark{font-family:var(--display);font-weight:800;font-size:1.12rem;letter-spacing:-.03em}
 .brand-sub{font-size:.68rem;color:var(--on-chrome-muted);letter-spacing:.02em}
+.build-tag{font-size:.6rem;color:var(--on-chrome-muted);opacity:.7;letter-spacing:.02em;margin-top:1px;font-variant-numeric:tabular-nums}
 .gnb{display:flex;gap:4px;flex:1;flex-wrap:wrap}
 .gnb a{
   position:relative;padding:9px 13px 10px;color:var(--on-chrome-muted);

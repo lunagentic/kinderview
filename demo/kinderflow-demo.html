@@ -130,6 +130,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .brand{display:flex;flex-direction:column;line-height:1.2}
 .brand-mark{font-family:var(--display);font-weight:800;font-size:1.12rem;letter-spacing:-.03em}
 .brand-sub{font-size:.68rem;color:var(--on-chrome-muted);letter-spacing:.02em}
+.build-tag{font-size:.6rem;color:var(--on-chrome-muted);opacity:.7;letter-spacing:.02em;margin-top:1px;font-variant-numeric:tabular-nums}
 .gnb{display:flex;gap:4px;flex:1;flex-wrap:wrap}
 .gnb a{
   position:relative;padding:9px 13px 10px;color:var(--on-chrome-muted);
@@ -2740,7 +2741,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   <header class="topbar">
     <a class="brand" href="#/project">
       <span class="brand-mark">PO Board</span>
-      <span class="brand-sub">Priority Organizer</span>
+      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 10/27 07:58 · 4d335c0 (KST)">10/27 07:58</span>
     </a>
     <nav class="gnb" id="gnb">
       <a href="#/project" data-nav="project">프로젝트 매니징</a>
@@ -2769,6 +2770,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   <div id="toast-root" class="toast-root" aria-live="polite"></div>
 
 <script type="module">
+window.KF_BUILD = "10/27 07:58 · 4d335c0"; console.info('PO Board build', window.KF_BUILD);
 /* ── 도메인 상수 (server/domain.js) ─────────────────── */
 
 // 도메인 상수 — 표기는 docs/11-glossary.md 를 따른다.

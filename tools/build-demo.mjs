@@ -7,6 +7,7 @@
 //     → dist/index.html             정적 호스팅용 완전한 문서 (Vercel 배포 대상)
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -95,12 +96,20 @@ if (clashes.length) {
   throw new Error(`이름이 겹칩니다 — 한쪽 이름을 바꿔 주세요: ${clashes.join(', ')}`);
 }
 
+// 빌드 도장 — 어느 빌드가 떠 있는지 화면(로고 밑 작은 글자)과 콘솔에서 바로 알 수 있게. 폰 홈 화면 바로가기가 옛 화면을 붙들고 있을 때 가려낸다
+const builtAt = new Date();
+const kst = new Date(builtAt.getTime() + 9 * 3600e3);
+const stamp = `${kst.getUTCMonth() + 1}/${kst.getUTCDate()} ${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+let sha = '';
+try { sha = execSync('git rev-parse --short HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { /* git 이 없으면 시각만 */ }
+const BUILD = `${stamp}${sha ? ` · ${sha}` : ''}`;
 const css = read('public/app.css');
 
 // index.html 의 본문만 가져와 재사용한다 (Artifact 는 doctype/head/body 를 직접 감싼다)
 const html = read('public/index.html');
 const bodyInner = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'))
   .replace(/\s*<script type="module"[\s\S]*?<\/script>/, '');
+const bodyStamped = bodyInner.replace('<span class="brand-sub">Priority Organizer</span>', `<span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 ${BUILD} (KST)">${stamp}</span>`);
 
 const out = `<title>PO Board</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -108,8 +117,9 @@ const out = `<title>PO Board</title>
 <style>
 ${css}
 </style>
-${bodyInner}
+${bodyStamped}
 <script type="module">
+window.KF_BUILD = ${JSON.stringify(BUILD)}; console.info('PO Board build', window.KF_BUILD);
 ${parts}
 </script>
 `;
