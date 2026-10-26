@@ -31,6 +31,7 @@ let allKind = 'all';                 // 'all' | 'parent' | 'sub' | 'link'
 let allDone = false;                 // 완료 포함
 const allSec = { parent: true, sub: true, link: false };
 const expanded = new Set();          // 하위를 펼친 상위 업무 id
+let blOpen = false;                  // 카드 아래 「백로그」 묶음 펼침
 // 상세 페이지의 「PO 보드 이동 띠」가 쓰는 맥락 — 마지막으로 그린 카드 차례(정렬·구성원 필터 반영)
 let poLast = [];                     // [{ id, key, title, owner_slack_user_id, owner_name, rank, star }]
 let poCameBack = false;              // 상세에서 돌아올 때 열린 카드로 스크롤
@@ -312,6 +313,22 @@ export async function renderPoBoard(host) {
     if (sortBy === 'due') return groups.sort((a, b) => a.due.localeCompare(b.due) || head(a, b));
     return groups.sort(head);
   };
+  // ── 백로그 — 마감일이 비어 있는 상위 업무(타임라인·업무 목록의 백로그와 같은 규칙). 여기서 마감·책임자·★ 을 정하면 보드로 올라간다
+  const backlogBox = () => {
+    const rows = all.filter((t) => !t.due_date && t.status !== 'DONE' && (who === 'all' || t.owner_slack_user_id === who))
+      .sort((a, b) => (a.owner_name ?? '').localeCompare(b.owner_name ?? '', 'ko') || (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+    const starBtn = (x) => { const on = (x.stars ?? []).includes(state.me); return `<button type="button" class="po-star${on ? ' on' : ''}" data-star-task="${esc(x.id)}" aria-pressed="${on}" title="${on ? '★ 핵심과업 표시 지우기' : '☆ 핵심과업으로 표시'}">${on ? '★' : '☆'}</button>`; };
+    const ownerSel = (x) => `<select class="po-bl-owner" data-bl-owner="${esc(x.id)}" aria-label="책임자">${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === x.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>`;
+    return `<div class="po-bl${blOpen ? ' open' : ''}">
+      <button type="button" class="po-bl-h" data-bl-toggle aria-expanded="${blOpen}"><span class="kd">백로그</span><b>${rows.length}</b><span class="hint">마감 미정 상위 업무 · 마감을 정하면 타임라인·업무 목록에, ★ 을 켜면 카드에 올라옵니다</span><span class="tog">${blOpen ? '접기' : '펼치기'}</span></button>
+      ${blOpen ? (rows.length ? `<ul class="po-bl-list">${rows.map((x) => `<li class="po-bl-row">${starBtn(x)}
+          <a class="t" href="#/project/tasks/${esc(x.id)}?from=poboard"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>
+          <span class="who">${av(x.owner_slack_user_id)}${ownerSel(x)}</span>
+          <label class="due">📅 <input type="date" data-bl-due="${esc(x.id)}" aria-label="마감일 정하기" title="마감일을 정하면 백로그에서 나가 보드·타임라인에 올라옵니다"></label>
+          ${stChip(x)}</li>`).join('')}</ul>`
+        : '<div class="po-note">백로그가 비어 있습니다 — 업무를 등록할 때 마감을 비우면 여기로 들어옵니다.</div>') : ''}
+    </div>`;
+  };
   const paint = () => {
     const groups = groupBy(keyTasks.filter((t) => who === 'all' || t.owner_slack_user_id === who));
     const list = groups.flatMap((g) => g.tasks);
@@ -334,8 +351,9 @@ export async function renderPoBoard(host) {
         <div class="po-mems"><button type="button" class="po-mem${who === 'all' ? ' on' : ''}" data-who="all"><span class="avatar sm all">전</span>전체 <span class="n">${keyTasks.length}</span></button>
           ${members.map((m) => `<button type="button" class="po-mem${who === m.id ? ' on' : ''}" data-who="${esc(m.id)}">${av(m.id)}${esc(m.name)} <span class="n">${m.n}</span></button>`).join('')}</div>
         <div class="po-cards">${groups.length ? groups.map(card).join('') : '<div class="po-empty">이 구성원의 핵심 과업이 없습니다</div>'}</div>
+        ${backlogBox()}
         ${sel ? detail(sel) : ''}
-        <div class="po-note">우선순위 P1·P2·P3… : ★ 핵심과업으로 표시한 업무가 P1 · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율</div>
+        <div class="po-note">우선순위 P1·P2·P3… : ★ 핵심과업으로 표시한 업무가 P1 · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율 · 백로그 = 마감 미정 상위 업무</div>
       </div>`;
   };
   const openCard = async (id) => {
@@ -351,6 +369,13 @@ export async function renderPoBoard(host) {
     }
     await Promise.all(jobs);
     if (open === id) paint();
+  };
+  // 백로그 줄의 책임자·마감 — 바꾸면 새로고침과 같은 길로 보드 전체를 다시 읽는다
+  const blPatch = async (id, body, msg) => {
+    if (!editable()) { paint(); return; }
+    try { await api.patch(`/api/tasks/${encodeURIComponent(id)}`, body); toast(msg); }
+    catch (err) { toast(err.message, true); paint(); return; }
+    window.dispatchEvent(new Event('kf:reload'));
   };
   const toggleStar = async (id, on) => {
     if (!editable()) return;
@@ -462,6 +487,10 @@ export async function renderPoBoard(host) {
     const so = e.target.closest('[data-sort]');
     if (so) { sortBy = so.value; paint(); return; }
     if (e.target.closest('[data-all-done]')) { allDone = e.target.checked; paint(); return; }
+    const bo = e.target.closest('[data-bl-owner]');
+    if (bo) { blPatch(bo.dataset.blOwner, { owner_slack_user_id: bo.value }, '책임자를 바꿨습니다.'); return; }
+    const bd = e.target.closest('[data-bl-due]');
+    if (bd) { if (bd.value) blPatch(bd.dataset.blDue, { due_date: bd.value }, '마감일을 정했습니다 — 보드와 타임라인에 올라옵니다.'); return; }
     const sel = e.target.closest('[data-rank]');
     if (sel) reorder(sel.dataset.rank, Number(sel.value) - 1);
   }, sig);
@@ -479,6 +508,7 @@ export async function renderPoBoard(host) {
     if (op) { if (op.dataset.open) { open = null; openCard(op.dataset.open); document.querySelector(`.po-ct[data-id="${op.dataset.open}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } return; }
     const kd = e.target.closest('[data-kind]');
     if (kd) { allKind = kd.dataset.kind; paint(); return; }
+    if (e.target.closest('[data-bl-toggle]')) { blOpen = !blOpen; paint(); return; }
     const sc = e.target.closest('[data-sec]');
     if (sc) { allSec[sc.dataset.sec] = !allSec[sc.dataset.sec]; paint(); return; }
     const ex = e.target.closest('[data-expand]');
