@@ -1467,6 +1467,9 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
   width:100%;text-align:left;background:none;border:none;cursor:pointer;
   padding:7px 4px;border-radius:var(--radius-sm);font:inherit}
 .tld-task:hover{background:var(--surface-2)}
+/* 백로그 줄 — 제목칸은 글자 너비만큼만. 나머지 빈 자리를 누르면 차트 줄처럼 업무 창이 열린다 */
+.tl-backlog .tld-task .ttl{display:flex;justify-content:flex-start;min-width:0}
+.tl-backlog .tld-task .ttl-wrap{flex:0 1 auto;width:fit-content;max-width:100%}
 /* 줄 자체가 상세로 가는 문이다 — 키보드에도 그 사실이 보여야 한다 */
 .tld-task:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .tld-task .due{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.8rem;
@@ -2578,6 +2581,7 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-card.dragging{opacity:.75;transform:scale(1.02);box-shadow:0 14px 30px rgba(21,26,45,.18);z-index:2;cursor:grabbing}
 .po-card.dragging .po-grip{cursor:grabbing}
 body[data-gate="view"] .po-grip{display:none}
+.po-bl-out{flex:none;font-size:.7rem;padding:1px 7px;align-self:center}
 .po-who .nm{font-weight:800;font-size:1.05rem;line-height:1.2}
 .po-who .team{font-size:.76rem;color:var(--muted);line-height:1.2;margin-top:1px}
 .po-rank{margin-left:auto;flex:none;font-size:.74rem;font-weight:800;border-radius:999px;padding:3px 9px;background:color-mix(in srgb,var(--indigo) 12%,var(--surface));color:var(--indigo)}

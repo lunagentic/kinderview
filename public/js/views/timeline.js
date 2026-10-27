@@ -38,6 +38,7 @@ const openPhases = new Set();
 // 펼쳐 둔 업무(하위 업무 줄)도 같은 이유로 기억한다
 const openTasks = new Set();
 // 방금 등록한 업무 — 다시 그린 뒤 반짝여 짚는다
+let tlBacklogOpen = false;   // 백로그 묶음을 펼쳐 둔 채 다시 그려도(업무 창에서 고친 뒤) 접히지 않는다
 let flashTask = null;
 // 다른 화면에서 티켓 번호를 눌러 왔다 — 그 업무(하위)를 펼쳐 짚는다
 let jumpTo = null;
@@ -367,7 +368,7 @@ export async function renderTimeline(root) {
       </div>
     </div>
 
-    <details class="tl-backlog">
+    <details class="tl-backlog"${tlBacklogOpen ? ' open' : ''}>
       <summary>
         <span class="lab">백로그</span>
         <span class="n" id="tl-backlog-n">…</span>
@@ -442,12 +443,14 @@ export async function renderTimeline(root) {
     }
     paintSubs(id);
   }
+  // 백로그 줄도 차트 줄처럼 업무 창을 연다 — 펼칠 때 받아 둔 목록에서 찾는다
+  let backlogRows = [];
   const findTask = (id) => {
     for (const rows of phaseTasks.values()) {
       const t = rows?.find((x) => x.id === id);
       if (t) return t;
     }
-    return null;
+    return backlogRows.find((x) => x.id === id) ?? null;
   };
   const openSubs = (id, { focus = null } = {}) => {
     const t = findTask(id);
@@ -549,7 +552,7 @@ export async function renderTimeline(root) {
     const line = e.target.closest('.tl-task[data-line]');
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { e.preventDefault(); lineClick(line); return; }
     const bl = e.target.closest('.tld-task[data-line]');
-    if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { e.preventDefault(); go(`#/project/tasks/${bl.dataset.line}`); }
+    if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { e.preventDefault(); openSubs(bl.dataset.line); }
   });
 
   // 업무 등록 — 업무명만 적어 먼저 만든다. 자세한 것은 이름을 눌러 여는 팝업에서
@@ -683,7 +686,7 @@ export async function renderTimeline(root) {
     const task = e.target.closest('[data-task]');
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
-    // 차트의 업무 줄은 하위 업무 창을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
+    // 차트의 업무 줄도 백로그의 줄도 하위 업무 창을 연다(✎ 는 상세). 줄 안의 편집칸들은 제 일을 해야 한다.
     const cm = e.target.closest('.tl-task [data-cm]');
     if (cm) { e.preventDefault(); openSubs(cm.dataset.cm, { focus: 'comments' }); return undefined; }
     if (e.target.closest('[data-director-digest]')) {
@@ -708,7 +711,7 @@ export async function renderTimeline(root) {
     if (sline && sline.dataset.dragged) { delete sline.dataset.dragged; return undefined; }
     if (sline && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(sline.dataset.ofTask, { focus: sline.dataset.subLine }); return undefined; }
     const bl = e.target.closest('.tld-task[data-line]');
-    if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) return go(`#/project/tasks/${bl.dataset.line}`);
+    if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { openSubs(bl.dataset.line); return undefined; }
 
     const ms = e.target.closest('[data-milestone], [data-milestone-row]');
     if (ms) {
@@ -727,10 +730,11 @@ export async function renderTimeline(root) {
     let loaded = false;
 
     const paint = (list) => {
+      backlogRows = list;
       nBox.textContent = `${list.length}건`;
       body.innerHTML = list.length
         ? `<div class="tk-rows">${list.map((t) => `
-            <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0">
+            <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0" title="눌러서 업무 창 열기 — 이름·상태·하위 업무 고치기">
               <span class="due num"><span class="due-view" data-due="${esc(t.id)}"
                     data-date="" title="눌러서 마감일 정하기">미정</span></span>
               <span class="ttl">${ticketTag(t)}${titleCell(t)}</span>
@@ -751,7 +755,7 @@ export async function renderTimeline(root) {
       }
     };
 
-    box.addEventListener('toggle', () => { if (box.open && !loaded) load(); });
+    box.addEventListener('toggle', () => { tlBacklogOpen = box.open; if (box.open && !loaded) load(); });
     // 몇 건인지는 접혀 있어도 보여 준다
     api.get('/api/tasks?backlog=1').then((list) => {
       nBox.textContent = `${list.length}건`;

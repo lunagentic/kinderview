@@ -1471,6 +1471,9 @@ h1 .ttl-wrap.h1>.ttl-edit,h1 .ttl-wrap.h1::after{padding:2px 6px;line-height:1.3
   width:100%;text-align:left;background:none;border:none;cursor:pointer;
   padding:7px 4px;border-radius:var(--radius-sm);font:inherit}
 .tld-task:hover{background:var(--surface-2)}
+/* 백로그 줄 — 제목칸은 글자 너비만큼만. 나머지 빈 자리를 누르면 차트 줄처럼 업무 창이 열린다 */
+.tl-backlog .tld-task .ttl{display:flex;justify-content:flex-start;min-width:0}
+.tl-backlog .tld-task .ttl-wrap{flex:0 1 auto;width:fit-content;max-width:100%}
 /* 줄 자체가 상세로 가는 문이다 — 키보드에도 그 사실이 보여야 한다 */
 .tld-task:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .tld-task .due{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.8rem;
@@ -2582,6 +2585,7 @@ body[data-gate="view"] .co-add,body[data-gate="view"] .co-chip .x{display:none}
 .po-card.dragging{opacity:.75;transform:scale(1.02);box-shadow:0 14px 30px rgba(21,26,45,.18);z-index:2;cursor:grabbing}
 .po-card.dragging .po-grip{cursor:grabbing}
 body[data-gate="view"] .po-grip{display:none}
+.po-bl-out{flex:none;font-size:.7rem;padding:1px 7px;align-self:center}
 .po-who .nm{font-weight:800;font-size:1.05rem;line-height:1.2}
 .po-who .team{font-size:.76rem;color:var(--muted);line-height:1.2;margin-top:1px}
 .po-rank{margin-left:auto;flex:none;font-size:.74rem;font-weight:800;border-radius:999px;padding:3px 9px;background:color-mix(in srgb,var(--indigo) 12%,var(--surface));color:var(--indigo)}
@@ -2746,7 +2750,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   <header class="topbar">
     <a class="brand" href="#/project">
       <span class="brand-mark">PO Board</span>
-      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 10/28 00:45 · 481c83a (KST)">10/28 00:45</span>
+      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 10/28 01:03 · 21fc8d6 (KST)">10/28 01:03</span>
     </a>
     <nav class="gnb" id="gnb">
       <a href="#/project" data-nav="project">프로젝트 매니징</a>
@@ -2775,7 +2779,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   <div id="toast-root" class="toast-root" aria-live="polite"></div>
 
 <script type="module">
-window.KF_BUILD = "10/28 00:45 · 481c83a"; console.info('PO Board build', window.KF_BUILD);
+window.KF_BUILD = "10/28 01:03 · 21fc8d6"; console.info('PO Board build', window.KF_BUILD);
 /* ── 도메인 상수 (server/domain.js) ─────────────────── */
 
 // 도메인 상수 — 표기는 docs/11-glossary.md 를 따른다.
@@ -10992,7 +10996,7 @@ async function renderTasks(root, query) {
     [months, rows, backlogRows] = await Promise.all([
       api.get('/api/task-months'),
       api.get(`/api/tasks?${ask.toString()}`),
-      api.get('/api/tasks?backlog=1&done=1'),
+      api.get('/api/tasks?backlog=1'),   // 완료는 빼고 센다 — 타임라인·킨더플로우 백로그와 같은 수
     ]);
     backlogCount = backlogRows.length;
   } catch (err) {
@@ -14170,11 +14174,13 @@ function pickKeyTasks(all) {
 async function renderPoBoard(host) {
   host.innerHTML = loading();
   let all;
+  let allWithOut;
   let mr = null;   // 월간 보기 — 월간 업무 화면과 같은 /api/monthly 를 그대로 읽는다(계산 규칙 한 곳)
   try {
     const want = mode === 'month' ? `/api/monthly${month ? `?month=${encodeURIComponent(month)}` : ''}` : null;
     const [rows, m] = await Promise.all([api.get('/api/tasks?done=1&all_backlog=1'), want ? api.get(want) : null]);
-    all = rows.filter((t) => t.area !== 'OUT').map(poShape);
+    allWithOut = rows.map(poShape);                            // 백로그는 외주도 함께(타임라인·업무 목록과 같은 수)
+    all = allWithOut.filter((t) => t.area !== 'OUT');          // 카드·지표는 외주 제외
     mr = m;
     if (mr) month = mr.month;
   } catch (err) { host.innerHTML = errorBox(err.message); return; }
@@ -14407,13 +14413,13 @@ async function renderPoBoard(host) {
   };
   // ── 백로그 — 마감일이 비어 있는 상위 업무(타임라인·업무 목록의 백로그와 같은 규칙). 여기서 마감·책임자·★ 을 정하면 보드로 올라간다
   const backlogBox = () => {
-    const rows = all.filter((t) => !t.due_date && t.status !== 'DONE' && (who === 'all' || t.owner_slack_user_id === who))
+    const rows = allWithOut.filter((t) => !t.due_date && t.status !== 'DONE' && (who === 'all' || t.owner_slack_user_id === who))
       .sort((a, b) => (a.owner_name ?? '').localeCompare(b.owner_name ?? '', 'ko') || (a.created_at ?? '').localeCompare(b.created_at ?? ''));
     const starBtn = (x) => { const on = (x.stars ?? []).includes(state.me); return `<button type="button" class="po-star${on ? ' on' : ''}" data-star-task="${esc(x.id)}" aria-pressed="${on}" title="${on ? '★ 핵심과업 표시 지우기' : '☆ 핵심과업으로 표시'}">${on ? '★' : '☆'}</button>`; };
     const ownerSel = (x) => `<select class="po-bl-owner" data-bl-owner="${esc(x.id)}" aria-label="책임자">${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === x.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>`;
     return `<div class="po-bl${blOpen ? ' open' : ''}">
-      <button type="button" class="po-bl-h" data-bl-toggle aria-expanded="${blOpen}"><span class="kd">백로그</span><b>${rows.length}</b><span class="hint">마감 미정 상위 업무 · 마감을 정하면 타임라인·업무 목록에, ★ 을 켜면 카드에 올라옵니다</span><span class="tog">${blOpen ? '접기' : '펼치기'}</span></button>
-      ${blOpen ? (rows.length ? `<ul class="po-bl-list">${rows.map((x) => `<li class="po-bl-row">${starBtn(x)}
+      <button type="button" class="po-bl-h" data-bl-toggle aria-expanded="${blOpen}"><span class="kd">백로그</span><b>${rows.length}</b><span class="hint">마감 미정 상위 업무(외주 포함) · 마감을 정하면 타임라인·업무 목록에, ★ 을 켜면 카드에 올라옵니다</span><span class="tog">${blOpen ? '접기' : '펼치기'}</span></button>
+      ${blOpen ? (rows.length ? `<ul class="po-bl-list">${rows.map((x) => `<li class="po-bl-row${x.area === 'OUT' ? ' out' : ''}">${x.area === 'OUT' ? '<span class="chip out plain po-bl-out" title="외주 업무 — 카드에는 올리지 않습니다">외주</span>' : starBtn(x)}
           <a class="t" href="#/project/tasks/${esc(x.id)}?from=poboard"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>
           <span class="who">${av(x.owner_slack_user_id)}${ownerSel(x)}</span>
           <label class="due">📅 <input type="date" data-bl-due="${esc(x.id)}" aria-label="마감일 정하기" title="마감일을 정하면 백로그에서 나가 보드·타임라인에 올라옵니다"></label>
@@ -14451,7 +14457,7 @@ async function renderPoBoard(host) {
         <div class="po-cards">${groups.length ? groups.map(card).join('') : '<div class="po-empty">이 구성원의 핵심 과업이 없습니다</div>'}</div>
         ${backlogBox()}
         ${sel ? detail(sel) : ''}
-        <div class="po-note">우선순위 P1·P2·P3… : ★ 핵심과업으로 표시한 업무가 P1 · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율 · 백로그 = 마감 미정 상위 업무</div>
+        <div class="po-note">우선순위 P1·P2·P3… : ★ 핵심과업으로 표시한 업무가 P1 · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율 · 백로그 = 마감 미정 상위 업무(외주 포함)</div>
       </div>`;
   };
   const openCard = async (id) => {
@@ -15331,6 +15337,7 @@ const openPhases = new Set();
 // 펼쳐 둔 업무(하위 업무 줄)도 같은 이유로 기억한다
 const openTasks = new Set();
 // 방금 등록한 업무 — 다시 그린 뒤 반짝여 짚는다
+let tlBacklogOpen = false;   // 백로그 묶음을 펼쳐 둔 채 다시 그려도(업무 창에서 고친 뒤) 접히지 않는다
 let flashTask = null;
 // 다른 화면에서 티켓 번호를 눌러 왔다 — 그 업무(하위)를 펼쳐 짚는다
 let jumpTo = null;
@@ -15660,7 +15667,7 @@ async function renderTimeline(root) {
       </div>
     </div>
 
-    <details class="tl-backlog">
+    <details class="tl-backlog"${tlBacklogOpen ? ' open' : ''}>
       <summary>
         <span class="lab">백로그</span>
         <span class="n" id="tl-backlog-n">…</span>
@@ -15735,12 +15742,14 @@ async function renderTimeline(root) {
     }
     paintSubs(id);
   }
+  // 백로그 줄도 차트 줄처럼 업무 창을 연다 — 펼칠 때 받아 둔 목록에서 찾는다
+  let backlogRows = [];
   const findTask = (id) => {
     for (const rows of phaseTasks.values()) {
       const t = rows?.find((x) => x.id === id);
       if (t) return t;
     }
-    return null;
+    return backlogRows.find((x) => x.id === id) ?? null;
   };
   const openSubs = (id, { focus = null } = {}) => {
     const t = findTask(id);
@@ -15842,7 +15851,7 @@ async function renderTimeline(root) {
     const line = e.target.closest('.tl-task[data-line]');
     if (line && !e.target.closest(CHART_LINE_CONTROLS)) { e.preventDefault(); lineClick(line); return; }
     const bl = e.target.closest('.tld-task[data-line]');
-    if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { e.preventDefault(); go(`#/project/tasks/${bl.dataset.line}`); }
+    if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { e.preventDefault(); openSubs(bl.dataset.line); }
   });
 
   // 업무 등록 — 업무명만 적어 먼저 만든다. 자세한 것은 이름을 눌러 여는 팝업에서
@@ -15976,7 +15985,7 @@ async function renderTimeline(root) {
     const task = e.target.closest('[data-task]');
     if (task) return go(`#/project/tasks/${task.dataset.task}`);
 
-    // 차트의 업무 줄은 하위 업무 창을, 백로그의 줄은 상세를 연다. 줄 안의 편집칸들은 제 일을 해야 한다.
+    // 차트의 업무 줄도 백로그의 줄도 하위 업무 창을 연다(✎ 는 상세). 줄 안의 편집칸들은 제 일을 해야 한다.
     const cm = e.target.closest('.tl-task [data-cm]');
     if (cm) { e.preventDefault(); openSubs(cm.dataset.cm, { focus: 'comments' }); return undefined; }
     if (e.target.closest('[data-director-digest]')) {
@@ -16001,7 +16010,7 @@ async function renderTimeline(root) {
     if (sline && sline.dataset.dragged) { delete sline.dataset.dragged; return undefined; }
     if (sline && !e.target.closest(CHART_LINE_CONTROLS)) { openSubs(sline.dataset.ofTask, { focus: sline.dataset.subLine }); return undefined; }
     const bl = e.target.closest('.tld-task[data-line]');
-    if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) return go(`#/project/tasks/${bl.dataset.line}`);
+    if (bl && !e.target.closest(CHART_LINE_CONTROLS + ', textarea')) { openSubs(bl.dataset.line); return undefined; }
 
     const ms = e.target.closest('[data-milestone], [data-milestone-row]');
     if (ms) {
@@ -16020,10 +16029,11 @@ async function renderTimeline(root) {
     let loaded = false;
 
     const paint = (list) => {
+      backlogRows = list;
       nBox.textContent = `${list.length}건`;
       body.innerHTML = list.length
         ? `<div class="tk-rows">${list.map((t) => `
-            <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0">
+            <div class="tld-task" data-line="${esc(t.id)}" role="button" tabindex="0" title="눌러서 업무 창 열기 — 이름·상태·하위 업무 고치기">
               <span class="due num"><span class="due-view" data-due="${esc(t.id)}"
                     data-date="" title="눌러서 마감일 정하기">미정</span></span>
               <span class="ttl">${ticketTag(t)}${titleCell(t)}</span>
@@ -16044,7 +16054,7 @@ async function renderTimeline(root) {
       }
     };
 
-    box.addEventListener('toggle', () => { if (box.open && !loaded) load(); });
+    box.addEventListener('toggle', () => { tlBacklogOpen = box.open; if (box.open && !loaded) load(); });
     // 몇 건인지는 접혀 있어도 보여 준다
     api.get('/api/tasks?backlog=1').then((list) => {
       nBox.textContent = `${list.length}건`;

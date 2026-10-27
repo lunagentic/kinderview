@@ -78,11 +78,13 @@ function pickKeyTasks(all) {
 export async function renderPoBoard(host) {
   host.innerHTML = loading();
   let all;
+  let allWithOut;
   let mr = null;   // 월간 보기 — 월간 업무 화면과 같은 /api/monthly 를 그대로 읽는다(계산 규칙 한 곳)
   try {
     const want = mode === 'month' ? `/api/monthly${month ? `?month=${encodeURIComponent(month)}` : ''}` : null;
     const [rows, m] = await Promise.all([api.get('/api/tasks?done=1&all_backlog=1'), want ? api.get(want) : null]);
-    all = rows.filter((t) => t.area !== 'OUT').map(poShape);
+    allWithOut = rows.map(poShape);                            // 백로그는 외주도 함께(타임라인·업무 목록과 같은 수)
+    all = allWithOut.filter((t) => t.area !== 'OUT');          // 카드·지표는 외주 제외
     mr = m;
     if (mr) month = mr.month;
   } catch (err) { host.innerHTML = errorBox(err.message); return; }
@@ -315,13 +317,13 @@ export async function renderPoBoard(host) {
   };
   // ── 백로그 — 마감일이 비어 있는 상위 업무(타임라인·업무 목록의 백로그와 같은 규칙). 여기서 마감·책임자·★ 을 정하면 보드로 올라간다
   const backlogBox = () => {
-    const rows = all.filter((t) => !t.due_date && t.status !== 'DONE' && (who === 'all' || t.owner_slack_user_id === who))
+    const rows = allWithOut.filter((t) => !t.due_date && t.status !== 'DONE' && (who === 'all' || t.owner_slack_user_id === who))
       .sort((a, b) => (a.owner_name ?? '').localeCompare(b.owner_name ?? '', 'ko') || (a.created_at ?? '').localeCompare(b.created_at ?? ''));
     const starBtn = (x) => { const on = (x.stars ?? []).includes(state.me); return `<button type="button" class="po-star${on ? ' on' : ''}" data-star-task="${esc(x.id)}" aria-pressed="${on}" title="${on ? '★ 핵심과업 표시 지우기' : '☆ 핵심과업으로 표시'}">${on ? '★' : '☆'}</button>`; };
     const ownerSel = (x) => `<select class="po-bl-owner" data-bl-owner="${esc(x.id)}" aria-label="책임자">${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === x.owner_slack_user_id ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>`;
     return `<div class="po-bl${blOpen ? ' open' : ''}">
-      <button type="button" class="po-bl-h" data-bl-toggle aria-expanded="${blOpen}"><span class="kd">백로그</span><b>${rows.length}</b><span class="hint">마감 미정 상위 업무 · 마감을 정하면 타임라인·업무 목록에, ★ 을 켜면 카드에 올라옵니다</span><span class="tog">${blOpen ? '접기' : '펼치기'}</span></button>
-      ${blOpen ? (rows.length ? `<ul class="po-bl-list">${rows.map((x) => `<li class="po-bl-row">${starBtn(x)}
+      <button type="button" class="po-bl-h" data-bl-toggle aria-expanded="${blOpen}"><span class="kd">백로그</span><b>${rows.length}</b><span class="hint">마감 미정 상위 업무(외주 포함) · 마감을 정하면 타임라인·업무 목록에, ★ 을 켜면 카드에 올라옵니다</span><span class="tog">${blOpen ? '접기' : '펼치기'}</span></button>
+      ${blOpen ? (rows.length ? `<ul class="po-bl-list">${rows.map((x) => `<li class="po-bl-row${x.area === 'OUT' ? ' out' : ''}">${x.area === 'OUT' ? '<span class="chip out plain po-bl-out" title="외주 업무 — 카드에는 올리지 않습니다">외주</span>' : starBtn(x)}
           <a class="t" href="#/project/tasks/${esc(x.id)}?from=poboard"><span class="k">${esc(x.key ?? '')}</span>${esc(x.title)}</a>
           <span class="who">${av(x.owner_slack_user_id)}${ownerSel(x)}</span>
           <label class="due">📅 <input type="date" data-bl-due="${esc(x.id)}" aria-label="마감일 정하기" title="마감일을 정하면 백로그에서 나가 보드·타임라인에 올라옵니다"></label>
@@ -359,7 +361,7 @@ export async function renderPoBoard(host) {
         <div class="po-cards">${groups.length ? groups.map(card).join('') : '<div class="po-empty">이 구성원의 핵심 과업이 없습니다</div>'}</div>
         ${backlogBox()}
         ${sel ? detail(sel) : ''}
-        <div class="po-note">우선순위 P1·P2·P3… : ★ 핵심과업으로 표시한 업무가 P1 · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율 · 백로그 = 마감 미정 상위 업무</div>
+        <div class="po-note">우선순위 P1·P2·P3… : ★ 핵심과업으로 표시한 업무가 P1 · 그 다음은 구성원마다 완료되지 않은 책임 업무 중 지연 우선·마감 가까운 1건 · 진행률 = 하위 업무 완료 비율 · 백로그 = 마감 미정 상위 업무(외주 포함)</div>
       </div>`;
   };
   const openCard = async (id) => {

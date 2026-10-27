@@ -80,7 +80,7 @@ export async function renderTasks(root, query) {
     [months, rows, backlogRows] = await Promise.all([
       api.get('/api/task-months'),
       api.get(`/api/tasks?${ask.toString()}`),
-      api.get('/api/tasks?backlog=1&done=1'),
+      api.get('/api/tasks?backlog=1'),   // 완료는 빼고 센다 — 타임라인·킨더플로우 백로그와 같은 수
     ]);
     backlogCount = backlogRows.length;
   } catch (err) {
