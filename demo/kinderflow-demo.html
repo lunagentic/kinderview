@@ -179,6 +179,7 @@ label.field > span.lab .req{color:var(--s-delay);margin-left:2px}
 .page-head .sub{font-size:.84rem;color:var(--muted);margin-top:4px}
 .page-actions{display:flex;gap:8px;flex-wrap:wrap}
 .section{margin-top:34px}
+.tl-ms-sec{margin-top:0;margin-bottom:22px}
 .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
   padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:16px}
 .section-head h2{font-size:1.06rem;font-weight:800;letter-spacing:-.02em}
@@ -2688,6 +2689,10 @@ body[data-gate="view"] .po-grip{display:none}
 .po-bl-row select,.po-bl-row input[type=date]{font:inherit;font-size:.8rem;padding:3px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .po-bl-row .due{display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--muted)}
 body[data-gate="view"] .po-bl-row select,body[data-gate="view"] .po-bl-row .due{display:none}
+.po-bl-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 12px 12px;border-top:1px dashed var(--line);margin-top:4px}
+.po-bl-add input[type=text]{flex:1 1 240px;min-width:0;font:inherit;font-size:.86rem;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.po-bl-add select{font:inherit;font-size:.82rem;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+body[data-gate="view"] .po-bl-add{display:none}
 @media (max-width:720px){.po-bl-row .t{flex-basis:100%}.po-bl-h .hint{display:none}}
 .po-star{flex:none;border:0;background:none;padding:0 3px;font:inherit;font-size:1rem;line-height:1.2;color:var(--line);cursor:pointer;border-radius:6px}
 .po-row:hover .po-star{color:var(--muted)}.po-star:hover{color:var(--amber)!important;background:var(--surface-2)}.po-star.on{color:var(--amber)}
@@ -2741,7 +2746,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   <header class="topbar">
     <a class="brand" href="#/project">
       <span class="brand-mark">PO Board</span>
-      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 10/27 07:58 · 4d335c0 (KST)">10/27 07:58</span>
+      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 10/28 00:45 · 481c83a (KST)">10/28 00:45</span>
     </a>
     <nav class="gnb" id="gnb">
       <a href="#/project" data-nav="project">프로젝트 매니징</a>
@@ -2770,7 +2775,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   <div id="toast-root" class="toast-root" aria-live="polite"></div>
 
 <script type="module">
-window.KF_BUILD = "10/27 07:58 · 4d335c0"; console.info('PO Board build', window.KF_BUILD);
+window.KF_BUILD = "10/28 00:45 · 481c83a"; console.info('PO Board build', window.KF_BUILD);
 /* ── 도메인 상수 (server/domain.js) ─────────────────── */
 
 // 도메인 상수 — 표기는 docs/11-glossary.md 를 따른다.
@@ -14413,7 +14418,13 @@ async function renderPoBoard(host) {
           <span class="who">${av(x.owner_slack_user_id)}${ownerSel(x)}</span>
           <label class="due">📅 <input type="date" data-bl-due="${esc(x.id)}" aria-label="마감일 정하기" title="마감일을 정하면 백로그에서 나가 보드·타임라인에 올라옵니다"></label>
           ${stChip(x)}</li>`).join('')}</ul>`
-        : '<div class="po-note">백로그가 비어 있습니다 — 업무를 등록할 때 마감을 비우면 여기로 들어옵니다.</div>') : ''}
+        : '<div class="po-note">백로그가 비어 있습니다 — 아래에서 바로 더하거나, 업무 등록 때 마감을 비우면 여기로 들어옵니다.</div>') + `
+      <form class="po-bl-add" data-bl-add>
+        <input type="text" name="title" maxlength="120" placeholder="백로그에 새 업무 더하기 (마감은 비워 둡니다)" aria-label="업무명" required>
+        <select name="project" aria-label="프로젝트"><option value="">프로젝트 없음</option>${(state.projects ?? []).filter((p) => !p.is_archived).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>
+        <select name="owner" aria-label="책임자">${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === (who !== 'all' ? who : state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>
+        <button class="btn btn-primary" type="submit">+ 백로그</button>
+      </form>` : ''}
     </div>`;
   };
   const paint = () => {
@@ -14462,6 +14473,17 @@ async function renderPoBoard(host) {
     if (!editable()) { paint(); return; }
     try { await api.patch(`/api/tasks/${encodeURIComponent(id)}`, body); toast(msg); }
     catch (err) { toast(err.message, true); paint(); return; }
+    window.dispatchEvent(new Event('kf:reload'));
+  };
+  const blAdd = async (form) => {
+    if (!editable()) return;
+    const title = form.querySelector('[name=title]').value.trim();
+    if (!title) { toast('업무명을 입력해 주세요.', true); return; }
+    try {
+      await api.post('/api/tasks', { title, project_id: form.querySelector('[name=project]').value || null, owner_slack_user_id: form.querySelector('[name=owner]').value || null });
+      toast(`「${title}」을(를) 백로그에 더했습니다.`);
+    } catch (err) { toast(err.message, true); return; }
+    blOpen = true;
     window.dispatchEvent(new Event('kf:reload'));
   };
   const toggleStar = async (id, on) => {
@@ -14570,6 +14592,10 @@ async function renderPoBoard(host) {
     host.addEventListener('pointercancel', end, sig);
     host.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); } }, { capture: true, signal: poBound.signal });
   }());
+  host.addEventListener('submit', (e) => {
+    const f = e.target.closest('[data-bl-add]');
+    if (f) { e.preventDefault(); blAdd(f); }
+  }, sig);
   host.addEventListener('change', (e) => {
     const so = e.target.closest('[data-sort]');
     if (so) { sortBy = so.value; paint(); return; }
@@ -15545,6 +15571,34 @@ async function renderTimeline(root) {
 
   root.innerHTML = `
     ${tlHead()}
+    <section class="section tl-ms-sec">
+      <div class="section-head">
+        <h2>마일스톤</h2>
+        <span class="meta">기한이 가까운 순</span>
+      </div>
+      ${live.flatMap((r) => r.milestones.map((m) => ({ ...m, project: r }))).length ? `
+        <div class="table-wrap">
+          <table class="list">
+            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>진척률</th></tr></thead>
+            <tbody>
+              ${live.flatMap((r) => r.milestones.map((m) => ({ m, r })))
+                .sort((a, b) => a.m.due_date.localeCompare(b.m.due_date))
+                .map(({ m, r }) => {
+                  return `
+                    <tr class="row-click" data-milestone-row="${esc(m.id)}">
+                      <td data-label="마일스톤"><b>${esc(m.name)}</b></td>
+                      <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
+                      <td data-label="페이즈">${m.phase_name ? esc(m.phase_name) : '-'}</td>
+                      <td data-label="날짜">${shortDate(m.due_date)}
+                        <span class="dday">${m.progress === 100 ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
+                      <td data-label="진척률">${msProgressCell(m)}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+          </table>
+        </div>` : '<p class="hint">등록된 마일스톤이 없습니다.</p>'}
+    </section>
+
     ${ganttScaleBar(w)}
 
     <div class="tl-legend">
@@ -15616,33 +15670,6 @@ async function renderTimeline(root) {
     </details>
 
 
-    <section class="section">
-      <div class="section-head">
-        <h2>마일스톤</h2>
-        <span class="meta">기한이 가까운 순</span>
-      </div>
-      ${live.flatMap((r) => r.milestones.map((m) => ({ ...m, project: r }))).length ? `
-        <div class="table-wrap">
-          <table class="list">
-            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>진척률</th></tr></thead>
-            <tbody>
-              ${live.flatMap((r) => r.milestones.map((m) => ({ m, r })))
-                .sort((a, b) => a.m.due_date.localeCompare(b.m.due_date))
-                .map(({ m, r }) => {
-                  return `
-                    <tr class="row-click" data-milestone-row="${esc(m.id)}">
-                      <td data-label="마일스톤"><b>${esc(m.name)}</b></td>
-                      <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
-                      <td data-label="페이즈">${m.phase_name ? esc(m.phase_name) : '-'}</td>
-                      <td data-label="날짜">${shortDate(m.due_date)}
-                        <span class="dday">${m.progress === 100 ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
-                      <td data-label="진척률">${msProgressCell(m)}</td>
-                    </tr>`;
-                }).join('')}
-            </tbody>
-          </table>
-        </div>` : '<p class="hint">등록된 마일스톤이 없습니다.</p>'}
-    </section>
 `;
 
   hoverTip(root);

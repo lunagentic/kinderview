@@ -278,6 +278,34 @@ export async function renderTimeline(root) {
 
   root.innerHTML = `
     ${tlHead()}
+    <section class="section tl-ms-sec">
+      <div class="section-head">
+        <h2>마일스톤</h2>
+        <span class="meta">기한이 가까운 순</span>
+      </div>
+      ${live.flatMap((r) => r.milestones.map((m) => ({ ...m, project: r }))).length ? `
+        <div class="table-wrap">
+          <table class="list">
+            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>진척률</th></tr></thead>
+            <tbody>
+              ${live.flatMap((r) => r.milestones.map((m) => ({ m, r })))
+                .sort((a, b) => a.m.due_date.localeCompare(b.m.due_date))
+                .map(({ m, r }) => {
+                  return `
+                    <tr class="row-click" data-milestone-row="${esc(m.id)}">
+                      <td data-label="마일스톤"><b>${esc(m.name)}</b></td>
+                      <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
+                      <td data-label="페이즈">${m.phase_name ? esc(m.phase_name) : '-'}</td>
+                      <td data-label="날짜">${shortDate(m.due_date)}
+                        <span class="dday">${m.progress === 100 ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
+                      <td data-label="진척률">${msProgressCell(m)}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+          </table>
+        </div>` : '<p class="hint">등록된 마일스톤이 없습니다.</p>'}
+    </section>
+
     ${ganttScaleBar(w)}
 
     <div class="tl-legend">
@@ -349,33 +377,6 @@ export async function renderTimeline(root) {
     </details>
 
 
-    <section class="section">
-      <div class="section-head">
-        <h2>마일스톤</h2>
-        <span class="meta">기한이 가까운 순</span>
-      </div>
-      ${live.flatMap((r) => r.milestones.map((m) => ({ ...m, project: r }))).length ? `
-        <div class="table-wrap">
-          <table class="list">
-            <thead><tr><th>마일스톤</th><th>프로젝트</th><th>페이즈</th><th>날짜</th><th>진척률</th></tr></thead>
-            <tbody>
-              ${live.flatMap((r) => r.milestones.map((m) => ({ m, r })))
-                .sort((a, b) => a.m.due_date.localeCompare(b.m.due_date))
-                .map(({ m, r }) => {
-                  return `
-                    <tr class="row-click" data-milestone-row="${esc(m.id)}">
-                      <td data-label="마일스톤"><b>${esc(m.name)}</b></td>
-                      <td data-label="프로젝트">${projectName(r.id, r.name)}</td>
-                      <td data-label="페이즈">${m.phase_name ? esc(m.phase_name) : '-'}</td>
-                      <td data-label="날짜">${shortDate(m.due_date)}
-                        <span class="dday">${m.progress === 100 ? '' : esc(dDay(tlDiff(state.today, m.due_date)))}</span></td>
-                      <td data-label="진척률">${msProgressCell(m)}</td>
-                    </tr>`;
-                }).join('')}
-            </tbody>
-          </table>
-        </div>` : '<p class="hint">등록된 마일스톤이 없습니다.</p>'}
-    </section>
 `;
 
   hoverTip(root);

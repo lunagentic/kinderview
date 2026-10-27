@@ -326,7 +326,13 @@ export async function renderPoBoard(host) {
           <span class="who">${av(x.owner_slack_user_id)}${ownerSel(x)}</span>
           <label class="due">📅 <input type="date" data-bl-due="${esc(x.id)}" aria-label="마감일 정하기" title="마감일을 정하면 백로그에서 나가 보드·타임라인에 올라옵니다"></label>
           ${stChip(x)}</li>`).join('')}</ul>`
-        : '<div class="po-note">백로그가 비어 있습니다 — 업무를 등록할 때 마감을 비우면 여기로 들어옵니다.</div>') : ''}
+        : '<div class="po-note">백로그가 비어 있습니다 — 아래에서 바로 더하거나, 업무 등록 때 마감을 비우면 여기로 들어옵니다.</div>') + `
+      <form class="po-bl-add" data-bl-add>
+        <input type="text" name="title" maxlength="120" placeholder="백로그에 새 업무 더하기 (마감은 비워 둡니다)" aria-label="업무명" required>
+        <select name="project" aria-label="프로젝트"><option value="">프로젝트 없음</option>${(state.projects ?? []).filter((p) => !p.is_archived).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>
+        <select name="owner" aria-label="책임자">${activeMembers().map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === (who !== 'all' ? who : state.me) ? ' selected' : ''}>${esc(m.display_name)}</option>`).join('')}</select>
+        <button class="btn btn-primary" type="submit">+ 백로그</button>
+      </form>` : ''}
     </div>`;
   };
   const paint = () => {
@@ -375,6 +381,17 @@ export async function renderPoBoard(host) {
     if (!editable()) { paint(); return; }
     try { await api.patch(`/api/tasks/${encodeURIComponent(id)}`, body); toast(msg); }
     catch (err) { toast(err.message, true); paint(); return; }
+    window.dispatchEvent(new Event('kf:reload'));
+  };
+  const blAdd = async (form) => {
+    if (!editable()) return;
+    const title = form.querySelector('[name=title]').value.trim();
+    if (!title) { toast('업무명을 입력해 주세요.', true); return; }
+    try {
+      await api.post('/api/tasks', { title, project_id: form.querySelector('[name=project]').value || null, owner_slack_user_id: form.querySelector('[name=owner]').value || null });
+      toast(`「${title}」을(를) 백로그에 더했습니다.`);
+    } catch (err) { toast(err.message, true); return; }
+    blOpen = true;
     window.dispatchEvent(new Event('kf:reload'));
   };
   const toggleStar = async (id, on) => {
@@ -483,6 +500,10 @@ export async function renderPoBoard(host) {
     host.addEventListener('pointercancel', end, sig);
     host.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); } }, { capture: true, signal: poBound.signal });
   }());
+  host.addEventListener('submit', (e) => {
+    const f = e.target.closest('[data-bl-add]');
+    if (f) { e.preventDefault(); blAdd(f); }
+  }, sig);
   host.addEventListener('change', (e) => {
     const so = e.target.closest('[data-sort]');
     if (so) { sortBy = so.value; paint(); return; }
