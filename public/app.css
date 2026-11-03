@@ -2740,3 +2740,52 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
 .po-mo-proj{display:flex;gap:6px;flex-wrap:wrap}
 .po-mo-proj .chip{font-size:.76rem;padding:3px 10px}
 @media (max-width:1100px){.po-kpis.month{grid-template-columns:1fr}}
+
+/* ── 킨더플로우 사람 카드 v2 (캔버스 F) — 프로필만 사람 색 · 지난주 | 이번주 · 티켓 + 업무명 링크 ── */
+.po-zone{--po-cream:#F4F2EE;--po-blue:#B9D2F0;--po-blue-ink:#2F5FA8;--po-lw-ink:#8A90A3;background:var(--po-cream);border-radius:20px;padding:16px 18px 6px;margin:4px 0 18px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .po-zone{--po-cream:#1C2032;--po-blue:#2A3E66;--po-blue-ink:#CFE0FF;--po-lw-ink:#8990A8}}
+:root[data-theme="dark"] .po-zone{--po-cream:#1C2032;--po-blue:#2A3E66;--po-blue-ink:#CFE0FF;--po-lw-ink:#8990A8}
+.po-band-title{display:inline-block;padding:6px 16px 7px;color:#fff;font-weight:900;background-color:#F0906C;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.14) 0 1px,transparent 1px 3px);clip-path:polygon(0 6%,100% 0,98.5% 100%,1% 94%);transform:rotate(-1deg)}
+.po-wk-tag{color:#fff !important;background:#6D82C9 !important;border-color:transparent !important;font-weight:800;clip-path:polygon(0 10%,100% 0,98% 100%,2% 92%);border-radius:2px !important}
+.po-wk-tag::before{display:none}
+.po-cards .po-card.v2{padding:0;min-height:0;gap:0;border-radius:22px;border:1px solid var(--line);box-shadow:0 2px 10px rgba(27,29,41,.06);overflow:hidden;cursor:default}
+.po-cards .po-card.v2:hover{transform:none;box-shadow:0 8px 22px rgba(21,26,45,.10)}
+.po-cards .po-card.v2.on,.po-cards .po-card.v2.all{border-color:var(--po-blue-ink);box-shadow:0 0 0 1px var(--po-blue-ink),0 10px 26px rgba(21,26,45,.10)}
+.po-cards .po-card.v2.on::after{display:none}
+.po-card.v2 .po-head{display:flex;align-items:center;gap:6px;padding:12px 14px 10px 8px}
+.po-card.v2 .po-grip{margin-left:0;width:20px;height:30px;color:var(--muted)}
+.po-who2{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:0;background:none;padding:4px 6px;border-radius:12px;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.po-who2:hover{background:var(--surface-2)}
+.po-who2:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.po-cloud{position:relative;flex:none;width:60px;height:42px;display:grid;place-items:center}
+.po-cloud svg{position:absolute;inset:0;width:100%;height:100%;fill:var(--mc)}
+.po-cloud b{position:relative;margin-top:8px;color:#fff;font-size:1.15rem;font-weight:900}
+.po-cloud .late{position:absolute;top:1px;right:2px;width:12px;height:12px;border-radius:50%;background:var(--s-delay);border:2px solid var(--surface)}
+.po-who2 .nm{font-size:1.15rem;font-weight:900;line-height:1.2;word-break:keep-all;overflow-wrap:anywhere}
+.po-split{display:grid;grid-template-columns:1fr 1fr;height:118px}
+.po-split > div{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0}
+.po-split .lw{background:var(--po-cream);border-radius:0 18px 18px 0;margin-right:-14px;color:var(--po-lw-ink)}
+.po-split .tw{background:var(--po-blue);border-radius:18px 0 0 18px;position:relative;z-index:1;box-shadow:-8px 0 20px rgba(27,29,41,.10);color:var(--po-blue-ink)}
+.po-split .lab{font-size:.78rem;font-weight:700;opacity:.9;letter-spacing:0;text-transform:none}
+.po-split .v{font-size:2.6rem;font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.po-split .v small{font-size:1rem;font-weight:800;margin-left:1px}
+.po-split .v .dash{font-size:1.8rem;opacity:.6}
+.po-pill{font-size:.76rem;font-weight:900;color:var(--surface);background:var(--po-blue-ink);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.po-pill.wait{opacity:.6;font-weight:700}
+.po-card.v2 .po-cts{display:flex;flex-direction:column;gap:0;padding:6px 14px 12px}
+.po-card.v2 .po-ct{display:flex;flex-direction:row;align-items:baseline;gap:7px;padding:10px 8px;border:0;border-bottom:1px solid var(--line);border-radius:10px;background:none;box-shadow:none;cursor:pointer;grid-template-areas:none}
+.po-card.v2 .po-ct:last-child{border-bottom:0}
+.po-card.v2 .po-ct:hover{background:var(--surface-2)}
+.po-card.v2 .po-ct.on{background:color-mix(in srgb,var(--po-blue) 45%,var(--surface));border-bottom-color:transparent;box-shadow:none}
+.po-card.v2 .po-ct .k{flex:none;font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.01em}
+.po-card.v2 .po-ct .t{font-size:.92rem;font-weight:700;line-height:1.35;color:var(--po-blue-ink);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--po-blue-ink) 30%,transparent);text-underline-offset:3px;min-width:0;word-break:keep-all;overflow-wrap:anywhere}
+.po-card.v2 .po-ct .t:hover{text-decoration-color:currentColor}
+.po-all-fold{display:block;width:100%;margin-top:14px;padding:10px 14px;border:1px dashed var(--line);border-radius:12px;background:var(--surface);color:var(--ink-2);font:inherit;font-size:.86rem;font-weight:700;text-align:left;cursor:pointer}
+.po-all-fold:hover{background:var(--surface-2)}
+.po-all-wrap{margin:0 0 14px}
+.po-all-wrap .po-all{margin-top:0}
+@media (max-width:720px){
+  .po-zone{padding:12px 10px 4px;border-radius:16px}
+  .po-cards .po-card.v2{padding:0}
+  .po-split{height:104px}.po-split .v{font-size:2.2rem}
+}
