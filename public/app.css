@@ -2789,3 +2789,28 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   .po-cards .po-card.v2{padding:0}
   .po-split{height:104px}.po-split .v{font-size:2.2rem}
 }
+
+/* ── 킨더플로우 · 개발팀 전주 | 금주 ── */
+.tw-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin:0 0 12px}
+.tw-legend i,.tw-who li i,.tw-risk li i{font-style:normal;font-weight:900;margin-right:4px}
+.tw-legend .done,.tw-who li.done i{color:#1F7A5F}.tw-legend .start,.tw-who li.start i{color:#C77B12}
+.tw-legend .prog,.tw-who li.prog i{color:#5E4BA8}.tw-legend .due,.tw-who li.due i{color:var(--po-blue-ink)}
+.tw-who{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 2px 10px rgba(27,29,41,.06);margin-bottom:14px;overflow:hidden}
+.tw-who header{display:flex;align-items:center;gap:12px;padding:12px 18px 10px;flex-wrap:wrap}
+.tw-who h2{margin:0;font-size:1.15rem;font-weight:900}
+.tw-who .meta{margin-left:auto;font-size:.8rem;color:var(--muted)}.tw-who .late{color:var(--s-delay);font-weight:800}
+.tw-who .cols{display:grid;grid-template-columns:1fr 1fr}
+.tw-who .lw,.tw-who .tw{padding:12px 18px 16px;min-width:0}
+.tw-who .lw{background:var(--po-cream);border-radius:0 18px 18px 0;margin-right:-12px}
+.tw-who .tw{background:color-mix(in srgb,var(--po-blue) 35%,var(--surface));border-radius:18px 0 0 18px;position:relative;z-index:1;box-shadow:-6px 0 16px rgba(27,29,41,.06)}
+.tw-who h3{margin:0 0 8px;font-size:.95rem;font-weight:900}.tw-who .tw h3{color:var(--po-blue-ink)}
+.tw-who h3 small{font-weight:600;color:var(--muted);margin-left:6px;font-size:.78rem}
+.tw-who ul,.tw-risk ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.tw-who li,.tw-risk li{display:flex;gap:6px;font-size:.86rem;line-height:1.45;word-break:keep-all;overflow-wrap:anywhere}
+.tw-who li i{flex:none;width:16px;text-align:center}.tw-who li.none{color:var(--muted)}
+.tw-who a.t,.tw-risk a.t{color:inherit;text-decoration:none;font-weight:700}.tw-who a.t:hover,.tw-risk a.t:hover{text-decoration:underline}
+.tw-who .k,.tw-risk .k{font-size:.72rem;font-weight:700;color:var(--muted);margin-right:5px}
+.tw-who em,.tw-risk em{font-style:normal;font-size:.76rem;color:var(--muted);margin-left:4px}
+.tw-risk{background:var(--surface);border:1px solid color-mix(in srgb,var(--s-delay) 30%,var(--line));border-radius:18px;padding:14px 18px;margin-bottom:12px}
+.tw-risk h3{margin:0 0 8px;color:var(--s-delay);font-size:.95rem}.tw-risk li i{color:var(--s-delay)}
+@media (max-width:720px){.tw-who .cols{grid-template-columns:1fr}.tw-who .lw{margin:0;border-radius:0}.tw-who .tw{border-radius:0;box-shadow:none}.tw-who .meta{width:100%;margin-left:0}}

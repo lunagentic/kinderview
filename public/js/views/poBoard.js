@@ -43,7 +43,7 @@ const GRIP_SVG = '<svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="t
 // 화면을 다시 그려도 고른 사람·펼친 카드·주간/월간·고른 달은 남는다
 let who = 'all';
 let open = null;
-let mode = 'week';   // 'week' | 'month'
+let mode = 'week';   // 'week' | 'month' | 'team'(개발팀 전주·금주)
 let sortBy = null;   // 'rank'(P1 먼저) | 'person'(구성원별) | 'due'(마감 가까운 순) | 'custom'(끌어서 정한 내 순서). 비면 처음 열 때 정한다
 let month = null;    // 월간 보기의 달(YYYY-MM). 비면 이번 달
 let week = null;     // 주간 보기의 주(그 주 월요일 YYYY-MM-DD). 비면 이번 주
@@ -99,6 +99,7 @@ function pickKeyTasks(all) {
 
 export async function renderPoBoard(host) {
   host.innerHTML = loading();
+  if (mode === 'team') return renderTeamWeek(host);
   let all;
   let allWithOut;
   let mr = null;   // 월간 보기 — 월간 업무 화면과 같은 /api/monthly 를 그대로 읽는다(계산 규칙 한 곳)
@@ -390,7 +391,7 @@ export async function renderPoBoard(host) {
     host.innerHTML = `
       <div class="po">
         <div class="page-head"><div><h1>킨더플로우 <span class="po-tag">KinderFlow</span></h1><div class="sub">모든 구성원의 핵심 과업 진행 상황을 한눈에 봅니다 · 업무 ${all.length}건${mode === 'month' ? ' · 월간 보기' : ''}</div></div>
-          <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" class="${mode === 'week' ? 'on' : ''}" data-mode="week" role="tab" aria-selected="${mode === 'week'}">주간</button><button type="button" class="${mode === 'month' ? 'on' : ''}" data-mode="month" role="tab" aria-selected="${mode === 'month'}">월간</button></div>
+          <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" class="${mode === 'week' ? 'on' : ''}" data-mode="week" role="tab" aria-selected="${mode === 'week'}">주간</button><button type="button" class="${mode === 'month' ? 'on' : ''}" data-mode="month" role="tab" aria-selected="${mode === 'month'}">월간</button><button type="button" data-mode="team" role="tab" aria-selected="false">개발팀</button></div>
             ${mode === 'week' ? `<span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() - 7 * 864e5).toISOString().slice(0, 10))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${isThisWeek ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${isThisWeek ? '이번 주 ' : ''}${poMd(wk0)} - ${poMd(wk1)}</span><button class="btn" type="button" data-week="${esc(new Date(wk0d.getTime() + 7 * 864e5).toISOString().slice(0, 10))}" aria-label="다음 주">›</button></span>` : ''}<button class="btn btn-primary" type="button" disabled title="다음 단계에서 연결 — 지금은 업무 목록의 ★ 이 올라옵니다">+ 핵심 과업 지정</button></div></div>
         <div class="po-kpis${mode === 'month' ? ' month' : ''}">
           <div class="po-kpi donut"><div><div class="lab">전체 핵심 과업 진행률</div>${donut()}</div>
@@ -631,4 +632,96 @@ export async function renderPoBoard(host) {
     }
     Promise.all(jobs).then(() => { if (open === id) paint(); });
   }
+}
+
+
+// ── 개발팀 전주 · 금주 — 사람마다 전주(실적) | 금주(계획·진행). 킨더플로우 업무·하위 업무·상태 이력에서 센다(읽기만)
+// 대상은 개발팀 보고서 명단. 표시 이름 → 풀네임(구성원 정보에 실명이 생기면 그것을 쓴다)
+const DEV_TEAM = [['정', '정슬기'], ['준영', '박준영'], ['승규', '박승규'], ['희제', '이희제'], ['태성', '김태성']];
+const kstDay = (iso) => { if (!iso) return null; if (iso.length === 10) return iso; return new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString().slice(0, 10); };
+async function renderTeamWeek(host) {
+  const team = DEV_TEAM.map(([disp, full]) => { const m = activeMembers().find((x) => x.display_name === disp); return m && { id: m.slack_user_id, name: (m.real_name && m.real_name !== m.display_name) ? m.real_name : full }; }).filter(Boolean);
+  const ids = new Set(team.map((x) => x.id));
+  let rows;
+  try { rows = (await api.get('/api/tasks?done=1&all_backlog=1')).map(poShape); } catch (err) { host.innerHTML = errorBox(err.message); return; }
+  const mine = rows.filter((t) => ids.has(t.owner_slack_user_id) || (t.sub_owners ?? []).some((x) => ids.has(x)));
+  const full = new Map();
+  await Promise.all(mine.map((t) => api.get(`/api/tasks/${encodeURIComponent(t.id)}`).then((r) => full.set(t.id, r)).catch(() => full.set(t.id, { events: [], subtasks: [] }))));
+  const today = state.today;
+  const mondayOf = (d) => new Date(dt(d) - ((dt(d).getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10);
+  const thisWk0 = mondayOf(today);
+  const tw0 = week ? mondayOf(week) : thisWk0;
+  const add = (d, n) => new Date(dt(d).getTime() + n * 864e5).toISOString().slice(0, 10);
+  const TW = [tw0, add(tw0, 6)]; const LW = [add(tw0, -7), add(tw0, -1)];
+  const inw = (iso, w) => { const k = kstDay(iso); return Boolean(k) && k >= w[0] && k <= w[1]; };
+  const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  const lab = (t) => `<a class="t" href="#/project/tasks/${esc(t.id)}?from=poboard">${t.key ? `<span class="k">${esc(t.key)}</span>` : ''}${esc(t.title)}</a>`;
+  const subsOf = (t) => (full.get(t.id)?.subtasks ?? []).filter((x) => !x.deleted_at);
+  const pctNow = (t) => { const ss = subsOf(t); return ss.length ? Math.round(ss.filter((x) => x.status === 'DONE' || x.is_done).length / ss.length * 100) : (t.status === 'DONE' ? 100 : 0); };
+  const pctAt = (t, day) => { const ss = subsOf(t).filter((x) => (kstDay(x.created_at) ?? '0') < day); return ss.length ? Math.round(ss.filter((x) => x.done_at && kstDay(x.done_at) < day).length / ss.length * 100) : null; };
+  const list = (titles, n) => titles.slice(0, n).map(esc).join(' · ') + (titles.length > n ? ` 외 ${titles.length - n}건` : '');
+  const weekOf = (pid, w, plan) => {
+    const out = []; const owned = rows.filter((t) => t.owner_slack_user_id === pid);
+    const pdone = new Map();
+    for (const t of owned) for (const e of full.get(t.id)?.events ?? []) if (e.event_type === 'STATUS_CHANGED' && e.to_value === 'DONE' && inw(e.occurred_at, w)) pdone.set(t.id, kstDay(e.occurred_at));
+    const g = new Map();
+    for (const t of mine) for (const x of subsOf(t)) if (x.owner_slack_user_id === pid && inw(x.done_at, w)) { if (!g.has(t.id)) g.set(t.id, []); g.get(t.id).push(x); }
+    for (const tid of [...pdone.keys(), ...[...g.keys()].filter((k) => !pdone.has(k))]) {
+      const t = rows.find((x) => x.id === tid); const ss = g.get(tid) ?? [];
+      const tail = [pdone.has(tid) ? `상위 완료 ${md(pdone.get(tid))}` : '', ss.length ? `하위 ${ss.length}건 완료` : ''].filter(Boolean).join(' · ');
+      out.push(['done', `${lab(t)}${ss.length ? ` — ${list(ss.map((x) => x.title), 4)}` : ''} <em>${tail}</em>`]);
+    }
+    for (const t of owned) for (const e of full.get(t.id)?.events ?? []) if (e.event_type === 'STATUS_CHANGED' && e.to_value === 'IN_PROGRESS' && inw(e.occurred_at, w)) out.push(['start', `${lab(t)} <em>착수 ${md(kstDay(e.occurred_at))}</em>`]);
+    if (plan) {
+      const seen = new Set();
+      for (const t of owned.filter((x) => x.status !== 'DONE' && inw(x.due_date, w)).sort((a, b) => a.due_date.localeCompare(b.due_date))) { seen.add(t.id); out.push(['due', `${lab(t)} <em>마감 ${md(t.due_date)} · ${pctNow(t)}%</em>`]); }
+      for (const t of mine) {
+        const ss = subsOf(t).filter((x) => x.owner_slack_user_id === pid && x.status !== 'DONE' && !x.is_done && inw(x.due_date, w));
+        if (ss.length) { seen.add(t.id); out.push(['due', `${lab(t)} — ${list(ss.map((x) => x.title), 3)} <em>하위 ${ss.length}건 이번 주 마감${t.owner_slack_user_id === pid && t.status !== 'DONE' ? ` · 상위 ${pctNow(t)}%` : ''}</em>`]); }
+      }
+      for (const t of owned.filter((x) => ['IN_PROGRESS', 'REVIEW'].includes(x.status) && !seen.has(x.id) && (x.due_date ?? '9') > w[1]).sort((a, b) => (a.due_date ?? '9').localeCompare(b.due_date ?? '9')).slice(0, 4)) {
+        out.push(['prog', `${lab(t)} <em>진행 ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>`]);
+      }
+    } else {
+      for (const t of owned) {
+        if (g.has(t.id) || pdone.has(t.id)) continue;
+        const a = pctAt(t, LW[0]); const b = pctAt(t, TW[0]);
+        if (a != null && b != null && b > a) out.push(['prog', `${lab(t)} <em>${a}% → ${b}%</em>`]);
+      }
+    }
+    return out;
+  };
+  const ICON = { done: '✓', start: '▶', due: '◷', prog: '◐' };
+  const ul = (xs) => `<ul>${xs.length ? xs.map(([c, h]) => `<li class="${c}"><i>${ICON[c]}</i><span>${h}</span></li>`).join('') : '<li class="none"><span>킨더플로우에 기록 없음</span></li>'}</ul>`;
+  const risks = [];
+  const blocks = team.map((p) => {
+    const owned = rows.filter((t) => t.owner_slack_user_id === p.id);
+    const late = owned.filter((t) => t.status !== 'DONE' && t.due_date && t.due_date < TW[0]);
+    late.forEach((t) => risks.push(`<b>${esc(p.name)}</b> ${lab(t)} <em>마감 ${md(t.due_date)} 지남 · ${pctNow(t)}%</em>`));
+    const subN = mine.reduce((n, t) => n + subsOf(t).filter((x) => x.owner_slack_user_id === p.id).length, 0);
+    return `<section class="tw-who" style="--mc:${poTone(p.id)}">
+      <header><span class="po-cloud"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M15 39h35a10.5 10.5 0 0 0 1-21A15 15 0 0 0 22 11a9.5 9.5 0 0 0-7 28z"/></svg><b>${esc(p.name.length > 2 ? p.name[1] : p.name[0])}</b></span><h2>${esc(p.name)}</h2>
+        <span class="meta">책임 상위 ${owned.length} · 하위 ${subN}${late.length ? ` · <span class="late">지연 ${late.length}</span>` : ''}</span></header>
+      <div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])} · 실적</small></h3>${ul(weekOf(p.id, LW, false))}</div>
+        <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])} · 계획·진행</small></h3>${ul(weekOf(p.id, TW, true))}</div></div></section>`;
+  });
+  const last = rows.reduce((m, t) => (t.updated_at && t.updated_at > m ? t.updated_at : m), '');
+  host.innerHTML = `<div class="po">
+    <div class="page-head"><div><h1>킨더플로우 <span class="po-tag">KinderFlow</span></h1><div class="sub">개발팀 담당자별 전주 실적 · 금주 계획 — 킨더플로우 업무·하위 업무·상태 이력 기준${last ? ` · 마지막 갱신 ${md(kstDay(last))}` : ''}</div></div>
+      <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" data-mode="week" role="tab" aria-selected="false">주간</button><button type="button" data-mode="month" role="tab" aria-selected="false">월간</button><button type="button" class="on" data-mode="team" role="tab" aria-selected="true">개발팀</button></div>
+        <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
+    <div class="po-zone tw-zone">
+      <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
+      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="start">▶</i>착수</span><span><i class="prog">◐</i>진행·진척 변화</span><span><i class="due">◷</i>금주 마감</span></div>
+      ${blocks.join('')}
+      ${risks.length ? `<div class="tw-risk"><h3>확인 필요 — 마감 지난 책임 업무 ${risks.length}건</h3><ul>${risks.map((r) => `<li><i>!</i><span>${r}</span></li>`).join('')}</ul></div>` : ''}
+    </div></div>`;
+  poBound?.abort();
+  poBound = new AbortController();
+  host.addEventListener('click', (e) => {
+    const md2 = e.target.closest('[data-mode]');
+    if (md2) { if (md2.dataset.mode !== mode) { mode = md2.dataset.mode; renderPoBoard(host); } return; }
+    const wk = e.target.closest('[data-week]');
+    if (wk) { week = wk.dataset.week; renderPoBoard(host); }
+  }, { signal: poBound.signal });
 }
