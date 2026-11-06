@@ -2818,13 +2818,19 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
 .tw-risk{background:var(--surface);border:1px solid color-mix(in srgb,var(--s-delay) 30%,var(--line));border-radius:18px;padding:14px 18px;margin-bottom:12px}
 .tw-risk h3{margin:0 0 8px;color:var(--s-delay);font-size:.95rem}.tw-risk li i{color:var(--s-delay)}
 @media (max-width:720px){.tw-who .cols{grid-template-columns:1fr}.tw-who .lw{margin:0;border-radius:0}.tw-who .tw{border-radius:0;box-shadow:none}.tw-who .meta{width:100%;margin-left:0}}
+.tw-legend .cont,.tw-who li.cont i{color:#C77B12}
+.tw-grp{margin:10px 0 6px;font-size:.78rem;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;gap:6px}
+.tw-grp:first-of-type{margin-top:0}
+.tw-grp span{font-size:.72rem;font-weight:800;border-radius:999px;padding:0 7px;background:var(--surface);color:var(--muted)}
+.tw-grp.done{color:#1F7A5F}.tw-grp.cont{color:#A9640E}
+.tw-carry{display:inline-block;margin-left:6px;font-size:.7rem;font-weight:800;color:#A9640E;background:color-mix(in srgb,#F5B02E 18%,var(--surface));border-radius:999px;padding:0 7px;white-space:nowrap}
 
 </style>
 
   <header class="topbar">
     <a class="brand" href="#/project">
       <span class="brand-mark">PO Board</span>
-      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 11/6 10:23 · b85d5b4 (KST)">11/6 10:23</span>
+      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 11/6 13:38 · 3b2bfea (KST)">11/6 13:38</span>
     </a>
     <nav class="gnb" id="gnb">
       <a href="#/project" data-nav="project">프로젝트 매니징</a>
@@ -2853,7 +2859,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   <div id="toast-root" class="toast-root" aria-live="polite"></div>
 
 <script type="module">
-window.KF_BUILD = "11/6 10:23 · b85d5b4"; console.info('PO Board build', window.KF_BUILD);
+window.KF_BUILD = "11/6 13:38 · 3b2bfea"; console.info('PO Board build', window.KF_BUILD);
 /* ── 도메인 상수 (server/domain.js) ─────────────────── */
 
 // 도메인 상수 — 표기는 docs/11-glossary.md 를 따른다.
@@ -14805,7 +14811,7 @@ async function renderPoBoard(host) {
 }
 
 
-// ── 개발팀 전주 · 금주 — 사람마다 전주(실적) | 금주(계획·진행). 킨더플로우 업무·하위 업무·상태 이력에서 센다(읽기만)
+// ── 개발팀 전주 · 금주 — 사람마다 전주(완료 · 이어서 진행) | 금주. 킨더플로우 업무·하위 업무·상태 이력에서 센다(읽기만)
 // 대상은 개발팀 보고서 명단. 표시 이름 → 풀네임(구성원 정보에 실명이 생기면 그것을 쓴다)
 const DEV_TEAM = [['정', '정슬기'], ['준영', '박준영'], ['승규', '박승규'], ['희제', '이희제'], ['태성', '김태성']];
 const kstDay = (iso) => { if (!iso) return null; if (iso.length === 10) return iso; return new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString().slice(0, 10); };
@@ -14830,39 +14836,64 @@ async function renderTeamWeek(host) {
   const pctNow = (t) => { const ss = subsOf(t); return ss.length ? Math.round(ss.filter((x) => x.status === 'DONE' || x.is_done).length / ss.length * 100) : (t.status === 'DONE' ? 100 : 0); };
   const pctAt = (t, day) => { const ss = subsOf(t).filter((x) => (kstDay(x.created_at) ?? '0') < day); return ss.length ? Math.round(ss.filter((x) => x.done_at && kstDay(x.done_at) < day).length / ss.length * 100) : null; };
   const list = (titles, n) => titles.slice(0, n).map(esc).join(' · ') + (titles.length > n ? ` 외 ${titles.length - n}건` : '');
-  const weekOf = (pid, w, plan) => {
+  // 전주 — 그 주에 움직인 상위 업무를 한 줄로 모아, 지금 완료면 「완료」, 아니면 「이어서 진행」
+  const lastWeek = (pid, w) => {
+    const owned = rows.filter((t) => t.owner_slack_user_id === pid);
+    const acts = new Map();   // 업무 id → { subs, doneAt, startAt, from, to }
+    const act = (id) => { if (!acts.has(id)) acts.set(id, { subs: [] }); return acts.get(id); };
+    for (const t of owned) {
+      for (const e of full.get(t.id)?.events ?? []) {
+        if (e.event_type !== 'STATUS_CHANGED' || !inw(e.occurred_at, w)) continue;
+        if (e.to_value === 'DONE') act(t.id).doneAt = kstDay(e.occurred_at);
+        if (e.to_value === 'IN_PROGRESS') act(t.id).startAt = kstDay(e.occurred_at);
+      }
+      const a = pctAt(t, w[0]); const b = pctAt(t, add(w[1], 1));
+      if (a != null && b != null && b > a) Object.assign(act(t.id), { from: a, to: b });
+    }
+    for (const t of mine) for (const x of subsOf(t)) if (x.owner_slack_user_id === pid && inw(x.done_at, w)) act(t.id).subs.push(x);
+    const done = []; const cont = []; const contIds = new Set();
+    for (const [id, a] of acts) {
+      const t = rows.find((x) => x.id === id); if (!t) continue;
+      const body = a.subs.length ? ` — ${list(a.subs.map((x) => x.title), 4)}` : '';
+      if (t.status === 'DONE') {
+        const tail = [a.doneAt ? `상위 완료 ${md(a.doneAt)}` : '상위 완료', a.subs.length ? `하위 ${a.subs.length}건` : ''].filter(Boolean).join(' · ');
+        done.push(['done', `${lab(t)}${body} <em>${tail}</em>`]);
+      } else {
+        contIds.add(id);
+        const mineT = t.owner_slack_user_id === pid;
+        const tail = [a.subs.length ? `하위 ${a.subs.length}건 완료` : '', a.startAt ? `착수 ${md(a.startAt)}` : '', a.from != null && !a.subs.length ? `${a.from}% → ${a.to}%` : '',
+          a.doneAt ? '완료했다가 다시 열림' : '', mineT ? `지금 ${pctNow(t)}%` : `상위 ${esc(t.owner_name ?? '')} · ${pctNow(t)}%`, t.due_date ? `마감 ${md(t.due_date)}` : ''].filter(Boolean).join(' · ');
+        cont.push(['cont', `${lab(t)}${body} <em>${tail}</em>`]);
+      }
+    }
+    return { done, cont, contIds };
+  };
+  // 금주 — 이번 주에 끝낸 것, 이번 주 마감, 진행 중. 전주에서 이어지는 업무는 「전주에 이어」 꼬리표
+  const thisWeek = (pid, w, contIds) => {
     const out = []; const owned = rows.filter((t) => t.owner_slack_user_id === pid);
-    const pdone = new Map();
-    for (const t of owned) for (const e of full.get(t.id)?.events ?? []) if (e.event_type === 'STATUS_CHANGED' && e.to_value === 'DONE' && inw(e.occurred_at, w)) pdone.set(t.id, kstDay(e.occurred_at));
+    const carry = (t) => (contIds.has(t.id) ? ' <b class="tw-carry">전주에 이어</b>' : '');
     const g = new Map();
     for (const t of mine) for (const x of subsOf(t)) if (x.owner_slack_user_id === pid && inw(x.done_at, w)) { if (!g.has(t.id)) g.set(t.id, []); g.get(t.id).push(x); }
-    for (const tid of [...pdone.keys(), ...[...g.keys()].filter((k) => !pdone.has(k))]) {
-      const t = rows.find((x) => x.id === tid); const ss = g.get(tid) ?? [];
-      const tail = [pdone.has(tid) ? `상위 완료 ${md(pdone.get(tid))}` : '', ss.length ? `하위 ${ss.length}건 완료` : ''].filter(Boolean).join(' · ');
-      out.push(['done', `${lab(t)}${ss.length ? ` — ${list(ss.map((x) => x.title), 4)}` : ''} <em>${tail}</em>`]);
+    for (const t of owned) for (const e of full.get(t.id)?.events ?? []) if (e.event_type === 'STATUS_CHANGED' && e.to_value === 'DONE' && inw(e.occurred_at, w) && !g.has(t.id)) g.set(t.id, []);
+    for (const [tid, ss] of g) { const t = rows.find((x) => x.id === tid); out.push(['done', `${lab(t)}${ss.length ? ` — ${list(ss.map((x) => x.title), 4)}` : ''} <em>${ss.length ? `하위 ${ss.length}건 완료` : '상위 완료'}</em>${carry(t)}`]); }
+    const seen = new Set(g.keys());
+    for (const t of owned.filter((x) => x.status !== 'DONE' && inw(x.due_date, w) && !seen.has(x.id)).sort((a, b) => a.due_date.localeCompare(b.due_date))) { seen.add(t.id); out.push(['due', `${lab(t)} <em>마감 ${md(t.due_date)} · ${pctNow(t)}%</em>${carry(t)}`]); }
+    for (const t of mine) {
+      if (seen.has(t.id)) continue;
+      const ss = subsOf(t).filter((x) => x.owner_slack_user_id === pid && x.status !== 'DONE' && !x.is_done && inw(x.due_date, w));
+      if (ss.length) { seen.add(t.id); out.push(['due', `${lab(t)} — ${list(ss.map((x) => x.title), 3)} <em>하위 ${ss.length}건 이번 주 마감${t.owner_slack_user_id === pid && t.status !== 'DONE' ? ` · 상위 ${pctNow(t)}%` : ''}</em>${carry(t)}`]); }
     }
-    for (const t of owned) for (const e of full.get(t.id)?.events ?? []) if (e.event_type === 'STATUS_CHANGED' && e.to_value === 'IN_PROGRESS' && inw(e.occurred_at, w)) out.push(['start', `${lab(t)} <em>착수 ${md(kstDay(e.occurred_at))}</em>`]);
-    if (plan) {
-      const seen = new Set();
-      for (const t of owned.filter((x) => x.status !== 'DONE' && inw(x.due_date, w)).sort((a, b) => a.due_date.localeCompare(b.due_date))) { seen.add(t.id); out.push(['due', `${lab(t)} <em>마감 ${md(t.due_date)} · ${pctNow(t)}%</em>`]); }
-      for (const t of mine) {
-        const ss = subsOf(t).filter((x) => x.owner_slack_user_id === pid && x.status !== 'DONE' && !x.is_done && inw(x.due_date, w));
-        if (ss.length) { seen.add(t.id); out.push(['due', `${lab(t)} — ${list(ss.map((x) => x.title), 3)} <em>하위 ${ss.length}건 이번 주 마감${t.owner_slack_user_id === pid && t.status !== 'DONE' ? ` · 상위 ${pctNow(t)}%` : ''}</em>`]); }
-      }
-      for (const t of owned.filter((x) => ['IN_PROGRESS', 'REVIEW'].includes(x.status) && !seen.has(x.id) && (x.due_date ?? '9') > w[1]).sort((a, b) => (a.due_date ?? '9').localeCompare(b.due_date ?? '9')).slice(0, 4)) {
-        out.push(['prog', `${lab(t)} <em>진행 ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>`]);
-      }
-    } else {
-      for (const t of owned) {
-        if (g.has(t.id) || pdone.has(t.id)) continue;
-        const a = pctAt(t, LW[0]); const b = pctAt(t, TW[0]);
-        if (a != null && b != null && b > a) out.push(['prog', `${lab(t)} <em>${a}% → ${b}%</em>`]);
-      }
-    }
+    const prog = owned.filter((x) => ['IN_PROGRESS', 'REVIEW'].includes(x.status) && !seen.has(x.id))
+      .sort((a, b) => (contIds.has(b.id) - contIds.has(a.id)) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9')).slice(0, 5);
+    for (const t of prog) out.push(['prog', `${lab(t)} <em>진행 ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>${carry(t)}`]);
     return out;
   };
-  const ICON = { done: '✓', start: '▶', due: '◷', prog: '◐' };
-  const ul = (xs) => `<ul>${xs.length ? xs.map(([c, h]) => `<li class="${c}"><i>${ICON[c]}</i><span>${h}</span></li>`).join('') : '<li class="none"><span>킨더플로우에 기록 없음</span></li>'}</ul>`;
+  const ICON = { done: '✓', cont: '→', due: '◷', prog: '◐' };
+  const li = (xs) => xs.map(([c, h]) => `<li class="${c}"><i>${ICON[c]}</i><span>${h}</span></li>`).join('');
+  const NONE = '<ul><li class="none"><span>킨더플로우에 기록 없음</span></li></ul>';
+  const lastCol = ({ done, cont }) => (!done.length && !cont.length ? NONE
+    : `${done.length ? `<h4 class="tw-grp done">완료 <span>${done.length}</span></h4><ul>${li(done)}</ul>` : ''}${cont.length ? `<h4 class="tw-grp cont">이어서 진행 <span>${cont.length}</span></h4><ul>${li(cont)}</ul>` : ''}`);
+  const thisCol = (xs) => (xs.length ? `<ul>${li(xs)}</ul>` : NONE);
   const risks = [];
   const blocks = team.map((p) => {
     const owned = rows.filter((t) => t.owner_slack_user_id === p.id);
@@ -14872,17 +14903,17 @@ async function renderTeamWeek(host) {
     return `<section class="tw-who" style="--mc:${poTone(p.id)}">
       <header><span class="po-cloud"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M15 39h35a10.5 10.5 0 0 0 1-21A15 15 0 0 0 22 11a9.5 9.5 0 0 0-7 28z"/></svg><b>${esc(p.name.length > 2 ? p.name[1] : p.name[0])}</b></span><h2>${esc(p.name)}</h2>
         <span class="meta">책임 상위 ${owned.length} · 하위 ${subN}${late.length ? ` · <span class="late">지연 ${late.length}</span>` : ''}</span></header>
-      <div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])} · 실적</small></h3>${ul(weekOf(p.id, LW, false))}</div>
-        <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])} · 계획·진행</small></h3>${ul(weekOf(p.id, TW, true))}</div></div></section>`;
+      ${(() => { const lw = lastWeek(p.id, LW); return `<div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])}</small></h3>${lastCol(lw)}</div>
+        <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])}</small></h3>${thisCol(thisWeek(p.id, TW, lw.contIds))}</div></div>`; })()}</section>`;
   });
   const last = rows.reduce((m, t) => (t.updated_at && t.updated_at > m ? t.updated_at : m), '');
   host.innerHTML = `<div class="po">
-    <div class="page-head"><div><h1>킨더플로우 <span class="po-tag">KinderFlow</span></h1><div class="sub">개발팀 담당자별 전주 실적 · 금주 계획 — 킨더플로우 업무·하위 업무·상태 이력 기준${last ? ` · 마지막 갱신 ${md(kstDay(last))}` : ''}</div></div>
+    <div class="page-head"><div><h1>킨더플로우 <span class="po-tag">KinderFlow</span></h1><div class="sub">개발팀 담당자별 전주 · 금주 — 킨더플로우 업무·하위 업무·상태 이력 기준${last ? ` · 마지막 갱신 ${md(kstDay(last))}` : ''}</div></div>
       <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" data-mode="week" role="tab" aria-selected="false">주간</button><button type="button" data-mode="month" role="tab" aria-selected="false">월간</button><button type="button" class="on" data-mode="team" role="tab" aria-selected="true">개발팀</button></div>
         <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
     <div class="po-zone tw-zone">
       <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
-      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="start">▶</i>착수</span><span><i class="prog">◐</i>진행·진척 변화</span><span><i class="due">◷</i>금주 마감</span></div>
+      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span></div>
       ${blocks.join('')}
       ${risks.length ? `<div class="tw-risk"><h3>확인 필요 — 마감 지난 책임 업무 ${risks.length}건</h3><ul>${risks.map((r) => `<li><i>!</i><span>${r}</span></li>`).join('')}</ul></div>` : ''}
     </div></div>`;

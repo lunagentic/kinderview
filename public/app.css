@@ -2814,3 +2814,9 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
 .tw-risk{background:var(--surface);border:1px solid color-mix(in srgb,var(--s-delay) 30%,var(--line));border-radius:18px;padding:14px 18px;margin-bottom:12px}
 .tw-risk h3{margin:0 0 8px;color:var(--s-delay);font-size:.95rem}.tw-risk li i{color:var(--s-delay)}
 @media (max-width:720px){.tw-who .cols{grid-template-columns:1fr}.tw-who .lw{margin:0;border-radius:0}.tw-who .tw{border-radius:0;box-shadow:none}.tw-who .meta{width:100%;margin-left:0}}
+.tw-legend .cont,.tw-who li.cont i{color:#C77B12}
+.tw-grp{margin:10px 0 6px;font-size:.78rem;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;gap:6px}
+.tw-grp:first-of-type{margin-top:0}
+.tw-grp span{font-size:.72rem;font-weight:800;border-radius:999px;padding:0 7px;background:var(--surface);color:var(--muted)}
+.tw-grp.done{color:#1F7A5F}.tw-grp.cont{color:#A9640E}
+.tw-carry{display:inline-block;margin-left:6px;font-size:.7rem;font-weight:800;color:#A9640E;background:color-mix(in srgb,#F5B02E 18%,var(--surface));border-radius:999px;padding:0 7px;white-space:nowrap}
