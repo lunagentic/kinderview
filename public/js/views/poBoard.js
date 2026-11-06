@@ -681,13 +681,13 @@ async function renderTeamWeek(host) {
       const body = a.subs.length ? ` — ${list(a.subs.map((x) => x.title), 4)}` : '';
       if (t.status === 'DONE') {
         const tail = [a.doneAt ? `상위 완료 ${md(a.doneAt)}` : '상위 완료', a.subs.length ? `하위 ${a.subs.length}건` : ''].filter(Boolean).join(' · ');
-        done.push(['done', `${lab(t)}${body} <em>${tail}</em>`]);
+        done.push(['done', `${lab(t)}${body} <em>${tail}</em>`, t.star]);
       } else {
         contIds.add(id);
         const mineT = t.owner_slack_user_id === pid;
         const tail = [a.subs.length ? `하위 ${a.subs.length}건 완료` : '', a.startAt ? `착수 ${md(a.startAt)}` : '', a.from != null && !a.subs.length ? `${a.from}% → ${a.to}%` : '',
           a.doneAt ? '완료했다가 다시 열림' : '', mineT ? `지금 ${pctNow(t)}%` : `상위 ${esc(t.owner_name ?? '')} · ${pctNow(t)}%`, t.due_date ? `마감 ${md(t.due_date)}` : ''].filter(Boolean).join(' · ');
-        cont.push(['cont', `${lab(t)}${body} <em>${tail}</em>`]);
+        cont.push(['cont', `${lab(t)}${body} <em>${tail}</em>`, t.star]);
       }
     }
     return { done, cont, contIds };
@@ -699,25 +699,38 @@ async function renderTeamWeek(host) {
     const g = new Map();
     for (const t of mine) for (const x of subsOf(t)) if (x.owner_slack_user_id === pid && inw(x.done_at, w)) { if (!g.has(t.id)) g.set(t.id, []); g.get(t.id).push(x); }
     for (const t of owned) for (const e of full.get(t.id)?.events ?? []) if (e.event_type === 'STATUS_CHANGED' && e.to_value === 'DONE' && inw(e.occurred_at, w) && !g.has(t.id)) g.set(t.id, []);
-    for (const [tid, ss] of g) { const t = rows.find((x) => x.id === tid); out.push(['done', `${lab(t)}${ss.length ? ` — ${list(ss.map((x) => x.title), 4)}` : ''} <em>${ss.length ? `하위 ${ss.length}건 완료` : '상위 완료'}</em>${carry(t)}`]); }
+    for (const [tid, ss] of g) { const t = rows.find((x) => x.id === tid); out.push(['done', `${lab(t)}${ss.length ? ` — ${list(ss.map((x) => x.title), 4)}` : ''} <em>${ss.length ? `하위 ${ss.length}건 완료` : '상위 완료'}</em>${carry(t)}`, t.star]); }
     const seen = new Set(g.keys());
-    for (const t of owned.filter((x) => x.status !== 'DONE' && inw(x.due_date, w) && !seen.has(x.id)).sort((a, b) => a.due_date.localeCompare(b.due_date))) { seen.add(t.id); out.push(['due', `${lab(t)} <em>마감 ${md(t.due_date)} · ${pctNow(t)}%</em>${carry(t)}`]); }
+    for (const t of owned.filter((x) => x.status !== 'DONE' && inw(x.due_date, w) && !seen.has(x.id)).sort((a, b) => a.due_date.localeCompare(b.due_date))) { seen.add(t.id); out.push(['due', `${lab(t)} <em>마감 ${md(t.due_date)} · ${pctNow(t)}%</em>${carry(t)}`, t.star]); }
     for (const t of mine) {
       if (seen.has(t.id)) continue;
       const ss = subsOf(t).filter((x) => x.owner_slack_user_id === pid && x.status !== 'DONE' && !x.is_done && inw(x.due_date, w));
-      if (ss.length) { seen.add(t.id); out.push(['due', `${lab(t)} — ${list(ss.map((x) => x.title), 3)} <em>하위 ${ss.length}건 이번 주 마감${t.owner_slack_user_id === pid && t.status !== 'DONE' ? ` · 상위 ${pctNow(t)}%` : ''}</em>${carry(t)}`]); }
+      if (ss.length) { seen.add(t.id); out.push(['due', `${lab(t)} — ${list(ss.map((x) => x.title), 3)} <em>하위 ${ss.length}건 이번 주 마감${t.owner_slack_user_id === pid && t.status !== 'DONE' ? ` · 상위 ${pctNow(t)}%` : ''}</em>${carry(t)}`, t.star]); }
     }
     const prog = owned.filter((x) => ['IN_PROGRESS', 'REVIEW'].includes(x.status) && !seen.has(x.id))
       .sort((a, b) => (contIds.has(b.id) - contIds.has(a.id)) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9')).slice(0, 5);
-    for (const t of prog) out.push(['prog', `${lab(t)} <em>진행 ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>${carry(t)}`]);
+    for (const t of owned.filter((x) => x.star && x.status !== 'DONE' && !seen.has(x.id) && !prog.includes(x))) out.push(['prog', `${lab(t)} <em>${esc(statusMeta(t.status).label)} · ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>${carry(t)}`, true]);   // ★ 은 움직임이 없어도 늘 보인다
+    for (const t of prog) out.push(['prog', `${lab(t)} <em>진행 ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>${carry(t)}`, t.star]);
     return out;
   };
   const ICON = { done: '✓', cont: '→', due: '◷', prog: '◐' };
-  const li = (xs) => xs.map(([c, h]) => `<li class="${c}"><i>${ICON[c]}</i><span>${h}</span></li>`).join('');
+  const li = (xs) => xs.map(([c, h, st]) => `<li class="${c}${st ? ' star' : ''}"><i>${ICON[c]}</i><span>${st ? '<b class="tw-star" title="★ 핵심과업(즐겨찾기)">★</b>' : ''}${h}</span></li>`).join('');
   const NONE = '<ul><li class="none"><span>킨더플로우에 기록 없음</span></li></ul>';
-  const lastCol = ({ done, cont }) => (!done.length && !cont.length ? NONE
-    : `${done.length ? `<h4 class="tw-grp done">완료 <span>${done.length}</span></h4><ul>${li(done)}</ul>` : ''}${cont.length ? `<h4 class="tw-grp cont">이어서 진행 <span>${cont.length}</span></h4><ul>${li(cont)}</ul>` : ''}`);
-  const thisCol = (xs) => (xs.length ? `<ul>${li(xs)}</ul>` : NONE);
+  // ★ 즐겨찾기 줄은 맨 위에 늘 보이고, 나머지는 「나머지 n건」을 열어야 보인다
+  const fold = (n, inner) => (n ? `<details class="tw-more"><summary>나머지 ${n}건 보기</summary>${inner}</details>` : '');
+  const starTop = (xs) => (xs.length ? `<ul class="tw-stars">${li(xs)}</ul>` : '<p class="tw-nostar">★ 즐겨찾기한 업무 없음</p>');
+  const grp = (label, cls, xs) => (xs.length ? `<h4 class="tw-grp ${cls}">${label} <span>${xs.length}</span></h4><ul>${li(xs)}</ul>` : '');
+  const lastCol = ({ done, cont }) => {
+    if (!done.length && !cont.length) return NONE;
+    const st = [...done, ...cont].filter((x) => x[2]);
+    const rd = done.filter((x) => !x[2]); const rc = cont.filter((x) => !x[2]);
+    return `${starTop(st)}${fold(rd.length + rc.length, grp('완료', 'done', rd) + grp('이어서 진행', 'cont', rc))}`;
+  };
+  const thisCol = (xs) => {
+    if (!xs.length) return NONE;
+    const rest = xs.filter((x) => !x[2]);
+    return `${starTop(xs.filter((x) => x[2]))}${fold(rest.length, `<ul>${li(rest)}</ul>`)}`;
+  };
   const risks = [];
   const blocks = team.map((p) => {
     const owned = rows.filter((t) => t.owner_slack_user_id === p.id);
@@ -737,7 +750,7 @@ async function renderTeamWeek(host) {
         <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
     <div class="po-zone tw-zone">
       <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
-      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span></div>
+      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span><span><b class="tw-star">★</b>즐겨찾기는 맨 위, 나머지는 「나머지 n건 보기」</span></div>
       ${blocks.join('')}
       ${risks.length ? `<div class="tw-risk"><h3>확인 필요 — 마감 지난 책임 업무 ${risks.length}건</h3><ul>${risks.map((r) => `<li><i>!</i><span>${r}</span></li>`).join('')}</ul></div>` : ''}
     </div></div>`;

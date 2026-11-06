@@ -2820,3 +2820,14 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
 .tw-grp span{font-size:.72rem;font-weight:800;border-radius:999px;padding:0 7px;background:var(--surface);color:var(--muted)}
 .tw-grp.done{color:#1F7A5F}.tw-grp.cont{color:#A9640E}
 .tw-carry{display:inline-block;margin-left:6px;font-size:.7rem;font-weight:800;color:#A9640E;background:color-mix(in srgb,#F5B02E 18%,var(--surface));border-radius:999px;padding:0 7px;white-space:nowrap}
+.tw-star{color:#E8A317;font-weight:900;margin-right:4px}
+.tw-stars{margin-bottom:4px}
+.tw-who li.star span{font-weight:600}
+.tw-nostar{margin:0 0 4px;font-size:.8rem;color:var(--muted)}
+.tw-more{margin-top:6px}
+.tw-more > summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;color:var(--ink-2);padding:4px 10px;border:1px dashed var(--line);border-radius:999px;background:var(--surface)}
+.tw-more > summary::-webkit-details-marker{display:none}
+.tw-more > summary::before{content:'▸';font-size:.75rem;color:var(--muted)}
+.tw-more[open] > summary::before{content:'▾'}
+.tw-more[open] > summary{margin-bottom:8px}
+.tw-more > summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
