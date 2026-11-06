@@ -1378,6 +1378,11 @@ export const tasks = {
       run('UPDATE task SET po_order = :o WHERE id = :id', { id, o: input.po_order == null ? null : Number(input.po_order) });
       return { before: cur, after: tasks.get(id) };
     }
+    // 개발팀 핵심과업(공통 과업) — 개발팀 화면 맨 위 차례. 비우면 내린다. 이력·알림 없음
+    if (Object.keys(input).length === 1 && input.dev_core !== undefined) {
+      run('UPDATE task SET dev_core = :o WHERE id = :id', { id, o: input.dev_core == null ? null : Number(input.dev_core) });
+      return { before: cur, after: tasks.get(id) };
+    }
     // 핵심과업 별표 — 사람마다 따로(내 별표만 켜고 끈다)
     if (Object.keys(input).length === 1 && input.star !== undefined) {
       const stars = new Set(JSON.parse(cur.stars_json ?? '[]'));

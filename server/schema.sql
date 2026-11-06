@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS task (
   stars_json          TEXT,              -- 핵심과업 별표를 단 사람(slack id) JSON 배열
   po_rank             INTEGER,           -- PO 보드: 같은 책임자의 ★ 핵심과업 안 실행 순서(1, 2, 3…). 비면 마감순
   po_order            INTEGER,           -- PO 보드: 카드를 끌어서 정한 자리(1, 2, 3…). 「내 순서」 정렬에서 쓴다
+  dev_core            INTEGER,           -- 개발팀 화면: 맨 위 「개발팀 핵심과업」(공통 과업) 차례(1, 2, 3…). 비면 아님
   title               TEXT NOT NULL,
   -- 업무 영역은 하위 업무에 붙는다. 상위 업무의 area 는 이제 외주 여부만 뜻한다 — 'OUT' 이거나 비어 있다.
   area                TEXT CHECK (area IS NULL OR area = 'OUT'),

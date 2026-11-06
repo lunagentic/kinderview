@@ -528,6 +528,14 @@ function addPoOrder() {
   return 'PO 보드 카드 자리 칸 추가';
 }
 
+/** 개발팀 핵심과업 칸 — 개발팀 화면 맨 위에 올린 공통 과업의 차례 */
+function addDevCore() {
+  const sql = tableSql('task');
+  if (!sql || /\bdev_core\b/.test(sql)) return null;
+  db.exec('ALTER TABLE task ADD COLUMN dev_core INTEGER');
+  return '개발팀 핵심과업 칸 추가';
+}
+
 function addSubtaskComments() {
   const sql = tableSql('comment');
   if (!sql || /\bsubtask_id\b/.test(sql)) return null;
@@ -658,7 +666,7 @@ export function runMigrations() {
   const notes = [migrateAreas(), migrateCoLeads(), addTaskPhase(), addOutsourcingPayment(),
     migrateBacklog(), migrateProjectOptional(), addTaskCategory(), addCommentAuthorRole(), addCommentAuthorTitle(),
     addTicketSeq(), addSubtaskDue(), addSubtaskStatus(), addAttachments(), addReadMarks(), addPhaseComments(),
-    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder(), addTaskStars(), addSubtaskStars(), finishDoneParents(), addPoRank(), addPoOrder()]
+    migrateTaskAreaNullable(), addSubtaskAreaOwner(), moveAreaToSubtasks(), syncMemberNames(), wakeWaitingParents(), addSubtaskNote(), addAgendaSubtask(), addSubtaskNoteMeta(), addSubtaskComments(), addTaskSortOrder(), addTaskStars(), addSubtaskStars(), finishDoneParents(), addPoRank(), addPoOrder(), addDevCore()]
     .filter(Boolean);
   ensureConstraints();
   const seeded = seedCategories();

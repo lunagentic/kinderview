@@ -1981,6 +1981,12 @@ function updateTask(id, input, actor) {
     save();
     return hydrate(t);
   }
+  // 개발팀 핵심과업(공통 과업) — 개발팀 화면 맨 위에 올릴 차례(1, 2, 3…). 비우면 내린다. 이력·알림 없음
+  if (Object.keys(input).length === 1 && input.dev_core !== undefined) {
+    t.dev_core = input.dev_core == null ? null : Number(input.dev_core);
+    save();
+    return hydrate(t);
+  }
   // 핵심과업 별표 — 사람마다 따로 단다(내 별표만 켜고 끈다). 이력·알림 없음
   if (Object.keys(input).length === 1 && input.star !== undefined) {
     if (!actor) throw new DemoError('현재 사용자를 먼저 골라 주세요.');

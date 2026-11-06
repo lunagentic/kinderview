@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state, memberOf, areaMeta, statusMeta, activeMembers } from '../state.js';
-import { esc, loading, errorBox, toast, avatar, shortDate, linkify } from '../ui.js';
+import { esc, loading, errorBox, toast, avatar, shortDate, linkify, modal } from '../ui.js';
 import { canEdit } from '../gate.js';
 import { gatePanel } from './gatePanel.js';
 import { reportPasteDialog } from './reportPaste.js';
@@ -650,7 +650,8 @@ async function renderTeamWeek(host) {
   try { rows = (await api.get('/api/tasks?done=1&all_backlog=1')).map(poShape); } catch (err) { host.innerHTML = errorBox(err.message); return; }
   const mine = rows.filter((t) => ids.has(t.owner_slack_user_id) || (t.sub_owners ?? []).some((x) => ids.has(x)));
   const full = new Map();
-  await Promise.all(mine.map((t) => api.get(`/api/tasks/${encodeURIComponent(t.id)}`).then((r) => full.set(t.id, r)).catch(() => full.set(t.id, { events: [], subtasks: [] }))));
+  const needFull = [...mine, ...rows.filter((t) => t.dev_core != null && !mine.includes(t))];   // 핵심과업은 개발팀 업무가 아니어도 이력을 읽는다(지난주 진척)
+  await Promise.all(needFull.map((t) => api.get(`/api/tasks/${encodeURIComponent(t.id)}`).then((r) => full.set(t.id, r)).catch(() => full.set(t.id, { events: [], subtasks: [] }))));
   const today = state.today;
   const mondayOf = (d) => new Date(dt(d) - ((dt(d).getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10);
   const thisWk0 = mondayOf(today);
@@ -763,6 +764,42 @@ async function renderTeamWeek(host) {
         ${!parents.length && !subs.length ? '<li class="none">업무가 없습니다</li>' : ''}</ul></div>`;
   };
   const allCount = (pid) => { const { parents, subs } = allOf(pid); return parents.length + subs.length; };
+  // ── 개발팀 핵심과업(공통 과업) — 맨 위. 진척률 = 과업 점수(하위 완료 비율과 상태 바닥값 중 큰 값)의 평균, 지난주는 이번 주 월요일 0시(KST) 기준
+  const cut = new Date(`${TW[0]}T00:00:00+09:00`).toISOString();
+  const cores = () => rows.filter((t) => t.dev_core != null).sort((a, b) => (a.dev_core - b.dev_core) || (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+  const coreBand = () => {
+    const cs = cores().map((t) => ({ t, now: scoreAt(t, full.get(t.id)), was: scoreAt(t, full.get(t.id), cut) }));
+    const avgNow = avgOf(cs.map((c) => c.now)); const avgWas = avgOf(cs.filter((c) => c.was != null).map((c) => c.was));
+    const delta = (a, b) => (a == null || b == null ? '' : a > b ? `<span class="dc-d up">▲ ${a - b}%p</span>` : a < b ? `<span class="dc-d down">▼ ${b - a}%p</span>` : '<span class="dc-d">— 0%p</span>');
+    const done = cs.filter((c) => c.t.status === 'DONE').length; const late = cs.filter((c) => c.t.late).length;
+    const who = (t) => {   // 참여 개발자 — 책임자와 하위 담당 중 개발팀
+      const n = new Map();
+      for (const x of subsOf(t)) if (ids.has(x.owner_slack_user_id)) n.set(x.owner_slack_user_id, (n.get(x.owner_slack_user_id) ?? 0) + 1);
+      if (ids.has(t.owner_slack_user_id) && !n.has(t.owner_slack_user_id)) n.set(t.owner_slack_user_id, 0);
+      return [...n].map(([id, k]) => `<span class="dc-who" style="--mc:${poTone(id)}" title="${esc(team.find((p) => p.id === id)?.name ?? '')}${k ? ` · 하위 ${k}건` : ' · 책임'}">${esc(team.find((p) => p.id === id)?.name ?? '')}${k ? ` <b>${k}</b>` : ''}</span>`).join('');
+    };
+    const row = ({ t, now, was }, i) => {
+      const ss = subsOf(t); const sd = ss.filter((x) => x.status === 'DONE' || x.is_done).length;
+      return `<li class="dc-row${t.status === 'DONE' ? ' done' : ''}">
+        <span class="dc-n">${i + 1}</span>
+        <div class="dc-main"><div class="dc-t">${lab(t)}<span class="dc-own">${esc(team.find((p) => p.id === t.owner_slack_user_id)?.name ?? fullName(t.owner_slack_user_id, t.owner_name ?? ''))} 책임</span>${stChip(t)}</div>
+          <div class="dc-bar" role="img" aria-label="진척 ${now}%"><i style="width:${now}%"></i></div>
+          <div class="dc-meta"><span>하위 ${sd}/${ss.length}</span>${dueTxt(t.due_date, t.status === 'DONE')}${who(t)}</div></div>
+        <div class="dc-pct"><b>${now}<small>%</small></b>${was == null ? '<span class="dc-d">신규</span>' : delta(now, was)}</div>
+        <button type="button" class="dc-del fl-only-edit" data-core-del="${esc(t.id)}" title="개발팀 핵심과업에서 내리기(업무는 그대로)" aria-label="핵심과업에서 내리기">✕</button>
+      </li>`;
+    };
+    return `<section class="dc">
+      <div class="po-sec"><h2><span class="po-band-title">개발팀 핵심과업</span> <span class="n">${cs.length}</span><span class="po-sec-sub">팀이 함께 미는 공통 과업</span></h2>
+        <button class="btn fl-only-edit" type="button" data-core-add>+ 핵심과업 추가</button></div>
+      ${cs.length ? `<div class="dc-wrap">
+        <div class="dc-kpi"><div class="lab">공통 과업 진척률</div><div class="big">${avgNow}<small>%</small></div>${delta(avgNow, avgWas) ? `<div class="dc-vs">지난주 ${avgWas}% 대비 ${delta(avgNow, avgWas)}</div>` : ''}
+          <div class="dc-cnt"><span>완료 <b>${done}</b></span><span>진행 <b>${cs.length - done}</b></span>${late ? `<span class="late">지연 <b>${late}</b></span>` : ''}</div></div>
+        <ol class="dc-list">${cs.map(row).join('')}</ol></div>`
+        : '<p class="dc-empty">아직 개발팀 핵심과업이 없습니다. 「+ 핵심과업 추가」로 팀이 함께 미는 공통 과업을 고르면, 여기에 과업별·전체 진척률이 나옵니다.</p>'}
+      <p class="dc-note">진척률 = 과업마다 max(하위 완료 비율, 상태 바닥값 대기 0·진행중 20·검토 80·완료 100)의 평균 · 지난주 값은 ${md(TW[0])} 0시 기준</p>
+    </section>`;
+  };
   const paintTeam = () => {
   const risks = [];
   const blocks = team.map((p) => {
@@ -786,6 +823,7 @@ async function renderTeamWeek(host) {
         <button class="btn fl-only-edit" type="button" data-rp-open title="개발팀 진행 보고서 글을 붙여 넣어 담당자별 하위 업무로 등록합니다">📋 주간 보고 붙여넣기</button>
         <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
     <div class="po-zone tw-zone">
+      ${coreBand()}
       <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
       <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span><span><b class="tw-star">☆</b>눌러서 즐겨찾기 · ★ 업무는 맨 위, 나머지는 「나머지 n건 보기」</span><span><b>▸ 전체 업무</b> 전주·금주 아래에서 펼치기</span></div>
       ${blocks.join('')}
@@ -805,13 +843,49 @@ async function renderTeamWeek(host) {
     toast(on ? `「${t.title}」을(를) ★ 즐겨찾기했습니다.` : `「${t.title}」의 ★ 표시를 지웠습니다.`);
     paintTeam();
   };
+  // 핵심과업 올리기·내리기 — dev_core 차례만 저장(업무 자체는 그대로)
+  const setCore = async (t, v) => {
+    if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return false; }
+    try { await api.patch(`/api/tasks/${encodeURIComponent(t.id)}`, { dev_core: v }); }
+    catch (err) { toast(err.message, true); return false; }
+    t.dev_core = v;
+    if (v != null && !full.has(t.id)) full.set(t.id, await api.get(`/api/tasks/${encodeURIComponent(t.id)}`).catch(() => ({ events: [], subtasks: [] })));
+    return true;
+  };
+  const corePicker = () => {
+    if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+    const pool = rows.filter((t) => t.status !== 'DONE' && t.dev_core == null);
+    const devFirst = (t) => (mine.includes(t) ? 0 : 1);
+    pool.sort((a, b) => devFirst(a) - devFirst(b) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9'));
+    const item = (t) => `<li><button type="button" class="dcp-pick" data-core-pick="${esc(t.id)}"><span class="k">${esc(t.key ?? '')}</span><span class="t">${esc(t.title)}</span><span class="o">${esc(team.find((p) => p.id === t.owner_slack_user_id)?.name ?? fullName(t.owner_slack_user_id, t.owner_name ?? ''))}</span><span class="p">${scoreAt(t, full.get(t.id))}%</span></button></li>`;
+    const list = (q) => { const n = q.trim().toLowerCase().replace(/\s+/g, ''); const xs = pool.filter((t) => !n || `${t.key ?? ''}${t.title}${t.owner_name ?? ''}`.toLowerCase().replace(/\s+/g, '').includes(n));
+      const dev = xs.filter((t) => mine.includes(t)); const etc = xs.filter((t) => !mine.includes(t));
+      return (dev.length ? `<h4>개발팀 업무 <span>${dev.length}</span></h4><ul>${dev.map(item).join('')}</ul>` : '') + (etc.length ? `<h4>그 밖의 업무 <span>${etc.length}</span></h4><ul>${etc.map(item).join('')}</ul>` : '') || '<p class="dcp-none">맞는 업무가 없습니다</p>'; };
+    modal({ title: '개발팀 핵심과업 추가', wide: true,
+      body: `<p class="rp-lead">팀이 함께 미는 공통 과업(상위 업무)을 고르세요. 고르면 개발팀 화면 맨 위에 올라가고 진척률이 함께 계산됩니다. 업무 내용은 바뀌지 않습니다.</p>
+        <input type="search" class="dcp-q" data-core-q placeholder="업무 이름·KV 번호·책임자로 찾기" aria-label="업무 찾기"><div class="dcp-list" data-core-list>${list('')}</div>`,
+      footer: '<div class="right"><button class="btn" data-close>닫기</button></div>',
+      onMount({ root, close }) {
+        root.querySelector('[data-core-q]').addEventListener('input', (e) => { root.querySelector('[data-core-list]').innerHTML = list(e.target.value); });
+        root.addEventListener('click', async (e) => {
+          const b = e.target.closest('[data-core-pick]'); if (!b) return;
+          const t = rows.find((x) => x.id === b.dataset.corePick); if (!t) return;
+          b.disabled = true;
+          const next = Math.max(0, ...rows.filter((x) => x.dev_core != null).map((x) => x.dev_core)) + 1;
+          if (await setCore(t, next)) { toast(`「${t.title}」을(를) 개발팀 핵심과업에 올렸습니다.`); close(); paintTeam(); } else b.disabled = false;
+        });
+      } });
+  };
   poBound?.abort();
   poBound = new AbortController();
-  host.addEventListener('click', (e) => {
+  host.addEventListener('click', async (e) => {
     const md2 = e.target.closest('[data-mode]');
     if (md2) { if (md2.dataset.mode !== mode) { mode = md2.dataset.mode; renderPoBoard(host); } return; }
     const wk = e.target.closest('[data-week]');
     if (wk) { week = wk.dataset.week; renderPoBoard(host); return; }
+    if (e.target.closest('[data-core-add]')) { corePicker(); return; }
+    const cd = e.target.closest('[data-core-del]');
+    if (cd) { const t = rows.find((x) => x.id === cd.dataset.coreDel); if (t && await setCore(t, null)) { toast(`「${t.title}」을(를) 핵심과업에서 내렸습니다.`); paintTeam(); } return; }
     if (e.target.closest('[data-rp-open]')) { reportPasteDialog({ team: DEV_TEAM, onDone: () => window.dispatchEvent(new Event('kf:reload')) }); return; }
     const st = e.target.closest('[data-tw-star]');
     if (st) { e.preventDefault(); toggleTeamStar(st.dataset.twStar, st.getAttribute('aria-pressed') !== 'true'); return; }
