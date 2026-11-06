@@ -2802,7 +2802,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
 .tw-who{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 2px 10px rgba(27,29,41,.06);margin-bottom:14px;overflow:hidden}
 .tw-who header{display:flex;align-items:center;gap:12px;padding:12px 18px 10px;flex-wrap:wrap}
 .tw-who h2{margin:0;font-size:1.15rem;font-weight:900}
-.tw-who .meta{margin-left:auto;font-size:.8rem;color:var(--muted)}.tw-who .late{color:var(--s-delay);font-weight:800}
+.tw-who .meta{margin-left:auto;font-size:.8rem;color:var(--muted)}.tw-who .meta .late{color:var(--s-delay);font-weight:800}
 .tw-who .cols{display:grid;grid-template-columns:1fr 1fr}
 .tw-who .lw,.tw-who .tw{padding:12px 18px 16px;min-width:0}
 .tw-who .lw{background:var(--po-cream);border-radius:0 18px 18px 0;margin-right:-12px}
@@ -2835,13 +2835,35 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
 .tw-more[open] > summary::before{content:'▾'}
 .tw-more[open] > summary{margin-bottom:8px}
 .tw-more > summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+/* 개발팀 — ☆/★ 단추 · 이름 옆 전체 업무 */
+.tw-starbtn{flex:none;margin:0 2px 0 -2px;padding:0 3px;border:0;background:none;font:inherit;font-size:.95rem;line-height:1.2;color:var(--muted);cursor:pointer;border-radius:6px}
+.tw-starbtn:hover{background:var(--surface-2);color:#E8A317}
+.tw-starbtn.on{color:#E8A317}.tw-starbtn.other{color:color-mix(in srgb,#E8A317 55%,var(--muted))}
+.tw-starbtn:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+body[data-gate="view"] .tw-starbtn{pointer-events:none}
+.tw-allbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:4px 12px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+.tw-allbtn b{color:var(--po-blue-ink);margin-left:2px}
+.tw-allbtn:hover,.tw-allbtn.on{border-color:var(--po-blue-ink);background:color-mix(in srgb,var(--po-blue) 30%,var(--surface))}
+.tw-all{margin:0 18px 12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:10px 12px}
+.tw-all-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.84rem;margin-bottom:6px}
+.tw-all-h b span{color:var(--po-blue-ink)}.tw-all-h label{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:.8rem}
+.tw-all-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.tw-all-list li{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;padding:6px 4px;border-top:1px solid var(--line);font-size:.85rem;line-height:1.4}
+.tw-all-list li:first-child{border-top:0}.tw-all-list li.none{color:var(--muted)}
+.tw-all-list .kd{flex:none;font-size:.68rem;font-weight:800;padding:1px 6px;border-radius:5px;color:var(--po-blue-ink);background:color-mix(in srgb,var(--po-blue) 45%,var(--surface))}
+.tw-all-list .kd.sub{color:#1F7A5F;background:color-mix(in srgb,#B8E1CF 60%,var(--surface))}
+.tw-all-list .t{font-weight:700;color:inherit;text-decoration:none;min-width:0}.tw-all-list a.t:hover{text-decoration:underline}
+.tw-all-list .ctx{font-size:.78rem;color:var(--muted)}.tw-all-list .ctx a.t{font-weight:600}
+.tw-all-list .r{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted);white-space:nowrap}
+.tw-all-list .dt.late{color:var(--s-delay);font-weight:700}
+@media (max-width:720px){.tw-all{margin:0 10px 10px}.tw-all-list .r{margin-left:0;width:100%;padding-left:26px}}
 
 </style>
 
   <header class="topbar">
     <a class="brand" href="#/project">
       <span class="brand-mark">PO Board</span>
-      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 11/6 13:40 · 98844c2 (KST)">11/6 13:40</span>
+      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 11/6 13:56 · bd7d892 (KST)">11/6 13:56</span>
     </a>
     <nav class="gnb" id="gnb">
       <a href="#/project" data-nav="project">프로젝트 매니징</a>
@@ -2870,7 +2892,7 @@ body[data-gate="view"] .po-rankpick,body[data-gate="view"] [data-rank-reset]{dis
   <div id="toast-root" class="toast-root" aria-live="polite"></div>
 
 <script type="module">
-window.KF_BUILD = "11/6 13:40 · 98844c2"; console.info('PO Board build', window.KF_BUILD);
+window.KF_BUILD = "11/6 13:56 · bd7d892"; console.info('PO Board build', window.KF_BUILD);
 /* ── 도메인 상수 (server/domain.js) ─────────────────── */
 
 // 도메인 상수 — 표기는 docs/11-glossary.md 를 따른다.
@@ -14240,6 +14262,9 @@ let allDone = false;                 // 완료 포함
 const allSec = { parent: true, sub: true, link: false };
 const expanded = new Set();          // 하위를 펼친 상위 업무 id
 let blOpen = false;                  // 카드 아래 「백로그」 묶음 펼침
+const teamAll = new Set();           // 개발팀 보기 — 「전체 업무」를 펼친 사람
+const teamOpen = new Set();          // 개발팀 보기 — 펼쳐 둔 「나머지 n건」 묶음(사람id:lw|tw)
+let teamAllDone = false;             // 개발팀 「전체 업무」 완료 포함
 let allFor = null;                   // 「모든 과업」 패널을 펼친 사람 — 카드 머리를 누르면 그 사람, 다시 누르면 닫힘
 // 상세 페이지의 「PO 보드 이동 띠」가 쓰는 맥락 — 마지막으로 그린 카드 차례(정렬·구성원 필터 반영)
 let poLast = [];                     // [{ id, key, title, owner_slack_user_id, owner_name, rank, star }]
@@ -14868,13 +14893,13 @@ async function renderTeamWeek(host) {
       const body = a.subs.length ? ` — ${list(a.subs.map((x) => x.title), 4)}` : '';
       if (t.status === 'DONE') {
         const tail = [a.doneAt ? `상위 완료 ${md(a.doneAt)}` : '상위 완료', a.subs.length ? `하위 ${a.subs.length}건` : ''].filter(Boolean).join(' · ');
-        done.push(['done', `${lab(t)}${body} <em>${tail}</em>`, t.star]);
+        done.push(['done', `${lab(t)}${body} <em>${tail}</em>`, t]);
       } else {
         contIds.add(id);
         const mineT = t.owner_slack_user_id === pid;
         const tail = [a.subs.length ? `하위 ${a.subs.length}건 완료` : '', a.startAt ? `착수 ${md(a.startAt)}` : '', a.from != null && !a.subs.length ? `${a.from}% → ${a.to}%` : '',
           a.doneAt ? '완료했다가 다시 열림' : '', mineT ? `지금 ${pctNow(t)}%` : `상위 ${esc(t.owner_name ?? '')} · ${pctNow(t)}%`, t.due_date ? `마감 ${md(t.due_date)}` : ''].filter(Boolean).join(' · ');
-        cont.push(['cont', `${lab(t)}${body} <em>${tail}</em>`, t.star]);
+        cont.push(['cont', `${lab(t)}${body} <em>${tail}</em>`, t]);
       }
     }
     return { done, cont, contIds };
@@ -14886,69 +14911,123 @@ async function renderTeamWeek(host) {
     const g = new Map();
     for (const t of mine) for (const x of subsOf(t)) if (x.owner_slack_user_id === pid && inw(x.done_at, w)) { if (!g.has(t.id)) g.set(t.id, []); g.get(t.id).push(x); }
     for (const t of owned) for (const e of full.get(t.id)?.events ?? []) if (e.event_type === 'STATUS_CHANGED' && e.to_value === 'DONE' && inw(e.occurred_at, w) && !g.has(t.id)) g.set(t.id, []);
-    for (const [tid, ss] of g) { const t = rows.find((x) => x.id === tid); out.push(['done', `${lab(t)}${ss.length ? ` — ${list(ss.map((x) => x.title), 4)}` : ''} <em>${ss.length ? `하위 ${ss.length}건 완료` : '상위 완료'}</em>${carry(t)}`, t.star]); }
+    for (const [tid, ss] of g) { const t = rows.find((x) => x.id === tid); out.push(['done', `${lab(t)}${ss.length ? ` — ${list(ss.map((x) => x.title), 4)}` : ''} <em>${ss.length ? `하위 ${ss.length}건 완료` : '상위 완료'}</em>${carry(t)}`, t]); }
     const seen = new Set(g.keys());
-    for (const t of owned.filter((x) => x.status !== 'DONE' && inw(x.due_date, w) && !seen.has(x.id)).sort((a, b) => a.due_date.localeCompare(b.due_date))) { seen.add(t.id); out.push(['due', `${lab(t)} <em>마감 ${md(t.due_date)} · ${pctNow(t)}%</em>${carry(t)}`, t.star]); }
+    for (const t of owned.filter((x) => x.status !== 'DONE' && inw(x.due_date, w) && !seen.has(x.id)).sort((a, b) => a.due_date.localeCompare(b.due_date))) { seen.add(t.id); out.push(['due', `${lab(t)} <em>마감 ${md(t.due_date)} · ${pctNow(t)}%</em>${carry(t)}`, t]); }
     for (const t of mine) {
       if (seen.has(t.id)) continue;
       const ss = subsOf(t).filter((x) => x.owner_slack_user_id === pid && x.status !== 'DONE' && !x.is_done && inw(x.due_date, w));
-      if (ss.length) { seen.add(t.id); out.push(['due', `${lab(t)} — ${list(ss.map((x) => x.title), 3)} <em>하위 ${ss.length}건 이번 주 마감${t.owner_slack_user_id === pid && t.status !== 'DONE' ? ` · 상위 ${pctNow(t)}%` : ''}</em>${carry(t)}`, t.star]); }
+      if (ss.length) { seen.add(t.id); out.push(['due', `${lab(t)} — ${list(ss.map((x) => x.title), 3)} <em>하위 ${ss.length}건 이번 주 마감${t.owner_slack_user_id === pid && t.status !== 'DONE' ? ` · 상위 ${pctNow(t)}%` : ''}</em>${carry(t)}`, t]); }
     }
     const prog = owned.filter((x) => ['IN_PROGRESS', 'REVIEW'].includes(x.status) && !seen.has(x.id))
       .sort((a, b) => (contIds.has(b.id) - contIds.has(a.id)) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9')).slice(0, 5);
-    for (const t of owned.filter((x) => x.star && x.status !== 'DONE' && !seen.has(x.id) && !prog.includes(x))) out.push(['prog', `${lab(t)} <em>${esc(statusMeta(t.status).label)} · ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>${carry(t)}`, true]);   // ★ 은 움직임이 없어도 늘 보인다
-    for (const t of prog) out.push(['prog', `${lab(t)} <em>진행 ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>${carry(t)}`, t.star]);
+    for (const t of owned.filter((x) => x.star && x.status !== 'DONE' && !seen.has(x.id) && !prog.includes(x))) out.push(['prog', `${lab(t)} <em>${esc(statusMeta(t.status).label)} · ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>${carry(t)}`, t]);   // ★ 은 움직임이 없어도 늘 보인다
+    for (const t of prog) out.push(['prog', `${lab(t)} <em>진행 ${pctNow(t)}% · 마감 ${t.due_date ? md(t.due_date) : '미정'}</em>${carry(t)}`, t]);
     return out;
   };
   const ICON = { done: '✓', cont: '→', due: '◷', prog: '◐' };
-  const li = (xs) => xs.map(([c, h, st]) => `<li class="${c}${st ? ' star' : ''}"><i>${ICON[c]}</i><span>${st ? '<b class="tw-star" title="★ 핵심과업(즐겨찾기)">★</b>' : ''}${h}</span></li>`).join('');
+  // ☆/★ — 내 별표만 켜고 끈다(보드와 같은 규칙). 남만 표시한 업무는 옅은 ★
+  const starBtn = (t) => {
+    if (!t) return '';
+    const mineOn = (t.stars ?? []).includes(state.me); const others = (t.stars ?? []).filter((x) => x !== state.me);
+    const who = others.map((x) => memberOf(x)?.display_name ?? x).join(', ');
+    const title = mineOn ? '★ 내 즐겨찾기 지우기' : others.length ? `${who} 님이 표시 · 눌러서 내 즐겨찾기로` : '☆ 즐겨찾기(핵심과업)로 표시';
+    return `<button type="button" class="po-star tw-starbtn${mineOn ? ' on' : others.length ? ' other' : ''}" data-tw-star="${esc(t.id)}" aria-pressed="${mineOn}" title="${esc(title)}">${mineOn || others.length ? '★' : '☆'}</button>`;
+  };
+  const li = (xs) => xs.map(([c, h, t]) => `<li class="${c}${t?.star ? ' star' : ''}"><i>${ICON[c]}</i>${starBtn(t)}<span>${h}</span></li>`).join('');
   const NONE = '<ul><li class="none"><span>킨더플로우에 기록 없음</span></li></ul>';
   // ★ 즐겨찾기 줄은 맨 위에 늘 보이고, 나머지는 「나머지 n건」을 열어야 보인다
-  const fold = (n, inner) => (n ? `<details class="tw-more"><summary>나머지 ${n}건 보기</summary>${inner}</details>` : '');
+  const fold = (key, n, inner) => (n ? `<details class="tw-more" data-tw-fold="${esc(key)}"${teamOpen.has(key) ? ' open' : ''}><summary>나머지 ${n}건 보기</summary>${inner}</details>` : '');
   const starTop = (xs) => (xs.length ? `<ul class="tw-stars">${li(xs)}</ul>` : '<p class="tw-nostar">★ 즐겨찾기한 업무 없음</p>');
   const grp = (label, cls, xs) => (xs.length ? `<h4 class="tw-grp ${cls}">${label} <span>${xs.length}</span></h4><ul>${li(xs)}</ul>` : '');
-  const lastCol = ({ done, cont }) => {
+  const lastCol = (pid, { done, cont }) => {
     if (!done.length && !cont.length) return NONE;
-    const st = [...done, ...cont].filter((x) => x[2]);
-    const rd = done.filter((x) => !x[2]); const rc = cont.filter((x) => !x[2]);
-    return `${starTop(st)}${fold(rd.length + rc.length, grp('완료', 'done', rd) + grp('이어서 진행', 'cont', rc))}`;
+    const st = [...done, ...cont].filter((x) => x[2]?.star);
+    const rd = done.filter((x) => !x[2]?.star); const rc = cont.filter((x) => !x[2]?.star);
+    return `${starTop(st)}${fold(`${pid}:lw`, rd.length + rc.length, grp('완료', 'done', rd) + grp('이어서 진행', 'cont', rc))}`;
   };
-  const thisCol = (xs) => {
+  const thisCol = (pid, xs) => {
     if (!xs.length) return NONE;
-    const rest = xs.filter((x) => !x[2]);
-    return `${starTop(xs.filter((x) => x[2]))}${fold(rest.length, `<ul>${li(rest)}</ul>`)}`;
+    const rest = xs.filter((x) => !x[2]?.star);
+    return `${starTop(xs.filter((x) => x[2]?.star))}${fold(`${pid}:tw`, rest.length, `<ul>${li(rest)}</ul>`)}`;
   };
+  // 이름 옆 「전체 업무」 — 책임 상위 업무 + 남의 상위 아래 담당 하위 업무. ★ 먼저 → 지연 → 마감순
+  const allOf = (pid) => {
+    const keep = (x) => teamAllDone || x.status !== 'DONE';
+    const order = (a, b) => (Number(b.star ?? 0) - Number(a.star ?? 0)) || (Number(Boolean(b.late)) - Number(Boolean(a.late))) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9');
+    const parents = rows.filter((t) => t.owner_slack_user_id === pid && keep(t)).sort(order);
+    const subs = [];
+    for (const t of mine) if (t.owner_slack_user_id !== pid) for (const x of subsOf(t)) if (x.owner_slack_user_id === pid && keep(x)) subs.push({ x, t });
+    subs.sort((a, b) => (Number(b.t.star ?? 0) - Number(a.t.star ?? 0)) || (a.x.due_date ?? '9').localeCompare(b.x.due_date ?? '9'));
+    return { parents, subs };
+  };
+  const dueTxt = (d, done) => (d ? `<span class="dt${!done && d < today ? ' late' : ''}">${md(d)}${!done && d < today ? ' 지남' : ''}</span>` : '<span class="dt">미정</span>');
+  const allPanelT = (pid) => {
+    const { parents, subs } = allOf(pid);
+    return `<div class="tw-all" id="tw-all-${esc(pid)}">
+      <div class="tw-all-h"><b>책임 업무 <span>${parents.length}</span> · 담당 하위 업무 <span>${subs.length}</span></b><label><input type="checkbox" data-tw-alldone${teamAllDone ? ' checked' : ''}> 완료 포함</label></div>
+      <ul class="tw-all-list">${parents.map((t) => `<li class="${t.star ? 'star' : ''}">${starBtn(t)}<span class="kd">책임</span>${lab(t)}<span class="r">${stChip(t)}<span class="pct">${pctNow(t)}%</span>${dueTxt(t.due_date, t.status === 'DONE')}</span></li>`).join('')}
+        ${subs.map(({ x, t }) => `<li class="${t.star ? 'star' : ''}">${starBtn(t)}<span class="kd sub">하위</span><span class="t">${esc(x.title)}</span><span class="ctx">→ ${lab(t)} · ${esc(t.owner_name ?? '')}</span><span class="r">${stChip({ status: x.status, late: false })}${dueTxt(x.due_date, x.status === 'DONE')}</span></li>`).join('')}
+        ${!parents.length && !subs.length ? '<li class="none">업무가 없습니다</li>' : ''}</ul></div>`;
+  };
+  const allCount = (pid) => { const { parents, subs } = allOf(pid); return parents.length + subs.length; };
+  const paintTeam = () => {
   const risks = [];
   const blocks = team.map((p) => {
     const owned = rows.filter((t) => t.owner_slack_user_id === p.id);
     const late = owned.filter((t) => t.status !== 'DONE' && t.due_date && t.due_date < TW[0]);
     late.forEach((t) => risks.push(`<b>${esc(p.name)}</b> ${lab(t)} <em>마감 ${md(t.due_date)} 지남 · ${pctNow(t)}%</em>`));
     const subN = mine.reduce((n, t) => n + subsOf(t).filter((x) => x.owner_slack_user_id === p.id).length, 0);
+    const open = teamAll.has(p.id);
     return `<section class="tw-who" style="--mc:${poTone(p.id)}">
       <header><span class="po-cloud"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M15 39h35a10.5 10.5 0 0 0 1-21A15 15 0 0 0 22 11a9.5 9.5 0 0 0-7 28z"/></svg><b>${esc(p.name.length > 2 ? p.name[1] : p.name[0])}</b></span><h2>${esc(p.name)}</h2>
+        <button type="button" class="tw-allbtn${open ? ' on' : ''}" data-tw-all="${esc(p.id)}" aria-expanded="${open}">${open ? '▾' : '▸'} 전체 업무 <b>${allCount(p.id)}</b></button>
         <span class="meta">책임 상위 ${owned.length} · 하위 ${subN}${late.length ? ` · <span class="late">지연 ${late.length}</span>` : ''}</span></header>
-      ${(() => { const lw = lastWeek(p.id, LW); return `<div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])}</small></h3>${lastCol(lw)}</div>
-        <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])}</small></h3>${thisCol(thisWeek(p.id, TW, lw.contIds))}</div></div>`; })()}</section>`;
+      ${open ? allPanelT(p.id) : ''}
+      ${(() => { const lw = lastWeek(p.id, LW); return `<div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])}</small></h3>${lastCol(p.id, lw)}</div>
+        <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])}</small></h3>${thisCol(p.id, thisWeek(p.id, TW, lw.contIds))}</div></div>`; })()}</section>`;
   });
   const last = rows.reduce((m, t) => (t.updated_at && t.updated_at > m ? t.updated_at : m), '');
+  const y = window.scrollY;
   host.innerHTML = `<div class="po">
     <div class="page-head"><div><h1>킨더플로우 <span class="po-tag">KinderFlow</span></h1><div class="sub">개발팀 담당자별 전주 · 금주 — 킨더플로우 업무·하위 업무·상태 이력 기준${last ? ` · 마지막 갱신 ${md(kstDay(last))}` : ''}</div></div>
       <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" data-mode="week" role="tab" aria-selected="false">주간</button><button type="button" data-mode="month" role="tab" aria-selected="false">월간</button><button type="button" class="on" data-mode="team" role="tab" aria-selected="true">개발팀</button></div>
         <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
     <div class="po-zone tw-zone">
       <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
-      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span><span><b class="tw-star">★</b>즐겨찾기는 맨 위, 나머지는 「나머지 n건 보기」</span></div>
+      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span><span><b class="tw-star">☆</b>눌러서 즐겨찾기 · ★ 업무는 맨 위, 나머지는 「나머지 n건 보기」</span><span><b>▸ 전체 업무</b> 이름 옆에서 그 사람 업무 전체</span></div>
       ${blocks.join('')}
       ${risks.length ? `<div class="tw-risk"><h3>확인 필요 — 마감 지난 책임 업무 ${risks.length}건</h3><ul>${risks.map((r) => `<li><i>!</i><span>${r}</span></li>`).join('')}</ul></div>` : ''}
     </div></div>`;
+  window.scrollTo(0, y);
+  };
+  paintTeam();
+  // ★ — 내 별표만 켜고 끈다. 저장되면 그 업무의 별표만 고쳐 다시 그린다(다시 읽지 않음)
+  const toggleTeamStar = async (id, on) => {
+    if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+    const t = rows.find((x) => x.id === id); if (!t) return;
+    try { await api.patch(`/api/tasks/${encodeURIComponent(id)}`, { star: on }); }
+    catch (err) { toast(err.message, true); return; }
+    const set = new Set(t.stars ?? []); if (on) set.add(state.me); else set.delete(state.me);
+    t.stars = [...set]; t.star = t.stars.length > 0;
+    toast(on ? `「${t.title}」을(를) ★ 즐겨찾기했습니다.` : `「${t.title}」의 ★ 표시를 지웠습니다.`);
+    paintTeam();
+  };
   poBound?.abort();
   poBound = new AbortController();
   host.addEventListener('click', (e) => {
     const md2 = e.target.closest('[data-mode]');
     if (md2) { if (md2.dataset.mode !== mode) { mode = md2.dataset.mode; renderPoBoard(host); } return; }
     const wk = e.target.closest('[data-week]');
-    if (wk) { week = wk.dataset.week; renderPoBoard(host); }
+    if (wk) { week = wk.dataset.week; renderPoBoard(host); return; }
+    const st = e.target.closest('[data-tw-star]');
+    if (st) { e.preventDefault(); toggleTeamStar(st.dataset.twStar, st.getAttribute('aria-pressed') !== 'true'); return; }
+    const al = e.target.closest('[data-tw-all]');
+    if (al) { const id = al.dataset.twAll; if (teamAll.has(id)) teamAll.delete(id); else teamAll.add(id); paintTeam(); }
   }, { signal: poBound.signal });
+  host.addEventListener('change', (e) => { if (e.target.closest('[data-tw-alldone]')) { teamAllDone = e.target.checked; paintTeam(); } }, { signal: poBound.signal });
+  // 「나머지 n건」 펼침을 기억 — 다시 그려도 그대로
+  host.addEventListener('toggle', (e) => { const d = e.target; if (d.dataset?.twFold) { if (d.open) teamOpen.add(d.dataset.twFold); else teamOpen.delete(d.dataset.twFold); } }, { capture: true, signal: poBound.signal });
 }
 
 
