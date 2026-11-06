@@ -2853,3 +2853,18 @@ body[data-gate="view"] .tw-starbtn{pointer-events:none}
 .tw-all-list .r{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted);white-space:nowrap}
 .tw-all-list .dt.late{color:var(--s-delay);font-weight:700}
 @media (max-width:720px){.tw-all{margin:0 10px 10px}.tw-all-list .r{margin-left:0;width:100%;padding-left:26px}}
+.tw-allbar{display:flex;align-items:center;gap:8px;width:100%;border:0;border-top:1px solid var(--line);background:var(--surface);padding:10px 18px;font:inherit;font-size:.86rem;font-weight:700;color:var(--ink-2);text-align:left;cursor:pointer}
+.tw-allbar b{color:var(--po-blue-ink)}
+.tw-allbar .tg{color:var(--muted);font-size:.8rem;width:12px}
+.tw-allbar .hint{margin-left:auto;font-size:.78rem;font-weight:600;color:var(--muted)}
+.tw-allbar:hover,.tw-allbar.on{background:color-mix(in srgb,var(--po-blue) 18%,var(--surface))}
+.tw-allbar:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.tw-allbar + .tw-all{margin:0 18px 14px}
+.tw-alld > summary{list-style:none}
+.tw-alld > summary::-webkit-details-marker{display:none}
+.tw-alld > summary .tg::before{content:'▸'}
+.tw-alld[open] > summary .tg::before{content:'▾'}
+.tw-alld > summary .hint::before{content:'펼치기'}
+.tw-alld[open] > summary .hint::before{content:'접기'}
+.tw-alld[open] > summary{background:color-mix(in srgb,var(--po-blue) 18%,var(--surface))}
+.tw-alld > .tw-all{margin:0 18px 14px}

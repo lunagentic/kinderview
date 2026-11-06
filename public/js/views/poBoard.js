@@ -772,11 +772,10 @@ async function renderTeamWeek(host) {
     const open = teamAll.has(p.id);
     return `<section class="tw-who" style="--mc:${poTone(p.id)}">
       <header><span class="po-cloud"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M15 39h35a10.5 10.5 0 0 0 1-21A15 15 0 0 0 22 11a9.5 9.5 0 0 0-7 28z"/></svg><b>${esc(p.name.length > 2 ? p.name[1] : p.name[0])}</b></span><h2>${esc(p.name)}</h2>
-        <button type="button" class="tw-allbtn${open ? ' on' : ''}" data-tw-all="${esc(p.id)}" aria-expanded="${open}">${open ? '▾' : '▸'} 전체 업무 <b>${allCount(p.id)}</b></button>
         <span class="meta">책임 상위 ${owned.length} · 하위 ${subN}${late.length ? ` · <span class="late">지연 ${late.length}</span>` : ''}</span></header>
-      ${open ? allPanelT(p.id) : ''}
       ${(() => { const lw = lastWeek(p.id, LW); return `<div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])}</small></h3>${lastCol(p.id, lw)}</div>
-        <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])}</small></h3>${thisCol(p.id, thisWeek(p.id, TW, lw.contIds))}</div></div>`; })()}</section>`;
+        <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])}</small></h3>${thisCol(p.id, thisWeek(p.id, TW, lw.contIds))}</div></div>`; })()}
+      <details class="tw-alld" data-tw-allfold="${esc(p.id)}"${open ? ' open' : ''}><summary class="tw-allbar"><span class="tg" aria-hidden="true"></span>${esc(p.name)} 님의 전체 업무 <b>${allCount(p.id)}</b><span class="hint"></span></summary>${allPanelT(p.id)}</details></section>`;
   });
   const last = rows.reduce((m, t) => (t.updated_at && t.updated_at > m ? t.updated_at : m), '');
   const y = window.scrollY;
@@ -786,7 +785,7 @@ async function renderTeamWeek(host) {
         <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
     <div class="po-zone tw-zone">
       <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
-      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span><span><b class="tw-star">☆</b>눌러서 즐겨찾기 · ★ 업무는 맨 위, 나머지는 「나머지 n건 보기」</span><span><b>▸ 전체 업무</b> 이름 옆에서 그 사람 업무 전체</span></div>
+      <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span><span><b class="tw-star">☆</b>눌러서 즐겨찾기 · ★ 업무는 맨 위, 나머지는 「나머지 n건 보기」</span><span><b>▸ 전체 업무</b> 전주·금주 아래에서 펼치기</span></div>
       ${blocks.join('')}
       ${risks.length ? `<div class="tw-risk"><h3>확인 필요 — 마감 지난 책임 업무 ${risks.length}건</h3><ul>${risks.map((r) => `<li><i>!</i><span>${r}</span></li>`).join('')}</ul></div>` : ''}
     </div></div>`;
@@ -813,10 +812,13 @@ async function renderTeamWeek(host) {
     if (wk) { week = wk.dataset.week; renderPoBoard(host); return; }
     const st = e.target.closest('[data-tw-star]');
     if (st) { e.preventDefault(); toggleTeamStar(st.dataset.twStar, st.getAttribute('aria-pressed') !== 'true'); return; }
-    const al = e.target.closest('[data-tw-all]');
-    if (al) { const id = al.dataset.twAll; if (teamAll.has(id)) teamAll.delete(id); else teamAll.add(id); paintTeam(); }
+
   }, { signal: poBound.signal });
   host.addEventListener('change', (e) => { if (e.target.closest('[data-tw-alldone]')) { teamAllDone = e.target.checked; paintTeam(); } }, { signal: poBound.signal });
   // 「나머지 n건」 펼침을 기억 — 다시 그려도 그대로
-  host.addEventListener('toggle', (e) => { const d = e.target; if (d.dataset?.twFold) { if (d.open) teamOpen.add(d.dataset.twFold); else teamOpen.delete(d.dataset.twFold); } }, { capture: true, signal: poBound.signal });
+  host.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (d.dataset?.twFold) { if (d.open) teamOpen.add(d.dataset.twFold); else teamOpen.delete(d.dataset.twFold); }
+    if (d.dataset?.twAllfold) { if (d.open) teamAll.add(d.dataset.twAllfold); else teamAll.delete(d.dataset.twAllfold); }   // 「전체 업무」 펼침도 기억
+  }, { capture: true, signal: poBound.signal });
 }
