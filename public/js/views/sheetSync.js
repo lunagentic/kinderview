@@ -21,6 +21,7 @@ const SH_ALIAS = {
   '상위 업무': ['상위업무', '업무', '상위'], '하위 업무': ['하위업무', '하위'], 담당: ['담당', '담당자', 'owner'],
   '공동 담당': ['공동담당', '협업자', '공동'], 마감: ['마감', '마감일', 'due'], 프로젝트: ['프로젝트', 'project'],
   페이즈: ['페이즈', 'phase'], 영역: ['영역', '업무영역', 'area'], 상태: ['상태', '진행상태', 'status'], 메모: ['메모', '비고', 'note'],
+  '상위 id': ['상위id', 'parentid'],
   심각도: ['심각도', 'severity'], 이슈: ['이슈', '이슈명', 'issue'], 내용: ['내용', 'content'], '연결 업무': ['연결업무', '관련업무'],
 };
 const shNorm = (s) => String(s ?? '').replace(/\s+/g, '').toLowerCase();
@@ -97,7 +98,7 @@ function shMatchMember(name, picks) {
 }
 
 // ── 지금 데이터 모으기 ─────────────────────────────────
-async function shLoad() {
+export async function shLoad() {
   const [tasks, phases, issues] = await Promise.all([
     api.get('/api/tasks?done=1&all_backlog=1'),
     api.get('/api/phases'),
@@ -211,7 +212,7 @@ function shPlan(book, d, picks) {
     const key = get(row, '번호').toUpperCase();
     const project = projectOf(get(row, '프로젝트'));
     if (!parentTitle && !key) errs.push('상위 업무가 비었습니다');
-    if (!project && !key) errs.push(get(row, '프로젝트') ? `프로젝트를 모릅니다: ${get(row, '프로젝트')}` : '프로젝트가 비었습니다');
+    if (!project && !key && !get(row, '상위 id')) errs.push(get(row, '프로젝트') ? `프로젝트를 모릅니다: ${get(row, '프로젝트')}` : '프로젝트가 비었습니다');
     const priority = take(shPriority(get(row, '우선순위')));
     const due = take(shDate(get(row, '마감'), year));
     const area = take(shArea(get(row, '영역')));
@@ -223,10 +224,12 @@ function shPlan(book, d, picks) {
     const phaseName = shTitle(get(row, '페이즈'));
     if (errs.length) { plan.errors.push({ line, title: `${parentTitle} › ${subTitle}`, errs }); return; }
 
-    // 하위 업무 찾기 — 번호가 먼저, 없으면 프로젝트+상위+하위 제목
-    let existingSub = key ? allSubs.find((s) => (s.key ?? '').toUpperCase() === key) : null;
-    let existingParent = existingSub?.parent ?? null;
-    if (key && !existingSub) {
+    // 하위 업무 찾기 — 번호가 먼저, 없으면 프로젝트+상위+하위 제목.
+    // 「상위 id」 칸(주간 보고 붙여넣기가 채움)이 있으면 그 상위로 바로 — 번호가 하위 번호와 겹쳐도 헷갈리지 않게
+    const pinned = get(row, '상위 id') ? d.tasks.find((t) => t.id === get(row, '상위 id')) ?? null : null;
+    let existingSub = key && !pinned ? allSubs.find((s) => (s.key ?? '').toUpperCase() === key) : null;
+    let existingParent = pinned ?? existingSub?.parent ?? null;
+    if (key && !existingSub && !pinned) {
       existingParent = d.tasks.find((t) => (t.key ?? '').toUpperCase() === key) ?? null;
       if (!existingParent) { plan.errors.push({ line, title: `${parentTitle} › ${subTitle}`, errs: [`번호를 찾지 못했습니다: ${key}`] }); return; }
     }
@@ -363,10 +366,15 @@ const shShow = (k, v, d) => {
 export async function sheetImport(file, { onDone } = {}) {
   if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
   let book;
+  try { book = await xlReadFile(file); } catch (err) { toast(err.message, true); return; }
+  return sheetImportBook(book, { onDone, title: `엑셀 올리기 — ${file.name}` });
+}
+
+/** 시트 줄(book = {업무: [[머리], [줄]…]})을 미리보기 → 확인 → 반영. 엑셀 올리기와 주간 보고 붙여넣기가 함께 쓴다 */
+export async function sheetImportBook(book, { onDone, title = '업무 올리기' } = {}) {
+  if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
   let d;
-  try {
-    [book, d] = await Promise.all([xlReadFile(file), shLoad()]);
-  } catch (err) { toast(err.message, true); return; }
+  try { d = await shLoad(); } catch (err) { toast(err.message, true); return; }
   const picks = { ...shRemembered() };
   let plan = shPlan(book, d, picks);
 
@@ -425,7 +433,7 @@ export async function sheetImport(file, { onDone } = {}) {
   };
 
   modal({
-    title: `엑셀 올리기 — ${file.name}`,
+    title,
     wide: true,
     body: `<div data-sh-body>${body()}</div>`,
     footer: `<div class="right"><span class="sh-prog" data-sh-prog></span>

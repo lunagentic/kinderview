@@ -64,6 +64,7 @@ const parts = [
   flatten(read('public/js/views/weekly.js')),
   flatten(read('public/js/xlsx.js')),
   flatten(read('public/js/views/sheetSync.js')),
+  flatten(read('public/js/views/reportPaste.js')),
   flatten(read('public/js/views/monthly.js')),
   flatten(read('public/js/views/flow.js')),
   flatten(read('public/js/views/poBoard.js')),

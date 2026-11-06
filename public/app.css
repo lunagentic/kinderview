@@ -2868,3 +2868,21 @@ body[data-gate="view"] .tw-starbtn{pointer-events:none}
 .tw-alld[open] > summary .hint::before{content:'접기'}
 .tw-alld[open] > summary{background:color-mix(in srgb,var(--po-blue) 18%,var(--surface))}
 .tw-alld > .tw-all{margin:0 18px 14px}
+
+/* 주간 보고 붙여넣기 (reportPaste.js) */
+.rp-lead{margin:0 0 12px;color:var(--ink-2);font-size:.88rem;line-height:1.55}
+.rp-in{width:100%;box-sizing:border-box;min-height:280px;font:inherit;font-size:.85rem;line-height:1.5;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);resize:vertical}
+.rp-sec{border:1px solid var(--line);border-radius:12px;margin:0 0 12px;overflow:hidden;background:var(--surface)}
+.rp-sec header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:10px 12px 4px}
+.rp-no{font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums}.rp-st{font-weight:800}.rp-sec header small{color:var(--muted)}
+.rp-par{display:flex;gap:10px;flex-wrap:wrap;padding:4px 12px 10px;font-size:.82rem;color:var(--muted)}
+.rp-par label{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}.rp-par select{max-width:min(460px,100%);min-width:0}
+.rp-items{list-style:none;margin:0;padding:0}
+.rp-items li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 12px;border-top:1px solid var(--line-soft)}
+.rp-items li.off{opacity:.5}
+.rp-items .rp-t{flex:1 1 320px;min-width:0;font:inherit;font-size:.85rem;padding:4px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink)}
+.rp-meta{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:.8rem}
+.rp-meta select,.rp-meta input{font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink)}
+.rp-chk{font-size:.72rem;font-weight:700;color:#9A5B00;background:color-mix(in srgb,var(--amber) 22%,var(--surface));padding:1px 6px;border-radius:5px}
+.rp-tag{font-size:.72rem;color:var(--muted);background:var(--surface-2);padding:1px 6px;border-radius:5px}
+@media (max-width:720px){.rp-items .rp-t{flex-basis:100%}.rp-par select{max-width:100%}}

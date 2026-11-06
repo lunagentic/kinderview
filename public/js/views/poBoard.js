@@ -3,6 +3,7 @@ import { state, memberOf, areaMeta, statusMeta, activeMembers } from '../state.j
 import { esc, loading, errorBox, toast, avatar, shortDate, linkify } from '../ui.js';
 import { canEdit } from '../gate.js';
 import { gatePanel } from './gatePanel.js';
+import { reportPasteDialog } from './reportPaste.js';
 
 // PO 보드 — 모든 구성원의 핵심 과업을 한눈에. 1단계는 읽기만 한다(승인 시안 docs/po-board).
 // 우선순위: ★ 핵심과업으로 표시한 업무가 1순위로 맨 위, 그 다음 구성원마다 완료 아닌 책임 업무 중 지연 우선·마감 가까운 1건.
@@ -782,6 +783,7 @@ async function renderTeamWeek(host) {
   host.innerHTML = `<div class="po">
     <div class="page-head"><div><h1>킨더플로우 <span class="po-tag">KinderFlow</span></h1><div class="sub">개발팀 담당자별 전주 · 금주 — 킨더플로우 업무·하위 업무·상태 이력 기준${last ? ` · 마지막 갱신 ${md(kstDay(last))}` : ''}</div></div>
       <div class="page-actions"><div class="po-seg" role="tablist"><button type="button" data-mode="week" role="tab" aria-selected="false">주간</button><button type="button" data-mode="month" role="tab" aria-selected="false">월간</button><button type="button" class="on" data-mode="team" role="tab" aria-selected="true">개발팀</button></div>
+        <button class="btn fl-only-edit" type="button" data-rp-open title="개발팀 진행 보고서 글을 붙여 넣어 담당자별 하위 업무로 등록합니다">📋 주간 보고 붙여넣기</button>
         <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
     <div class="po-zone tw-zone">
       <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
@@ -810,6 +812,7 @@ async function renderTeamWeek(host) {
     if (md2) { if (md2.dataset.mode !== mode) { mode = md2.dataset.mode; renderPoBoard(host); } return; }
     const wk = e.target.closest('[data-week]');
     if (wk) { week = wk.dataset.week; renderPoBoard(host); return; }
+    if (e.target.closest('[data-rp-open]')) { reportPasteDialog({ team: DEV_TEAM, onDone: () => window.dispatchEvent(new Event('kf:reload')) }); return; }
     const st = e.target.closest('[data-tw-star]');
     if (st) { e.preventDefault(); toggleTeamStar(st.dataset.twStar, st.getAttribute('aria-pressed') !== 'true'); return; }
 
