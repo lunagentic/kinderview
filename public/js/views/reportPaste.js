@@ -1,4 +1,5 @@
-import { activeMembers } from '../state.js';
+import { state, activeMembers } from '../state.js';
+import { api } from '../api.js';
 import { esc, modal, toast } from '../ui.js';
 import { canEdit } from '../gate.js';
 import { gatePanel } from './gatePanel.js';
@@ -145,10 +146,27 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
   let d = null;
   let secs = [];
   let text = '';
+  // 보고서 원문 링크(선택) — 반영할 때 그 주(월요일)에 붙인다. 개발팀 화면에 「이번 주 보고서」로 보인다
+  const DAY = 864e5;
+  const mon = (iso) => { const d = new Date(`${iso}T00:00:00Z`); return new Date(d - ((d.getUTCDay() + 6) % 7) * DAY).toISOString().slice(0, 10); };
+  const today = state.today ?? new Date().toISOString().slice(0, 10);
+  const weeks = [0, 1, 2, 3].map((n) => new Date(new Date(`${mon(today)}T00:00:00Z`) - n * 7 * DAY).toISOString().slice(0, 10));
+  const wkLabel = (w) => { const e = new Date(new Date(`${w}T00:00:00Z`).getTime() + 6 * DAY).toISOString().slice(0, 10); const f = (x) => `${Number(x.slice(5, 7))}/${Number(x.slice(8, 10))}`; return `${f(w)}–${f(e)}${w === weeks[0] ? ' (이번 주)' : w === weeks[1] ? ' (지난주)' : ''}`; };
+  let repUrl = '';
+  let repWeek = '';
+  const guessWeek = (txt) => {   // 「WEEK 11/2–11/6」 → 그 주 월요일
+    const m = String(txt).match(/WEEK\s*(\d{1,2})\/(\d{1,2})/i);
+    if (!m) return '';
+    const w = mon(`${today.slice(0, 4)}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`);
+    return weeks.includes(w) ? w : '';
+  };
 
   const step1 = () => `
     <p class="rp-lead">개발팀 진행 보고서 글을 그대로 붙여 넣으세요. 묶음(01, 02 …)마다 「금주」 항목을 담당자별 하위 업무로 나눕니다. 다음 화면에서 상위 업무와 담당을 확인하고, 미리보기에서 무엇이 생기는지 본 뒤 반영합니다.</p>
-    <textarea class="rp-in" data-rp-text rows="14" placeholder="01&#10;킨더버스 클로즈베타 전 기능 정상화·권한 보완&#10;정슬기&#10;개발계&#10;전주 …&#10;금주&#10;…">${esc(text)}</textarea>`;
+    <textarea class="rp-in" data-rp-text rows="14" placeholder="01&#10;킨더버스 클로즈베타 전 기능 정상화·권한 보완&#10;정슬기&#10;개발계&#10;전주 …&#10;금주&#10;…">${esc(text)}</textarea>
+    <div class="rp-url"><label>보고서 주소 <small>(선택 · 아티팩트 링크)</small><input type="url" data-rp-url placeholder="https://claude.ai/artifact/…" value="${esc(repUrl)}"></label>
+      <label>주 <select data-rp-week>${weeks.map((w) => `<option value="${w}"${w === (repWeek || weeks[0]) ? ' selected' : ''}>${wkLabel(w)}</option>`).join('')}</select></label></div>
+    <p class="rp-hint">주소를 넣으면 반영할 때 그 주의 「보고서」 링크로 붙고, 생기는 하위 업무 메모에도 원문 주소가 남습니다.</p>`;
 
   const memberOpts = (id) => `<option value="">— 담당 없음</option>${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === id ? ' selected' : ''}>${esc(label(m))}</option>`).join('')}`;
   const parentOpts = (sec) => {
@@ -189,7 +207,7 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
       const projName = d.projects.find((p) => p.id === (P ? P.project_id : s.projectId))?.name ?? '';
       for (const it of s.items) {
         if (!it.include || !clean(it.title)) continue;
-        rows.push([P?.id ?? '', P ? P.title : s.title, clean(it.title), nameOf(it.owner), it.status, it.note, projName]);
+        rows.push([P?.id ?? '', P ? P.title : s.title, clean(it.title), nameOf(it.owner), it.status, repUrl ? `${it.note}\n원문: ${repUrl}` : it.note, projName]);
       }
     }
     return { 업무: rows };
@@ -212,6 +230,9 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
       root.addEventListener('click', async (e) => {
         if (e.target.closest('[data-rp-split]')) {
           text = body.querySelector('[data-rp-text]').value;
+          repUrl = body.querySelector('[data-rp-url]').value.trim();
+          repWeek = body.querySelector('[data-rp-week]').value;
+          if (repUrl && !/^https?:\/\/\S+$/i.test(repUrl)) { toast('보고서 주소는 http:// 또는 https:// 로 시작해야 합니다.', true); return; }
           if (!text.trim()) { toast('보고서 글을 붙여 넣어 주세요.', true); return; }
           try {
             if (!d) {
@@ -236,7 +257,13 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
         if (e.target.closest('[data-rp-back]')) { body.innerHTML = step1(); paintFoot(1); return; }
         if (e.target.closest('[data-rp-go]')) {
           if (!count()) { toast('넣을 항목을 하나 이상 골라 주세요.', true); return; }
-          sheetImportBook(toBook(), { title: '주간 보고 붙여넣기 — 미리보기', onDone: () => { close(true); onDone?.(); } });
+          sheetImportBook(toBook(), { title: '주간 보고 붙여넣기 — 미리보기', onDone: async () => {
+            if (repUrl) {
+              try { await api.post('/api/dev-reports', { week: repWeek || weeks[0], url: repUrl, name: `개발팀 보고 ${wkLabel(repWeek || weeks[0]).replace(/ \(.+\)$/, '')}` }); }
+              catch (err) { toast(`보고서 링크는 저장하지 못했습니다: ${err.message}`, true); }
+            }
+            close(true); onDone?.();
+          } });
         }
       });
       root.addEventListener('change', (e) => {
@@ -250,7 +277,10 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
         else if (el.dataset.rpOwner !== undefined) { const it = at(el.dataset.rpOwner); it.owner = el.value; it.ownerGuess = false; el.parentElement.querySelector('.rp-chk')?.remove(); }
         else if (el.dataset.rpStatus !== undefined) at(el.dataset.rpStatus).status = el.value;
       });
-      root.addEventListener('input', (e) => { if (e.target.dataset.rpTitle !== undefined) at(e.target.dataset.rpTitle).title = e.target.value; });
+      root.addEventListener('input', (e) => {
+        if (e.target.dataset.rpTitle !== undefined) at(e.target.dataset.rpTitle).title = e.target.value;
+        if (e.target.dataset.rpText !== undefined) { const w = guessWeek(e.target.value); const sel = body.querySelector('[data-rp-week]'); if (w && sel) sel.value = w; }
+      });
     },
   });
 }

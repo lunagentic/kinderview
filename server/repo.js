@@ -1030,6 +1030,30 @@ export const linkName = (url) => {
   try { const u = new URL(url); return (u.host + (u.pathname === '/' ? '' : u.pathname)).slice(0, 60); }
   catch { return url.slice(0, 60); }
 };
+// 개발팀 주간 보고서 링크 — 주(월요일)마다 하나. 있으면 바꾼다 (demo store saveDevReport 와 같은 규칙)
+export const devReports = {
+  list() { return all('SELECT * FROM dev_report ORDER BY week DESC'); },
+  save(input, by = null) {
+    const week = String(input.week ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new HttpError(400, '주(월요일 날짜)가 올바르지 않습니다.');
+    const url = String(input.url ?? '').trim();
+    if (!LINK_RE.test(url)) throw new HttpError(400, 'http:// 또는 https:// 로 시작하는 주소를 넣어 주세요.');
+    const name = String(input.name ?? '').trim().slice(0, 120) || linkName(url);
+    const at = nowISO();
+    if (one('SELECT week FROM dev_report WHERE week = :w', { w: week })) {
+      run('UPDATE dev_report SET url = :url, name = :name, by_slack_user_id = :by, updated_at = :at WHERE week = :w', { w: week, url, name, by, at });
+    } else {
+      run('INSERT INTO dev_report (week, url, name, by_slack_user_id, created_at) VALUES (:w, :url, :name, :by, :at)', { w: week, url, name, by, at });
+    }
+    return one('SELECT * FROM dev_report WHERE week = :w', { w: week });
+  },
+  remove(week) {
+    if (!one('SELECT week FROM dev_report WHERE week = :w', { w: week })) throw new HttpError(404, '보고서 링크를 찾을 수 없습니다.');
+    run('DELETE FROM dev_report WHERE week = :w', { w: week });
+    return { ok: true };
+  },
+};
+
 export const attachments = {
   list(taskId) {
     return all('SELECT * FROM attachment WHERE task_id = :t ORDER BY created_at', { t: taskId });

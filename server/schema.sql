@@ -198,6 +198,16 @@ CREATE TABLE IF NOT EXISTS attachment (
 );
 CREATE INDEX IF NOT EXISTS idx_attachment_task ON attachment(task_id, created_at);
 
+-- 개발팀 주간 보고서 링크 — 주(그 주 월요일)마다 하나. 개발팀 화면에 붙는다
+CREATE TABLE IF NOT EXISTS dev_report (
+  week              TEXT PRIMARY KEY,      -- 그 주 월요일 YYYY-MM-DD
+  url               TEXT NOT NULL,
+  name              TEXT NOT NULL,
+  by_slack_user_id  TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT
+);
+
 -- 페이즈에 달리는 코멘트. 업무 코멘트와 같은 모양이고 자리만 다르다(업무 → 페이즈).
 CREATE TABLE IF NOT EXISTS phase_comment (
   id                   TEXT PRIMARY KEY,

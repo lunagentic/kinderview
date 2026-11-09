@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dbFile, today, applySchema, weekStart, addDays, uploadsDir } from './db.js';
 import { runMigrations } from './migrate.js';
 import {
-  members, projects, vendors, tasks, subtasks, comments, categories, meetings, issues, overview, areaLeads, attachments,
+  members, projects, vendors, tasks, subtasks, comments, categories, meetings, issues, overview, areaLeads, attachments, devReports,
   timeEntries, payments, phases, milestones, timeline, expenses, inbox, directorComments,
   taskMonths, EXPENSE_CATEGORIES, HttpError,
 } from './repo.js';
@@ -152,6 +152,11 @@ route('GET', '/api/tasks/:id/attachments', (ctx) => attachments.list(ctx.params.
 route('POST', '/api/tasks/:id/attachments', (ctx) => attachments.add(ctx.params.id, ctx.body, ctx.me));
 route('PATCH', '/api/attachments/:id', (ctx) => attachments.rename(ctx.params.id, ctx.body));
 route('DELETE', '/api/attachments/:id', (ctx) => attachments.remove(ctx.params.id));
+
+// ── 개발팀 주간 보고서 링크 — 주(월요일)마다 하나 ──
+route('GET', '/api/dev-reports', () => devReports.list());
+route('POST', '/api/dev-reports', (ctx) => devReports.save(ctx.body, ctx.me));
+route('DELETE', '/api/dev-reports/:week', (ctx) => devReports.remove(ctx.params.week));
 
 // ── 하위 업무 ───────────────────────────────────────────
 // 코멘트 — 읽기는 누구나, 쓰기는 화면·저장소 쪽 문이 막는다.

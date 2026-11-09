@@ -83,7 +83,7 @@ const EDIT_TARGETS = [
   '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
   '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
   '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
-  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sheet-in]', '[data-rp-open]', '[data-core-add]', '[data-core-del]', '.fl-edit', '.fl-only-edit', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sheet-in]', '[data-rp-open]', '[data-core-add]', '[data-core-del]', '[data-dr-edit]', '[data-dr-del]', '.fl-edit', '.fl-only-edit', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
 ].join(',');
 
 const blockWhenLocked = (e) => {

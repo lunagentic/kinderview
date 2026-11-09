@@ -2925,3 +2925,14 @@ body[data-gate="view"] .dc-row{grid-template-columns:24px minmax(0,1fr) 74px}
 .dcp-pick:hover{background:var(--surface-2)}.dcp-pick .k{flex:none;font-size:.72rem;color:var(--muted);min-width:46px}.dcp-pick .t{flex:1;min-width:0;font-weight:700}.dcp-pick .o,.dcp-pick .p{flex:none;font-size:.76rem;color:var(--muted)}
 .dcp-none{color:var(--muted);font-size:.85rem}
 @media (max-width:720px){.dc-wrap{grid-template-columns:1fr}.dc-row{grid-template-columns:22px minmax(0,1fr) 56px 24px;gap:8px;padding:10px}.dc-kpi{display:grid;grid-template-columns:auto 1fr;column-gap:14px;align-items:center}.dc-kpi .big{grid-row:span 2;margin:0}}
+
+/* 개발팀 주차별 보고서 링크 */
+.dr-sec{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.dr{display:inline-flex;align-items:center;gap:2px;max-width:100%;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 12px}
+.dr-a{display:inline-flex;align-items:center;gap:6px;min-width:0;color:var(--ink);text-decoration:none;font-size:.84rem}.dr-a b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.dr-a:hover b{text-decoration:underline}
+.dr-x{border:0;background:none;color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer;border-radius:99px;padding:3px 6px}.dr-x:hover{background:var(--surface-2);color:var(--ink)}
+.dr-mini{font-size:.72rem;font-weight:700;color:var(--po-blue-ink,#2F5FB3);text-decoration:none;margin-left:6px}.dr-mini:hover{text-decoration:underline}
+.dr-f{display:flex;flex-direction:column;gap:4px;font-size:.82rem;color:var(--muted);margin:0 0 10px}.dr-f small{font-weight:400}
+.dr-f input,.rp-url input,.rp-url select{font:inherit;font-size:.86rem;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);min-width:0}
+.rp-url{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.rp-url label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}.rp-url label:first-child{flex:1 1 320px}.rp-url small{font-weight:400}
+.rp-hint{margin:6px 0 0;font-size:.76rem;color:var(--muted)}

@@ -2930,12 +2930,23 @@ body[data-gate="view"] .dc-row{grid-template-columns:24px minmax(0,1fr) 74px}
 .dcp-none{color:var(--muted);font-size:.85rem}
 @media (max-width:720px){.dc-wrap{grid-template-columns:1fr}.dc-row{grid-template-columns:22px minmax(0,1fr) 56px 24px;gap:8px;padding:10px}.dc-kpi{display:grid;grid-template-columns:auto 1fr;column-gap:14px;align-items:center}.dc-kpi .big{grid-row:span 2;margin:0}}
 
+/* 개발팀 주차별 보고서 링크 */
+.dr-sec{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.dr{display:inline-flex;align-items:center;gap:2px;max-width:100%;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 12px}
+.dr-a{display:inline-flex;align-items:center;gap:6px;min-width:0;color:var(--ink);text-decoration:none;font-size:.84rem}.dr-a b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.dr-a:hover b{text-decoration:underline}
+.dr-x{border:0;background:none;color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer;border-radius:99px;padding:3px 6px}.dr-x:hover{background:var(--surface-2);color:var(--ink)}
+.dr-mini{font-size:.72rem;font-weight:700;color:var(--po-blue-ink,#2F5FB3);text-decoration:none;margin-left:6px}.dr-mini:hover{text-decoration:underline}
+.dr-f{display:flex;flex-direction:column;gap:4px;font-size:.82rem;color:var(--muted);margin:0 0 10px}.dr-f small{font-weight:400}
+.dr-f input,.rp-url input,.rp-url select{font:inherit;font-size:.86rem;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);min-width:0}
+.rp-url{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.rp-url label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}.rp-url label:first-child{flex:1 1 320px}.rp-url small{font-weight:400}
+.rp-hint{margin:6px 0 0;font-size:.76rem;color:var(--muted)}
+
 </style>
 
   <header class="topbar">
     <a class="brand" href="#/project">
       <span class="brand-mark">PO Board</span>
-      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 11/6 14:42 · cdf92de (KST)">11/6 14:42</span>
+      <span class="brand-sub">Priority Organizer</span><span class="build-tag" title="빌드 11/9 17:13 · 1025a98 (KST)">11/9 17:13</span>
     </a>
     <nav class="gnb" id="gnb">
       <a href="#/project" data-nav="project">프로젝트 매니징</a>
@@ -2964,7 +2975,7 @@ body[data-gate="view"] .dc-row{grid-template-columns:24px minmax(0,1fr) 74px}
   <div id="toast-root" class="toast-root" aria-live="polite"></div>
 
 <script type="module">
-window.KF_BUILD = "11/6 14:42 · cdf92de"; console.info('PO Board build', window.KF_BUILD);
+window.KF_BUILD = "11/9 17:13 · 1025a98"; console.info('PO Board build', window.KF_BUILD);
 /* ── 도메인 상수 (server/domain.js) ─────────────────── */
 
 // 도메인 상수 — 표기는 docs/11-glossary.md 를 따른다.
@@ -4343,6 +4354,7 @@ const ROW_KEY = {
   reads: (r) => `${r.who}/${r.key}`,
   meetings: (r) => r.id,
   agenda_items: (r) => r.id,
+  dev_reports: (r) => r.week,
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
@@ -5311,6 +5323,30 @@ async function addAttachment(taskId, body) {
   (DB.attachments ??= []).push(row);
   save();
   return row;
+}
+
+// 개발팀 주간 보고서 링크 — 주(월요일)마다 하나. 있으면 바꾼다 (서버 repo.js devReports 와 같은 규칙)
+const devReportsList = () => [...(DB.dev_reports ?? [])].sort((a, b) => b.week.localeCompare(a.week));
+function saveDevReport(body) {
+  const week = String(body.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new DemoError('주(월요일 날짜)가 올바르지 않습니다.');
+  const url = String(body.url ?? '').trim();
+  if (!LINK_RE.test(url)) throw new DemoError('http:// 또는 https:// 로 시작하는 주소를 넣어 주세요.');
+  const name = String(body.name ?? '').trim().slice(0, 120) || linkName(url);
+  const list = (DB.dev_reports ??= []);
+  const cur = list.find((r) => r.week === week);
+  if (cur) Object.assign(cur, { url, name, by_slack_user_id: currentMe(), updated_at: nowISO() });
+  else list.push({ week, url, name, by_slack_user_id: currentMe(), created_at: nowISO() });
+  save();
+  return list.find((r) => r.week === week);
+}
+function removeDevReport(week) {
+  const list = DB.dev_reports ?? [];
+  const i = list.findIndex((r) => r.week === week);
+  if (i < 0) throw new DemoError('보고서 링크를 찾을 수 없습니다.');
+  list.splice(i, 1);
+  save();
+  return { ok: true };
 }
 
 // 설명 고치기 — 비우면 자동 이름(주소)으로 되돌린다 (서버 repo.js attachments.rename 과 같은 규칙)
@@ -6912,6 +6948,9 @@ function handle(method, path, body) {
     if (method === 'GET') return attachmentsOf(seg[2]);
     if (method === 'POST') return addAttachment(seg[2], body);
   }
+  if (p === '/api/dev-reports' && method === 'GET') return devReportsList();
+  if (p === '/api/dev-reports' && method === 'POST') return saveDevReport(body);
+  if (seg[1] === 'dev-reports' && seg[2] && method === 'DELETE') return removeDevReport(seg[2]);
   if (seg[1] === 'attachments' && seg[2] && method === 'PATCH') return renameAttachment(seg[2], body);
   if (seg[1] === 'attachments' && seg[2] && method === 'DELETE') return removeAttachment(seg[2]);
   if (seg[1] === 'subtasks' && seg[2]) {
@@ -13606,6 +13645,7 @@ function sheetImportPick({ onDone } = {}) {
 
 
 
+
 // 주간 보고 붙여넣기 — 개발팀 진행 보고서(01~13 기능 묶음 · 담당자별 줄)를 붙여 넣으면
 // 「금주」 항목을 담당자별 하위 업무로 나눠, 묶음마다 기존 상위 업무(KV) 아래에 넣는다.
 // 반영은 「엑셀로 주고받기」 올리기와 같은 길(sheetImportBook): 미리보기 → 확인 → 기존 API.
@@ -13747,10 +13787,27 @@ async function reportPasteDialog({ onDone, team = [] } = {}) {
   let d = null;
   let secs = [];
   let text = '';
+  // 보고서 원문 링크(선택) — 반영할 때 그 주(월요일)에 붙인다. 개발팀 화면에 「이번 주 보고서」로 보인다
+  const DAY = 864e5;
+  const mon = (iso) => { const d = new Date(`${iso}T00:00:00Z`); return new Date(d - ((d.getUTCDay() + 6) % 7) * DAY).toISOString().slice(0, 10); };
+  const today = state.today ?? new Date().toISOString().slice(0, 10);
+  const weeks = [0, 1, 2, 3].map((n) => new Date(new Date(`${mon(today)}T00:00:00Z`) - n * 7 * DAY).toISOString().slice(0, 10));
+  const wkLabel = (w) => { const e = new Date(new Date(`${w}T00:00:00Z`).getTime() + 6 * DAY).toISOString().slice(0, 10); const f = (x) => `${Number(x.slice(5, 7))}/${Number(x.slice(8, 10))}`; return `${f(w)}–${f(e)}${w === weeks[0] ? ' (이번 주)' : w === weeks[1] ? ' (지난주)' : ''}`; };
+  let repUrl = '';
+  let repWeek = '';
+  const guessWeek = (txt) => {   // 「WEEK 11/2–11/6」 → 그 주 월요일
+    const m = String(txt).match(/WEEK\s*(\d{1,2})\/(\d{1,2})/i);
+    if (!m) return '';
+    const w = mon(`${today.slice(0, 4)}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`);
+    return weeks.includes(w) ? w : '';
+  };
 
   const step1 = () => `
     <p class="rp-lead">개발팀 진행 보고서 글을 그대로 붙여 넣으세요. 묶음(01, 02 …)마다 「금주」 항목을 담당자별 하위 업무로 나눕니다. 다음 화면에서 상위 업무와 담당을 확인하고, 미리보기에서 무엇이 생기는지 본 뒤 반영합니다.</p>
-    <textarea class="rp-in" data-rp-text rows="14" placeholder="01&#10;킨더버스 클로즈베타 전 기능 정상화·권한 보완&#10;정슬기&#10;개발계&#10;전주 …&#10;금주&#10;…">${esc(text)}</textarea>`;
+    <textarea class="rp-in" data-rp-text rows="14" placeholder="01&#10;킨더버스 클로즈베타 전 기능 정상화·권한 보완&#10;정슬기&#10;개발계&#10;전주 …&#10;금주&#10;…">${esc(text)}</textarea>
+    <div class="rp-url"><label>보고서 주소 <small>(선택 · 아티팩트 링크)</small><input type="url" data-rp-url placeholder="https://claude.ai/artifact/…" value="${esc(repUrl)}"></label>
+      <label>주 <select data-rp-week>${weeks.map((w) => `<option value="${w}"${w === (repWeek || weeks[0]) ? ' selected' : ''}>${wkLabel(w)}</option>`).join('')}</select></label></div>
+    <p class="rp-hint">주소를 넣으면 반영할 때 그 주의 「보고서」 링크로 붙고, 생기는 하위 업무 메모에도 원문 주소가 남습니다.</p>`;
 
   const memberOpts = (id) => `<option value="">— 담당 없음</option>${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === id ? ' selected' : ''}>${esc(label(m))}</option>`).join('')}`;
   const parentOpts = (sec) => {
@@ -13791,7 +13848,7 @@ async function reportPasteDialog({ onDone, team = [] } = {}) {
       const projName = d.projects.find((p) => p.id === (P ? P.project_id : s.projectId))?.name ?? '';
       for (const it of s.items) {
         if (!it.include || !clean(it.title)) continue;
-        rows.push([P?.id ?? '', P ? P.title : s.title, clean(it.title), nameOf(it.owner), it.status, it.note, projName]);
+        rows.push([P?.id ?? '', P ? P.title : s.title, clean(it.title), nameOf(it.owner), it.status, repUrl ? `${it.note}\n원문: ${repUrl}` : it.note, projName]);
       }
     }
     return { 업무: rows };
@@ -13814,6 +13871,9 @@ async function reportPasteDialog({ onDone, team = [] } = {}) {
       root.addEventListener('click', async (e) => {
         if (e.target.closest('[data-rp-split]')) {
           text = body.querySelector('[data-rp-text]').value;
+          repUrl = body.querySelector('[data-rp-url]').value.trim();
+          repWeek = body.querySelector('[data-rp-week]').value;
+          if (repUrl && !/^https?:\/\/\S+$/i.test(repUrl)) { toast('보고서 주소는 http:// 또는 https:// 로 시작해야 합니다.', true); return; }
           if (!text.trim()) { toast('보고서 글을 붙여 넣어 주세요.', true); return; }
           try {
             if (!d) {
@@ -13838,7 +13898,13 @@ async function reportPasteDialog({ onDone, team = [] } = {}) {
         if (e.target.closest('[data-rp-back]')) { body.innerHTML = step1(); paintFoot(1); return; }
         if (e.target.closest('[data-rp-go]')) {
           if (!count()) { toast('넣을 항목을 하나 이상 골라 주세요.', true); return; }
-          sheetImportBook(toBook(), { title: '주간 보고 붙여넣기 — 미리보기', onDone: () => { close(true); onDone?.(); } });
+          sheetImportBook(toBook(), { title: '주간 보고 붙여넣기 — 미리보기', onDone: async () => {
+            if (repUrl) {
+              try { await api.post('/api/dev-reports', { week: repWeek || weeks[0], url: repUrl, name: `개발팀 보고 ${wkLabel(repWeek || weeks[0]).replace(/ \(.+\)$/, '')}` }); }
+              catch (err) { toast(`보고서 링크는 저장하지 못했습니다: ${err.message}`, true); }
+            }
+            close(true); onDone?.();
+          } });
         }
       });
       root.addEventListener('change', (e) => {
@@ -13852,7 +13918,10 @@ async function reportPasteDialog({ onDone, team = [] } = {}) {
         else if (el.dataset.rpOwner !== undefined) { const it = at(el.dataset.rpOwner); it.owner = el.value; it.ownerGuess = false; el.parentElement.querySelector('.rp-chk')?.remove(); }
         else if (el.dataset.rpStatus !== undefined) at(el.dataset.rpStatus).status = el.value;
       });
-      root.addEventListener('input', (e) => { if (e.target.dataset.rpTitle !== undefined) at(e.target.dataset.rpTitle).title = e.target.value; });
+      root.addEventListener('input', (e) => {
+        if (e.target.dataset.rpTitle !== undefined) at(e.target.dataset.rpTitle).title = e.target.value;
+        if (e.target.dataset.rpText !== undefined) { const w = guessWeek(e.target.value); const sel = body.querySelector('[data-rp-week]'); if (w && sel) sel.value = w; }
+      });
     },
   });
 }
@@ -15203,6 +15272,7 @@ async function renderTeamWeek(host) {
   try { rows = (await api.get('/api/tasks?done=1&all_backlog=1')).map(poShape); } catch (err) { host.innerHTML = errorBox(err.message); return; }
   const mine = rows.filter((t) => ids.has(t.owner_slack_user_id) || (t.sub_owners ?? []).some((x) => ids.has(x)));
   const full = new Map();
+  let reports = await api.get('/api/dev-reports').catch(() => []);   // 주차별 보고서 링크
   const needFull = [...mine, ...rows.filter((t) => t.dev_core != null && !mine.includes(t))];   // 핵심과업은 개발팀 업무가 아니어도 이력을 읽는다(지난주 진척)
   await Promise.all(needFull.map((t) => api.get(`/api/tasks/${encodeURIComponent(t.id)}`).then((r) => full.set(t.id, r)).catch(() => full.set(t.id, { events: [], subtasks: [] }))));
   const today = state.today;
@@ -15353,6 +15423,14 @@ async function renderTeamWeek(host) {
       <p class="dc-note">진척률 = 과업마다 max(하위 완료 비율, 상태 바닥값 대기 0·진행중 20·검토 80·완료 100)의 평균 · 지난주 값은 ${md(TW[0])} 0시 기준</p>
     </section>`;
   };
+  // 주차별 보고서 링크 — 그 주(월요일)마다 하나. 링크는 누구나 열고, 붙이기·바꾸기·지우기는 편집 등급만
+  const repOf = (wk) => reports.find((r) => r.week === wk);
+  const repChip = () => {
+    const r = repOf(tw0);
+    if (!r) return `<button class="btn sm fl-only-edit dr-add" type="button" data-dr-edit>+ ${tw0 === thisWk0 ? '이번 주' : '이 주'} 보고서 링크</button>`;
+    return `<span class="dr"><a class="dr-a" href="${esc(r.url)}" target="_blank" rel="noopener" title="${esc(r.url)}">📄 <b>${esc(r.name)}</b></a><button type="button" class="dr-x fl-only-edit" data-dr-edit title="보고서 링크 바꾸기" aria-label="보고서 링크 바꾸기">✎</button><button type="button" class="dr-x fl-only-edit" data-dr-del title="보고서 링크 지우기" aria-label="보고서 링크 지우기">✕</button></span>`;
+  };
+  const repMini = (wk) => { const r = repOf(wk); return r ? ` <a class="dr-mini" href="${esc(r.url)}" target="_blank" rel="noopener" title="${esc(r.name)}">📄 보고서</a>` : ''; };
   const paintTeam = () => {
   const risks = [];
   const blocks = team.map((p) => {
@@ -15364,7 +15442,7 @@ async function renderTeamWeek(host) {
     return `<section class="tw-who" style="--mc:${poTone(p.id)}">
       <header><span class="po-cloud"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M15 39h35a10.5 10.5 0 0 0 1-21A15 15 0 0 0 22 11a9.5 9.5 0 0 0-7 28z"/></svg><b>${esc(p.name.length > 2 ? p.name[1] : p.name[0])}</b></span><h2>${esc(p.name)}</h2>
         <span class="meta">책임 상위 ${owned.length} · 하위 ${subN}${late.length ? ` · <span class="late">지연 ${late.length}</span>` : ''}</span></header>
-      ${(() => { const lw = lastWeek(p.id, LW); return `<div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])}</small></h3>${lastCol(p.id, lw)}</div>
+      ${(() => { const lw = lastWeek(p.id, LW); return `<div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])}</small>${repMini(LW[0])}</h3>${lastCol(p.id, lw)}</div>
         <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])}</small></h3>${thisCol(p.id, thisWeek(p.id, TW, lw.contIds))}</div></div>`; })()}
       <details class="tw-alld" data-tw-allfold="${esc(p.id)}"${open ? ' open' : ''}><summary class="tw-allbar"><span class="tg" aria-hidden="true"></span>${esc(p.name)} 님의 전체 업무 <b>${allCount(p.id)}</b><span class="hint"></span></summary>${allPanelT(p.id)}</details></section>`;
   });
@@ -15377,7 +15455,7 @@ async function renderTeamWeek(host) {
         <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
     <div class="po-zone tw-zone">
       ${coreBand()}
-      <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
+      <div class="po-sec dr-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2>${repChip()}</div>
       <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span><span><b class="tw-star">☆</b>눌러서 즐겨찾기 · ★ 업무는 맨 위, 나머지는 「나머지 n건 보기」</span><span><b>▸ 전체 업무</b> 전주·금주 아래에서 펼치기</span></div>
       ${blocks.join('')}
       ${risks.length ? `<div class="tw-risk"><h3>확인 필요 — 마감 지난 책임 업무 ${risks.length}건</h3><ul>${risks.map((r) => `<li><i>!</i><span>${r}</span></li>`).join('')}</ul></div>` : ''}
@@ -15429,9 +15507,34 @@ async function renderTeamWeek(host) {
         });
       } });
   };
+  const editReport = () => {
+    if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+    const r = repOf(tw0);
+    modal({ title: `보고서 링크 — ${md(TW[0])}–${md(TW[1])}`,
+      body: `<p class="rp-lead">이 주 개발팀 보고서(아티팩트 등)의 주소를 붙여 두면, 개발팀 화면에서 누구나 원문을 열어 볼 수 있습니다.</p>
+        <label class="dr-f">주소<input type="url" data-dr-url value="${esc(r?.url ?? '')}" placeholder="https://claude.ai/artifact/…"></label>
+        <label class="dr-f">이름 <small>(비우면 주소로)</small><input type="text" data-dr-name value="${esc(r?.name ?? `개발팀 보고 ${md(TW[0])}–${md(TW[1])}`)}" maxlength="120"></label>`,
+      footer: '<div class="right"><button class="btn" data-close>취소</button><button class="btn btn-primary" data-dr-save>저장</button></div>',
+      onMount({ root, close }) {
+        root.querySelector('[data-dr-save]').addEventListener('click', async () => {
+          const url = root.querySelector('[data-dr-url]').value.trim(); const name = root.querySelector('[data-dr-name]').value.trim();
+          try { const saved = await api.post('/api/dev-reports', { week: tw0, url, name }); reports = [saved, ...reports.filter((x) => x.week !== tw0)]; }
+          catch (err) { toast(err.message, true); return; }
+          toast('보고서 링크를 붙였습니다.'); close(); paintTeam();
+        });
+      } });
+  };
   poBound?.abort();
   poBound = new AbortController();
   host.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-dr-edit]')) { editReport(); return; }
+    if (e.target.closest('[data-dr-del]')) {
+      if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+      if (!(await confirmModal('이 주의 보고서 링크를 지울까요? 보고서 자체는 그대로입니다.', { confirmLabel: '지우기', danger: true }))) return;
+      try { await api.del(`/api/dev-reports/${encodeURIComponent(tw0)}`); reports = reports.filter((x) => x.week !== tw0); }
+      catch (err) { toast(err.message, true); return; }
+      toast('보고서 링크를 지웠습니다.'); paintTeam(); return;
+    }
     const md2 = e.target.closest('[data-mode]');
     if (md2) { if (md2.dataset.mode !== mode) { mode = md2.dataset.mode; renderPoBoard(host); } return; }
     const wk = e.target.closest('[data-week]');
@@ -17912,7 +18015,7 @@ const EDIT_TARGETS = [
   '[data-add-phase]', '[data-add-milestone]', '[data-area-leads]',
   '[data-del]', '[data-del-task]', '[data-del-project]', '[data-sub-del]', '[data-sub-add]',
   '.due-view', '.chip-select', '.status-select', '.ttl-edit', '.tk-del', '.tld-del', '.pr-edit',
-  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sheet-in]', '[data-rp-open]', '[data-core-add]', '[data-core-del]', '.fl-edit', '.fl-only-edit', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
+  '[data-title]', '[data-due]', '[data-status]', '[data-owner]', '[data-area]', '[data-sub-status]', '[data-sub-title]', '[data-task-title]', '[data-ph-grip]', '[data-sub-area]', '[data-sub-owner]', '[data-sheet-in]', '[data-rp-open]', '[data-core-add]', '[data-core-del]', '[data-dr-edit]', '[data-dr-del]', '.fl-edit', '.fl-only-edit', '[data-desc]', '[data-co-pick]', '[data-co-member]', '[data-pick]', '[data-pick-group]', '.mr-bulk',
 ].join(',');
 
 const blockWhenLocked = (e) => {

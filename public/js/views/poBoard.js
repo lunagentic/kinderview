@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { state, memberOf, areaMeta, statusMeta, activeMembers } from '../state.js';
-import { esc, loading, errorBox, toast, avatar, shortDate, linkify, modal } from '../ui.js';
+import { esc, loading, errorBox, toast, avatar, shortDate, linkify, modal, confirmModal } from '../ui.js';
 import { canEdit } from '../gate.js';
 import { gatePanel } from './gatePanel.js';
 import { reportPasteDialog } from './reportPaste.js';
@@ -650,6 +650,7 @@ async function renderTeamWeek(host) {
   try { rows = (await api.get('/api/tasks?done=1&all_backlog=1')).map(poShape); } catch (err) { host.innerHTML = errorBox(err.message); return; }
   const mine = rows.filter((t) => ids.has(t.owner_slack_user_id) || (t.sub_owners ?? []).some((x) => ids.has(x)));
   const full = new Map();
+  let reports = await api.get('/api/dev-reports').catch(() => []);   // 주차별 보고서 링크
   const needFull = [...mine, ...rows.filter((t) => t.dev_core != null && !mine.includes(t))];   // 핵심과업은 개발팀 업무가 아니어도 이력을 읽는다(지난주 진척)
   await Promise.all(needFull.map((t) => api.get(`/api/tasks/${encodeURIComponent(t.id)}`).then((r) => full.set(t.id, r)).catch(() => full.set(t.id, { events: [], subtasks: [] }))));
   const today = state.today;
@@ -800,6 +801,14 @@ async function renderTeamWeek(host) {
       <p class="dc-note">진척률 = 과업마다 max(하위 완료 비율, 상태 바닥값 대기 0·진행중 20·검토 80·완료 100)의 평균 · 지난주 값은 ${md(TW[0])} 0시 기준</p>
     </section>`;
   };
+  // 주차별 보고서 링크 — 그 주(월요일)마다 하나. 링크는 누구나 열고, 붙이기·바꾸기·지우기는 편집 등급만
+  const repOf = (wk) => reports.find((r) => r.week === wk);
+  const repChip = () => {
+    const r = repOf(tw0);
+    if (!r) return `<button class="btn sm fl-only-edit dr-add" type="button" data-dr-edit>+ ${tw0 === thisWk0 ? '이번 주' : '이 주'} 보고서 링크</button>`;
+    return `<span class="dr"><a class="dr-a" href="${esc(r.url)}" target="_blank" rel="noopener" title="${esc(r.url)}">📄 <b>${esc(r.name)}</b></a><button type="button" class="dr-x fl-only-edit" data-dr-edit title="보고서 링크 바꾸기" aria-label="보고서 링크 바꾸기">✎</button><button type="button" class="dr-x fl-only-edit" data-dr-del title="보고서 링크 지우기" aria-label="보고서 링크 지우기">✕</button></span>`;
+  };
+  const repMini = (wk) => { const r = repOf(wk); return r ? ` <a class="dr-mini" href="${esc(r.url)}" target="_blank" rel="noopener" title="${esc(r.name)}">📄 보고서</a>` : ''; };
   const paintTeam = () => {
   const risks = [];
   const blocks = team.map((p) => {
@@ -811,7 +820,7 @@ async function renderTeamWeek(host) {
     return `<section class="tw-who" style="--mc:${poTone(p.id)}">
       <header><span class="po-cloud"><svg viewBox="0 0 64 40" aria-hidden="true"><path d="M15 39h35a10.5 10.5 0 0 0 1-21A15 15 0 0 0 22 11a9.5 9.5 0 0 0-7 28z"/></svg><b>${esc(p.name.length > 2 ? p.name[1] : p.name[0])}</b></span><h2>${esc(p.name)}</h2>
         <span class="meta">책임 상위 ${owned.length} · 하위 ${subN}${late.length ? ` · <span class="late">지연 ${late.length}</span>` : ''}</span></header>
-      ${(() => { const lw = lastWeek(p.id, LW); return `<div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])}</small></h3>${lastCol(p.id, lw)}</div>
+      ${(() => { const lw = lastWeek(p.id, LW); return `<div class="cols"><div class="lw"><h3>${tw0 === thisWk0 ? '전주' : '그 전 주'} <small>${md(LW[0])}–${md(LW[1])}</small>${repMini(LW[0])}</h3>${lastCol(p.id, lw)}</div>
         <div class="tw"><h3>${tw0 === thisWk0 ? '금주' : '그 주'} <small>${md(TW[0])}–${md(TW[1])}</small></h3>${thisCol(p.id, thisWeek(p.id, TW, lw.contIds))}</div></div>`; })()}
       <details class="tw-alld" data-tw-allfold="${esc(p.id)}"${open ? ' open' : ''}><summary class="tw-allbar"><span class="tg" aria-hidden="true"></span>${esc(p.name)} 님의 전체 업무 <b>${allCount(p.id)}</b><span class="hint"></span></summary>${allPanelT(p.id)}</details></section>`;
   });
@@ -824,7 +833,7 @@ async function renderTeamWeek(host) {
         <span class="po-mo-nav po-wk-nav"><button class="btn" type="button" data-week="${esc(add(tw0, -7))}" aria-label="이전 주">‹</button><button class="btn" type="button" data-week="${esc(thisWk0)}"${tw0 === thisWk0 ? ' disabled' : ''}>이번 주</button><span class="chip po-wk-tag">${tw0 === thisWk0 ? '이번 주 ' : ''}${md(TW[0])} - ${md(TW[1])}</span><button class="btn" type="button" data-week="${esc(add(tw0, 7))}" aria-label="다음 주">›</button></span></div></div>
     <div class="po-zone tw-zone">
       ${coreBand()}
-      <div class="po-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2></div>
+      <div class="po-sec dr-sec"><h2><span class="po-band-title">개발팀 전주 · 금주</span> <span class="n">${team.length}명</span></h2>${repChip()}</div>
       <div class="tw-legend"><span><i class="done">✓</i>완료</span><span><i class="cont">→</i>이어서 진행</span><span><i class="due">◷</i>금주 마감</span><span><i class="prog">◐</i>진행 중</span><span><b class="tw-star">☆</b>눌러서 즐겨찾기 · ★ 업무는 맨 위, 나머지는 「나머지 n건 보기」</span><span><b>▸ 전체 업무</b> 전주·금주 아래에서 펼치기</span></div>
       ${blocks.join('')}
       ${risks.length ? `<div class="tw-risk"><h3>확인 필요 — 마감 지난 책임 업무 ${risks.length}건</h3><ul>${risks.map((r) => `<li><i>!</i><span>${r}</span></li>`).join('')}</ul></div>` : ''}
@@ -876,9 +885,34 @@ async function renderTeamWeek(host) {
         });
       } });
   };
+  const editReport = () => {
+    if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+    const r = repOf(tw0);
+    modal({ title: `보고서 링크 — ${md(TW[0])}–${md(TW[1])}`,
+      body: `<p class="rp-lead">이 주 개발팀 보고서(아티팩트 등)의 주소를 붙여 두면, 개발팀 화면에서 누구나 원문을 열어 볼 수 있습니다.</p>
+        <label class="dr-f">주소<input type="url" data-dr-url value="${esc(r?.url ?? '')}" placeholder="https://claude.ai/artifact/…"></label>
+        <label class="dr-f">이름 <small>(비우면 주소로)</small><input type="text" data-dr-name value="${esc(r?.name ?? `개발팀 보고 ${md(TW[0])}–${md(TW[1])}`)}" maxlength="120"></label>`,
+      footer: '<div class="right"><button class="btn" data-close>취소</button><button class="btn btn-primary" data-dr-save>저장</button></div>',
+      onMount({ root, close }) {
+        root.querySelector('[data-dr-save]').addEventListener('click', async () => {
+          const url = root.querySelector('[data-dr-url]').value.trim(); const name = root.querySelector('[data-dr-name]').value.trim();
+          try { const saved = await api.post('/api/dev-reports', { week: tw0, url, name }); reports = [saved, ...reports.filter((x) => x.week !== tw0)]; }
+          catch (err) { toast(err.message, true); return; }
+          toast('보고서 링크를 붙였습니다.'); close(); paintTeam();
+        });
+      } });
+  };
   poBound?.abort();
   poBound = new AbortController();
   host.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-dr-edit]')) { editReport(); return; }
+    if (e.target.closest('[data-dr-del]')) {
+      if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
+      if (!(await confirmModal('이 주의 보고서 링크를 지울까요? 보고서 자체는 그대로입니다.', { confirmLabel: '지우기', danger: true }))) return;
+      try { await api.del(`/api/dev-reports/${encodeURIComponent(tw0)}`); reports = reports.filter((x) => x.week !== tw0); }
+      catch (err) { toast(err.message, true); return; }
+      toast('보고서 링크를 지웠습니다.'); paintTeam(); return;
+    }
     const md2 = e.target.closest('[data-mode]');
     if (md2) { if (md2.dataset.mode !== mode) { mode = md2.dataset.mode; renderPoBoard(host); } return; }
     const wk = e.target.closest('[data-week]');

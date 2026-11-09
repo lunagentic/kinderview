@@ -420,6 +420,7 @@ const ROW_KEY = {
   reads: (r) => `${r.who}/${r.key}`,
   meetings: (r) => r.id,
   agenda_items: (r) => r.id,
+  dev_reports: (r) => r.week,
 };
 const COLLECTIONS = Object.keys(ROW_KEY);
 
@@ -1388,6 +1389,30 @@ async function addAttachment(taskId, body) {
   (DB.attachments ??= []).push(row);
   save();
   return row;
+}
+
+// 개발팀 주간 보고서 링크 — 주(월요일)마다 하나. 있으면 바꾼다 (서버 repo.js devReports 와 같은 규칙)
+const devReportsList = () => [...(DB.dev_reports ?? [])].sort((a, b) => b.week.localeCompare(a.week));
+function saveDevReport(body) {
+  const week = String(body.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new DemoError('주(월요일 날짜)가 올바르지 않습니다.');
+  const url = String(body.url ?? '').trim();
+  if (!LINK_RE.test(url)) throw new DemoError('http:// 또는 https:// 로 시작하는 주소를 넣어 주세요.');
+  const name = String(body.name ?? '').trim().slice(0, 120) || linkName(url);
+  const list = (DB.dev_reports ??= []);
+  const cur = list.find((r) => r.week === week);
+  if (cur) Object.assign(cur, { url, name, by_slack_user_id: currentMe(), updated_at: nowISO() });
+  else list.push({ week, url, name, by_slack_user_id: currentMe(), created_at: nowISO() });
+  save();
+  return list.find((r) => r.week === week);
+}
+function removeDevReport(week) {
+  const list = DB.dev_reports ?? [];
+  const i = list.findIndex((r) => r.week === week);
+  if (i < 0) throw new DemoError('보고서 링크를 찾을 수 없습니다.');
+  list.splice(i, 1);
+  save();
+  return { ok: true };
 }
 
 // 설명 고치기 — 비우면 자동 이름(주소)으로 되돌린다 (서버 repo.js attachments.rename 과 같은 규칙)
@@ -2989,6 +3014,9 @@ function handle(method, path, body) {
     if (method === 'GET') return attachmentsOf(seg[2]);
     if (method === 'POST') return addAttachment(seg[2], body);
   }
+  if (p === '/api/dev-reports' && method === 'GET') return devReportsList();
+  if (p === '/api/dev-reports' && method === 'POST') return saveDevReport(body);
+  if (seg[1] === 'dev-reports' && seg[2] && method === 'DELETE') return removeDevReport(seg[2]);
   if (seg[1] === 'attachments' && seg[2] && method === 'PATCH') return renameAttachment(seg[2], body);
   if (seg[1] === 'attachments' && seg[2] && method === 'DELETE') return removeAttachment(seg[2]);
   if (seg[1] === 'subtasks' && seg[2]) {
