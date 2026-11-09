@@ -2887,7 +2887,7 @@ body[data-gate="view"] .tw-starbtn{pointer-events:none}
 .rp-tag{font-size:.72rem;color:var(--muted);background:var(--surface-2);padding:1px 6px;border-radius:5px}
 @media (max-width:720px){.rp-items .rp-t{flex-basis:100%}.rp-par select{max-width:100%}}
 
-/* 개발팀 핵심과업(공통 과업) — 개발팀 화면 맨 위 */
+/* 개발팀 핵심과업(팀이 함께하는 연구과제) — 개발팀 화면 맨 위 */
 .dc{margin:0 0 22px}
 .dc .po-sec{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .dc-wrap{display:grid;grid-template-columns:220px minmax(0,1fr);gap:14px;align-items:start}

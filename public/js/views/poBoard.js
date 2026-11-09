@@ -765,7 +765,7 @@ async function renderTeamWeek(host) {
         ${!parents.length && !subs.length ? '<li class="none">업무가 없습니다</li>' : ''}</ul></div>`;
   };
   const allCount = (pid) => { const { parents, subs } = allOf(pid); return parents.length + subs.length; };
-  // ── 개발팀 핵심과업(공통 과업) — 맨 위. 진척률 = 과업 점수(하위 완료 비율과 상태 바닥값 중 큰 값)의 평균, 지난주는 이번 주 월요일 0시(KST) 기준
+  // ── 개발팀 핵심과업(팀이 함께하는 연구과제) — 맨 위. 진척률 = 과업 점수(하위 완료 비율과 상태 바닥값 중 큰 값)의 평균, 지난주는 이번 주 월요일 0시(KST) 기준
   const cut = new Date(`${TW[0]}T00:00:00+09:00`).toISOString();
   const cores = () => rows.filter((t) => t.dev_core != null).sort((a, b) => (a.dev_core - b.dev_core) || (a.created_at ?? '').localeCompare(b.created_at ?? ''));
   const coreBand = () => {
@@ -791,13 +791,13 @@ async function renderTeamWeek(host) {
       </li>`;
     };
     return `<section class="dc">
-      <div class="po-sec"><h2><span class="po-band-title">개발팀 핵심과업</span> <span class="n">${cs.length}</span><span class="po-sec-sub">팀이 함께 미는 공통 과업</span></h2>
+      <div class="po-sec"><h2><span class="po-band-title">개발팀 핵심과업</span> <span class="n">${cs.length}</span><span class="po-sec-sub">팀이 함께하는 연구과제</span></h2>
         <button class="btn fl-only-edit" type="button" data-core-add>+ 핵심과업 추가</button></div>
       ${cs.length ? `<div class="dc-wrap">
-        <div class="dc-kpi"><div class="lab">공통 과업 진척률</div><div class="big">${avgNow}<small>%</small></div>${delta(avgNow, avgWas) ? `<div class="dc-vs">지난주 ${avgWas}% 대비 ${delta(avgNow, avgWas)}</div>` : ''}
+        <div class="dc-kpi"><div class="lab">연구과제 진척률</div><div class="big">${avgNow}<small>%</small></div>${delta(avgNow, avgWas) ? `<div class="dc-vs">지난주 ${avgWas}% 대비 ${delta(avgNow, avgWas)}</div>` : ''}
           <div class="dc-cnt"><span>완료 <b>${done}</b></span><span>진행 <b>${cs.length - done}</b></span>${late ? `<span class="late">지연 <b>${late}</b></span>` : ''}</div></div>
         <ol class="dc-list">${cs.map(row).join('')}</ol></div>`
-        : '<p class="dc-empty">아직 개발팀 핵심과업이 없습니다. 「+ 핵심과업 추가」로 팀이 함께 미는 공통 과업을 고르면, 여기에 과업별·전체 진척률이 나옵니다.</p>'}
+        : '<p class="dc-empty">아직 개발팀 핵심과업이 없습니다. 「+ 핵심과업 추가」로 팀이 함께하는 연구과제를 고르면, 여기에 과제별·전체 진척률이 나옵니다.</p>'}
       <p class="dc-note">진척률 = 과업마다 max(하위 완료 비율, 상태 바닥값 대기 0·진행중 20·검토 80·완료 100)의 평균 · 지난주 값은 ${md(TW[0])} 0시 기준</p>
     </section>`;
   };
@@ -871,7 +871,7 @@ async function renderTeamWeek(host) {
       const dev = xs.filter((t) => mine.includes(t)); const etc = xs.filter((t) => !mine.includes(t));
       return (dev.length ? `<h4>개발팀 업무 <span>${dev.length}</span></h4><ul>${dev.map(item).join('')}</ul>` : '') + (etc.length ? `<h4>그 밖의 업무 <span>${etc.length}</span></h4><ul>${etc.map(item).join('')}</ul>` : '') || '<p class="dcp-none">맞는 업무가 없습니다</p>'; };
     modal({ title: '개발팀 핵심과업 추가', wide: true,
-      body: `<p class="rp-lead">팀이 함께 미는 공통 과업(상위 업무)을 고르세요. 고르면 개발팀 화면 맨 위에 올라가고 진척률이 함께 계산됩니다. 업무 내용은 바뀌지 않습니다.</p>
+      body: `<p class="rp-lead">팀이 함께하는 연구과제(상위 업무)를 고르세요. 고르면 개발팀 화면 맨 위에 올라가고 진척률이 함께 계산됩니다. 업무 내용은 바뀌지 않습니다.</p>
         <input type="search" class="dcp-q" data-core-q placeholder="업무 이름·KV 번호·책임자로 찾기" aria-label="업무 찾기"><div class="dcp-list" data-core-list>${list('')}</div>`,
       footer: '<div class="right"><button class="btn" data-close>닫기</button></div>',
       onMount({ root, close }) {
