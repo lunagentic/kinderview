@@ -889,8 +889,8 @@ async function renderTeamWeek(host) {
     if (!canEdit()) { toast('보기 전용입니다. 편집 코드를 넣어 주세요.', true); gatePanel(); return; }
     const r = repOf(tw0);
     modal({ title: `보고서 링크 — ${md(TW[0])}–${md(TW[1])}`,
-      body: `<p class="rp-lead">이 주 개발팀 보고서(아티팩트 등)의 주소를 붙여 두면, 개발팀 화면에서 누구나 원문을 열어 볼 수 있습니다.</p>
-        <label class="dr-f">주소<input type="url" data-dr-url value="${esc(r?.url ?? '')}" placeholder="https://claude.ai/artifact/…"></label>
+      body: `<p class="rp-lead">이 주 개발팀 보고서 주소를 붙여 두면, 개발팀 화면에서 누구나 원문을 열어 볼 수 있습니다.</p>
+        <label class="dr-f">주소<input type="url" data-dr-url value="${esc(r?.url ?? '')}" placeholder="https://…"></label>
         <label class="dr-f">이름 <small>(비우면 주소로)</small><input type="text" data-dr-name value="${esc(r?.name ?? `개발팀 보고 ${md(TW[0])}–${md(TW[1])}`)}" maxlength="120"></label>`,
       footer: '<div class="right"><button class="btn" data-close>취소</button><button class="btn btn-primary" data-dr-save>저장</button></div>',
       onMount({ root, close }) {

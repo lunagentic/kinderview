@@ -4,6 +4,8 @@ import { esc, modal, toast } from '../ui.js';
 import { canEdit } from '../gate.js';
 import { gatePanel } from './gatePanel.js';
 import { shLoad, sheetImportBook } from './sheetSync.js';
+import { xlReadFile, xlDownload } from '../xlsx.js';
+import { DEV_SHEET_COLS, devSheetBook } from '../devSheet.js';
 
 // 주간 보고 붙여넣기 — 개발팀 진행 보고서(01~13 기능 묶음 · 담당자별 줄)를 붙여 넣으면
 // 「금주」 항목을 담당자별 하위 업무로 나눠, 묶음마다 기존 상위 업무(KV) 아래에 넣는다.
@@ -121,6 +123,53 @@ export function parseDevReport(text, { resolve }) {
   return secs.filter((s) => s.items.length);
 }
 
+/** 엑셀(4열: 상위업무·담당자·하위업무·영역) → 묶음[] (붙여넣기와 같은 모양). 같은 상위업무 줄끼리 한 묶음.
+ *  담당자·하위업무가 빈 줄은 건너뛰고 그 수를 돌려준다 */
+export function parseDevSheet(book, { resolve, tasks }) {
+  const norm = (v) => String(v ?? '').replace(/\s+/g, '').toLowerCase();
+  const ALIAS = { 상위업무: ['상위업무', '상위', '업무'], 담당자: ['담당자', '담당', 'owner'], 하위업무: ['하위업무', '하위', '할일'], 영역: ['영역', 'area'] };
+  const sheet = Object.values(book).find((rows) => (rows?.[0] ?? []).some((h) => ALIAS.하위업무.includes(norm(h)))) ?? null;
+  if (!sheet) return { secs: [], skipped: 0, missing: true };
+  const idx = {};
+  sheet[0].forEach((h, i) => { for (const [k, names] of Object.entries(ALIAS)) if (idx[k] === undefined && names.includes(norm(h))) idx[k] = i; });
+  if (idx.담당자 === undefined || idx.하위업무 === undefined) return { secs: [], skipped: 0, missing: true };
+  const areas = (state.meta?.areas ?? []).filter((a) => a.code !== 'OUT');
+  const get = (row, k) => (idx[k] === undefined ? '' : clean(row[idx[k]]));
+  const secs = []; const byKey = new Map(); let skipped = 0;
+  for (const row of sheet.slice(1)) {
+    if (!row || row.every((c) => !clean(c))) continue;
+    const who = get(row, '담당자'); const title = get(row, '하위업무');
+    if (!who || !title) { skipped += 1; continue; }
+    const ptext = get(row, '상위업무');
+    const km = ptext.match(/^\s*([A-Za-z]{1,6}-\d+)\s*(.*)$/);
+    const key = km ? km[1].toUpperCase() : '';
+    const ptitle = clean(km ? km[2] : ptext) || (key ? key : '상위 업무 없음');
+    const gk = key || flat(ptitle);
+    if (!byKey.has(gk)) {
+      const S = { no: secs.length + 1, title: ptitle, owners: [], status: '', items: [], key };
+      byKey.set(gk, S); secs.push(S);
+    }
+    const S = byKey.get(gk);
+    const aRaw = get(row, '영역');
+    const area = aRaw ? areas.find((a) => [a.label, a.full, a.code].some((x) => norm(x) === norm(aRaw))) : null;
+    const owner = resolve(who);
+    if (!S.owners.includes(who)) S.owners.push(who);
+    S.items.push({ title: title.slice(0, 200), note: '', day: '', mrs: [], lineStatus: '', ownerName: who, owner, ownerGuess: false,
+      status: '진행중', remain: false, include: true, area: area?.code ?? '', areaLabel: area?.label ?? '', areaBad: aRaw && !area ? aRaw : '' });
+  }
+  // 상위 업무 — 번호가 있으면 그 번호(상위 업무에서만), 없으면 같은 이름(여럿이면 담당자가 책임인 것)
+  for (const S of secs) {
+    const ids = new Set(S.items.map((it) => it.owner).filter(Boolean));
+    if (S.key) S.parent = tasks.find((t) => (t.key ?? '').toUpperCase() === S.key) ?? null;
+    if (!S.parent) {
+      const same = tasks.filter((t) => flat(t.title) === flat(S.title));
+      S.parent = same.find((t) => ids.has(t.owner_slack_user_id)) ?? same[0] ?? null;
+    }
+    S.exact = Boolean(S.parent);
+  }
+  return { secs, skipped, missing: false };
+}
+
 /** 묶음 제목과 맞는 상위 업무 — 낱말(2자 이상)이 제목에 들어 있으면 그 길이만큼, 책임자가 묶음 담당이면 +1. 4점 미만이면 새 상위 */
 function guessParent(sec, tasks, resolve) {
   // 제품·흔한 낱말은 빼고, 업무 제목의 괄호 속(「(킨더버스)」 같은 꼬리)은 맞춰 보지 않는다
@@ -162,11 +211,14 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
   };
 
   const step1 = () => `
-    <p class="rp-lead">개발팀 진행 보고서 글을 그대로 붙여 넣으세요. 묶음(01, 02 …)마다 「금주」 항목을 담당자별 하위 업무로 나눕니다. 다음 화면에서 상위 업무와 담당을 확인하고, 미리보기에서 무엇이 생기는지 본 뒤 반영합니다.</p>
+    <div class="rp-xl"><b>엑셀로 올리기</b><span>상위업무 · 담당자 · 하위업무 · 영역 4열 양식</span>
+      <button type="button" class="btn sm" data-rp-sample>샘플 양식 내려받기</button>
+      <button type="button" class="btn sm btn-primary" data-rp-file>엑셀 파일 고르기</button><input type="file" accept=".xlsx,.csv" data-rp-input hidden></div>
+    <p class="rp-lead">또는 개발팀 진행 보고서 글을 그대로 붙여 넣고 「나누기」를 누르세요. 묶음(01, 02 …)마다 「금주」 항목을 담당자별 하위 업무로 나눕니다. 다음 화면에서 상위 업무와 담당을 확인하고, 미리보기에서 무엇이 생기는지 본 뒤 반영합니다.</p>
     <textarea class="rp-in" data-rp-text rows="14" placeholder="01&#10;킨더버스 클로즈베타 전 기능 정상화·권한 보완&#10;정슬기&#10;개발계&#10;전주 …&#10;금주&#10;…">${esc(text)}</textarea>
-    <div class="rp-url"><label>보고서 주소 <small>(선택 · 아티팩트 링크)</small><input type="url" data-rp-url placeholder="https://claude.ai/artifact/…" value="${esc(repUrl)}"></label>
+    <div class="rp-url"><label>보고서 주소 <small>(선택)</small><input type="url" data-rp-url placeholder="https://…" value="${esc(repUrl)}"></label>
       <label>주 <select data-rp-week>${weeks.map((w) => `<option value="${w}"${w === (repWeek || weeks[0]) ? ' selected' : ''}>${wkLabel(w)}</option>`).join('')}</select></label></div>
-    <p class="rp-hint">주소를 넣으면 반영할 때 그 주의 「보고서」 링크로 붙고, 생기는 하위 업무 메모에도 원문 주소가 남습니다.</p>`;
+    <p class="rp-hint">주소를 넣으면 반영할 때 그 주의 「보고서」 링크로 붙고, 생기는 하위 업무 메모에도 원문 주소가 남습니다. 엑셀·글 붙여넣기 모두에 쓰입니다.</p>`;
 
   const memberOpts = (id) => `<option value="">— 담당 없음</option>${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === id ? ' selected' : ''}>${esc(label(m))}</option>`).join('')}`;
   const parentOpts = (sec) => {
@@ -182,10 +234,12 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
   const projOpts = (sec) => d.projects.map((p) => `<option value="${esc(p.id)}"${p.id === sec.projectId ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
   const count = () => secs.reduce((n, s) => n + s.items.filter((it) => it.include).length, 0);
 
+  let from = 'text';   // 'text' | 'excel'
+  let skipped = 0;
   const step2 = () => `
-    <p class="rp-lead">${secs.length}개 묶음 · 하위 업무 ${secs.reduce((n, s) => n + s.items.length, 0)}건을 찾았습니다. 묶음마다 넣을 <b>상위 업무</b>를 확인하세요. 「남은 것」은 기본으로 빠져 있고, <span class="rp-chk">담당 확인</span>은 여러 사람 묶음에서 담당을 짐작한 줄입니다.</p>
+    <p class="rp-lead">${secs.length}개 묶음 · 하위 업무 ${secs.reduce((n, s) => n + s.items.length, 0)}건을 찾았습니다${from === 'excel' && skipped ? ` <span class="rp-chk">담당자·하위업무가 빈 ${skipped}줄은 건너뜀</span>` : ''}. 묶음마다 넣을 <b>상위 업무</b>를 확인하세요.${from === 'excel' ? ' 상태는 기본 「진행중」이며 줄마다 바꿀 수 있습니다.' : ' 「남은 것」은 기본으로 빠져 있고, <span class="rp-chk">담당 확인</span>은 여러 사람 묶음에서 담당을 짐작한 줄입니다.'}</p>
     ${secs.map((s, si) => `<section class="rp-sec">
-      <header><b class="rp-no">${String(s.no).padStart(2, '0')}</b><span class="rp-st">${esc(s.title)}</span><small>${esc(s.owners.join('·'))}${s.status ? ` · ${esc(s.status)}` : ''}</small></header>
+      <header><b class="rp-no">${from === 'excel' ? (s.key ? esc(s.key) : '') : String(s.no).padStart(2, '0')}</b><span class="rp-st">${esc(s.title)}</span><small>${esc(s.owners.join('·'))}${s.status ? ` · ${esc(s.status)}` : ''}</small></header>
       <div class="rp-par"><label>상위 업무 <select data-rp-parent="${si}">${parentOpts(s)}</select></label>
         <label class="rp-proj"${s.parent ? ' hidden' : ''}>프로젝트 <select data-rp-proj="${si}">${projOpts(s)}</select></label></div>
       <ul class="rp-items">${s.items.map((it, ii) => `<li class="${it.include ? '' : 'off'}">
@@ -194,12 +248,12 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
         <span class="rp-meta">
           <select data-rp-owner="${si}/${ii}" aria-label="담당">${memberOpts(it.owner)}</select>${it.ownerGuess || !it.owner ? '<span class="rp-chk">담당 확인</span>' : ''}
           <select data-rp-status="${si}/${ii}" aria-label="상태">${['대기', '진행중', '완료'].map((x) => `<option${x === it.status ? ' selected' : ''}>${x}</option>`).join('')}</select>
-          ${it.day ? `<span class="rp-tag">${esc(it.day)}</span>` : ''}${it.remain ? '<span class="rp-tag">남은 것</span>' : ''}${it.mrs.length ? `<span class="rp-tag">MR ${esc(it.mrs.join(', '))}</span>` : ''}
+          ${it.areaLabel ? `<span class="rp-tag">${esc(it.areaLabel)}</span>` : ''}${it.areaBad ? `<span class="rp-chk">영역 「${esc(it.areaBad)}」 모름 → 비움</span>` : ''}${it.day ? `<span class="rp-tag">${esc(it.day)}</span>` : ''}${it.remain ? '<span class="rp-tag">남은 것</span>' : ''}${it.mrs.length ? `<span class="rp-tag">MR ${esc(it.mrs.join(', '))}</span>` : ''}
         </span></li>`).join('')}</ul>
     </section>`).join('')}`;
 
   const toBook = () => {
-    const head = ['상위 id', '상위 업무', '하위 업무', '담당', '상태', '메모', '프로젝트'];
+    const head = ['상위 id', '상위 업무', '하위 업무', '담당', '상태', '메모', '프로젝트', '영역'];
     const rows = [head];
     const nameOf = (id) => people.find((m) => m.slack_user_id === id)?.display_name ?? '';
     for (const s of secs) {
@@ -207,14 +261,15 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
       const projName = d.projects.find((p) => p.id === (P ? P.project_id : s.projectId))?.name ?? '';
       for (const it of s.items) {
         if (!it.include || !clean(it.title)) continue;
-        rows.push([P?.id ?? '', P ? P.title : s.title, clean(it.title), nameOf(it.owner), it.status, repUrl ? `${it.note}\n원문: ${repUrl}` : it.note, projName]);
+        const note = [it.note, repUrl ? `원문: ${repUrl}` : ''].filter(Boolean).join('\n');
+        rows.push([P?.id ?? '', P ? P.title : s.title, clean(it.title), nameOf(it.owner), it.status, note, projName, it.areaLabel ?? '']);
       }
     }
     return { 업무: rows };
   };
 
   modal({
-    title: '주간 보고 붙여넣기',
+    title: '주간 보고 업로드',
     wide: true,
     body: `<div class="rp" data-rp-body>${step1()}</div>`,
     footer: `<div class="right" data-rp-foot><button class="btn" data-close>취소</button><button class="btn btn-primary" data-rp-split>나누기</button></div>`,
@@ -222,42 +277,64 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
       const body = root.querySelector('[data-rp-body]');
       const foot = root.querySelector('[data-rp-foot]');
       const at = (v) => { const [a, b] = v.split('/').map(Number); return secs[a].items[b]; };
+      const loadD = async () => {
+        try {
+          if (!d) { const all = await shLoad(); d = { ...all, open: all.tasks.filter((t) => t.status !== 'DONE' && !t.deleted_at) }; }
+          return true;
+        } catch (err) { toast(err.message, true); return false; }
+      };
+      const keepTop = () => {   // 주소·주 칸은 붙여넣기·엑셀 모두에 쓴다
+        repUrl = body.querySelector('[data-rp-url]')?.value.trim() ?? repUrl;
+        repWeek = body.querySelector('[data-rp-week]')?.value ?? repWeek;
+        if (repUrl && !/^https?:\/\/\S+$/i.test(repUrl)) { toast('보고서 주소는 http:// 또는 https:// 로 시작해야 합니다.', true); return false; }
+        return true;
+      };
+      const toStep2 = () => {
+        const freq = new Map();
+        for (const s of secs) {
+          if (!s.exact) s.parent = guessParent(s, d.open, resolve);
+          const ids = new Set([...s.owners.map(resolve), ...s.items.map((it) => it.owner)].filter(Boolean));
+          freq.clear();
+          d.open.filter((t) => ids.has(t.owner_slack_user_id)).forEach((t) => freq.set(t.project_id, (freq.get(t.project_id) ?? 0) + 1));
+          s.projectId = [...freq].sort((a, b) => b[1] - a[1])[0]?.[0] ?? d.projects[0]?.id ?? '';
+        }
+        body.innerHTML = step2(); paintFoot(2); body.scrollTop = 0;
+      };
+      // 엑셀 고르기 → 4열 읽기 → 같은 확인 표
+      root.addEventListener('change', async (e) => {
+        if (e.target.dataset.rpInput === undefined || !e.target.files?.[0]) return;
+        const file = e.target.files[0]; e.target.value = '';
+        text = body.querySelector('[data-rp-text]')?.value ?? text;
+        if (!keepTop() || !(await loadD())) return;
+        let book;
+        try { book = await xlReadFile(file); } catch (err) { toast(err.message, true); return; }
+        const r = parseDevSheet(book, { resolve, tasks: d.tasks.filter((t) => !t.deleted_at) });
+        if (r.missing) { toast(`엑셀 첫 줄에서 「${DEV_SHEET_COLS.join('」「')}」 열을 찾지 못했습니다. 샘플 양식을 내려받아 써 주세요.`, true); return; }
+        if (!r.secs.length) { toast('올릴 줄이 없습니다. 담당자와 하위업무를 채워 주세요.', true); return; }
+        secs = r.secs; skipped = r.skipped; from = 'excel'; toStep2();
+      });
       const paintFoot = (n) => {
         foot.innerHTML = n === 1
           ? '<button class="btn" data-close>취소</button><button class="btn btn-primary" data-rp-split>나누기</button>'
-          : `<button class="btn" data-rp-back>← 다시 붙여넣기</button><button class="btn btn-primary" data-rp-go>미리보기 (${count()}건)</button>`;
+          : `<button class="btn" data-rp-back>← 처음으로</button><button class="btn btn-primary" data-rp-go>미리보기 (${count()}건)</button>`;
       };
       root.addEventListener('click', async (e) => {
         if (e.target.closest('[data-rp-split]')) {
           text = body.querySelector('[data-rp-text]').value;
-          repUrl = body.querySelector('[data-rp-url]').value.trim();
-          repWeek = body.querySelector('[data-rp-week]').value;
-          if (repUrl && !/^https?:\/\/\S+$/i.test(repUrl)) { toast('보고서 주소는 http:// 또는 https:// 로 시작해야 합니다.', true); return; }
+          if (!keepTop()) return;
           if (!text.trim()) { toast('보고서 글을 붙여 넣어 주세요.', true); return; }
-          try {
-            if (!d) {
-              const all = await shLoad();
-              const open = all.tasks.filter((t) => t.status !== 'DONE' && !t.deleted_at);
-              d = { ...all, open };
-            }
-          } catch (err) { toast(err.message, true); return; }
+          if (!(await loadD())) return;
           secs = parseDevReport(text, { resolve });
           if (!secs.length) { toast('묶음(01, 02 …)과 「금주」 항목을 찾지 못했습니다. 보고서 글 전체를 붙여 넣어 주세요.', true); return; }
-          const freq = new Map();
-          for (const s of secs) {
-            s.parent = guessParent(s, d.open, resolve);
-            const ids = new Set(s.owners.map(resolve).filter(Boolean));
-            freq.clear();
-            d.open.filter((t) => ids.has(t.owner_slack_user_id)).forEach((t) => freq.set(t.project_id, (freq.get(t.project_id) ?? 0) + 1));
-            s.projectId = [...freq].sort((a, b) => b[1] - a[1])[0]?.[0] ?? d.projects[0]?.id ?? '';
-          }
-          body.innerHTML = step2(); paintFoot(2); body.scrollTop = 0;
+          from = 'text'; skipped = 0; toStep2();
           return;
         }
+        if (e.target.closest('[data-rp-sample]')) { xlDownload(devSheetBook(), 'KinderFlow_개발팀_주간업무_양식.xlsx'); return; }
+        if (e.target.closest('[data-rp-file]')) { body.querySelector('[data-rp-input]').click(); return; }
         if (e.target.closest('[data-rp-back]')) { body.innerHTML = step1(); paintFoot(1); return; }
         if (e.target.closest('[data-rp-go]')) {
           if (!count()) { toast('넣을 항목을 하나 이상 골라 주세요.', true); return; }
-          sheetImportBook(toBook(), { title: '주간 보고 붙여넣기 — 미리보기', onDone: async () => {
+          sheetImportBook(toBook(), { title: '주간 보고 업로드 — 미리보기', onDone: async () => {
             if (repUrl) {
               try { await api.post('/api/dev-reports', { week: repWeek || weeks[0], url: repUrl, name: `개발팀 보고 ${wkLabel(repWeek || weeks[0]).replace(/ \(.+\)$/, '')}` }); }
               catch (err) { toast(`보고서 링크는 저장하지 못했습니다: ${err.message}`, true); }

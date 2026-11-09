@@ -2936,3 +2936,5 @@ body[data-gate="view"] .dc-row{grid-template-columns:24px minmax(0,1fr) 74px}
 .dr-f input,.rp-url input,.rp-url select{font:inherit;font-size:.86rem;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);min-width:0}
 .rp-url{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.rp-url label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}.rp-url label:first-child{flex:1 1 320px}.rp-url small{font-weight:400}
 .rp-hint{margin:6px 0 0;font-size:.76rem;color:var(--muted)}
+.rp-xl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;margin:0 0 12px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--po-blue,#BFD6F6) 22%,var(--surface))}
+.rp-xl b{font-size:.88rem}.rp-xl span{font-size:.8rem;color:var(--muted);margin-right:auto}
