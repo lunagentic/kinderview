@@ -20,7 +20,7 @@ const SH_ALIAS = {
   번호: ['번호', '티켓', '티켓번호', 'key', 'no'], 우선순위: ['우선순위', '중요도', 'priority'],
   '상위 업무': ['상위업무', '업무', '상위'], '하위 업무': ['하위업무', '하위'], 담당: ['담당', '담당자', 'owner'],
   '공동 담당': ['공동담당', '협업자', '공동'], 마감: ['마감', '마감일', 'due'], 프로젝트: ['프로젝트', 'project'],
-  페이즈: ['페이즈', 'phase'], 영역: ['영역', '업무영역', 'area'], 상태: ['상태', '진행상태', 'status'], 메모: ['메모', '비고', 'note'],
+  페이즈: ['페이즈', 'phase'], 영역: ['영역', '업무영역', 'area'], 상태: ['상태', '진행상태', 'status'], 메모: ['메모', '비고', 'note'], 완료일: ['완료일', '완료날짜', 'doneon'],
   '상위 id': ['상위id', 'parentid'],
   심각도: ['심각도', 'severity'], 이슈: ['이슈', '이슈명', 'issue'], 내용: ['내용', 'content'], '연결 업무': ['연결업무', '관련업무'],
 };
@@ -216,7 +216,9 @@ function shPlan(book, d, picks) {
     const priority = take(shPriority(get(row, '우선순위')));
     const due = take(shDate(get(row, '마감'), year));
     const area = take(shArea(get(row, '영역')));
-    const status = take(shSubStatus(get(row, '상태')));
+    // 완료일(선택) — 지난 날 끝낸 일을 그날 완료로. 적혀 있으면 상태가 비어도 완료
+    const doneOn = take(shDate(get(row, '완료일'), year));
+    const status = take(shSubStatus(get(row, '상태'))) || (doneOn ? 'DONE' : '');
     const note = get(row, '메모');
     const ownerName = get(row, '담당');
     const owner = ownerName ? person(ownerName, line, '담당') : '';
@@ -279,13 +281,14 @@ function shPlan(book, d, picks) {
       if (area && area !== (cur.area ?? '')) changes.area = area;
       const curSt = cur.status ?? (cur.is_done ? 'DONE' : 'TODO');
       if (status && status !== curSt) changes.status = status;
+      if (changes.status === 'DONE' && doneOn) changes.done_on = doneOn;
       if (note && note !== (cur.note ?? '')) changes.note = note;
       plan.subs.push({ line, kind: Object.keys(changes).length ? 'update' : 'same', id: cur.id, key: cur.key,
         title: cur.title, parentKey: pKey, cur, changes });
     } else {
       plan.subs.push({ line, kind: 'new', parentKey: pKey, title: subTitle,
         body: { title: subTitle, area: area || null, owner_slack_user_id: owner || null, due_date: due || null, note: note || null },
-        status: status && status !== 'TODO' ? status : null });
+        status: status && status !== 'TODO' ? status : null, doneOn: status === 'DONE' ? doneOn || null : null });
     }
   });
 
@@ -348,7 +351,7 @@ function shPlan(book, d, picks) {
 }
 
 // ── 올리기: 미리보기 · 반영 ────────────────────────────
-const SH_FIELD_LABEL = { title: '이름', owner_slack_user_id: '담당', due_date: '마감', area: '영역', status: '상태', note: '메모',
+const SH_FIELD_LABEL = { done_on: '완료일', title: '이름', owner_slack_user_id: '담당', due_date: '마감', area: '영역', status: '상태', note: '메모',
   priority: '우선순위', phase_id: '페이즈', collaborators: '공동 담당', severity: '심각도', content: '내용', task_id: '연결 업무' };
 const shShow = (k, v, d) => {
   if (v === null || v === undefined || v === '') return '—';
@@ -401,7 +404,7 @@ export async function sheetImportBook(book, { onDone, title = '업무 올리기'
       ...[...plan.parents.values()].filter((p) => !p.existing).map((p) => `<tr class="new"><td>${p.lines[0]}</td><td><b>${esc(p.title)}</b> <small>${esc(p.project?.name ?? '')}</small></td><td>새 상위 업무</td></tr>`),
       ...[...plan.parents.values()].filter((p) => p.existing && Object.keys(p.changes).length).map((p) => `<tr class="upd"><td>${p.lines[0]}</td><td><b>${esc(p.title)}</b></td><td>${
         Object.entries(p.changes).map(([k, v]) => `${SH_FIELD_LABEL[k]} → ${esc(shShow(k, v, d))}`).join(' · ')}</td></tr>`),
-      ...plan.subs.filter((x) => x.kind === 'new').map((x) => `<tr class="new"><td>${x.line}</td><td>${esc(parentTitle(x.parentKey))} › ${esc(x.title)}</td><td>새 하위 업무${x.body.owner_slack_user_id ? ` · ${esc(shMemberName(x.body.owner_slack_user_id))}` : ''}${x.body.due_date ? ` · ${esc(shortDate(x.body.due_date))}` : ''}</td></tr>`),
+      ...plan.subs.filter((x) => x.kind === 'new').map((x) => `<tr class="new"><td>${x.line}</td><td>${esc(parentTitle(x.parentKey))} › ${esc(x.title)}</td><td>새 하위 업무${x.body.owner_slack_user_id ? ` · ${esc(shMemberName(x.body.owner_slack_user_id))}` : ''}${x.body.due_date ? ` · ${esc(shortDate(x.body.due_date))}` : ''}${x.status ? ` · ${esc(shLabel(SUB_STATUS, x.status))}${x.doneOn ? ` ${esc(shortDate(x.doneOn))}` : ''}` : ''}</td></tr>`),
       ...plan.subs.filter((x) => x.kind === 'update').map((x) => `<tr class="upd"><td>${x.line}</td><td>${x.key ? `<span class="tkey">${esc(x.key)}</span> ` : ''}${esc(parentTitle(x.parentKey))} › ${esc(x.title)}</td><td>${
         Object.entries(x.changes).map(([k, v]) => `${SH_FIELD_LABEL[k]} ${esc(shShow(k, x.cur[k] ?? (k === 'status' ? (x.cur.is_done ? 'DONE' : 'TODO') : ''), d))} → <b>${esc(shShow(k, v, d))}</b>`).join(' · ')}</td></tr>`),
       ...plan.issues.filter((x) => x.kind !== 'same').map((x) => `<tr class="${x.kind === 'new' ? 'new' : 'upd'}"><td>이슈 ${x.line}</td><td>${esc(x.title)}</td><td>${x.kind === 'new' ? '새 이슈'
@@ -500,7 +503,7 @@ export async function sheetImportBook(book, { onDone, title = '업무 올리기'
             if (!pid) { done += 1; fails.push(`${x.title}: 상위 업무를 만들지 못했습니다`); continue; }
             await step(x.title, async () => {
               const made = await api.post(`/api/tasks/${pid}/subtasks`, x.body);
-              if (x.status) await api.patch(`/api/subtasks/${made.id}`, { status: x.status });
+              if (x.status) await api.patch(`/api/subtasks/${made.id}`, { status: x.status, ...(x.doneOn ? { done_on: x.doneOn } : {}) });
             });
           } else if (x.kind === 'update') {
             await step(x.title, () => api.patch(`/api/subtasks/${x.id}`, x.changes));

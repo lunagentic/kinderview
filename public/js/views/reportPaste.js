@@ -127,7 +127,17 @@ export function parseDevReport(text, { resolve }) {
  *  담당자·하위업무가 빈 줄은 건너뛰고 그 수를 돌려준다 */
 export function parseDevSheet(book, { resolve, tasks }) {
   const norm = (v) => String(v ?? '').replace(/\s+/g, '').toLowerCase();
-  const ALIAS = { 상위업무: ['상위업무', '상위', '업무'], 담당자: ['담당자', '담당', 'owner'], 하위업무: ['하위업무', '하위', '할일'], 영역: ['영역', 'area'] };
+  const ALIAS = { 상위업무: ['상위업무', '상위', '업무'], 담당자: ['담당자', '담당', 'owner'], 하위업무: ['하위업무', '하위', '할일'], 영역: ['영역', 'area'],
+    상태: ['상태', 'status'], 완료일: ['완료일', '완료날짜', 'doneon'] };
+  const year = (state.today ?? new Date().toISOString()).slice(0, 4);
+  const toDay = (v) => {   // 11/5 · 2026-11-05 · 2026.11.5 · 엑셀 날짜 숫자 → YYYY-MM-DD
+    const t = clean(v); if (!t) return '';
+    if (/^\d{5}$/.test(t)) return new Date(Date.UTC(1899, 11, 30) + Number(t) * 864e5).toISOString().slice(0, 10);
+    let m = t.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    m = t.match(/^(\d{1,2})[-./](\d{1,2})$/); if (m) return `${year}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+    return '';
+  };
+  const stOf = (v) => { const n = norm(v); if (!n) return ''; if (['완료', 'done', '운영', '개발계'].includes(n)) return '완료'; if (['대기', 'todo'].includes(n)) return '대기'; return '진행중'; };
   const sheet = Object.values(book).find((rows) => (rows?.[0] ?? []).some((h) => ALIAS.하위업무.includes(norm(h)))) ?? null;
   if (!sheet) return { secs: [], skipped: 0, missing: true };
   const idx = {};
@@ -154,8 +164,10 @@ export function parseDevSheet(book, { resolve, tasks }) {
     const area = aRaw ? areas.find((a) => [a.label, a.full, a.code].some((x) => norm(x) === norm(aRaw))) : null;
     const owner = resolve(who);
     if (!S.owners.includes(who)) S.owners.push(who);
-    S.items.push({ title: title.slice(0, 200), note: '', day: '', mrs: [], lineStatus: '', ownerName: who, owner, ownerGuess: false,
-      status: '진행중', remain: false, include: true, area: area?.code ?? '', areaLabel: area?.label ?? '', areaBad: aRaw && !area ? aRaw : '' });
+    const doneOn = toDay(get(row, '완료일'));
+    const st = stOf(get(row, '상태')) || (doneOn ? '완료' : '진행중');
+    S.items.push({ title: title.slice(0, 200), note: '', day: doneOn ? `${Number(doneOn.slice(5, 7))}/${Number(doneOn.slice(8, 10))}` : '', doneOn, mrs: [], lineStatus: '', ownerName: who, owner, ownerGuess: false,
+      status: st, remain: false, include: true, area: area?.code ?? '', areaLabel: area?.label ?? '', areaBad: aRaw && !area ? aRaw : '' });
   }
   // 상위 업무 — 번호가 있으면 그 번호(상위 업무에서만), 없으면 같은 이름(여럿이면 담당자가 책임인 것)
   for (const S of secs) {
@@ -218,7 +230,7 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
     <textarea class="rp-in" data-rp-text rows="14" placeholder="01&#10;킨더버스 클로즈베타 전 기능 정상화·권한 보완&#10;정슬기&#10;개발계&#10;전주 …&#10;금주&#10;…">${esc(text)}</textarea>
     <div class="rp-url"><label>보고서 주소 <small>(선택)</small><input type="url" data-rp-url placeholder="https://…" value="${esc(repUrl)}"></label>
       <label>주 <select data-rp-week>${weeks.map((w) => `<option value="${w}"${w === (repWeek || weeks[0]) ? ' selected' : ''}>${wkLabel(w)}</option>`).join('')}</select></label></div>
-    <p class="rp-hint">주소를 넣으면 반영할 때 그 주의 「보고서」 링크로 붙고, 생기는 하위 업무 메모에도 원문 주소가 남습니다. 엑셀·글 붙여넣기 모두에 쓰입니다.</p>`;
+    <p class="rp-hint">주소를 넣으면 반영할 때 그 주의 「보고서」 링크로 붙고, 생기는 하위 업무 메모에도 원문 주소가 남습니다. 엑셀·글 붙여넣기 모두에 쓰입니다. 「주」를 지난주로 고르면 완료 줄은 적힌 날짜(없으면 그 주 금요일)에 완료로 기록돼 개발팀 화면 「전주」에 나옵니다.</p>`;
 
   const memberOpts = (id) => `<option value="">— 담당 없음</option>${people.map((m) => `<option value="${esc(m.slack_user_id)}"${m.slack_user_id === id ? ' selected' : ''}>${esc(label(m))}</option>`).join('')}`;
   const parentOpts = (sec) => {
@@ -252,8 +264,15 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
         </span></li>`).join('')}</ul>
     </section>`).join('')}`;
 
+  // 완료일 — 줄에 적힌 날짜(엑셀 완료일 · 보고서 「(11/5)」), 없으면 고른 주가 지난 주일 때 그 주 금요일. 이번 주면 비움(반영하는 순간)
+  const doneOnOf = (it) => {
+    if (it.doneOn) return it.doneOn;
+    if (it.day) { const [m, dd] = it.day.split('/'); return `${today.slice(0, 4)}-${m.padStart(2, '0')}-${dd.padStart(2, '0')}`; }
+    const w = repWeek || weeks[0];
+    return w !== weeks[0] ? new Date(new Date(`${w}T00:00:00Z`).getTime() + 4 * DAY).toISOString().slice(0, 10) : '';
+  };
   const toBook = () => {
-    const head = ['상위 id', '상위 업무', '하위 업무', '담당', '상태', '메모', '프로젝트', '영역'];
+    const head = ['상위 id', '상위 업무', '하위 업무', '담당', '상태', '메모', '프로젝트', '영역', '완료일'];
     const rows = [head];
     const nameOf = (id) => people.find((m) => m.slack_user_id === id)?.display_name ?? '';
     for (const s of secs) {
@@ -262,7 +281,7 @@ export async function reportPasteDialog({ onDone, team = [] } = {}) {
       for (const it of s.items) {
         if (!it.include || !clean(it.title)) continue;
         const note = [it.note, repUrl ? `원문: ${repUrl}` : ''].filter(Boolean).join('\n');
-        rows.push([P?.id ?? '', P ? P.title : s.title, clean(it.title), nameOf(it.owner), it.status, note, projName, it.areaLabel ?? '']);
+        rows.push([P?.id ?? '', P ? P.title : s.title, clean(it.title), nameOf(it.owner), it.status, note, projName, it.areaLabel ?? '', it.status === '완료' ? doneOnOf(it) : '']);
       }
     }
     return { 업무: rows };

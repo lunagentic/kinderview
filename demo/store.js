@@ -1080,6 +1080,13 @@ function createSubtask(taskId, body, actor = null) {
   return { ...subtasksOf(taskId).find((s) => s.id === row.id), rolled };
 }
 
+// 완료일(선택) — 주간 보고처럼 지난 날 한 일을 올릴 때. 그날 18:00(KST)을 완료 시각으로. 미래·잘못된 날짜는 무시(지금 시각)
+function doneOnISO(v) {
+  const s = String(v ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || s > today()) return null;
+  return new Date(`${s}T18:00:00+09:00`).toISOString();
+}
+
 function updateSubtask(id, body, actor = null) {
   const row = (DB.subtasks ?? []).find((s) => s.id === id);
   if (!row) throw new DemoError('하위 업무를 찾을 수 없습니다.');
@@ -1151,7 +1158,7 @@ function updateSubtask(id, body, actor = null) {
   if (status !== undefined) {
     row.status = status;
     row.is_done = status === 'DONE';
-    row.done_at = row.is_done ? nowISO() : null;
+    row.done_at = row.is_done ? (doneOnISO(body.done_on) ?? nowISO()) : null;
     nudged = rollUpStatus(row.task_id);
   }
   save();
@@ -1181,8 +1188,11 @@ function rollUpStatus(taskId) {
   else if (anyMoved && t.status === 'TODO') next = 'IN_PROGRESS';
   if (!next) return null;
   const before = t.status;
-  Object.assign(t, { status: next, completed_at: next === 'DONE' ? nowISO() : null, updated_at: nowISO() });
-  logEvent(t.id, 'STATUS_CHANGED', before, next, currentMe());
+  // 하위가 모두 끝나 상위가 완료될 때 — 마지막 하위 완료 시각을 상위 완료 시각으로(지난 날로 올린 주간 보고도 그 주에 완료로 보이게)
+  const lastDone = subs.map((s) => s.done_at).filter(Boolean).sort().at(-1);
+  const at = next === 'DONE' && lastDone && lastDone < nowISO() ? lastDone : nowISO();
+  Object.assign(t, { status: next, completed_at: next === 'DONE' ? at : null, updated_at: nowISO() });
+  logEvent(t.id, 'STATUS_CHANGED', before, next, currentMe(), at);
   return next;
 }
 
@@ -1849,9 +1859,9 @@ function setLead(area, slackUserId, actor) {
 // ── 쓰기 ────────────────────────────────────────────────
 class DemoError extends Error {}
 
-const logEvent = (taskId, type, from, to, actor) => {
+const logEvent = (taskId, type, from, to, actor, at = nowISO()) => {
   DB.events.push({ id: uid(), task_id: taskId, event_type: type, from_value: from ?? null,
-    to_value: to ?? null, actor_slack_user_id: actor, occurred_at: nowISO() });
+    to_value: to ?? null, actor_slack_user_id: actor, occurred_at: at });
 };
 
 function setCollaborators(taskId, list, owner) {

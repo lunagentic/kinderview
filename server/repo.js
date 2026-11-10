@@ -981,8 +981,11 @@ export const subtasks = {
       const done = status === 'DONE' ? 1 : 0;
       tx(() => {
         // 완료 시각은 완료와 함께 움직인다 (CHECK 제약과 짝을 맞춘다)
+        // 완료일(선택) — 지난 날 한 일을 올릴 때 그날 18:00(KST). 미래·잘못된 날짜는 무시 (demo store doneOnISO 와 같은 규칙)
+        const on = String(patch.done_on ?? '').trim();
+        const backdated = /^\d{4}-\d{2}-\d{2}$/.test(on) && on <= today() ? new Date(`${on}T18:00:00+09:00`).toISOString() : null;
         run('UPDATE subtask SET status = :st, is_done = :done, done_at = :at WHERE id = :id',
-          { id, st: status, done, at: done ? nowISO() : null });
+          { id, st: status, done, at: done ? (backdated ?? nowISO()) : null });
         nudged = rollUpStatus(cur.task_id, actor);
       });
     }
@@ -1002,7 +1005,7 @@ export const subtasks = {
  * 외주 상태(OUT_*)는 건드리지 않는다. 바꿨으면 새 상태를, 아니면 null 을 돌려준다.
  */
 function rollUpStatus(taskId, actor) {
-  const subs = all('SELECT status FROM subtask WHERE task_id = :t', { t: taskId });
+  const subs = all('SELECT status, done_at FROM subtask WHERE task_id = :t', { t: taskId });
   if (!subs.length) return null;
   const t = one('SELECT id, status FROM task WHERE id = :id AND deleted_at IS NULL', { id: taskId });
   if (!t) return null;
@@ -1013,10 +1016,13 @@ function rollUpStatus(taskId, actor) {
   else if (!allDone && t.status === 'DONE') next = 'IN_PROGRESS';
   else if (anyMoved && t.status === 'TODO') next = 'IN_PROGRESS';
   if (!next) return null;
-  const at = nowISO();
+  const now = nowISO();
+  // 하위가 모두 끝나 상위가 완료될 때 — 마지막 하위 완료 시각을 상위 완료 시각으로(demo store rollUpStatus 와 같은 규칙)
+  const lastDone = subs.map((s) => s.done_at).filter(Boolean).sort().at(-1);
+  const at = next === 'DONE' && lastDone && lastDone < now ? lastDone : now;
   // 완료 시각은 완료와 함께 움직인다 (CHECK 제약과 짝을 맞춘다)
-  run('UPDATE task SET status = :st, completed_at = :done, updated_at = :at WHERE id = :id',
-    { id: taskId, st: next, done: next === 'DONE' ? at : null, at });
+  run('UPDATE task SET status = :st, completed_at = :done, updated_at = :now WHERE id = :id',
+    { id: taskId, st: next, done: next === 'DONE' ? at : null, now });
   if (actor) logEvent(taskId, 'STATUS_CHANGED', t.status, next, actor, at);
   return next;
 }
